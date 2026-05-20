@@ -2343,7 +2343,68 @@ function loadDB() {
     sessionBank: mkSampleBank()
   };
 }
-function saveDB() { localStorage.setItem(STORAGE_KEY, JSON.stringify(db)); }
+function saveDB() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+  // Sync avec le backend Railway (best-effort, ne bloque pas l'UI)
+  syncToBackend().catch(err => console.warn('Sync backend:', err.message));
+}
+
+// Sync state complet vers le backend
+async function syncToBackend() {
+  // Sync chaque grimpeur
+  for (const c of db.climbers || []) {
+    await fetch('/api/climbers', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({id:c.id, name:c.name, color:c.color, level:c.level})
+    }).catch(()=>{});
+    // Sync ses logs
+    await fetch(`/api/logs/${c.id}/sync`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({logs: c.logs || []})
+    }).catch(()=>{});
+  }
+  // Sync banque de séances
+  await fetch('/api/bank/sync', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({items: db.sessionBank || []})
+  }).catch(()=>{});
+}
+
+// Charge les données depuis le backend au démarrage
+async function loadFromBackend() {
+  try {
+    const [climbersRes, bankRes] = await Promise.all([
+      fetch('/api/climbers'),
+      fetch('/api/bank')
+    ]);
+    if (!climbersRes.ok) return false;
+    const climbers = await climbersRes.json();
+    const bank = await bankRes.json();
+    if (!climbers.length) return false;
+
+    // Charge les logs pour chaque grimpeur
+    const climbersWithLogs = await Promise.all(climbers.map(async c => {
+      const logsRes = await fetch(`/api/logs/${c.id}`);
+      const logs = logsRes.ok ? await logsRes.json() : [];
+      return {...c, logs};
+    }));
+
+    db.climbers = climbersWithLogs;
+    db.sessionBank = bank;
+    if (!db.activeId || !db.climbers.find(c=>c.id===db.activeId)) {
+      db.activeId = db.climbers[0]?.id;
+    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+    console.log('✅ Données chargées depuis Railway');
+    return true;
+  } catch(err) {
+    console.warn('Backend indisponible, données locales utilisées:', err.message);
+    return false;
+  }
+}
 
 // ═══════════════ COMPUTATIONS ═══════════════
 function getRefGrade(logs=null, daysBack=90) {
@@ -4373,9 +4434,17 @@ function renderAiCoach() {
 }
 
 // ═══════════════ INIT ═══════════════
-renderColorPicker();
-renderSidebarStats();
-renderDashboard();
+// Au démarrage : essaie de charger depuis le backend, sinon utilise le localStorage
+(async () => {
+  const fromBackend = await loadFromBackend();
+  if (!fromBackend) {
+    // Fallback : données locales (déjà chargées dans db)
+    console.log('📱 Mode hors-ligne — données locales');
+  }
+  renderColorPicker();
+  renderSidebarStats();
+  renderDashboard();
+})();
 </script>
 </body>
 </html>
