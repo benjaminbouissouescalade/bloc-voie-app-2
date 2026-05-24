@@ -1540,7 +1540,10 @@ Utilise les raccourcis ci-dessus ou pose-moi directement une question. Par exemp
     <div class="modal-body">
       <div id="climber-cards-grid" class="climber-card-grid"></div>
       <div style="border-top:1px solid var(--border);padding-top:16px">
-        <div class="panel-title" style="margin-bottom:12px" id="climber-form-title">Nouveau grimpeur</div>
+       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+  <div class="panel-title" id="climber-form-title">Nouveau grimpeur</div>
+  <button class="btn sm primary" id="invite-athlete-btn" onclick="openInviteModal()">+ Créer un compte athlète</button>
+</div>
         <input type="hidden" id="cf-edit-id">
         <div class="form-row form-row-2">
           <div class="form-group" style="margin:0">
@@ -1600,6 +1603,32 @@ Utilise les raccourcis ci-dessus ou pose-moi directement une question. Par exemp
 <button class="btn sm" id="cf-change-pwd-btn" style="display:none;margin-left:8px" onclick="openChangePwdModal()">🔑 Changer le mot de passe</button>
         </div>
       </div>
+    </div>
+  </div>
+</div>
+  <!-- Modal invitation athlète -->
+<div class="modal-backdrop" id="invite-modal">
+  <div class="modal" style="width:min(400px,100%)">
+    <div class="modal-header">
+      <span class="modal-title">Créer un compte athlète</span>
+      <button class="btn sm" onclick="closeModal('invite-modal')">Fermer</button>
+    </div>
+    <div class="modal-body">
+      <div id="invite-error" style="background:var(--warm2);color:var(--warm);border-radius:8px;padding:10px;font-size:13px;margin-bottom:12px;display:none"></div>
+      <div id="invite-success" style="background:var(--accent2);color:var(--accent);border-radius:8px;padding:10px;font-size:13px;margin-bottom:12px;display:none"></div>
+      <div class="form-group">
+        <label class="form-label">Prénom / Pseudo</label>
+        <input class="form-control" type="text" id="invite-name" placeholder="Ex. Marie">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Email</label>
+        <input class="form-control" type="email" id="invite-email" placeholder="marie@email.com">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Mot de passe</label>
+        <input class="form-control" type="password" id="invite-password" placeholder="••••••••">
+      </div>
+      <button class="btn primary" style="width:100%" onclick="submitInvite()">Créer le compte</button>
     </div>
   </div>
 </div>
@@ -4203,6 +4232,41 @@ function resetClimberForm() {
   document.getElementById('cf-cancel-btn').style.display = 'none';
   document.getElementById('cf-delete-btn').style.display = 'none';
   renderColorPicker();
+}
+  function openInviteModal() {
+  document.getElementById('invite-name').value = '';
+  document.getElementById('invite-email').value = '';
+  document.getElementById('invite-password').value = '';
+  document.getElementById('invite-error').style.display = 'none';
+  document.getElementById('invite-success').style.display = 'none';
+  document.getElementById('invite-modal').classList.add('open');
+}
+
+async function submitInvite() {
+  const name     = document.getElementById('invite-name').value.trim();
+  const email    = document.getElementById('invite-email').value.trim();
+  const password = document.getElementById('invite-password').value;
+  const errEl    = document.getElementById('invite-error');
+  const okEl     = document.getElementById('invite-success');
+  errEl.style.display = 'none';
+  okEl.style.display = 'none';
+  if (!name || !email || !password) { errEl.textContent = 'Tous les champs sont requis'; errEl.style.display = ''; return; }
+  if (password.length < 6) { errEl.textContent = 'Le mot de passe doit faire au moins 6 caractères'; errEl.style.display = ''; return; }
+  const token = localStorage.getItem('bv_token');
+  try {
+    const r = await fetch('/api/auth/invite', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ name, email, password })
+    });
+    const d = await r.json();
+    if (!r.ok) { errEl.textContent = d.error || 'Erreur'; errEl.style.display = ''; return; }
+    okEl.textContent = 'Compte créé pour ' + name + ' !';
+    okEl.style.display = '';
+    setTimeout(() => closeModal('invite-modal'), 2000);
+  } catch(e) {
+    errEl.textContent = 'Erreur réseau'; errEl.style.display = '';
+  }
 }
   function openChangePwdModal() {
   document.getElementById('pwd-current').value = '';
