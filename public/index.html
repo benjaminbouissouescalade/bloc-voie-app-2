@@ -4263,7 +4263,6 @@ function resetClimberForm() {
   document.getElementById('import-8a-preview').style.display = 'none';
   document.getElementById('import-8a-modal').classList.add('open');
 }
-
 function submitImport8a() {
   const file = document.getElementById('import-8a-file').files[0];
   const errEl = document.getElementById('import-8a-error');
@@ -4274,58 +4273,73 @@ function submitImport8a() {
   const reader = new FileReader();
   reader.onload = function(e) {
     try {
-      const lines = e.target.result.split('\n').filter(l => l.trim());
-      const headers = lines[0].split(',').map(h => h.replace(/"/g,'').trim());
-      const rows = lines.slice(1);
       const typeMap = { 'rp':'tete', 'os':'av', 'f':'flash' };
-      const gradeMap = g => g ? g.toLowerCase().replace('a+','a+').trim() : null;
+
+      // Parser CSV robuste qui gère les guillemets et virgules dans les champs
+      function parseCSV(text) {
+        const rows = [];
+        let row = [], field = '', inQuotes = false;
+        for (let i = 0; i < text.length; i++) {
+          const ch = text[i];
+          if (ch === '"') { inQuotes = !inQuotes; }
+          else if (ch === ',' && !inQuotes) { row.push(field.trim()); field = ''; }
+          else if ((ch === '\n' || ch === '\r') && !inQuotes) {
+            if (field || row.length) { row.push(field.trim()); rows.push(row); }
+            row = []; field = '';
+            if (ch === '\r' && text[i+1] === '\n') i++;
+          } else { field += ch; }
+        }
+        if (field || row.length) { row.push(field.trim()); rows.push(row); }
+        return rows;
+      }
+
+      const rows = parseCSV(e.target.result);
+      const dataRows = rows.slice(1).filter(r => r.length >= 14);
       const byDate = {};
       let count = 0;
-      rows.forEach(row => {
-        const cols = row.match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g)||[];
-        const clean = cols.map(c => c.replace(/^"|"$/g,'').trim());
-        const type     = clean[0];
-        const name     = clean[1];
-        const location = clean[2];
-        const date     = clean[6]?.slice(0,10);
-        const ascType  = clean[7];
-        const grade    = gradeMap(clean[13]);
-        if (!date || !grade) return;
+
+      dataRows.forEach(cols => {
+        const type     = cols[0];
+        const name     = cols[1];
+        const location = cols[2];
+        const date     = cols[6]?.slice(0,10);
+        const ascType  = cols[7];
+        const grade    = cols[13]?.toLowerCase().trim();
+        if (!date || !grade || grade === 'null' || grade === '') return;
         const sessionType = type === 'BOULDER' ? 'bloc' : 'falaise';
-        if (!byDate[date]) byDate[date] = { bloc:[], falaise:[] };
+        const key = date + '_' + sessionType;
+        if (!byDate[key]) byDate[key] = { date, sessionType, location, ascents: [] };
         const status = typeMap[ascType] || 'tete';
-        byDate[date][sessionType].push({ grade, status, name, location });
+        byDate[key].ascents.push({ grade, status, name });
         count++;
       });
+
       const active = getActive();
-      Object.entries(byDate).forEach(([date, types]) => {
-        ['bloc','falaise'].forEach(stype => {
-          if (!types[stype].length) return;
-          const existing = active.logs.find(l => l.date === date && l.type === stype);
-          if (existing) {
-            types[stype].forEach(a => {
-              if (!existing.ascents.find(x => x.grade === a.grade && x.status === a.status)) {
-                existing.ascents.push({ grade: a.grade, status: a.status, tries: 1, progress: 100, styles: [] });
-              }
-            });
-          } else {
-            active.logs.push({
-              id: 'imp_' + Date.now() + '_' + Math.random().toString(36).slice(2,6),
-              date, type: stype, minutes: 120, intensity: 3, shape: 'normal',
-              location: types[stype][0]?.location || '',
-              support: '', notes: 'Importé depuis 8a.nu',
-              ascents: types[stype].map(a => ({ grade: a.grade, status: a.status, tries: 1, progress: 100, styles: [] })),
-              bNoGrade: { sent:0, tries:0, progress:60, diff:'classic', styles:[] }
-            });
-          }
-        });
+      Object.values(byDate).forEach(sess => {
+        const existing = active.logs.find(l => l.date === sess.date && l.type === sess.sessionType);
+        if (existing) {
+          sess.ascents.forEach(a => {
+            if (!existing.ascents.find(x => x.grade === a.grade && x.status === a.status)) {
+              existing.ascents.push({ grade: a.grade, status: a.status, tries: 1, progress: 100, styles: [] });
+            }
+          });
+        } else {
+          active.logs.push({
+            id: 'imp_' + Date.now() + '_' + Math.random().toString(36).slice(2,6),
+            date: sess.date, type: sess.sessionType, minutes: 120, intensity: 3, shape: 'normal',
+            location: sess.location || '', support: '', notes: 'Importé depuis 8a.nu',
+            ascents: sess.ascents.map(a => ({ grade: a.grade, status: a.status, tries: 1, progress: 100, styles: [] })),
+            bNoGrade: { sent:0, tries:0, progress:60, diff:'classic', styles:[] }
+          });
+        }
       });
+
       saveDB();
       okEl.textContent = count + ' ascensions importées en ' + Object.keys(byDate).length + ' séances !';
       okEl.style.display = '';
       setTimeout(() => closeModal('import-8a-modal'), 3000);
     } catch(err) {
-      errEl.textContent = 'Erreur lors de la lecture : ' + err.message;
+      errEl.textContent = 'Erreur : ' + err.message;
       errEl.style.display = '';
     }
   };
