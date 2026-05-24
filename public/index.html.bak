@@ -1,14 +1,3 @@
-<div id="auth-screen" style="position:fixed;inset:0;background:#f4f2ee;display:flex;align-items:center;justify-content:center;z-index:200;font-family:system-ui,sans-serif">
-<div style="background:#fff;border-radius:16px;padding:40px;width:min(400px,90%);box-shadow:0 4px 24px rgba(0,0,0,.12)">
-<div style="font-size:26px;font-weight:700;color:#2d5a3d;margin-bottom:4px">Bloc &amp; Voie</div>
-<div style="font-size:13px;color:#7a7566;margin-bottom:24px">Carnet escalade</div>
-<div id="ae" style="background:#fef3ec;color:#c4501a;border-radius:8px;padding:10px;font-size:13px;margin-bottom:12px;display:none"></div>
-<label style="font-size:11px;font-weight:600;color:#7a7566;display:block;margin-bottom:4px">EMAIL</label>
-<input id="le" type="email" placeholder="ton@email.com" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;margin-bottom:12px">
-<label style="font-size:11px;font-weight:600;color:#7a7566;display:block;margin-bottom:4px">MOT DE PASSE</label>
-<input id="lp" type="password" placeholder="••••••••" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;margin-bottom:20px">
-<button id="lb" style="width:100%;background:#2d5a3d;color:#fff;border:none;padding:12px;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer">Se connecter</button>
-</div></div>
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -4455,31 +4444,6 @@ function renderAiCoach() {
   renderColorPicker();
   renderSidebarStats();
   renderDashboard();
-})();
-</script>
-<script>
-(function(){
-function gt(){return localStorage.getItem("bv_token")}
-function st(t){localStorage.setItem("bv_token",t)}
-function se(m){var e=document.getElementById("ae");e.textContent=m;e.style.display=""}
-async function login(){
-  var e=document.getElementById("le").value.trim();
-  var p=document.getElementById("lp").value;
-  if(!e||!p)return se("Email et mot de passe requis");
-  try{
-    var r=await fetch("/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:e,password:p})});
-    var d=await r.json();
-    if(!r.ok)return se(d.error||"Erreur");
-    st(d.token);
-    document.getElementById("auth-screen").style.display="none";
-  }catch(e){se("Erreur reseau")}
-}
-window.addEventListener("DOMContentLoaded",function(){
-  document.getElementById("lb").addEventListener("click",login);
-  document.getElementById("lp").addEventListener("keydown",function(e){if(e.key==="Enter")login()});
-  if(!gt()){document.getElementById("auth-screen").style.display="flex"}
-  else{document.getElementById("auth-screen").style.display="none"}
-});
 })();
 </script>
 </body>
