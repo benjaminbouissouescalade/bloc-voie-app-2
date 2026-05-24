@@ -2943,7 +2943,12 @@ function renderPyramidPage() {
 
   // Stats table
   const ref=getRefGrade();
-  const rows=usedGrades.map(g=>{const d=byGrade[g];const total=(d.tete||0)+(d.moulinette||0)+(d.flash||0)+(d.av||0);return `<div class="pyr-row" style="grid-template-columns:60px 40px 40px 40px 40px 1fr;margin-bottom:6px;font-size:13px">
+  const rows=usedGrades.map(g=>{const d=byGrade[g];const total=(d.tete||0)+(d.moulinette||0)+(d.flash||0)+(d.av||0)+(d.try||0);return `<div class="pyr-row" style="grid-template-columns:60px 40px 40px 40px 40px 40px 1fr;margin-bottom:6px;font-size:13px">
+    <span class="grade ${gradeClass(g)}">${g}</span>
+    <span>${d.tete||0}</span><span>${d.moulinette||0}</span><span>${d.av||0}</span><span>${d.flash||0}</span><span>${d.try||0}</span>
+    <span style="color:var(--muted)">${total} enc.</span>
+  </div>`;});
+  document.getElementById('grade-stats-table').innerHTML=rows.length?`<div class="pyr-row" style="grid-template-columns:60px 40px 40px 40px 40px 40px 1fr;font-weight:600;font-size:11px;color:var(--muted);margin-bottom:8px"><span>Grade</span><span>Tête</span><span>Mouli.</span><span>À vue</span><span>Flash</span><span>Essai</span><span></span></div>`+rows.join(''):'<p style="color:var(--muted);font-size:13px">Pas de données</p>';
     <span class="grade ${gradeClass(g)}">${g}</span>
     <span>${d.tete||0}</span><span>${d.moulinette||0}</span><span>${(d.flash||0)+(d.av||0)}</span><span>${d.try||0}</span>
     <span style="color:var(--muted)">${total} enc.</span>
