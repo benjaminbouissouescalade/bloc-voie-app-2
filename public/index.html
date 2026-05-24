@@ -420,10 +420,15 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       Historique
     </button>
   </div>
-  <div class="sidebar-footer">
-    <button class="btn sm" style="width:100%;justify-content:center" onclick="openClimberModal()">
+ <div class="sidebar-footer">
+    <div id="sidebar-user" style="font-size:12px;color:var(--muted);margin-bottom:8px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
+    <button class="btn sm" style="width:100%;justify-content:center;margin-bottom:6px" onclick="openClimberModal()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:14px;height:14px"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/><path d="M19 8h2m-1-1v2"/></svg>
       Gérer les grimpeurs
+    </button>
+    <button class="btn sm danger" style="width:100%;justify-content:center" onclick="logout()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:14px;height:14px"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      Se déconnecter
     </button>
   </div>
 </aside>
@@ -4462,6 +4467,11 @@ function renderAiCoach() {
 function gt(){return localStorage.getItem("bv_token")}
 function st(t){localStorage.setItem("bv_token",t)}
 function se(m){var e=document.getElementById("ae");e.textContent=m;e.style.display=""}
+function logout(){
+  localStorage.removeItem("bv_token");
+  document.getElementById("auth-screen").style.display="flex";
+}
+window.logout=logout;
 async function login(){
   var e=document.getElementById("le").value.trim();
   var p=document.getElementById("lp").value;
@@ -4472,13 +4482,17 @@ async function login(){
     if(!r.ok)return se(d.error||"Erreur");
     st(d.token);
     document.getElementById("auth-screen").style.display="none";
+    try{var u=JSON.parse(atob(d.token.split(".")[1]));var el=document.getElementById("sidebar-user");if(el)el.textContent=u.name+" ("+u.role+")";}catch(ex){}
   }catch(e){se("Erreur reseau")}
 }
 window.addEventListener("DOMContentLoaded",function(){
   document.getElementById("lb").addEventListener("click",login);
   document.getElementById("lp").addEventListener("keydown",function(e){if(e.key==="Enter")login()});
   if(!gt()){document.getElementById("auth-screen").style.display="flex"}
-  else{document.getElementById("auth-screen").style.display="none"}
+  else{
+    document.getElementById("auth-screen").style.display="none";
+    try{var u=JSON.parse(atob(gt().split(".")[1]));var el=document.getElementById("sidebar-user");if(el)el.textContent=u.name+" ("+u.role+")";}catch(ex){}
+  }
 });
 })();
 </script>
