@@ -14,8 +14,10 @@ async function initDB() {
         email       TEXT UNIQUE NOT NULL,
         password    TEXT NOT NULL,
         role        TEXT DEFAULT 'athlete',
+        climber_id  TEXT,
         created_at  TIMESTAMPTZ DEFAULT NOW()
       );
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS climber_id TEXT;
       CREATE TABLE IF NOT EXISTS climbers (
         id          TEXT PRIMARY KEY,
         name        TEXT NOT NULL,
@@ -63,6 +65,11 @@ async function initDB() {
         priority      TEXT,
         notes         TEXT DEFAULT '',
         updated_at    TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS coach_athletes (
+        coach_id    TEXT NOT NULL,
+        climber_id  TEXT NOT NULL,
+        PRIMARY KEY (coach_id, climber_id)
       );
     `);
     console.log('✅ Base de données initialisée');
