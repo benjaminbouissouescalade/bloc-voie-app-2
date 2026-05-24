@@ -1,6 +1,4 @@
-Voici le fichier `server.js` complet à copier-coller :
 
-```javascript
 // src/server.js
 require('dotenv').config();
 
