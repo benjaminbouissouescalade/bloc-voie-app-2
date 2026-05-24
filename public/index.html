@@ -1597,12 +1597,38 @@ Utilise les raccourcis ci-dessus ou pose-moi directement une question. Par exemp
           <button class="btn primary" id="cf-save-btn">Enregistrer</button>
           <button class="btn" id="cf-cancel-btn" style="display:none" onclick="resetClimberForm()">Annuler</button>
           <button class="btn danger" id="cf-delete-btn" style="display:none;margin-left:auto;background:var(--warm2);border-color:rgba(196,80,26,.3)">🗑 Supprimer ce grimpeur</button>
+<button class="btn sm" id="cf-change-pwd-btn" style="display:none;margin-left:8px" onclick="openChangePwdModal()">🔑 Changer le mot de passe</button>
         </div>
       </div>
     </div>
   </div>
 </div>
-
+<!-- Modal changement de mot de passe -->
+<div class="modal-backdrop" id="change-pwd-modal">
+  <div class="modal" style="width:min(400px,100%)">
+    <div class="modal-header">
+      <span class="modal-title">Changer le mot de passe</span>
+      <button class="btn sm" onclick="closeModal('change-pwd-modal')">Fermer</button>
+    </div>
+    <div class="modal-body">
+      <div id="change-pwd-error" style="background:var(--warm2);color:var(--warm);border-radius:8px;padding:10px;font-size:13px;margin-bottom:12px;display:none"></div>
+      <div id="change-pwd-success" style="background:var(--accent2);color:var(--accent);border-radius:8px;padding:10px;font-size:13px;margin-bottom:12px;display:none"></div>
+      <div class="form-group">
+        <label class="form-label">Mot de passe actuel</label>
+        <input class="form-control" type="password" id="pwd-current" placeholder="••••••••">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Nouveau mot de passe</label>
+        <input class="form-control" type="password" id="pwd-new" placeholder="••••••••">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Confirmer le nouveau mot de passe</label>
+        <input class="form-control" type="password" id="pwd-confirm" placeholder="••••••••">
+      </div>
+      <button class="btn primary" style="width:100%" onclick="submitChangePwd()">Changer le mot de passe</button>
+    </div>
+  </div>
+</div>
 <!-- Modal day sessions -->
 <div class="modal-backdrop" id="day-modal">
   <div class="modal">
@@ -4178,6 +4204,42 @@ function resetClimberForm() {
   document.getElementById('cf-delete-btn').style.display = 'none';
   renderColorPicker();
 }
+  function openChangePwdModal() {
+  document.getElementById('pwd-current').value = '';
+  document.getElementById('pwd-new').value = '';
+  document.getElementById('pwd-confirm').value = '';
+  document.getElementById('change-pwd-error').style.display = 'none';
+  document.getElementById('change-pwd-success').style.display = 'none';
+  document.getElementById('change-pwd-modal').classList.add('open');
+}
+
+async function submitChangePwd() {
+  const current = document.getElementById('pwd-current').value;
+  const newPwd  = document.getElementById('pwd-new').value;
+  const confirm = document.getElementById('pwd-confirm').value;
+  const errEl   = document.getElementById('change-pwd-error');
+  const okEl    = document.getElementById('change-pwd-success');
+  errEl.style.display = 'none';
+  okEl.style.display = 'none';
+  if (!current || !newPwd || !confirm) { errEl.textContent = 'Tous les champs sont requis'; errEl.style.display = ''; return; }
+  if (newPwd !== confirm) { errEl.textContent = 'Les mots de passe ne correspondent pas'; errEl.style.display = ''; return; }
+  if (newPwd.length < 6) { errEl.textContent = 'Le mot de passe doit faire au moins 6 caractères'; errEl.style.display = ''; return; }
+  const token = localStorage.getItem('bv_token');
+  try {
+    const r = await fetch('/api/auth/change-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ currentPassword: current, newPassword: newPwd })
+    });
+    const d = await r.json();
+    if (!r.ok) { errEl.textContent = d.error || 'Erreur'; errEl.style.display = ''; return; }
+    okEl.textContent = 'Mot de passe changé avec succès !';
+    okEl.style.display = '';
+    setTimeout(() => closeModal('change-pwd-modal'), 2000);
+  } catch(e) {
+    errEl.textContent = 'Erreur réseau'; errEl.style.display = '';
+  }
+}
 
 function editClimberForm(id) {
   const c = db.climbers.find(x=>x.id===id); if(!c) return;
@@ -4188,6 +4250,7 @@ function editClimberForm(id) {
   document.getElementById('climber-form-title').textContent = `Modifier — ${c.name}`;
   document.getElementById('cf-cancel-btn').style.display = '';
   document.getElementById('cf-delete-btn').style.display = db.climbers.length > 1 ? '' : 'none';
+  document.getElementById('cf-change-pwd-btn').style.display = '';
   renderColorPicker();
   document.getElementById('cf-name').focus();
 }
