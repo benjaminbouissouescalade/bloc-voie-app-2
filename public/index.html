@@ -1606,6 +1606,26 @@ Utilise les raccourcis ci-dessus ou pose-moi directement une question. Par exemp
     </div>
   </div>
 </div>
+  <!-- Modal import 8a.nu -->
+<div class="modal-backdrop" id="import-8a-modal">
+  <div class="modal" style="width:min(600px,100%)">
+    <div class="modal-header">
+      <span class="modal-title">Importer depuis 8a.nu</span>
+      <button class="btn sm" onclick="closeModal('import-8a-modal')">Fermer</button>
+    </div>
+    <div class="modal-body">
+      <div id="import-8a-error" style="background:var(--warm2);color:var(--warm);border-radius:8px;padding:10px;font-size:13px;margin-bottom:12px;display:none"></div>
+      <div id="import-8a-success" style="background:var(--accent2);color:var(--accent);border-radius:8px;padding:10px;font-size:13px;margin-bottom:12px;display:none"></div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:16px">Télécharge ton historique depuis 8a.nu et importe-le ici. Le fichier CSV sera converti en séances.</p>
+      <div class="form-group">
+        <label class="form-label">Fichier CSV 8a.nu</label>
+        <input class="form-control" type="file" id="import-8a-file" accept=".csv">
+      </div>
+      <div id="import-8a-preview" style="display:none;margin-bottom:16px;font-size:13px;color:var(--muted)"></div>
+      <button class="btn primary" style="width:100%" onclick="submitImport8a()">Importer</button>
+    </div>
+  </div>
+</div>
   <!-- Modal invitation athlète -->
 <div class="modal-backdrop" id="invite-modal">
   <div class="modal" style="width:min(400px,100%)">
