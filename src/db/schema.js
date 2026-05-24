@@ -1,18 +1,21 @@
 // src/db/schema.js
-// Initialise la base de données PostgreSQL au démarrage
-
 const { Pool } = require('pg');
-
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
-
 async function initDB() {
   const client = await pool.connect();
   try {
     await client.query(`
-      -- Table des grimpeurs
+      CREATE TABLE IF NOT EXISTS users (
+        id          TEXT PRIMARY KEY,
+        name        TEXT NOT NULL,
+        email       TEXT UNIQUE NOT NULL,
+        password    TEXT NOT NULL,
+        role        TEXT DEFAULT 'athlete',
+        created_at  TIMESTAMPTZ DEFAULT NOW()
+      );
       CREATE TABLE IF NOT EXISTS climbers (
         id          TEXT PRIMARY KEY,
         name        TEXT NOT NULL,
@@ -21,8 +24,6 @@ async function initDB() {
         created_at  TIMESTAMPTZ DEFAULT NOW(),
         updated_at  TIMESTAMPTZ DEFAULT NOW()
       );
-
-      -- Table des séances (logs)
       CREATE TABLE IF NOT EXISTS logs (
         id          TEXT PRIMARY KEY,
         climber_id  TEXT NOT NULL REFERENCES climbers(id) ON DELETE CASCADE,
@@ -39,11 +40,7 @@ async function initDB() {
         created_at  TIMESTAMPTZ DEFAULT NOW(),
         updated_at  TIMESTAMPTZ DEFAULT NOW()
       );
-
-      -- Index pour accélérer les requêtes par grimpeur et date
       CREATE INDEX IF NOT EXISTS idx_logs_climber_date ON logs(climber_id, date DESC);
-
-      -- Table de la banque de séances (partagée entre tous les grimpeurs)
       CREATE TABLE IF NOT EXISTS session_bank (
         id          TEXT PRIMARY KEY,
         name        TEXT NOT NULL,
@@ -59,8 +56,6 @@ async function initDB() {
         created_at  TIMESTAMPTZ DEFAULT NOW(),
         updated_at  TIMESTAMPTZ DEFAULT NOW()
       );
-
-      -- Table des objectifs par grimpeur
       CREATE TABLE IF NOT EXISTS goals (
         id            TEXT PRIMARY KEY,
         climber_id    TEXT NOT NULL REFERENCES climbers(id) ON DELETE CASCADE,
@@ -78,5 +73,4 @@ async function initDB() {
     client.release();
   }
 }
-
 module.exports = { pool, initDB };
