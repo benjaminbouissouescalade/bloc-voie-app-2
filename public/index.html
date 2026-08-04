@@ -9,6 +9,72 @@
 <input id="lp" type="password" placeholder="••••••••" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;margin-bottom:20px">
 <button id="lb" style="width:100%;background:#2d5a3d;color:#fff;border:none;padding:12px;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer">Se connecter</button>
 </div></div>
+
+<div id="onboarding-screen" style="position:fixed;inset:0;background:#f4f2ee;display:none;align-items:center;justify-content:center;z-index:200;font-family:system-ui,sans-serif;padding:20px;box-sizing:border-box">
+<div style="background:#fff;border-radius:16px;padding:36px;width:min(640px,100%);max-height:92vh;overflow-y:auto;box-shadow:0 4px 24px rgba(0,0,0,.12);box-sizing:border-box">
+  <div style="font-size:24px;font-weight:700;color:#2d5a3d;margin-bottom:4px">Bienvenue sur Bloc &amp; Voie</div>
+  <div style="font-size:13px;color:#7a7566;margin-bottom:24px">Invité(e) par <strong id="ob-coach-name">ton coach</strong> — quelques infos pour démarrer.</div>
+  <div id="ob-error" style="background:#fef3ec;color:#c4501a;border-radius:8px;padding:10px;font-size:13px;margin-bottom:16px;display:none"></div>
+
+  <div style="font-size:12px;font-weight:700;color:#2d5a3d;text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Compte</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+    <div>
+      <label style="font-size:11px;font-weight:600;color:#7a7566;display:block;margin-bottom:4px">PRÉNOM / PSEUDO</label>
+      <input id="ob-name" type="text" placeholder="Marie" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box">
+    </div>
+    <div>
+      <label style="font-size:11px;font-weight:600;color:#7a7566;display:block;margin-bottom:4px">EMAIL</label>
+      <input id="ob-email" type="email" placeholder="ton@email.com" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box">
+    </div>
+  </div>
+  <div style="margin-bottom:20px">
+    <label style="font-size:11px;font-weight:600;color:#7a7566;display:block;margin-bottom:4px">MOT DE PASSE</label>
+    <input id="ob-password" type="password" placeholder="••••••••" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box">
+  </div>
+
+  <div style="font-size:12px;font-weight:700;color:#2d5a3d;text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Niveau & mensurations</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px">
+    <div>
+      <label style="font-size:11px;font-weight:600;color:#7a7566;display:block;margin-bottom:4px">NIVEAU ACTUEL</label>
+      <select id="ob-level" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box"></select>
+    </div>
+    <div>
+      <label style="font-size:11px;font-weight:600;color:#7a7566;display:block;margin-bottom:4px">TAILLE (CM)</label>
+      <input id="ob-height" type="number" min="100" max="230" placeholder="175" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box">
+    </div>
+    <div>
+      <label style="font-size:11px;font-weight:600;color:#7a7566;display:block;margin-bottom:4px">POIDS (KG)</label>
+      <input id="ob-weight" type="number" min="30" max="200" placeholder="68" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box">
+    </div>
+  </div>
+
+  <div style="font-size:12px;font-weight:700;color:#2d5a3d;text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Matériel / outils disponibles</div>
+  <div id="ob-equip" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:20px"></div>
+
+  <div style="font-size:12px;font-weight:700;color:#2d5a3d;text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Temps disponible pour l'entraînement</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
+    <div>
+      <label style="font-size:11px;font-weight:600;color:#7a7566;display:block;margin-bottom:4px">SÉANCES / SEMAINE</label>
+      <input id="ob-sessions-week" type="number" min="1" max="14" placeholder="3" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box">
+    </div>
+    <div>
+      <label style="font-size:11px;font-weight:600;color:#7a7566;display:block;margin-bottom:4px">DURÉE MOY. / SÉANCE (MIN)</label>
+      <input id="ob-minutes-session" type="number" min="15" max="300" placeholder="90" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box">
+    </div>
+  </div>
+
+  <div style="font-size:12px;font-weight:700;color:#2d5a3d;text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Objectifs <span style="font-weight:400;text-transform:none;color:#7a7566">(optionnel)</span></div>
+  <div id="ob-goals-list" style="margin-bottom:8px"></div>
+  <div style="display:flex;gap:8px;margin-bottom:24px">
+    <input id="ob-goal-text" type="text" placeholder="Ex. Enchaîner un 7c" style="flex:2;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box">
+    <input id="ob-goal-date" type="date" style="flex:1;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box">
+    <button onclick="obAddGoal()" style="background:#f4f2ee;border:1px solid #ddd;border-radius:8px;padding:0 14px;font-size:13px;font-weight:600;cursor:pointer">+ Ajouter</button>
+  </div>
+
+  <button id="ob-submit" onclick="submitOnboarding()" style="width:100%;background:#2d5a3d;color:#fff;border:none;padding:13px;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer">Créer mon compte</button>
+</div>
+</div>
+
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -457,6 +523,9 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
    <button class="btn sm" style="width:100%;justify-content:center;margin-bottom:6px" onclick="openImport8aModal()">
   📥 Importer 8a.nu
 </button>
+    <button class="btn sm" id="preview-toggle-btn" style="width:100%;justify-content:center;margin-bottom:6px;display:none" onclick="togglePreviewMode()">
+  👁 Voir comme l'athlète
+</button>
     <button class="btn sm danger" style="width:100%;justify-content:center" onclick="logout()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:14px;height:14px"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
       Se déconnecter
@@ -466,6 +535,11 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 
 <!-- Main -->
 <main class="main">
+
+<div id="preview-mode-banner" style="display:none;position:sticky;top:0;z-index:50;background:#2d5a3d;color:#fff;padding:10px 16px;border-radius:10px;margin-bottom:16px;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:space-between;gap:12px">
+  <span>👁 Mode aperçu — vue de <span id="preview-mode-name">l'athlète</span> côté athlète</span>
+  <button class="btn sm" style="background:#fff;color:#2d5a3d;border:none" onclick="togglePreviewMode()">Quitter l'aperçu</button>
+</div>
 
 <!-- ═══════════════ DASHBOARD ═══════════════ -->
 <div class="page active" id="page-dashboard">
@@ -1702,7 +1776,10 @@ Utilise les raccourcis ci-dessus ou pose-moi directement une question. Par exemp
       <div style="border-top:1px solid var(--border);padding-top:16px">
        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
   <div class="panel-title" id="climber-form-title">Nouveau grimpeur</div>
-  <button class="btn sm primary" id="invite-athlete-btn" onclick="openInviteModal()">+ Créer un compte athlète</button>
+  <div style="display:flex;gap:8px" id="invite-athlete-btn-wrap">
+    <button class="btn sm primary" id="invite-link-btn" onclick="openInviteLinkModal()">🔗 Inviter par lien</button>
+    <button class="btn sm" id="invite-athlete-btn" onclick="openInviteModal()">+ Créer un compte manuellement</button>
+  </div>
 </div>
         <input type="hidden" id="cf-edit-id">
         <div class="form-row form-row-2">
@@ -1809,6 +1886,86 @@ Utilise les raccourcis ci-dessus ou pose-moi directement une question. Par exemp
         <input class="form-control" type="password" id="invite-password" placeholder="••••••••">
       </div>
       <button class="btn primary" style="width:100%" onclick="submitInvite()">Créer le compte</button>
+    </div>
+  </div>
+</div>
+<!-- Modal lien d'invitation -->
+<div class="modal-backdrop" id="invite-link-modal">
+  <div class="modal" style="width:min(460px,100%)">
+    <div class="modal-header">
+      <span class="modal-title">Inviter un(e) athlète par lien</span>
+      <button class="btn sm" onclick="closeModal('invite-link-modal')">Fermer</button>
+    </div>
+    <div class="modal-body">
+      <div id="invite-link-error" style="background:var(--warm2);color:var(--warm);border-radius:8px;padding:10px;font-size:13px;margin-bottom:12px;display:none"></div>
+      <div id="invite-link-step-form">
+        <p style="font-size:13px;color:var(--muted);margin-bottom:16px">Génère un lien unique valable 14 jours. La personne l'ouvre, remplit son profil (niveau, matériel, objectifs…) et crée son compte elle-même.</p>
+        <div class="form-group">
+          <label class="form-label">Email de la personne invitée <span style="font-weight:400;color:var(--muted)">(optionnel, pré-remplit son formulaire)</span></label>
+          <input class="form-control" type="email" id="invite-link-email" placeholder="marie@email.com">
+        </div>
+        <button class="btn primary" style="width:100%" onclick="generateInviteLink()">Générer le lien</button>
+      </div>
+      <div id="invite-link-step-result" style="display:none">
+        <label class="form-label">Lien à envoyer</label>
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <input class="form-control" type="text" id="invite-link-url" readonly style="flex:1">
+          <button class="btn" id="invite-link-copy-btn" onclick="copyInviteLink()">Copier</button>
+        </div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:16px">Copie ce lien et envoie-le toi-même par email, SMS ou le canal de ton choix. Il expire dans 14 jours.</p>
+        <button class="btn" style="width:100%" onclick="resetInviteLinkModal()">Générer un autre lien</button>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- Modal profil détaillé (édition coach) -->
+<div class="modal-backdrop" id="profile-detail-modal">
+  <div class="modal" style="width:min(640px,100%)">
+    <div class="modal-header">
+      <span class="modal-title">Profil détaillé — <span id="pd-name"></span></span>
+      <button class="btn sm" onclick="closeModal('profile-detail-modal')">Fermer</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="pd-climber-id">
+      <div id="pd-error" style="background:var(--warm2);color:var(--warm);border-radius:8px;padding:10px;font-size:13px;margin-bottom:12px;display:none"></div>
+
+      <div class="form-row form-row-2">
+        <div class="form-group">
+          <label class="form-label">Taille (cm)</label>
+          <input class="form-control" type="number" min="100" max="230" id="pd-height">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Poids (kg)</label>
+          <input class="form-control" type="number" min="30" max="200" id="pd-weight">
+        </div>
+      </div>
+      <div class="form-row form-row-2">
+        <div class="form-group">
+          <label class="form-label">Séances / semaine</label>
+          <input class="form-control" type="number" min="1" max="14" id="pd-sessions-week">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Durée moy. / séance (min)</label>
+          <input class="form-control" type="number" min="15" max="300" id="pd-minutes-session">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Matériel / outils disponibles</label>
+        <div id="pd-equip" style="display:grid;grid-template-columns:1fr 1fr;gap:8px"></div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Objectifs</label>
+        <div id="pd-goals-list" style="margin-bottom:8px"></div>
+        <div style="display:flex;gap:8px">
+          <input class="form-control" type="text" id="pd-goal-text" placeholder="Ex. Enchaîner un 7c" style="flex:2">
+          <input class="form-control" type="date" id="pd-goal-date" style="flex:1">
+          <button class="btn sm" onclick="pdAddGoal()">+ Ajouter</button>
+        </div>
+      </div>
+
+      <button class="btn primary" style="width:100%;margin-top:8px" onclick="saveProfileDetail()">Enregistrer le profil</button>
     </div>
   </div>
 </div>
@@ -2613,11 +2770,31 @@ function refreshCurrentUser() {
   window.currentUser = t ? decodeToken(t) : null;
   return window.currentUser;
 }
-function isAdmin() { return window.currentUser?.role === 'admin'; }
+var previewMode = false;
+function isAdmin() { return window.currentUser?.role === 'admin' && !previewMode; }
+function togglePreviewMode() {
+  previewMode = !previewMode;
+  const banner = document.getElementById('preview-mode-banner');
+  const nameEl = document.getElementById('preview-mode-name');
+  if (previewMode) {
+    const active = getActive();
+    if (nameEl) nameEl.textContent = active ? active.name : "l'athlète";
+    if (banner) banner.style.display = 'flex';
+  } else {
+    if (banner) banner.style.display = 'none';
+  }
+  applyRoleUI();
+  renderClimberCards();
+  renderSidebarStats();
+  renderPage(document.querySelector('.nav-btn.active')?.dataset.page || 'dashboard');
+}
+window.togglePreviewMode = togglePreviewMode;
 function applyRoleUI() {
   const admin = isAdmin();
-  const inviteBtn = document.getElementById('invite-athlete-btn');
-  if (inviteBtn) inviteBtn.style.display = admin ? '' : 'none';
+  const inviteWrap = document.getElementById('invite-athlete-btn-wrap');
+  if (inviteWrap) inviteWrap.style.display = admin ? '' : 'none';
+  const previewBtn = document.getElementById('preview-toggle-btn');
+  if (previewBtn) previewBtn.style.display = (window.currentUser?.role === 'admin') ? '' : 'none';
 }
 
 // Sync state complet vers le backend
@@ -2628,7 +2805,7 @@ async function syncToBackend() {
     await fetch('/api/climbers', {
       method: 'POST',
       headers: authHeaders(),
-      body: JSON.stringify({id:c.id, name:c.name, color:c.color, level:c.level, trips:c.trips||[]})
+      body: JSON.stringify({id:c.id, name:c.name, color:c.color, level:c.level, trips:c.trips||[], profile:c.profile||{}})
     }).catch(()=>{});
     // Sync ses logs
     await fetch(`/api/logs/${c.id}/sync`, {
@@ -2663,7 +2840,7 @@ async function loadFromBackend() {
     const climbersWithLogs = await Promise.all(climbers.map(async c => {
       const logsRes = await fetch(`/api/logs/${c.id}`, {headers: authHeaders()});
       const logs = logsRes.ok ? await logsRes.json() : [];
-      return {...c, logs, trips: c.trips || []};
+      return {...c, logs, trips: c.trips || [], profile: c.profile || {}};
     }));
 
     db.climbers = climbersWithLogs;
@@ -4907,7 +5084,8 @@ function getRefGradeForLogs(logs, declaredLevel) {
 
 function renderClimberCards() {
   const grid = document.getElementById('climber-cards-grid');
-  grid.innerHTML = db.climbers.map(c => {
+  const visibleClimbers = previewMode ? [getActive()].filter(Boolean) : db.climbers;
+  grid.innerHTML = visibleClimbers.map(c => {
     const initials = c.name.trim().split(/\s+/).map(w=>w[0]).join('').toUpperCase().slice(0,2);
     const isActive = c.id === db.activeId;
     const stats = climberStats(c);
@@ -4937,6 +5115,7 @@ function renderClimberCards() {
       <div class="cc-actions" style="margin-top:8px;flex-wrap:wrap">
         ${!isActive?`<button class="btn sm primary" onclick="switchClimber('${c.id}')">Sélectionner</button>`:''}
         <button class="btn sm" onclick="editClimberForm('${c.id}')">Modifier</button>
+        ${isAdmin() ? `<button class="btn sm" onclick="openProfileDetailModal('${c.id}')" title="Niveau, matériel, temps dispo, objectifs">📋 Profil détaillé</button>` : ''}
         ${db.climbers.length > 1 ? `<button class="btn sm danger" onclick="deleteClimber('${c.id}')" title="Supprimer ce grimpeur">✕</button>` : ''}
       </div>
       ${(isAdmin() && c.id !== window.currentUser?.climberId) ? `<button class="btn sm" style="width:100%;margin-top:6px;font-size:11px" onclick="makePrimaryClimber('${c.id}')" title="Relier ton compte de connexion à ce profil">🔗 Faire de ce profil mon compte</button>` : ''}
@@ -4966,6 +5145,87 @@ async function makePrimaryClimber(climberId) {
     alert(`C'est fait — ton compte pointe maintenant vers "${name}".`);
   } catch (e) {
     alert('Erreur réseau');
+  }
+}
+
+var pdGoals = [];
+var PD_EQUIP_OPTIONS = ["Salle d'escalade","Bloc en salle","Pan / Board (Moon, Kilter, Tension)","Campus board","Poutre à doigts (hangboard)","Salle de musculation","Corde à sauter","Anneaux de gym","Mur perso / home wall","Élastiques de résistance"];
+
+function renderPdGoals() {
+  const list = document.getElementById('pd-goals-list');
+  if (!list) return;
+  if (!pdGoals.length) { list.innerHTML = '<div style="font-size:12px;color:var(--muted);margin-bottom:8px">Aucun objectif pour l\'instant.</div>'; return; }
+  list.innerHTML = pdGoals.map((g,i) => `
+    <div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg2,#f4f2ee);border-radius:8px;padding:8px 12px;margin-bottom:6px;font-size:13px">
+      <span>${esc(g.text)}${g.date?` <span style="color:var(--muted)">— ${g.date}</span>`:''}</span>
+      <button onclick="pdRemoveGoal(${i})" style="background:none;border:none;color:var(--warm);cursor:pointer;font-size:16px;line-height:1;padding:0 4px">×</button>
+    </div>`).join('');
+}
+function pdAddGoal() {
+  const t = document.getElementById('pd-goal-text');
+  const d = document.getElementById('pd-goal-date');
+  const text = t.value.trim();
+  if (!text) return;
+  pdGoals.push({ text, date: d.value || '' });
+  t.value = ''; d.value = '';
+  renderPdGoals();
+}
+function pdRemoveGoal(i) {
+  pdGoals.splice(i, 1);
+  renderPdGoals();
+}
+
+function openProfileDetailModal(climberId) {
+  const c = db.climbers.find(x => x.id === climberId);
+  if (!c) return;
+  const p = c.profile || {};
+  document.getElementById('pd-climber-id').value = climberId;
+  document.getElementById('pd-name').textContent = c.name;
+  document.getElementById('pd-error').style.display = 'none';
+  document.getElementById('pd-height').value = p.height || '';
+  document.getElementById('pd-weight').value = p.weight || '';
+  document.getElementById('pd-sessions-week').value = p.sessionsPerWeek || '';
+  document.getElementById('pd-minutes-session').value = p.minutesPerSession || '';
+  pdGoals = Array.isArray(p.goals) ? p.goals.slice() : [];
+  renderPdGoals();
+
+  const eq = document.getElementById('pd-equip');
+  const selected = new Set(p.equipment || []);
+  eq.innerHTML = PD_EQUIP_OPTIONS.map(opt => `
+    <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text);cursor:pointer">
+      <input type="checkbox" class="pd-equip-cb" value="${esc(opt)}" ${selected.has(opt)?'checked':''} style="cursor:pointer">${esc(opt)}
+    </label>`).join('');
+
+  document.getElementById('profile-detail-modal').classList.add('open');
+}
+
+async function saveProfileDetail() {
+  const climberId = document.getElementById('pd-climber-id').value;
+  const c = db.climbers.find(x => x.id === climberId);
+  const errEl = document.getElementById('pd-error');
+  errEl.style.display = 'none';
+  if (!c) { errEl.textContent = 'Grimpeur introuvable'; errEl.style.display = ''; return; }
+  const equipment = Array.prototype.map.call(document.querySelectorAll('.pd-equip-cb:checked'), cb => cb.value);
+  c.profile = {
+    ...(c.profile || {}),
+    height: parseInt(document.getElementById('pd-height').value, 10) || null,
+    weight: parseInt(document.getElementById('pd-weight').value, 10) || null,
+    sessionsPerWeek: parseInt(document.getElementById('pd-sessions-week').value, 10) || null,
+    minutesPerSession: parseInt(document.getElementById('pd-minutes-session').value, 10) || null,
+    equipment,
+    goals: pdGoals
+  };
+  try {
+    const r = await fetch('/api/climbers', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ id: c.id, name: c.name, color: c.color, level: c.level, trips: c.trips||[], profile: c.profile })
+    });
+    if (!r.ok) { const d = await r.json(); errEl.textContent = d.error || 'Erreur lors de l\'enregistrement'; errEl.style.display = ''; return; }
+    saveDB();
+    closeModal('profile-detail-modal');
+  } catch (e) {
+    errEl.textContent = 'Erreur réseau'; errEl.style.display = '';
   }
 }
 
@@ -5094,7 +5354,48 @@ function submitImport8a() {
   };
   reader.readAsText(file);
 }
-  function openInviteModal() {
+  function openInviteLinkModal() {
+  document.getElementById('invite-link-email').value = '';
+  document.getElementById('invite-link-error').style.display = 'none';
+  document.getElementById('invite-link-step-form').style.display = '';
+  document.getElementById('invite-link-step-result').style.display = 'none';
+  document.getElementById('invite-link-modal').classList.add('open');
+}
+function resetInviteLinkModal() {
+  document.getElementById('invite-link-email').value = '';
+  document.getElementById('invite-link-error').style.display = 'none';
+  document.getElementById('invite-link-step-form').style.display = '';
+  document.getElementById('invite-link-step-result').style.display = 'none';
+}
+async function generateInviteLink() {
+  const email = document.getElementById('invite-link-email').value.trim();
+  const errEl = document.getElementById('invite-link-error');
+  errEl.style.display = 'none';
+  try {
+    const r = await fetch('/api/auth/create-invite-link', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ email })
+    });
+    const d = await r.json();
+    if (!r.ok) { errEl.textContent = d.error || 'Erreur lors de la génération du lien'; errEl.style.display = ''; return; }
+    const url = location.origin + '/?invite=' + d.token;
+    document.getElementById('invite-link-url').value = url;
+    document.getElementById('invite-link-step-form').style.display = 'none';
+    document.getElementById('invite-link-step-result').style.display = '';
+  } catch (e) {
+    errEl.textContent = 'Erreur réseau'; errEl.style.display = '';
+  }
+}
+function copyInviteLink() {
+  const input = document.getElementById('invite-link-url');
+  input.select(); input.setSelectionRange(0, 99999);
+  const btn = document.getElementById('invite-link-copy-btn');
+  navigator.clipboard?.writeText(input.value).then(() => {
+    if (btn) { const old = btn.textContent; btn.textContent = '✓ Copié'; setTimeout(()=>{btn.textContent=old;}, 1500); }
+  }).catch(() => { document.execCommand('copy'); });
+}
+function openInviteModal() {
   document.getElementById('invite-name').value = '';
   document.getElementById('invite-email').value = '';
   document.getElementById('invite-password').value = '';
@@ -5472,11 +5773,13 @@ function logout(){
 window.logout=logout;
 function afterAuth(){
   document.getElementById("auth-screen").style.display="none";
+  var ob=document.getElementById("onboarding-screen"); if(ob) ob.style.display="none";
   var u = refreshCurrentUser();
   var el = document.getElementById("sidebar-user");
   if (el && u) el.textContent = u.name + (u.role==='admin' ? ' · coach' : '');
   window.initAppData();
 }
+window.afterAuth = afterAuth;
 async function login(){
   var e=document.getElementById("le").value.trim();
   var p=document.getElementById("lp").value;
@@ -5489,11 +5792,136 @@ async function login(){
     afterAuth();
   }catch(e){se("Erreur reseau")}
 }
+async function checkInviteLink(token){
+  try{
+    var r=await fetch('/api/auth/invite-info/'+token);
+    var d=await r.json();
+    if(!r.ok){
+      document.getElementById("auth-screen").style.display="flex";
+      se(d.error||"Invitation invalide");
+      return;
+    }
+    var nameEl=document.getElementById("ob-coach-name"); if(nameEl) nameEl.textContent=d.coachName||"ton coach";
+    var emailEl=document.getElementById("ob-email"); if(emailEl && d.email) emailEl.value=d.email;
+    var ob=document.getElementById("onboarding-screen");
+    ob.dataset.token=token;
+    ob.style.display="flex";
+  }catch(e){
+    document.getElementById("auth-screen").style.display="flex";
+  }
+}
+
+var OB_EQUIP_OPTIONS=["Salle d'escalade","Bloc en salle","Pan / Board (Moon, Kilter, Tension)","Campus board","Poutre à doigts (hangboard)","Salle de musculation","Corde à sauter","Anneaux de gym","Mur perso / home wall","Élastiques de résistance"];
+var obGoals=[];
+
+function populateOnboardingForm(){
+  var lvl=document.getElementById("ob-level");
+  if(lvl && !lvl.dataset.filled){
+    lvl.innerHTML=GRADES.map(function(g){return '<option value="'+g+'">'+g+'</option>'}).join("");
+    lvl.value="6a";
+    lvl.dataset.filled="1";
+  }
+  var eq=document.getElementById("ob-equip");
+  if(eq && !eq.dataset.filled){
+    eq.innerHTML=OB_EQUIP_OPTIONS.map(function(opt,i){
+      return '<label style="display:flex;align-items:center;gap:6px;font-size:13px;color:#3a362e;cursor:pointer">'
+        +'<input type="checkbox" class="ob-equip-cb" value="'+opt.replace(/"/g,'&quot;')+'" style="cursor:pointer">'
+        +opt+'</label>';
+    }).join("");
+    eq.dataset.filled="1";
+  }
+}
+
+function renderObGoals(){
+  var list=document.getElementById("ob-goals-list");
+  if(!list)return;
+  if(!obGoals.length){ list.innerHTML='<div style="font-size:12px;color:#a8a296;margin-bottom:8px">Aucun objectif ajouté pour l\'instant.</div>'; return; }
+  list.innerHTML=obGoals.map(function(g,i){
+    return '<div style="display:flex;align-items:center;justify-content:space-between;background:#f4f2ee;border-radius:8px;padding:8px 12px;margin-bottom:6px;font-size:13px">'
+      +'<span>'+g.text+(g.date?' <span style="color:#7a7566">— '+g.date+'</span>':'')+'</span>'
+      +'<button onclick="obRemoveGoal('+i+')" style="background:none;border:none;color:#c4501a;cursor:pointer;font-size:16px;line-height:1;padding:0 4px">×</button>'
+      +'</div>';
+  }).join("");
+}
+function obAddGoal(){
+  var t=document.getElementById("ob-goal-text");
+  var d=document.getElementById("ob-goal-date");
+  var text=t.value.trim();
+  if(!text)return;
+  obGoals.push({text:text, date:d.value||""});
+  t.value=""; d.value="";
+  renderObGoals();
+}
+function obRemoveGoal(i){
+  obGoals.splice(i,1);
+  renderObGoals();
+}
+window.obAddGoal=obAddGoal;
+window.obRemoveGoal=obRemoveGoal;
+
+async function submitOnboarding(){
+  var ob=document.getElementById("onboarding-screen");
+  var token=ob.dataset.token;
+  var name=document.getElementById("ob-name").value.trim();
+  var email=document.getElementById("ob-email").value.trim();
+  var password=document.getElementById("ob-password").value;
+  var errEl=document.getElementById("ob-error");
+  errEl.style.display="none";
+  if(!name||!email||!password) { errEl.textContent="Prénom, email et mot de passe sont requis"; errEl.style.display=""; return; }
+  if(password.length<6){ errEl.textContent="Le mot de passe doit faire au moins 6 caractères"; errEl.style.display=""; return; }
+  var equip=Array.prototype.map.call(document.querySelectorAll(".ob-equip-cb:checked"),function(cb){return cb.value});
+  var profile={
+    equipment: equip,
+    sessionsPerWeek: parseInt(document.getElementById("ob-sessions-week").value,10)||null,
+    minutesPerSession: parseInt(document.getElementById("ob-minutes-session").value,10)||null,
+    height: parseInt(document.getElementById("ob-height").value,10)||null,
+    weight: parseInt(document.getElementById("ob-weight").value,10)||null,
+    goals: obGoals
+  };
+  var payload={
+    token: token,
+    name: name,
+    email: email,
+    password: password,
+    level: document.getElementById("ob-level").value,
+    profile: profile
+  };
+  var btn=document.getElementById("ob-submit");
+  btn.disabled=true; btn.textContent="Création en cours…";
+  try{
+    var r=await fetch("/api/auth/accept-invite",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+    var d=await r.json();
+    if(!r.ok){
+      errEl.textContent=d.error||"Erreur lors de la création du compte";
+      errEl.style.display="";
+      btn.disabled=false; btn.textContent="Créer mon compte";
+      return;
+    }
+    st(d.token);
+    history.replaceState({}, "", location.pathname);
+    afterAuth();
+  }catch(e){
+    errEl.textContent="Erreur réseau, réessaie";
+    errEl.style.display="";
+    btn.disabled=false; btn.textContent="Créer mon compte";
+  }
+}
+window.submitOnboarding=submitOnboarding;
+
 window.addEventListener("DOMContentLoaded",function(){
   document.getElementById("lb").addEventListener("click",login);
   document.getElementById("lp").addEventListener("keydown",function(e){if(e.key==="Enter")login()});
-  if(!gt()){document.getElementById("auth-screen").style.display="flex"}
-  else{ afterAuth(); }
+  populateOnboardingForm();
+  renderObGoals();
+  var params=new URLSearchParams(location.search);
+  var inviteToken=params.get('invite');
+  if(inviteToken){
+    checkInviteLink(inviteToken);
+  } else if(!gt()){
+    document.getElementById("auth-screen").style.display="flex";
+  } else {
+    afterAuth();
+  }
 });
 })();
 </script>
