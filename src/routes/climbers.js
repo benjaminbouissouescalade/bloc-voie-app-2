@@ -30,15 +30,15 @@ router.get('/:id', async (req, res) => {
 
 // POST /api/climbers — créer un grimpeur
 router.post('/', async (req, res) => {
-  const { id, name, color, level } = req.body;
+  const { id, name, color, level, trips } = req.body;
   if (!id || !name) return res.status(400).json({ error: 'id et name requis' });
   try {
     const { rows } = await pool.query(
-      `INSERT INTO climbers (id, name, color, level)
-       VALUES ($1, $2, $3, $4)
-       ON CONFLICT (id) DO UPDATE SET name=$2, color=$3, level=$4, updated_at=NOW()
+      `INSERT INTO climbers (id, name, color, level, trips)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (id) DO UPDATE SET name=$2, color=$3, level=$4, trips=$5, updated_at=NOW()
        RETURNING *`,
-      [id, name, color || '#2d5a3d', level || '7a']
+      [id, name, color || '#2d5a3d', level || '7a', JSON.stringify(trips || [])]
     );
     res.json(rows[0]);
   } catch (err) {
@@ -48,12 +48,12 @@ router.post('/', async (req, res) => {
 
 // PUT /api/climbers/:id — modifier un grimpeur
 router.put('/:id', async (req, res) => {
-  const { name, color, level } = req.body;
+  const { name, color, level, trips } = req.body;
   try {
     const { rows } = await pool.query(
-      `UPDATE climbers SET name=$1, color=$2, level=$3, updated_at=NOW()
-       WHERE id=$4 RETURNING *`,
-      [name, color, level, req.params.id]
+      `UPDATE climbers SET name=$1, color=$2, level=$3, trips=$4, updated_at=NOW()
+       WHERE id=$5 RETURNING *`,
+      [name, color, level, JSON.stringify(trips || []), req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Grimpeur introuvable' });
     res.json(rows[0]);
