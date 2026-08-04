@@ -153,8 +153,11 @@ button, input, select, textarea { font-family: inherit; }
 .cal-cell.today .cal-num { color: var(--accent); }
 .cal-dots { display: flex; gap: 3px; flex-wrap: wrap; margin-top: 4px; }
 .cal-dot { width: 6px; height: 6px; border-radius: 50%; }
-.cal-dot-planned { background: transparent !important; border: 1.5px dashed; }
-.cal-cell.drag-over { outline: 2px dashed var(--accent); outline-offset: -2px; background: var(--accent2); }
+.cal-dot-planned { background: transparent !important; border: 2px dashed; width: 8px; height: 8px; }
+.cal-cell.has-planned { border: 2px dashed var(--accent); background: repeating-linear-gradient(135deg, var(--surface2) 0 8px, var(--accent2) 8px 16px); }
+.cal-cell.has-planned.has-session, .cal-cell.has-planned.has-hard { background: var(--accent2); }
+.cal-planned-badge { position: absolute; top: 4px; right: 4px; font-size: 13px; line-height: 1; filter: drop-shadow(0 1px 1px rgba(0,0,0,.25)); }
+.cal-cell.drag-over { outline: 3px dashed var(--accent); outline-offset: -3px; background: var(--accent2); }
 .cal-bank-mini-card { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border: 1px solid var(--border); border-radius: var(--r-xs); background: var(--surface2); cursor: grab; }
 .cal-bank-mini-card:hover { border-color: var(--border2); background: var(--surface); }
 .cal-bank-mini-card.dragging { opacity: .4; }
@@ -2909,9 +2912,11 @@ function renderCalendar() {
     else{ds=`${y}-${String(m+1).padStart(2,'0')}-${String(dayNum).padStart(2,'0')}`;}
     const dayLogs=getLogs().filter(l=>l.date===ds);
     const load=dayLogs.reduce((s,l)=>s+sessionLoad(l),0);
-    const hasHard=dayLogs.some(l=>l.intensity>=4);
-    cell.className='cal-cell'+(isOther?' other-month':'')+(ds===todayStr?' today':'')+(dayLogs.length&&!hasHard?' has-session':dayLogs.length&&hasHard?' has-hard':'');
-    cell.innerHTML=`<div class="cal-num">${dayNum}</div><div class="cal-dots">${dayLogs.map(l=>`<div class="cal-dot${l.planned?' cal-dot-planned':''}" style="${l.planned?`border-color:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`:`background:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`}" title="${l.planned?'Prévue':''}"></div>`).join('')}</div>${load?`<div style="font-size:10px;color:var(--muted);margin-top:3px">${load}</div>`:''}`;
+    const doneLogsForCell=dayLogs.filter(l=>!l.planned);
+    const plannedLogsForCell=dayLogs.filter(l=>l.planned);
+    const hasHard=doneLogsForCell.some(l=>l.intensity>=4);
+    cell.className='cal-cell'+(isOther?' other-month':'')+(ds===todayStr?' today':'')+(doneLogsForCell.length&&!hasHard?' has-session':doneLogsForCell.length&&hasHard?' has-hard':'')+(plannedLogsForCell.length?' has-planned':'');
+    cell.innerHTML=`${plannedLogsForCell.length?`<div class="cal-planned-badge" title="${plannedLogsForCell.length} séance${plannedLogsForCell.length>1?'s':''} prévue${plannedLogsForCell.length>1?'s':''}">📌</div>`:''}<div class="cal-num">${dayNum}</div><div class="cal-dots">${dayLogs.map(l=>`<div class="cal-dot${l.planned?' cal-dot-planned':''}" style="${l.planned?`border-color:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`:`background:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`}" title="${l.planned?'Prévue':''}"></div>`).join('')}</div>${load?`<div style="font-size:10px;color:var(--muted);margin-top:3px">${load}</div>`:''}`;
     cell.onclick=()=>openDayModal(ds);
     cell.ondragover=(e)=>{e.preventDefault();cell.classList.add('drag-over');};
     cell.ondragleave=()=>cell.classList.remove('drag-over');
