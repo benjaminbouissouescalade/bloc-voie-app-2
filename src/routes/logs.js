@@ -2,6 +2,11 @@
 const express = require('express');
 const router = express.Router();
 const { pool } = require('../db/schema');
+const { requireAuth } = require('../middleware/auth');
+const { requireClimberAccess } = require('../middleware/access');
+
+router.use(requireAuth);
+router.use('/:climberId', requireClimberAccess('climberId'));
 
 // GET /api/logs/:climberId — toutes les séances d'un grimpeur
 router.get('/:climberId', async (req, res) => {
