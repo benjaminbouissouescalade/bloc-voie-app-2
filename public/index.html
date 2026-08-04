@@ -4303,6 +4303,9 @@ Réponds UNIQUEMENT en JSON valide, sans markdown, sans backticks, avec exacteme
       body: JSON.stringify({ messages: [{role:'user', content: prompt}], max_tokens: 1000 })
     });
     const data = await resp.json();
+    if (data.error) {
+      throw new Error(typeof data.error === 'string' ? data.error : (data.error.message || 'Erreur API Anthropic'));
+    }
     const raw = (data.content||[]).map(b=>b.text||'').join('');
 
     // Strip possible markdown fences
@@ -4971,7 +4974,7 @@ async function aiSend() {
       const reply = data.content[0].text;
       aiHistory.push({ role: 'assistant', content: reply });
     } else if (data.error) {
-      aiHistory.push({ role: 'assistant', content: `⚠️ Erreur API : ${data.error.message||'Vérifiez la connexion.'}` });
+      aiHistory.push({ role: 'assistant', content: `⚠️ Erreur API : ${(typeof data.error === 'string' ? data.error : data.error.message) || 'Vérifiez la connexion.'}` });
     } else {
       aiHistory.push({ role: 'assistant', content: '⚠️ Réponse inattendue. Réessaie.' });
     }
