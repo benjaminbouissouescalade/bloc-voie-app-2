@@ -5692,13 +5692,19 @@ async function aiSend() {
     const data = await response.json();
     removeLoadingBubble(loadingId);
 
-    if (data.content && data.content[0]?.text) {
-      const reply = data.content[0].text;
+    // Un message peut contenir plusieurs blocs (texte, réflexion…) : on ne garde que le texte
+    const reply = Array.isArray(data.content)
+      ? data.content.filter(b => b && b.type === 'text' && b.text).map(b => b.text).join('\n').trim()
+      : '';
+
+    if (reply) {
       aiHistory.push({ role: 'assistant', content: reply });
     } else if (data.error) {
       aiHistory.push({ role: 'assistant', content: `⚠️ Erreur API : ${(typeof data.error === 'string' ? data.error : data.error.message) || 'Vérifiez la connexion.'}` });
     } else {
-      aiHistory.push({ role: 'assistant', content: '⚠️ Réponse inattendue. Réessaie.' });
+      console.error('Réponse IA inattendue :', data);
+      const reason = data.stop_reason ? ` (stop_reason: ${data.stop_reason})` : '';
+      aiHistory.push({ role: 'assistant', content: `⚠️ Réponse inattendue${reason}. Réessaie — si ça persiste, regarde la console (F12) pour le détail.` });
     }
   } catch(e) {
     removeLoadingBubble(loadingId);
