@@ -1257,8 +1257,8 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <p>Séances types réutilisables pour la planification — créées manuellement ou par l'IA</p>
     </div>
     <div style="display:flex;gap:8px">
-      <button class="btn" id="sb-new-btn">+ Créer manuellement</button>
-      <button class="btn primary" id="sb-ai-btn">✦ Générer avec l'IA</button>
+      <button class="btn coach-only-btn" id="sb-new-btn">+ Créer manuellement</button>
+      <button class="btn primary coach-only-btn" id="sb-ai-btn">✦ Générer avec l'IA</button>
     </div>
   </div>
 
@@ -1672,9 +1672,9 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <div id="sb-tags-picker" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px"></div>
     </div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px">
-      <button class="btn danger sm" id="sb-delete-btn" style="display:none;margin-right:auto">Supprimer</button>
-      <button class="btn" onclick="sbCloseEditor()">Annuler</button>
-      <button class="btn primary" id="sb-save-btn">Enregistrer</button>
+      <button class="btn danger sm coach-only-btn" id="sb-delete-btn" style="display:none;margin-right:auto">Supprimer</button>
+      <button class="btn" onclick="sbCloseEditor()">Fermer</button>
+      <button class="btn primary coach-only-btn" id="sb-save-btn">Enregistrer</button>
     </div>
   </div>
 
@@ -2795,6 +2795,17 @@ function applyRoleUI() {
   if (inviteWrap) inviteWrap.style.display = admin ? '' : 'none';
   const previewBtn = document.getElementById('preview-toggle-btn');
   if (previewBtn) previewBtn.style.display = (window.currentUser?.role === 'admin') ? '' : 'none';
+  document.querySelectorAll('.coach-only-btn').forEach(el => { el.style.display = admin ? '' : 'none'; });
+  sbApplyEditorAccess();
+}
+
+function sbApplyEditorAccess() {
+  const panel = document.getElementById('sb-editor-panel');
+  if (!panel) return;
+  const admin = isAdmin();
+  panel.querySelectorAll('input, select, textarea').forEach(el => { el.disabled = !admin; });
+  const titleEl = document.getElementById('sb-editor-title');
+  if (titleEl && !admin) titleEl.textContent = 'Détail de la séance';
 }
 
 // Sync state complet vers le backend
@@ -4736,6 +4747,7 @@ function sbEditCard(id) {
   document.getElementById('sb-delete-btn').style.display = '';
   document.getElementById('sb-editor-panel').style.display = '';
   document.getElementById('sb-editor-panel').scrollIntoView({behavior:'smooth', block:'nearest'});
+  sbApplyEditorAccess();
   sbRenderGrid();
 }
 
@@ -4761,6 +4773,7 @@ function sbNewCard() {
   document.getElementById('sb-delete-btn').style.display = 'none';
   document.getElementById('sb-editor-panel').style.display = '';
   document.getElementById('sb-editor-panel').scrollIntoView({behavior:'smooth', block:'nearest'});
+  sbApplyEditorAccess();
   document.getElementById('sb-name').focus();
 }
 
