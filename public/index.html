@@ -153,6 +153,13 @@ button, input, select, textarea { font-family: inherit; }
 .cal-cell.today .cal-num { color: var(--accent); }
 .cal-dots { display: flex; gap: 3px; flex-wrap: wrap; margin-top: 4px; }
 .cal-dot { width: 6px; height: 6px; border-radius: 50%; }
+.cal-dot-planned { background: transparent !important; border: 1.5px dashed; }
+.cal-cell.drag-over { outline: 2px dashed var(--accent); outline-offset: -2px; background: var(--accent2); }
+.cal-bank-mini-card { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border: 1px solid var(--border); border-radius: var(--r-xs); background: var(--surface2); cursor: grab; }
+.cal-bank-mini-card:hover { border-color: var(--border2); background: var(--surface); }
+.cal-bank-mini-card.dragging { opacity: .4; }
+.sb-card[draggable="true"] { cursor: grab; }
+.sb-card.dragging { opacity: .4; }
 
 /* Heatmap */
 .heatmap { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
@@ -539,12 +546,22 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <button class="btn" id="cal-today">Aujourd'hui</button>
     </div>
   </div>
-  <div class="panel">
-    <div class="cal-header">
-      <div class="cal-day-label">Lun</div><div class="cal-day-label">Mar</div><div class="cal-day-label">Mer</div>
-      <div class="cal-day-label">Jeu</div><div class="cal-day-label">Ven</div><div class="cal-day-label">Sam</div><div class="cal-day-label">Dim</div>
+  <div style="display:grid;grid-template-columns:1fr 270px;gap:20px;align-items:start">
+    <div class="panel">
+      <div class="cal-header">
+        <div class="cal-day-label">Lun</div><div class="cal-day-label">Mar</div><div class="cal-day-label">Mer</div>
+        <div class="cal-day-label">Jeu</div><div class="cal-day-label">Ven</div><div class="cal-day-label">Sam</div><div class="cal-day-label">Dim</div>
+      </div>
+      <div class="cal-grid" id="cal-grid"></div>
     </div>
-    <div class="cal-grid" id="cal-grid"></div>
+    <div class="panel" style="max-height:600px;display:flex;flex-direction:column">
+      <div class="panel-header" style="margin-bottom:8px">
+        <span class="panel-title" style="font-size:13px">📋 Banque de séances</span>
+      </div>
+      <p style="font-size:11px;color:var(--muted);margin-bottom:8px">Glisse une séance sur un jour du calendrier pour la programmer.</p>
+      <input class="form-control" style="font-size:12px;padding:6px 8px;margin-bottom:8px" id="cal-bank-search" placeholder="Rechercher…" oninput="renderCalBankMini()">
+      <div id="cal-bank-mini" style="overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:6px"></div>
+    </div>
   </div>
   <div class="panel">
     <div class="panel-header"><span class="panel-title">Séances du mois</span></div>
@@ -928,6 +945,44 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   </div>
 </div>
 
+<!-- Modal cycle -->
+<div class="modal-backdrop" id="cycle-modal">
+  <div class="modal" style="width:min(600px,100%)">
+    <div class="modal-header">
+      <span class="modal-title">Créer un cycle</span>
+      <button class="btn sm" onclick="closeModal('cycle-modal')">Fermer</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Choisis des séances de ta banque et le nombre de fois où chacune doit revenir sur la période — le cycle les répartit automatiquement sur le calendrier de <strong id="cycle-target-name">—</strong>.</p>
+      <div class="form-row form-row-2">
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Début du cycle</label>
+          <input class="form-control" type="date" id="cycle-start">
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Durée (semaines)</label>
+          <input class="form-control" type="number" min="1" max="16" value="4" id="cycle-weeks">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Jours disponibles</label>
+        <div id="cycle-avail-days" style="display:flex;gap:10px;flex-wrap:wrap"></div>
+      </div>
+      <div class="form-group" style="border-top:1px solid var(--border);padding-top:14px">
+        <label class="form-label">Ajouter une séance au cycle</label>
+        <div style="display:flex;gap:8px">
+          <select class="form-control" id="cycle-bank-select" style="flex:1"></select>
+          <input class="form-control" type="number" min="1" max="60" value="4" id="cycle-freq" style="width:90px" title="Nombre de fois sur la période">
+          <button class="btn primary" onclick="addCycleItem()">+ Ajouter</button>
+        </div>
+      </div>
+      <div id="cycle-items-list" style="margin-bottom:14px"></div>
+      <div id="cycle-error" style="background:var(--warm2);color:var(--warm);border-radius:8px;padding:10px;font-size:13px;margin-bottom:12px;display:none"></div>
+      <button class="btn primary" style="width:100%" onclick="generateCycle()">Générer le cycle</button>
+    </div>
+  </div>
+</div>
+
 <!-- ═══════════════ PYRAMID ═══════════════ -->
 <div class="page" id="page-pyramid">
   <div class="page-header">
@@ -973,7 +1028,10 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <h2>Planification</h2>
       <p id="plan-ctx-bar" style="color:var(--muted);font-size:13px">—</p>
     </div>
-    <button class="btn primary" id="gen-plan-btn" style="font-size:14px;padding:12px 20px">⟳ Générer le planning</button>
+    <div style="display:flex;gap:8px">
+      <button class="btn" id="open-cycle-btn" style="font-size:14px;padding:12px 20px" onclick="openCycleModal()">🔁 Créer un cycle</button>
+      <button class="btn primary" id="gen-plan-btn" style="font-size:14px;padding:12px 20px">⟳ Générer le planning</button>
+    </div>
   </div>
 
   <!-- Analyse de la semaine en cours -->
@@ -2751,7 +2809,7 @@ function renderDashboard() {
   document.getElementById('dash-load28').textContent=l28;
   document.getElementById('dash-clevel28').innerHTML=`<span class="clevel ${cLevel(l28).cls}" style="padding:2px 8px;font-size:11px">${cLevel(l28).label}</span>`;
   const now=new Date(), monthStr=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
-  const monthLogs=getLogs().filter(l=>l.date.startsWith(monthStr));
+  const monthLogs=getLogs().filter(l=>l.date.startsWith(monthStr) && !l.planned);
   document.getElementById('dash-month-sessions').textContent=monthLogs.length;
   document.getElementById('dash-month-minutes').textContent=monthLogs.reduce((s,l)=>s+(l.minutes||0),0)+' min';
 
@@ -2853,19 +2911,211 @@ function renderCalendar() {
     const load=dayLogs.reduce((s,l)=>s+sessionLoad(l),0);
     const hasHard=dayLogs.some(l=>l.intensity>=4);
     cell.className='cal-cell'+(isOther?' other-month':'')+(ds===todayStr?' today':'')+(dayLogs.length&&!hasHard?' has-session':dayLogs.length&&hasHard?' has-hard':'');
-    cell.innerHTML=`<div class="cal-num">${dayNum}</div><div class="cal-dots">${dayLogs.map(l=>`<div class="cal-dot" style="background:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}"></div>`).join('')}</div>${load?`<div style="font-size:10px;color:var(--muted);margin-top:3px">${load}</div>`:''}`;
+    cell.innerHTML=`<div class="cal-num">${dayNum}</div><div class="cal-dots">${dayLogs.map(l=>`<div class="cal-dot${l.planned?' cal-dot-planned':''}" style="${l.planned?`border-color:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`:`background:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`}" title="${l.planned?'Prévue':''}"></div>`).join('')}</div>${load?`<div style="font-size:10px;color:var(--muted);margin-top:3px">${load}</div>`:''}`;
     cell.onclick=()=>openDayModal(ds);
+    cell.ondragover=(e)=>{e.preventDefault();cell.classList.add('drag-over');};
+    cell.ondragleave=()=>cell.classList.remove('drag-over');
+    cell.ondrop=(e)=>{e.preventDefault();cell.classList.remove('drag-over');onBankDropOnDate(ds);};
     grid.appendChild(cell);
-    if(!isOther){totalSessions+=dayLogs.length;totalMinutes+=dayLogs.reduce((s,l)=>s+(l.minutes||0),0);totalLoad+=load;totalAscents+=dayLogs.reduce((s,l)=>s+(l.ascents||[]).length,0);}
+    if(!isOther){const doneLogs=dayLogs.filter(l=>!l.planned);totalSessions+=doneLogs.length;totalMinutes+=doneLogs.reduce((s,l)=>s+(l.minutes||0),0);totalLoad+=load;totalAscents+=doneLogs.reduce((s,l)=>s+(l.ascents||[]).length,0);}
   }
   document.getElementById('cal-count').textContent=totalSessions;
   document.getElementById('cal-minutes').textContent=totalMinutes;
   document.getElementById('cal-load').textContent=totalLoad;
   document.getElementById('cal-ascents').textContent=totalAscents;
+  renderCalBankMini();
+}
+
+// Mini-liste de la banque de séances, glissable, affichée à côté du calendrier
+function renderCalBankMini() {
+  const el = document.getElementById('cal-bank-mini');
+  if (!el) return;
+  const search = (document.getElementById('cal-bank-search')?.value || '').toLowerCase();
+  let items = getBank().slice().sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  if (search) items = items.filter(s =>
+    s.name.toLowerCase().includes(search) ||
+    (s.tags||[]).some(t=>t.toLowerCase().includes(search))
+  );
+  if (!items.length) { el.innerHTML = `<p style="font-size:12px;color:var(--muted)">Aucune séance dans la banque.</p>`; return; }
+  el.innerHTML = items.map(s => {
+    const t = SESSION_TYPES[s.type] || SESSION_TYPES.autre;
+    return `<div class="cal-bank-mini-card" draggable="true" ondragstart="onBankDragStart(event,'${s.id}')" ondragend="onBankDragEnd(event)" title="${esc(s.name)}">
+      <span class="sess-dot" style="background:${t.color};flex-shrink:0"></span>
+      <div style="min-width:0">
+        <div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(s.name)}</div>
+        <div style="font-size:10px;color:var(--muted)">${s.duration||90} min · int. ${s.intensity||3}</div>
+      </div>
+    </div>`;
+  }).join('');
 }
 document.getElementById('cal-prev').onclick=()=>{calDate.setMonth(calDate.getMonth()-1);renderCalendar();};
 document.getElementById('cal-next').onclick=()=>{calDate.setMonth(calDate.getMonth()+1);renderCalendar();};
 document.getElementById('cal-today').onclick=()=>{calDate=new Date();renderCalendar();};
+
+// — Glisser-déposer : Banque de séances → Calendrier —
+let draggedBankItemId = null;
+function onBankDragStart(e, id) {
+  draggedBankItemId = id;
+  e.dataTransfer.effectAllowed = 'copy';
+  try { e.dataTransfer.setData('text/plain', id); } catch(err) {}
+  e.currentTarget.classList.add('dragging');
+}
+function onBankDragEnd(e) {
+  e.currentTarget.classList.remove('dragging');
+}
+function onBankDropOnDate(dateStr) {
+  const id = draggedBankItemId;
+  draggedBankItemId = null;
+  if (!id) return;
+  addPlannedSessionFromBank(id, dateStr);
+}
+function addPlannedSessionFromBank(bankId, dateStr) {
+  const item = getBank().find(x => x.id === bankId);
+  if (!item) return;
+  const payload = {
+    id: 'log_' + Date.now() + '_' + Math.random().toString(36).slice(2,6),
+    date: dateStr,
+    type: item.type || 'autre',
+    minutes: item.duration || 90,
+    intensity: item.intensity || 3,
+    shape: 'normal',
+    location: '',
+    support: item.support || '',
+    notes: item.name + (item.description ? ' — ' + item.description : ''),
+    ascents: [],
+    bNoGrade: {},
+    planned: true,
+    bankRef: bankId
+  };
+  const climber = getActive();
+  if (!climber.logs) climber.logs = [];
+  climber.logs.push(payload);
+  saveDB();
+  renderCalendar();
+  openDayModal(dateStr);
+}
+
+// ═══════════════ CYCLE (fréquence de séances sur une période) ═══════════════
+let cycleItems = []; // [{bankId, freq}]
+const CYCLE_DAY_LABELS = [['1','Lun'],['2','Mar'],['3','Mer'],['4','Jeu'],['5','Ven'],['6','Sam'],['0','Dim']];
+
+function openCycleModal() {
+  const c = getActive();
+  document.getElementById('cycle-target-name').textContent = c?.name || '—';
+  const startEl = document.getElementById('cycle-start');
+  if (!startEl.value) startEl.value = new Date().toISOString().slice(0,10);
+  document.getElementById('cycle-weeks').value = 4;
+  cycleItems = [];
+  renderCycleItemsList();
+  document.getElementById('cycle-error').style.display = 'none';
+
+  // Jours disponibles
+  const daysEl = document.getElementById('cycle-avail-days');
+  daysEl.innerHTML = CYCLE_DAY_LABELS.map(([v,label]) =>
+    `<label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer">
+      <input type="checkbox" value="${v}" checked style="width:16px;height:16px"> ${label}
+    </label>`
+  ).join('');
+
+  // Sélecteur de séances de la banque
+  const bank = getBank();
+  const sel = document.getElementById('cycle-bank-select');
+  sel.innerHTML = bank.length
+    ? bank.map(s => `<option value="${s.id}">${esc(s.name)} (${s.duration||90} min)</option>`).join('')
+    : `<option value="">— Banque vide —</option>`;
+
+  document.getElementById('cycle-modal').classList.add('open');
+}
+
+function addCycleItem() {
+  const bankId = document.getElementById('cycle-bank-select').value;
+  const freq = +document.getElementById('cycle-freq').value || 1;
+  if (!bankId) return;
+  const existing = cycleItems.find(it => it.bankId === bankId);
+  if (existing) existing.freq += freq;
+  else cycleItems.push({ bankId, freq });
+  renderCycleItemsList();
+}
+
+function removeCycleItem(bankId) {
+  cycleItems = cycleItems.filter(it => it.bankId !== bankId);
+  renderCycleItemsList();
+}
+
+function renderCycleItemsList() {
+  const el = document.getElementById('cycle-items-list');
+  if (!cycleItems.length) { el.innerHTML = `<p style="font-size:12px;color:var(--muted)">Aucune séance ajoutée pour l'instant.</p>`; return; }
+  const bank = getBank();
+  el.innerHTML = cycleItems.map(it => {
+    const s = bank.find(x => x.id === it.bankId);
+    const name = s ? s.name : '(séance supprimée)';
+    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r-xs);background:var(--surface2);margin-bottom:6px">
+      <span style="flex:1;font-size:13px;font-weight:500">${esc(name)}</span>
+      <span style="font-size:12px;color:var(--muted)">× ${it.freq}</span>
+      <button class="btn sm danger" onclick="removeCycleItem('${it.bankId}')">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function generateCycle() {
+  const errEl = document.getElementById('cycle-error');
+  errEl.style.display = 'none';
+  const start = document.getElementById('cycle-start').value;
+  const weeks = Math.max(1, Math.min(16, +document.getElementById('cycle-weeks').value || 4));
+  const availDays = Array.from(document.querySelectorAll('#cycle-avail-days input:checked')).map(el => +el.value);
+
+  if (!start) { errEl.textContent = 'Choisis une date de début.'; errEl.style.display = ''; return; }
+  if (!cycleItems.length) { errEl.textContent = 'Ajoute au moins une séance au cycle.'; errEl.style.display = ''; return; }
+  if (!availDays.length) { errEl.textContent = 'Sélectionne au moins un jour disponible.'; errEl.style.display = ''; return; }
+
+  // Construit la liste des dates éligibles sur la période
+  const totalDays = weeks * 7;
+  const startDate = new Date(start + 'T00:00:00');
+  const eligibleDates = [];
+  for (let i = 0; i < totalDays; i++) {
+    const d = new Date(startDate); d.setDate(d.getDate() + i);
+    if (availDays.includes(d.getDay())) eligibleDates.push(d.toISOString().slice(0,10));
+  }
+  if (!eligibleDates.length) { errEl.textContent = 'Aucun jour disponible sur cette période.'; errEl.style.display = ''; return; }
+
+  const bank = getBank();
+  const climber = getActive();
+  if (!climber.logs) climber.logs = [];
+  let created = 0;
+
+  cycleItems.forEach(it => {
+    const item = bank.find(s => s.id === it.bankId);
+    if (!item) return;
+    const n = Math.max(1, it.freq);
+    for (let i = 0; i < n; i++) {
+      // Répartition régulière de chaque occurrence sur les jours éligibles
+      const idx = Math.round((i + 0.5) * (eligibleDates.length / n)) % eligibleDates.length;
+      const dateStr = eligibleDates[idx];
+      climber.logs.push({
+        id: 'log_' + Date.now() + '_' + Math.random().toString(36).slice(2,6),
+        date: dateStr,
+        type: item.type || 'autre',
+        minutes: item.duration || 90,
+        intensity: item.intensity || 3,
+        shape: 'normal',
+        location: '',
+        support: item.support || '',
+        notes: item.name + (item.description ? ' — ' + item.description : ''),
+        ascents: [],
+        bNoGrade: {},
+        planned: true,
+        bankRef: it.bankId
+      });
+      created++;
+    }
+  });
+
+  saveDB();
+  closeModal('cycle-modal');
+  renderCalendar();
+  if (document.getElementById('page-planning')?.classList.contains('active')) renderPlanning();
+  alert(`${created} séance${created>1?'s':''} programmée${created>1?'s':''} sur le calendrier de ${climber.name}, du ${fmtDate(eligibleDates[0])} au ${fmtDate(eligibleDates[eligibleDates.length-1])}.`);
+}
 
 // — Performance —
 let perfRange='6m', pyrCtx='all', pyrLoc='all';
@@ -3348,7 +3598,7 @@ function renderHistory() {
     const t=SESSION_TYPES[l.type]||SESSION_TYPES.autre;
     const load=sessionLoad(l);
     const topGrades=(l.ascents||[]).filter(a=>['tete','av','flash','moulinette'].includes(a.status)).map(a=>a.grade).sort((a,b)=>GRADE_IDX[b]-GRADE_IDX[a]).slice(0,3);
-    return `<div class="log-item" onclick="editSession('${l.id}')">
+    return `<div class="log-item" style="${l.planned?'border-style:dashed':''}" onclick="editSession('${l.id}')">
       <div class="log-item-header">
         <div>
           <div class="log-date" style="display:flex;align-items:center;gap:8px">
@@ -3356,8 +3606,9 @@ function renderHistory() {
             <strong>${t.label}</strong>
             <span style="color:var(--muted);font-weight:400;font-size:13px">${fmtDate(l.date)}</span>
             ${l.location?`<span style="color:var(--muted);font-size:12px">— ${l.location}</span>`:''}
+            ${l.planned?'<span class="tag" style="border-color:var(--accent);color:var(--accent)">📌 Prévue</span>':''}
           </div>
-          <div class="log-meta">${l.minutes||0} min · intensité ${l.intensity||'—'} · charge ${load}</div>
+          <div class="log-meta">${l.minutes||0} min · intensité ${l.intensity||'—'}${l.planned?'':` · charge ${load}`}</div>
         </div>
         <div style="display:flex;align-items:center;gap:6px">
           ${topGrades.map(g=>`<span class="grade ${gradeClass(g)}">${g}</span>`).join('')}
@@ -3752,19 +4003,27 @@ function openDayModal(dateStr){
   document.getElementById('day-modal-body').innerHTML=logs.length?logs.map(l=>{
     const t=SESSION_TYPES[l.type]||SESSION_TYPES.autre;
     const load=sessionLoad(l);
-    return `<div class="log-item" onclick="closeModal('day-modal');editSession('${l.id}')">
+    return `<div class="log-item" style="${l.planned?'border-style:dashed':''}" onclick="closeModal('day-modal');editSession('${l.id}')">
       <div class="log-item-header">
         <div>
-          <div class="log-date" style="display:flex;align-items:center;gap:8px"><span class="sess-dot" style="background:${t.color}"></span>${t.label}</div>
-          <div class="log-meta">${l.minutes||0} min · intensité ${l.intensity||'—'} · charge ${load}${l.location?` · ${l.location}`:''}${l.support&&SUPPORTS[l.support]?` · <span style="font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:99px;padding:1px 7px">${SUPPORTS[l.support].icon} ${SUPPORTS[l.support].label}</span>`:''}</div>
+          <div class="log-date" style="display:flex;align-items:center;gap:8px"><span class="sess-dot" style="background:${t.color}"></span>${t.label}${l.planned?' <span class="tag" style="border-color:var(--accent);color:var(--accent)">📌 Prévue</span>':''}</div>
+          <div class="log-meta">${l.minutes||0} min · intensité ${l.intensity||'—'}${l.planned?'':` · charge ${load}`}${l.location?` · ${l.location}`:''}${l.support&&SUPPORTS[l.support]?` · <span style="font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:99px;padding:1px 7px">${SUPPORTS[l.support].icon} ${SUPPORTS[l.support].label}</span>`:''}</div>
         </div>
-        <span class="clevel ${cLevel(load).cls}" style="padding:3px 8px;font-size:11px">${cLevel(load).label}</span>
+        ${l.planned?`<button class="btn sm danger" onclick="event.stopPropagation();deletePlannedSession('${l.id}','${dateStr}')" title="Retirer cette séance prévue">✕</button>`:`<span class="clevel ${cLevel(load).cls}" style="padding:3px 8px;font-size:11px">${cLevel(load).label}</span>`}
       </div>
       ${(l.ascents||[]).length?`<div class="log-tags" style="margin-top:8px">${(l.ascents||[]).map(a=>`<span class="chip">${a.grade} · ${statusLabel(a.status)}</span>`).join('')}</div>`:''}
+      ${l.planned&&l.notes?`<div style="font-size:12px;color:var(--muted);margin-top:6px">${esc(l.notes)}</div>`:''}
     </div>`;
   }).join(''):'<p style="color:var(--muted);text-align:center;padding:20px">Aucune séance ce jour</p>';
   document.getElementById('day-modal-add').onclick=()=>{closeModal('day-modal');newSession(dateStr);switchPage('new-session');};
   document.getElementById('day-modal').classList.add('open');
+}
+function deletePlannedSession(id, dateStr) {
+  if (!confirm('Retirer cette séance prévue ?')) return;
+  getActive().logs = (getActive().logs||[]).filter(l=>l.id!==id);
+  saveDB();
+  openDayModal(dateStr);
+  renderCalendar();
 }
 function closeModal(id){document.getElementById(id).classList.remove('open');}
 document.getElementById('day-modal').addEventListener('click',e=>{if(e.target.id==='day-modal')closeModal('day-modal');});
@@ -4251,7 +4510,7 @@ function sbRenderGrid() {
     const srcBadge = s.source === 'ai'
       ? `<span style="font-size:10px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;padding:2px 6px;border-radius:99px;font-weight:600">✦ IA</span>`
       : '';
-    return `<div class="sb-card ${isActive?'active':''}" onclick="sbEditCard('${s.id}')">
+    return `<div class="sb-card ${isActive?'active':''}" draggable="true" ondragstart="onBankDragStart(event,'${s.id}')" ondragend="onBankDragEnd(event)" title="Glisse cette séance sur une case du calendrier pour la programmer" onclick="sbEditCard('${s.id}')">
       <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px">
         <span class="sb-tag ${SB_TYPE_TAG_CLASS[s.type]||''}">${typeLabels[s.type]||s.type}</span>
         <span class="sb-tag">${SB_GOAL_LABELS[s.goal]||s.goal}</span>
@@ -4669,13 +4928,39 @@ function renderClimberCards() {
         ${gradeCell('Niveau actuel', stats.currentLvl, 'highlight')}
       </div>
       ${trendHtml}
-      <div class="cc-actions" style="margin-top:8px">
+      <div class="cc-actions" style="margin-top:8px;flex-wrap:wrap">
         ${!isActive?`<button class="btn sm primary" onclick="switchClimber('${c.id}')">Sélectionner</button>`:''}
         <button class="btn sm" onclick="editClimberForm('${c.id}')">Modifier</button>
         ${db.climbers.length > 1 ? `<button class="btn sm danger" onclick="deleteClimber('${c.id}')" title="Supprimer ce grimpeur">✕</button>` : ''}
       </div>
+      ${(isAdmin() && c.id !== window.currentUser?.climberId) ? `<button class="btn sm" style="width:100%;margin-top:6px;font-size:11px" onclick="makePrimaryClimber('${c.id}')" title="Relier ton compte de connexion à ce profil">🔗 Faire de ce profil mon compte</button>` : ''}
     </div>`;
   }).join('');
+}
+
+async function makePrimaryClimber(climberId) {
+  const target = db.climbers.find(x=>x.id===climberId);
+  const name = target?.name || 'ce profil';
+  if (!confirm(`Relier ton compte de connexion au profil "${name}" ? Tu te connecteras désormais directement sur ce profil, y compris depuis un autre appareil.`)) return;
+  try {
+    const r = await fetch('/api/auth/set-primary-climber', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ climberId })
+    });
+    const d = await r.json();
+    if (!r.ok) { alert(d.error || 'Erreur'); return; }
+    localStorage.setItem('bv_token', d.token);
+    refreshCurrentUser();
+    db.activeId = climberId;
+    saveDB();
+    renderClimberCards();
+    renderSidebarStats();
+    applyRoleUI();
+    alert(`C'est fait — ton compte pointe maintenant vers "${name}".`);
+  } catch (e) {
+    alert('Erreur réseau');
+  }
 }
 
 function deleteClimber(id) {
