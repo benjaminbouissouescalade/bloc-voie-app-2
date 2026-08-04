@@ -982,6 +982,13 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     <div id="plan-analysis-body"></div>
   </div>
 
+  <!-- Bannière planning assigné -->
+  <div class="panel" id="plan-assigned-banner" style="display:none;background:var(--accent2);border-color:rgba(45,90,61,.2)">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <div style="font-size:13px;color:var(--accent)" id="plan-assigned-text"></div>
+    </div>
+  </div>
+
   <!-- Résultat généré -->
   <div class="panel" id="plan-result-panel" style="display:none">
     <div class="panel-header">
@@ -991,6 +998,10 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     <div id="plan-week-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-bottom:16px"></div>
     <div id="plan-week-detail" style="display:flex;flex-direction:column;gap:8px"></div>
     <div id="plan-explanation" style="margin-top:14px;padding:12px;background:var(--surface2);border-radius:var(--r-sm);font-size:13px;color:var(--muted);line-height:1.6"></div>
+    <div style="margin-top:16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap" id="plan-save-row">
+      <button class="btn primary" id="plan-save-btn" onclick="saveCurrentPlan()">📌 Assigner ce planning</button>
+      <span style="font-size:12px;color:var(--muted)" id="plan-save-status"></span>
+    </div>
   </div>
 
   <div class="two-col">
@@ -2529,36 +2540,58 @@ function saveDB() {
   syncToBackend().catch(err => console.warn('Sync backend:', err.message));
 }
 
+// ═══════════════ AUTH HELPERS ═══════════════
+window.currentUser = null;
+function authToken() { return localStorage.getItem('bv_token') || ''; }
+function authHeaders() { return {'Content-Type':'application/json', 'Authorization':'Bearer '+authToken()}; }
+function decodeToken(t) {
+  try { return JSON.parse(atob(t.split('.')[1])); } catch(e) { return null; }
+}
+function refreshCurrentUser() {
+  const t = authToken();
+  window.currentUser = t ? decodeToken(t) : null;
+  return window.currentUser;
+}
+function isAdmin() { return window.currentUser?.role === 'admin'; }
+function applyRoleUI() {
+  const admin = isAdmin();
+  const inviteBtn = document.getElementById('invite-athlete-btn');
+  if (inviteBtn) inviteBtn.style.display = admin ? '' : 'none';
+}
+
 // Sync state complet vers le backend
 async function syncToBackend() {
+  if (!authToken()) return;
   // Sync chaque grimpeur
   for (const c of db.climbers || []) {
     await fetch('/api/climbers', {
       method: 'POST',
-      headers: {'Content-Type':'application/json'},
+      headers: authHeaders(),
       body: JSON.stringify({id:c.id, name:c.name, color:c.color, level:c.level, trips:c.trips||[]})
     }).catch(()=>{});
     // Sync ses logs
     await fetch(`/api/logs/${c.id}/sync`, {
       method: 'POST',
-      headers: {'Content-Type':'application/json'},
+      headers: authHeaders(),
       body: JSON.stringify({logs: c.logs || []})
     }).catch(()=>{});
   }
   // Sync banque de séances
   await fetch('/api/bank/sync', {
     method: 'POST',
-    headers: {'Content-Type':'application/json'},
+    headers: authHeaders(),
     body: JSON.stringify({items: db.sessionBank || []})
   }).catch(()=>{});
 }
 
 // Charge les données depuis le backend au démarrage
 async function loadFromBackend() {
+  if (!authToken()) return false;
+  refreshCurrentUser();
   try {
     const [climbersRes, bankRes] = await Promise.all([
-      fetch('/api/climbers'),
-      fetch('/api/bank')
+      fetch('/api/climbers', {headers: authHeaders()}),
+      fetch('/api/bank', {headers: authHeaders()})
     ]);
     if (!climbersRes.ok) return false;
     const climbers = await climbersRes.json();
@@ -2567,14 +2600,17 @@ async function loadFromBackend() {
 
     // Charge les logs pour chaque grimpeur
     const climbersWithLogs = await Promise.all(climbers.map(async c => {
-      const logsRes = await fetch(`/api/logs/${c.id}`);
+      const logsRes = await fetch(`/api/logs/${c.id}`, {headers: authHeaders()});
       const logs = logsRes.ok ? await logsRes.json() : [];
       return {...c, logs, trips: c.trips || []};
     }));
 
     db.climbers = climbersWithLogs;
     db.sessionBank = bank;
-    if (!db.activeId || !db.climbers.find(c=>c.id===db.activeId)) {
+    const preferredId = window.currentUser?.climberId;
+    if (preferredId && db.climbers.find(c=>c.id===preferredId) && (!db.activeId || !db.climbers.find(c=>c.id===db.activeId))) {
+      db.activeId = preferredId;
+    } else if (!db.activeId || !db.climbers.find(c=>c.id===db.activeId)) {
       db.activeId = db.climbers[0]?.id;
     }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
@@ -3790,6 +3826,71 @@ function renderPlanning() {
 
   // Analysis panel
   renderPlanAnalysis(ref, l7, l28, avgWeekLoad, stats);
+
+  // Planning déjà assigné par un coach (ou par toi-même précédemment)
+  loadAssignedPlan();
+}
+
+// — Planning assigné : sauvegarde / chargement depuis le backend —
+async function loadAssignedPlan() {
+  const c = getActive();
+  const banner = document.getElementById('plan-assigned-banner');
+  const bannerText = document.getElementById('plan-assigned-text');
+  const statusEl = document.getElementById('plan-save-status');
+  if (statusEl) statusEl.textContent = '';
+  if (!c || !authToken()) { if (banner) banner.style.display = 'none'; return; }
+  try {
+    const r = await fetch(`/api/plans/${c.id}`, { headers: authHeaders() });
+    if (!r.ok) { banner.style.display = 'none'; return; }
+    const saved = await r.json();
+    if (!saved || !saved.data) { banner.style.display = 'none'; return; }
+    const d = saved.data;
+    const when = saved.updatedAt ? new Date(saved.updatedAt).toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'}) : '';
+    const byCoach = saved.coachId && saved.coachId !== c.id;
+    bannerText.innerHTML = `📌 <strong>Planning assigné${byCoach ? ' par ton coach' : ''}</strong>${when ? ' le '+when : ''} — affiché ci-dessous.`;
+    banner.style.display = '';
+    // Réinjecte le rendu sauvegardé
+    document.getElementById('plan-result-panel').style.display = '';
+    document.getElementById('plan-result-sub').textContent = d.subText || '';
+    document.getElementById('plan-week-grid').innerHTML = d.gridHtml || '';
+    document.getElementById('plan-week-detail').innerHTML = d.detailHtml || '';
+    document.getElementById('plan-explanation').innerHTML = d.explanationHtml || '';
+  } catch (e) {
+    banner.style.display = 'none';
+  }
+}
+
+async function saveCurrentPlan() {
+  const c = getActive();
+  const statusEl = document.getElementById('plan-save-status');
+  if (!c) return;
+  if (!authToken()) { if (statusEl) statusEl.textContent = 'Connecte-toi pour assigner un planning.'; return; }
+  const data = {
+    subText: document.getElementById('plan-result-sub').textContent || '',
+    gridHtml: document.getElementById('plan-week-grid').innerHTML || '',
+    detailHtml: document.getElementById('plan-week-detail').innerHTML || '',
+    explanationHtml: document.getElementById('plan-explanation').innerHTML || '',
+    generatedAt: Date.now()
+  };
+  if (statusEl) statusEl.textContent = 'Enregistrement…';
+  try {
+    const r = await fetch(`/api/plans/${c.id}`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ data })
+    });
+    const d = await r.json();
+    if (!r.ok) { if (statusEl) statusEl.textContent = '⚠️ ' + (d.error || 'Erreur'); return; }
+    if (statusEl) statusEl.textContent = `✓ Assigné à ${c.name} — visible dans son app à sa prochaine connexion.`;
+    const banner = document.getElementById('plan-assigned-banner');
+    const bannerText = document.getElementById('plan-assigned-text');
+    if (banner && bannerText) {
+      bannerText.innerHTML = `📌 <strong>Planning assigné</strong> le ${new Date().toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'})} — affiché ci-dessous.`;
+      banner.style.display = '';
+    }
+  } catch (e) {
+    if (statusEl) statusEl.textContent = '⚠️ Erreur réseau';
+  }
 }
 
 function renderPlanAnalysis(ref, l7, l28, avgWeekLoad, stats) {
@@ -3959,6 +4060,9 @@ function generatePlan() {
 
   // ── Render result ──
   document.getElementById('plan-result-panel').style.display = '';
+  document.getElementById('plan-assigned-banner').style.display = 'none';
+  const planSaveStatusEl = document.getElementById('plan-save-status');
+  if (planSaveStatusEl) planSaveStatusEl.textContent = '';
 
   // Top grid — mini calendar
   const gridEl = document.getElementById('plan-week-grid');
@@ -4472,7 +4576,13 @@ let cfSelectedColor = AVATAR_COLORS[0];
 
 function openClimberModal() {
   renderClimberCards();
-  resetClimberForm();
+  if (isAdmin()) {
+    resetClimberForm();
+  } else if (window.currentUser?.climberId) {
+    editClimberForm(window.currentUser.climberId);
+  } else {
+    resetClimberForm();
+  }
   document.getElementById('climber-modal').classList.add('open');
 }
 document.getElementById('climber-modal').addEventListener('click',e=>{if(e.target.id==='climber-modal')closeModal('climber-modal');});
@@ -4723,6 +4833,12 @@ async function submitInvite() {
     if (!r.ok) { errEl.textContent = d.error || 'Erreur'; errEl.style.display = ''; return; }
     okEl.textContent = 'Compte créé pour ' + name + ' !';
     okEl.style.display = '';
+    document.getElementById('invite-name').value = '';
+    document.getElementById('invite-email').value = '';
+    document.getElementById('invite-password').value = '';
+    await loadFromBackend();
+    renderClimberCards();
+    renderSidebarStats();
     setTimeout(() => closeModal('invite-modal'), 2000);
   } catch(e) {
     errEl.textContent = 'Erreur réseau'; errEl.style.display = '';
@@ -4773,8 +4889,9 @@ function editClimberForm(id) {
   cfSelectedColor = c.color||AVATAR_COLORS[0];
   document.getElementById('climber-form-title').textContent = `Modifier — ${c.name}`;
   document.getElementById('cf-cancel-btn').style.display = '';
-  document.getElementById('cf-delete-btn').style.display = db.climbers.length > 1 ? '' : 'none';
-  document.getElementById('cf-change-pwd-btn').style.display = '';
+  document.getElementById('cf-delete-btn').style.display = (db.climbers.length > 1 && (isAdmin() || id === window.currentUser?.climberId)) ? '' : 'none';
+  // Le bouton "changer le mot de passe" agit sur le compte connecté : ne l'affiche que sur son propre profil
+  document.getElementById('cf-change-pwd-btn').style.display = (id === window.currentUser?.climberId) ? '' : 'none';
   renderColorPicker();
   document.getElementById('cf-name').focus();
 }
@@ -5037,17 +5154,19 @@ function renderAiCoach() {
 }
 
 // ═══════════════ INIT ═══════════════
-// Au démarrage : essaie de charger depuis le backend, sinon utilise le localStorage
-(async () => {
+// Charge les données depuis le backend (si connecté), sinon fallback local
+window.initAppData = async function() {
   const fromBackend = await loadFromBackend();
   if (!fromBackend) {
-    // Fallback : données locales (déjà chargées dans db)
     console.log('📱 Mode hors-ligne — données locales');
   }
   renderColorPicker();
   renderSidebarStats();
   renderDashboard();
-})();
+  if (typeof applyRoleUI === 'function') applyRoleUI();
+};
+// N'appelle le backend que si on a déjà un token (sinon on attend le login)
+if (authToken()) { initAppData(); }
 </script>
 <script>
 (function(){
@@ -5056,9 +5175,17 @@ function st(t){localStorage.setItem("bv_token",t)}
 function se(m){var e=document.getElementById("ae");e.textContent=m;e.style.display=""}
 function logout(){
   localStorage.removeItem("bv_token");
+  window.currentUser = null;
   document.getElementById("auth-screen").style.display="flex";
 }
 window.logout=logout;
+function afterAuth(){
+  document.getElementById("auth-screen").style.display="none";
+  var u = refreshCurrentUser();
+  var el = document.getElementById("sidebar-user");
+  if (el && u) el.textContent = u.name + (u.role==='admin' ? ' · coach' : '');
+  window.initAppData();
+}
 async function login(){
   var e=document.getElementById("le").value.trim();
   var p=document.getElementById("lp").value;
@@ -5068,18 +5195,14 @@ async function login(){
     var d=await r.json();
     if(!r.ok)return se(d.error||"Erreur");
     st(d.token);
-    document.getElementById("auth-screen").style.display="none";
-    try{var u=JSON.parse(atob(d.token.split(".")[1]));var el=document.getElementById("sidebar-user");if(el)el.textContent=u.name+" ("+u.role+")";}catch(ex){}
+    afterAuth();
   }catch(e){se("Erreur reseau")}
 }
 window.addEventListener("DOMContentLoaded",function(){
   document.getElementById("lb").addEventListener("click",login);
   document.getElementById("lp").addEventListener("keydown",function(e){if(e.key==="Enter")login()});
   if(!gt()){document.getElementById("auth-screen").style.display="flex"}
-  else{
-    document.getElementById("auth-screen").style.display="none";
-    try{var u=JSON.parse(atob(gt().split(".")[1]));var el=document.getElementById("sidebar-user");if(el)el.textContent=u.name+" ("+u.role+")";}catch(ex){}
-  }
+  else{ afterAuth(); }
 });
 })();
 </script>
