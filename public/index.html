@@ -4859,7 +4859,7 @@ Réponds UNIQUEMENT en JSON valide, sans markdown, sans backticks, avec exacteme
     const resp = await fetch('/api/ai/chat', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ messages: [{role:'user', content: prompt}], max_tokens: 1000 })
+      body: JSON.stringify({ messages: [{role:'user', content: prompt}], max_tokens: 2048 })
     });
     const data = await resp.json();
     if (data.error) {
@@ -5686,7 +5686,7 @@ async function aiSend() {
     const response = await fetch('/api/ai/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages, max_tokens: 1000 })
+      body: JSON.stringify({ messages, max_tokens: 4096 })
     });
 
     const data = await response.json();
@@ -5698,7 +5698,8 @@ async function aiSend() {
       : '';
 
     if (reply) {
-      aiHistory.push({ role: 'assistant', content: reply });
+      const truncated = data.stop_reason === 'max_tokens' ? '\n\n*[réponse coupée — trop long, pose une question plus ciblée ou demande "continue"]*' : '';
+      aiHistory.push({ role: 'assistant', content: reply + truncated });
     } else if (data.error) {
       aiHistory.push({ role: 'assistant', content: `⚠️ Erreur API : ${(typeof data.error === 'string' ? data.error : data.error.message) || 'Vérifiez la connexion.'}` });
     } else {
