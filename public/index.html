@@ -2986,7 +2986,7 @@ function addPlannedSessionFromBank(bankId, dateStr) {
     shape: 'normal',
     location: '',
     support: item.support || '',
-    notes: item.name + (item.description ? ' — ' + item.description : ''),
+    notes: item.name,
     ascents: [],
     bNoGrade: {},
     planned: true,
@@ -3105,7 +3105,7 @@ function generateCycle() {
         shape: 'normal',
         location: '',
         support: item.support || '',
-        notes: item.name + (item.description ? ' — ' + item.description : ''),
+        notes: item.name,
         ascents: [],
         bNoGrade: {},
         planned: true,
@@ -4017,7 +4017,8 @@ function openDayModal(dateStr){
         ${l.planned?`<button class="btn sm danger" onclick="event.stopPropagation();deletePlannedSession('${l.id}','${dateStr}')" title="Retirer cette séance prévue">✕</button>`:`<span class="clevel ${cLevel(load).cls}" style="padding:3px 8px;font-size:11px">${cLevel(load).label}</span>`}
       </div>
       ${(l.ascents||[]).length?`<div class="log-tags" style="margin-top:8px">${(l.ascents||[]).map(a=>`<span class="chip">${a.grade} · ${statusLabel(a.status)}</span>`).join('')}</div>`:''}
-      ${l.planned&&l.notes?`<div style="font-size:12px;color:var(--muted);margin-top:6px">${esc(l.notes)}</div>`:''}
+      ${l.planned&&l.notes?`<div style="font-size:12px;color:var(--muted);margin-top:6px">${esc(l.notes.length>140?l.notes.slice(0,140)+'…':l.notes)}</div>`:''}
+      ${l.planned&&l.bankRef&&getBank().find(b=>b.id===l.bankRef)?`<button class="btn sm" style="margin-top:8px" onclick="event.stopPropagation();closeModal('day-modal');switchPage('session-bank');sbEditCard('${l.bankRef}')">📋 Voir la fiche complète</button>`:''}
     </div>`;
   }).join(''):'<p style="color:var(--muted);text-align:center;padding:20px">Aucune séance ce jour</p>';
   document.getElementById('day-modal-add').onclick=()=>{closeModal('day-modal');newSession(dateStr);switchPage('new-session');};
