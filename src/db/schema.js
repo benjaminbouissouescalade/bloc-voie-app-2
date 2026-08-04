@@ -27,6 +27,7 @@ async function initDB() {
         updated_at  TIMESTAMPTZ DEFAULT NOW()
       );
       ALTER TABLE climbers ADD COLUMN IF NOT EXISTS trips JSONB DEFAULT '[]';
+      ALTER TABLE climbers ADD COLUMN IF NOT EXISTS profile JSONB DEFAULT '{}';
       CREATE TABLE IF NOT EXISTS logs (
         id          TEXT PRIMARY KEY,
         climber_id  TEXT NOT NULL REFERENCES climbers(id) ON DELETE CASCADE,
@@ -80,6 +81,14 @@ async function initDB() {
         data        JSONB DEFAULT '{}',
         created_at  TIMESTAMPTZ DEFAULT NOW(),
         updated_at  TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS invites (
+        token       TEXT PRIMARY KEY,
+        coach_id    TEXT NOT NULL,
+        email       TEXT DEFAULT '',
+        created_at  TIMESTAMPTZ DEFAULT NOW(),
+        expires_at  TIMESTAMPTZ,
+        used_at     TIMESTAMPTZ
       );
     `);
     console.log('✅ Base de données initialisée');
