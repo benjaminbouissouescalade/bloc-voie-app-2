@@ -43,6 +43,8 @@ async function initDB() {
         created_at  TIMESTAMPTZ DEFAULT NOW(),
         updated_at  TIMESTAMPTZ DEFAULT NOW()
       );
+      ALTER TABLE logs ADD COLUMN IF NOT EXISTS planned BOOLEAN DEFAULT false;
+      ALTER TABLE logs ADD COLUMN IF NOT EXISTS bank_ref TEXT;
       CREATE INDEX IF NOT EXISTS idx_logs_climber_date ON logs(climber_id, date DESC);
       CREATE TABLE IF NOT EXISTS session_bank (
         id          TEXT PRIMARY KEY,
