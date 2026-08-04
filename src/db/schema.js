@@ -26,6 +26,7 @@ async function initDB() {
         created_at  TIMESTAMPTZ DEFAULT NOW(),
         updated_at  TIMESTAMPTZ DEFAULT NOW()
       );
+      ALTER TABLE climbers ADD COLUMN IF NOT EXISTS trips JSONB DEFAULT '[]';
       CREATE TABLE IF NOT EXISTS logs (
         id          TEXT PRIMARY KEY,
         climber_id  TEXT NOT NULL REFERENCES climbers(id) ON DELETE CASCADE,
