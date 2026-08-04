@@ -173,7 +173,7 @@ button, input, select, textarea { font-family: inherit; }
 .trip-card { border: 1.5px solid var(--border); border-radius: var(--r-sm); padding: 12px 14px; background: var(--surface2); cursor: pointer; transition: all .12s; position: relative; }
 .trip-card:hover { border-color: var(--border2); background: var(--surface); }
 .trip-card.selected { border-color: var(--accent); background: var(--accent2); box-shadow: 0 0 0 1px var(--accent) inset; }
-.trip-card-name { font-size: 14px; font-weight: 600; margin-bottom: 2px; padding-right: 46px; }
+.trip-card-name { font-size: 14px; font-weight: 600; margin-bottom: 2px; padding-right: 66px; }
 .trip-card-dates { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
 .trip-card-stats { display: flex; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
 .trip-card-stats b { color: var(--text); font-weight: 600; }
@@ -865,9 +865,22 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <span class="panel-title">Comparer des périodes (trips)</span>
       <button class="btn sm primary" onclick="openTripModal()">+ Nouveau trip</button>
     </div>
-    <p style="color:var(--muted);font-size:13px;margin:0 0 14px">Crée une période — par exemple tes 15 jours de vacances en falaise — puis sélectionne-en deux pour comparer la charge et le nombre de voies essayées.</p>
+    <p style="color:var(--muted);font-size:13px;margin:0 0 14px">Crée une période — par exemple tes 15 jours de vacances en falaise — puis clique sur une carte pour voir le détail, ou sélectionne-en deux pour comparer la charge et le nombre de voies essayées.</p>
     <div id="trips-list" class="trips-list"></div>
     <div id="trips-compare"></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">Classement des trips</span>
+    </div>
+    <div class="perf-tabs" id="trip-rank-tabs">
+      <button class="perf-tab active" data-rank="sent">Voies enchaînées</button>
+      <button class="perf-tab" data-rank="load">Charge totale</button>
+      <button class="perf-tab" data-rank="days">Nombre de jours</button>
+      <button class="perf-tab" data-rank="loadPerDay">Charge / jour</button>
+    </div>
+    <div id="trip-ranking"></div>
   </div>
 </div>
 
@@ -901,6 +914,17 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <div id="trip-error" style="background:var(--warm2);color:var(--warm);border-radius:8px;padding:10px;font-size:13px;margin-bottom:12px;display:none"></div>
       <button class="btn primary" style="width:100%" onclick="saveTrip()">Enregistrer</button>
     </div>
+  </div>
+</div>
+
+<!-- Modal détail trip -->
+<div class="modal-backdrop" id="trip-detail-modal">
+  <div class="modal" style="width:min(640px,100%)">
+    <div class="modal-header">
+      <span class="modal-title" id="trip-detail-title">Trip</span>
+      <button class="btn sm" onclick="closeModal('trip-detail-modal')">Fermer</button>
+    </div>
+    <div class="modal-body" id="trip-detail-body"></div>
   </div>
 </div>
 
@@ -3015,6 +3039,7 @@ function renderTripsList() {
     const sel = selectedTripIds.includes(t.id);
     return `<div class="trip-card${sel?' selected':''}" onclick="toggleTripSelect('${t.id}')">
       <div class="trip-card-actions">
+        <button onclick="event.stopPropagation();openTripDetail('${t.id}')" title="Détails">👁</button>
         <button onclick="event.stopPropagation();openTripModal('${t.id}')" title="Modifier">✎</button>
         <button onclick="event.stopPropagation();deleteTrip('${t.id}')" title="Supprimer">✕</button>
       </div>
@@ -3028,6 +3053,7 @@ function renderTripsList() {
     </div>`;
   }).join('');
   renderTripsCompare();
+  renderTripRanking();
 }
 
 function toggleTripSelect(id) {
@@ -3130,6 +3156,89 @@ function deleteTrip(id) {
   selectedTripIds = selectedTripIds.filter(x=>x!==id);
   saveDB();
   renderTripsList();
+}
+
+// — Classement des trips —
+let tripRankSort = 'sent';
+const TRIP_RANK_LABELS = { sent:'voies enchaînées', load:'pts de charge', days:'jours', loadPerDay:'pts/jour' };
+function renderTripRanking() {
+  const el = document.getElementById('trip-ranking');
+  if (!el) return;
+  const trips = getActive()?.trips || [];
+  if (!trips.length) { el.innerHTML = `<div class="trip-empty">Crée au moins un trip pour voir le classement.</div>`; return; }
+  const ranked = trips.map(t=>({t, s: tripStats(t)})).sort((a,b)=>b.s[tripRankSort]-a.s[tripRankSort]);
+  const medals = ['🥇','🥈','🥉'];
+  el.innerHTML = `<table class="trip-compare-table">
+    <thead><tr><th></th><th>Trip</th><th>Dates</th><th>Jours</th><th>Charge</th><th>Voies (env. / essais)</th><th>Séances</th></tr></thead>
+    <tbody>
+      ${ranked.map((r,i)=>`<tr>
+        <td>${medals[i]||i+1}</td>
+        <td><b>${r.t.name}</b>${r.t.location?` <span style="color:var(--muted);font-size:12px">· ${r.t.location}</span>`:''}</td>
+        <td style="color:var(--muted);font-size:12px">${fmtDate(r.t.start)} → ${fmtDate(r.t.end)}</td>
+        <td class="num">${r.s.days}</td>
+        <td class="num">${r.s.load}</td>
+        <td class="num">${r.s.sent} / ${r.s.tries}</td>
+        <td class="num">${r.s.sessions}</td>
+      </tr>`).join('')}
+    </tbody>
+  </table>`;
+}
+document.getElementById('trip-rank-tabs').addEventListener('click', e=>{
+  const b = e.target.closest('[data-rank]');
+  if (!b) return;
+  document.querySelectorAll('#trip-rank-tabs [data-rank]').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  tripRankSort = b.dataset.rank;
+  renderTripRanking();
+});
+
+// — Détail d'un trip —
+function openTripDetail(id) {
+  const t = (getActive()?.trips || []).find(x=>x.id===id);
+  if (!t) return;
+  const s = tripStats(t);
+  const logs = getLogs().filter(l => l.date >= t.start && l.date <= t.end).sort((a,b)=>a.date.localeCompare(b.date));
+  const byGrade = {};
+  logs.flatMap(l=>l.ascents||[]).forEach(a=>{
+    if (!GRADES.includes(a.grade)) return;
+    if (!byGrade[a.grade]) byGrade[a.grade] = {sent:0, try:0};
+    if (a.status==='try') byGrade[a.grade].try++; else byGrade[a.grade].sent++;
+  });
+  const usedGrades = GRADES.filter(g=>byGrade[g]).reverse();
+  const maxCount = usedGrades.length ? Math.max(...usedGrades.map(g=>byGrade[g].sent+byGrade[g].try), 1) : 1;
+  document.getElementById('trip-detail-title').textContent = `${t.name}${t.location?` · ${t.location}`:''}`;
+  document.getElementById('trip-detail-body').innerHTML = `
+    <p style="color:var(--muted);font-size:13px;margin-bottom:16px">${fmtDate(t.start)} → ${fmtDate(t.end)} · ${s.days} jours</p>
+    <div class="stat-grid stat-grid-4" style="margin-bottom:16px">
+      <div class="stat-card accent"><div class="stat-label">Charge totale</div><div class="stat-value" style="font-size:26px">${s.load}</div><div class="stat-sub">${s.loadPerDay} / jour</div></div>
+      <div class="stat-card"><div class="stat-label">Séances</div><div class="stat-value" style="font-size:26px">${s.sessions}</div></div>
+      <div class="stat-card"><div class="stat-label">Voies essayées</div><div class="stat-value" style="font-size:26px">${s.totalAscents}</div><div class="stat-sub">${s.sent} envoyées · ${s.tries} essais</div></div>
+      <div class="stat-card warm"><div class="stat-label">Grade max envoyé</div><div class="stat-value" style="font-size:26px">${s.topGrade}</div><div class="stat-sub">intensité moy. ${s.avgInt||'—'}</div></div>
+    </div>
+    ${usedGrades.length ? `<div class="pyramid">${usedGrades.map(g=>{
+      const d = byGrade[g];
+      const barW = (n,color,label) => n?`<div class="pyr-bar" style="width:${Math.max(6,(n/maxCount)*300)}px;background:${color}" title="${label}: ${n}"></div>`:'';
+      return `<div class="pyr-row">
+        <div class="pyr-grade">${g}</div>
+        <div class="pyr-bars">${barW(d.sent,'#2d5a3d','Envoyées')}${barW(d.try,'#d9cff5','Essais')}</div>
+        <div class="pyr-count">${d.sent+d.try}</div>
+      </div>`;
+    }).join('')}</div>` : '<p class="trip-empty">Aucune ascension enregistrée sur cette période.</p>'}
+    <div style="margin-top:18px">
+      <div style="font-weight:600;font-size:13px;margin-bottom:8px">Séances (${logs.length})</div>
+      ${logs.length ? logs.map(l=>{
+        const type = SESSION_TYPES[l.type]||SESSION_TYPES.autre;
+        return `<div class="log-item" onclick="closeModal('trip-detail-modal');editSession('${l.id}')">
+          <div class="log-item-header">
+            <div>
+              <div class="log-date" style="display:flex;align-items:center;gap:8px"><span class="sess-dot" style="background:${type.color}"></span>${type.label} — ${fmtDate(l.date)}</div>
+              <div class="log-meta">${l.minutes||0} min · intensité ${l.intensity||'—'} · charge ${sessionLoad(l)}${l.location?` · ${l.location}`:''}</div>
+            </div>
+          </div>
+        </div>`;
+      }).join('') : '<p class="trip-empty">Aucune séance enregistrée sur cette période.</p>'}
+    </div>`;
+  document.getElementById('trip-detail-modal').classList.add('open');
 }
 
 // — Pyramid page —
