@@ -3011,7 +3011,11 @@ function tripStats(trip) {
   const totalAscents = ascents.length;
   const avgInt = logs.length ? logs.reduce((s,l)=>s+(l.intensity||3),0)/logs.length : 0;
   const days = Math.max(1, Math.round((new Date(trip.end)-new Date(trip.start))/86400000)+1);
-  const topGrade = ascents.filter(a=>a.status!=='try'&&GRADE_IDX[a.grade]!==undefined).map(a=>a.grade).sort((x,y)=>GRADE_IDX[y]-GRADE_IDX[x])[0] || '—';
+  const validAscents = ascents.filter(a=>GRADE_IDX[a.grade]!==undefined);
+  const sentAscents = validAscents.filter(a=>a.status!=='try');
+  const hardestTried = validAscents.length ? validAscents.map(a=>a.grade).sort((x,y)=>GRADE_IDX[y]-GRADE_IDX[x])[0] : '—';
+  const hardestSent = sentAscents.length ? sentAscents.map(a=>a.grade).sort((x,y)=>GRADE_IDX[y]-GRADE_IDX[x])[0] : '—';
+  const avgGrade = validAscents.length ? GRADES[Math.round(validAscents.reduce((s,a)=>s+GRADE_IDX[a.grade],0)/validAscents.length)] : '—';
   return {
     load: Math.round(load),
     sessions: logs.length,
@@ -3019,7 +3023,8 @@ function tripStats(trip) {
     avgInt: Math.round(avgInt*10)/10,
     days,
     loadPerDay: Math.round((load/days)*10)/10,
-    topGrade,
+    topGrade: hardestSent,
+    hardestTried, hardestSent, avgGrade,
     clevel: cLevel(Math.round(load))
   };
 }
@@ -3090,7 +3095,9 @@ function renderTripsCompare() {
         <tr><td>— dont envoyées</td><td class="num">${sa.sent}</td><td class="num">${sb.sent}</td></tr>
         <tr><td>— dont essais</td><td class="num">${sa.tries}</td><td class="num">${sb.tries}</td></tr>
         <tr><td>Intensité moyenne</td><td class="num">${sa.avgInt||'—'}</td><td class="num">${sb.avgInt||'—'}</td></tr>
-        <tr><td>Grade max envoyé</td><td class="num">${sa.topGrade}</td><td class="num">${sb.topGrade}</td></tr>
+        <tr><td>Voie la + dure essayée</td><td class="num">${sa.hardestTried}</td><td class="num">${sb.hardestTried}</td></tr>
+        <tr><td>Voie la + dure enchaînée</td><td class="num">${sa.hardestSent}</td><td class="num">${sb.hardestSent}</td></tr>
+        <tr><td>Moyenne des voies</td><td class="num">${sa.avgGrade}</td><td class="num">${sb.avgGrade}</td></tr>
         <tr><td>C-Level (charge totale)</td><td class="num"><span class="clevel ${sa.clevel.cls}" style="padding:2px 8px;font-size:11px">${sa.clevel.label}</span></td><td class="num"><span class="clevel ${sb.clevel.cls}" style="padding:2px 8px;font-size:11px">${sb.clevel.label}</span></td></tr>
       </tbody>
     </table>`;
@@ -3169,7 +3176,7 @@ function renderTripRanking() {
   const ranked = trips.map(t=>({t, s: tripStats(t)})).sort((a,b)=>b.s[tripRankSort]-a.s[tripRankSort]);
   const medals = ['🥇','🥈','🥉'];
   el.innerHTML = `<table class="trip-compare-table">
-    <thead><tr><th></th><th>Trip</th><th>Dates</th><th>Jours</th><th>Charge</th><th>Voies (env. / essais)</th><th>Séances</th></tr></thead>
+    <thead><tr><th></th><th>Trip</th><th>Dates</th><th>Jours</th><th>Charge</th><th>Voies (env. / essais)</th><th>Séances</th><th>Voie la + dure essayée</th><th>Voie la + dure enchaînée</th><th>Moyenne</th></tr></thead>
     <tbody>
       ${ranked.map((r,i)=>`<tr>
         <td>${medals[i]||i+1}</td>
@@ -3179,6 +3186,9 @@ function renderTripRanking() {
         <td class="num">${r.s.load}</td>
         <td class="num">${r.s.sent} / ${r.s.tries}</td>
         <td class="num">${r.s.sessions}</td>
+        <td class="num">${r.s.hardestTried!=='—'?`<span class="grade ${gradeClass(r.s.hardestTried)}" style="height:24px;min-width:0;padding:0 8px;font-size:12px">${r.s.hardestTried}</span>`:'—'}</td>
+        <td class="num">${r.s.hardestSent!=='—'?`<span class="grade ${gradeClass(r.s.hardestSent)}" style="height:24px;min-width:0;padding:0 8px;font-size:12px">${r.s.hardestSent}</span>`:'—'}</td>
+        <td class="num">${r.s.avgGrade!=='—'?`<span class="grade ${gradeClass(r.s.avgGrade)}" style="height:24px;min-width:0;padding:0 8px;font-size:12px">${r.s.avgGrade}</span>`:'—'}</td>
       </tr>`).join('')}
     </tbody>
   </table>`;
@@ -3209,11 +3219,16 @@ function openTripDetail(id) {
   document.getElementById('trip-detail-title').textContent = `${t.name}${t.location?` · ${t.location}`:''}`;
   document.getElementById('trip-detail-body').innerHTML = `
     <p style="color:var(--muted);font-size:13px;margin-bottom:16px">${fmtDate(t.start)} → ${fmtDate(t.end)} · ${s.days} jours</p>
-    <div class="stat-grid stat-grid-4" style="margin-bottom:16px">
+    <div class="stat-grid stat-grid-4" style="margin-bottom:12px">
       <div class="stat-card accent"><div class="stat-label">Charge totale</div><div class="stat-value" style="font-size:26px">${s.load}</div><div class="stat-sub">${s.loadPerDay} / jour</div></div>
       <div class="stat-card"><div class="stat-label">Séances</div><div class="stat-value" style="font-size:26px">${s.sessions}</div></div>
       <div class="stat-card"><div class="stat-label">Voies essayées</div><div class="stat-value" style="font-size:26px">${s.totalAscents}</div><div class="stat-sub">${s.sent} envoyées · ${s.tries} essais</div></div>
-      <div class="stat-card warm"><div class="stat-label">Grade max envoyé</div><div class="stat-value" style="font-size:26px">${s.topGrade}</div><div class="stat-sub">intensité moy. ${s.avgInt||'—'}</div></div>
+      <div class="stat-card"><div class="stat-label">Intensité moyenne</div><div class="stat-value" style="font-size:26px">${s.avgInt||'—'}</div></div>
+    </div>
+    <div class="stat-grid stat-grid-3" style="margin-bottom:16px">
+      <div class="stat-card warm"><div class="stat-label">Voie la + dure essayée</div><div class="stat-value" style="font-size:26px">${s.hardestTried}</div></div>
+      <div class="stat-card warm"><div class="stat-label">Voie la + dure enchaînée</div><div class="stat-value" style="font-size:26px">${s.hardestSent}</div></div>
+      <div class="stat-card"><div class="stat-label">Moyenne des voies</div><div class="stat-value" style="font-size:26px">${s.avgGrade}</div></div>
     </div>
     ${usedGrades.length ? `<div class="pyramid">${usedGrades.map(g=>{
       const d = byGrade[g];
