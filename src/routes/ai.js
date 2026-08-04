@@ -37,9 +37,15 @@ router.post('/chat', async (req, res) => {
     const data = await response.json();
 
     if (!response.ok) {
+      console.error('Erreur API Anthropic (status ' + response.status + '):', JSON.stringify(data));
       return res.status(response.status).json({
         error: data.error?.message || 'Erreur API Anthropic'
       });
+    }
+
+    const hasText = Array.isArray(data.content) && data.content.some(b => b && b.type === 'text' && b.text);
+    if (!hasText) {
+      console.error('Réponse Anthropic sans texte exploitable:', JSON.stringify(data));
     }
 
     res.json(data);
