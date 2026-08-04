@@ -168,6 +168,24 @@ button, input, select, textarea { font-family: inherit; }
 /* Charts container */
 .chart-wrap { position: relative; width: 100%; }
 
+/* Trips (periods comparison) */
+.trips-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.trip-card { border: 1.5px solid var(--border); border-radius: var(--r-sm); padding: 12px 14px; background: var(--surface2); cursor: pointer; transition: all .12s; position: relative; }
+.trip-card:hover { border-color: var(--border2); background: var(--surface); }
+.trip-card.selected { border-color: var(--accent); background: var(--accent2); box-shadow: 0 0 0 1px var(--accent) inset; }
+.trip-card-name { font-size: 14px; font-weight: 600; margin-bottom: 2px; padding-right: 46px; }
+.trip-card-dates { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+.trip-card-stats { display: flex; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+.trip-card-stats b { color: var(--text); font-weight: 600; }
+.trip-card-actions { position: absolute; top: 10px; right: 10px; display: flex; gap: 4px; }
+.trip-card-actions button { border: none; background: transparent; color: var(--muted); cursor: pointer; font-size: 13px; padding: 2px 4px; border-radius: 4px; }
+.trip-card-actions button:hover { background: var(--surface); color: var(--text); }
+.trip-empty { color: var(--muted); font-size: 13px; padding: 8px 0; }
+.trip-compare-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 14px; }
+.trip-compare-table th, .trip-compare-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+.trip-compare-table th { color: var(--muted); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+.trip-compare-table td.num { font-weight: 600; }
+
 /* Forms */
 .form-group { margin-bottom: 14px; }
 .form-label { display: block; font-size: 13px; font-weight: 500; color: var(--text); margin-bottom: 6px; }
@@ -839,6 +857,49 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
         <span class="legend-item"><span class="legend-swatch" style="background:#4da872"></span>C3</span>
         <span class="legend-item"><span class="legend-swatch" style="background:#2d7a4e"></span>C4</span>
       </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">Comparer des périodes (trips)</span>
+      <button class="btn sm primary" onclick="openTripModal()">+ Nouveau trip</button>
+    </div>
+    <p style="color:var(--muted);font-size:13px;margin:0 0 14px">Crée une période — par exemple tes 15 jours de vacances en falaise — puis sélectionne-en deux pour comparer la charge et le nombre de voies essayées.</p>
+    <div id="trips-list" class="trips-list"></div>
+    <div id="trips-compare"></div>
+  </div>
+</div>
+
+<!-- Modal création / édition trip -->
+<div class="modal-backdrop" id="trip-modal">
+  <div class="modal" style="width:min(420px,100%)">
+    <div class="modal-header">
+      <span class="modal-title" id="trip-modal-title">Nouveau trip</span>
+      <button class="btn sm" onclick="closeModal('trip-modal')">Fermer</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="trip-edit-id">
+      <div class="form-group">
+        <label class="form-label">Nom du trip</label>
+        <input class="form-control" type="text" id="trip-name" placeholder="Ex. Céüse — Juillet 2026">
+      </div>
+      <div class="form-row form-row-2">
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Début</label>
+          <input class="form-control" type="date" id="trip-start">
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Fin</label>
+          <input class="form-control" type="date" id="trip-end">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Lieu (optionnel)</label>
+        <input class="form-control" type="text" id="trip-location" placeholder="Ex. Céüse">
+      </div>
+      <div id="trip-error" style="background:var(--warm2);color:var(--warm);border-radius:8px;padding:10px;font-size:13px;margin-bottom:12px;display:none"></div>
+      <button class="btn primary" style="width:100%" onclick="saveTrip()">Enregistrer</button>
     </div>
   </div>
 </div>
@@ -2418,10 +2479,11 @@ function loadDB() {
       // Migrate old single-climber format
       if (d && d.logs && !d.climbers) {
         const id = 'c_'+Date.now();
-        return { climbers: [{id, name:'Grimpeur 1', color:'#2d5a3d', level:'7a', logs: d.logs}], activeId: id };
+        return { climbers: [{id, name:'Grimpeur 1', color:'#2d5a3d', level:'7a', logs: d.logs, trips: []}], activeId: id };
       }
       if (d && d.climbers && d.climbers.length) {
         if (!d.sessionBank) d.sessionBank = mkSampleBank();
+        d.climbers.forEach(c => { if (!c.trips) c.trips = []; });
         return d;
       }
     }
@@ -2430,8 +2492,8 @@ function loadDB() {
   const id1 = 'c_sample1', id2 = 'c_sample2';
   return {
     climbers: [
-      {id: id1, name: 'Ben', color: '#2d5a3d', level: '7b', logs: mkSampleLogs()},
-      {id: id2, name: 'Marie', color: '#1a4a7a', level: '6c', logs: mkSampleLogs2()},
+      {id: id1, name: 'Ben', color: '#2d5a3d', level: '7b', logs: mkSampleLogs(), trips: []},
+      {id: id2, name: 'Marie', color: '#1a4a7a', level: '6c', logs: mkSampleLogs2(), trips: []},
     ],
     activeId: id1,
     sessionBank: mkSampleBank()
@@ -2450,7 +2512,7 @@ async function syncToBackend() {
     await fetch('/api/climbers', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({id:c.id, name:c.name, color:c.color, level:c.level})
+      body: JSON.stringify({id:c.id, name:c.name, color:c.color, level:c.level, trips:c.trips||[]})
     }).catch(()=>{});
     // Sync ses logs
     await fetch(`/api/logs/${c.id}/sync`, {
@@ -2483,7 +2545,7 @@ async function loadFromBackend() {
     const climbersWithLogs = await Promise.all(climbers.map(async c => {
       const logsRes = await fetch(`/api/logs/${c.id}`);
       const logs = logsRes.ok ? await logsRes.json() : [];
-      return {...c, logs};
+      return {...c, logs, trips: c.trips || []};
     }));
 
     db.climbers = climbersWithLogs;
@@ -2909,6 +2971,165 @@ function renderWorkload() {
     cell.className=`heat-cell load-${lvl}`;cell.title=`${d}/${m+1}: charge ${load}`;
     hm.appendChild(cell);
   }
+
+  renderTripsList();
+}
+
+// — Trips (comparaison de périodes) —
+let selectedTripIds = [];
+
+function tripStats(trip) {
+  const logs = getLogs().filter(l => l.date >= trip.start && l.date <= trip.end);
+  const load = logs.reduce((s,l)=>s+sessionLoad(l),0);
+  const ascents = logs.flatMap(l=>l.ascents||[]);
+  const sent = ascents.filter(a=>a.status!=='try').length;
+  const tries = ascents.filter(a=>a.status==='try').length;
+  const totalAscents = ascents.length;
+  const avgInt = logs.length ? logs.reduce((s,l)=>s+(l.intensity||3),0)/logs.length : 0;
+  const days = Math.max(1, Math.round((new Date(trip.end)-new Date(trip.start))/86400000)+1);
+  const topGrade = ascents.filter(a=>a.status!=='try'&&GRADE_IDX[a.grade]!==undefined).map(a=>a.grade).sort((x,y)=>GRADE_IDX[y]-GRADE_IDX[x])[0] || '—';
+  return {
+    load: Math.round(load),
+    sessions: logs.length,
+    totalAscents, sent, tries,
+    avgInt: Math.round(avgInt*10)/10,
+    days,
+    loadPerDay: Math.round((load/days)*10)/10,
+    topGrade,
+    clevel: cLevel(Math.round(load))
+  };
+}
+
+function renderTripsList() {
+  const el = document.getElementById('trips-list');
+  if (!el) return;
+  const trips = (getActive()?.trips || []).slice().sort((a,b)=>b.start.localeCompare(a.start));
+  selectedTripIds = selectedTripIds.filter(id => trips.find(t=>t.id===id));
+  if (!trips.length) {
+    el.innerHTML = `<div class="trip-empty">Aucun trip enregistré. Crée-en un pour suivre une période précise (vacances grimpe, stage, voyage falaise...).</div>`;
+    document.getElementById('trips-compare').innerHTML = '';
+    return;
+  }
+  el.innerHTML = trips.map(t=>{
+    const s = tripStats(t);
+    const sel = selectedTripIds.includes(t.id);
+    return `<div class="trip-card${sel?' selected':''}" onclick="toggleTripSelect('${t.id}')">
+      <div class="trip-card-actions">
+        <button onclick="event.stopPropagation();openTripModal('${t.id}')" title="Modifier">✎</button>
+        <button onclick="event.stopPropagation();deleteTrip('${t.id}')" title="Supprimer">✕</button>
+      </div>
+      <div class="trip-card-name">${t.name}${t.location?` · ${t.location}`:''}</div>
+      <div class="trip-card-dates">${fmtDate(t.start)} → ${fmtDate(t.end)} (${s.days}j)</div>
+      <div class="trip-card-stats">
+        <span>charge <b>${s.load}</b></span>
+        <span>séances <b>${s.sessions}</b></span>
+        <span>voies <b>${s.totalAscents}</b></span>
+      </div>
+    </div>`;
+  }).join('');
+  renderTripsCompare();
+}
+
+function toggleTripSelect(id) {
+  if (selectedTripIds.includes(id)) {
+    selectedTripIds = selectedTripIds.filter(x=>x!==id);
+  } else {
+    if (selectedTripIds.length >= 2) selectedTripIds.shift();
+    selectedTripIds.push(id);
+  }
+  renderTripsList();
+}
+
+function renderTripsCompare() {
+  const el = document.getElementById('trips-compare');
+  if (!el) return;
+  const trips = getActive()?.trips || [];
+  const sel = selectedTripIds.map(id=>trips.find(t=>t.id===id)).filter(Boolean);
+  if (sel.length < 2) {
+    el.innerHTML = sel.length===1 ? `<p class="trip-empty">Sélectionne un second trip pour comparer.</p>` : '';
+    destroyChart('tripCompareChart');
+    return;
+  }
+  const [a,b] = sel;
+  const sa = tripStats(a), sb = tripStats(b);
+  el.innerHTML = `
+    <div class="chart-wrap" style="height:220px;margin-top:16px"><canvas id="tripCompareChart"></canvas></div>
+    <table class="trip-compare-table">
+      <thead><tr><th></th><th>${a.name}</th><th>${b.name}</th></tr></thead>
+      <tbody>
+        <tr><td>Charge totale</td><td class="num">${sa.load}</td><td class="num">${sb.load}</td></tr>
+        <tr><td>Charge / jour</td><td class="num">${sa.loadPerDay}</td><td class="num">${sb.loadPerDay}</td></tr>
+        <tr><td>Séances</td><td class="num">${sa.sessions}</td><td class="num">${sb.sessions}</td></tr>
+        <tr><td>Voies essayées</td><td class="num">${sa.totalAscents}</td><td class="num">${sb.totalAscents}</td></tr>
+        <tr><td>— dont envoyées</td><td class="num">${sa.sent}</td><td class="num">${sb.sent}</td></tr>
+        <tr><td>— dont essais</td><td class="num">${sa.tries}</td><td class="num">${sb.tries}</td></tr>
+        <tr><td>Intensité moyenne</td><td class="num">${sa.avgInt||'—'}</td><td class="num">${sb.avgInt||'—'}</td></tr>
+        <tr><td>Grade max envoyé</td><td class="num">${sa.topGrade}</td><td class="num">${sb.topGrade}</td></tr>
+        <tr><td>C-Level (charge totale)</td><td class="num"><span class="clevel ${sa.clevel.cls}" style="padding:2px 8px;font-size:11px">${sa.clevel.label}</span></td><td class="num"><span class="clevel ${sb.clevel.cls}" style="padding:2px 8px;font-size:11px">${sb.clevel.label}</span></td></tr>
+      </tbody>
+    </table>`;
+  makeChart('tripCompareChart', {
+    type:'bar',
+    data:{
+      labels:['Charge totale','Séances','Voies essayées','Envoyées'],
+      datasets:[
+        {label:a.name, data:[sa.load, sa.sessions, sa.totalAscents, sa.sent], backgroundColor:'rgba(45,90,61,.75)', borderRadius:5},
+        {label:b.name, data:[sb.load, sb.sessions, sb.totalAscents, sb.sent], backgroundColor:'rgba(196,80,26,.75)', borderRadius:5}
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,position:'top',labels:{boxWidth:12,font:{size:11}}}},scales:{x:{grid:{display:false},ticks:{font:{size:10}}},y:{grid:{color:'rgba(0,0,0,.05)'},ticks:{font:{size:10}}}}}
+  });
+}
+
+function openTripModal(id) {
+  document.getElementById('trip-error').style.display='none';
+  document.getElementById('trip-edit-id').value = id || '';
+  const t = id ? (getActive()?.trips||[]).find(x=>x.id===id) : null;
+  document.getElementById('trip-modal-title').textContent = id ? 'Modifier le trip' : 'Nouveau trip';
+  document.getElementById('trip-name').value = t?.name || '';
+  document.getElementById('trip-start').value = t?.start || '';
+  document.getElementById('trip-end').value = t?.end || '';
+  document.getElementById('trip-location').value = t?.location || '';
+  document.getElementById('trip-modal').classList.add('open');
+}
+
+function saveTrip() {
+  const id = document.getElementById('trip-edit-id').value;
+  const name = document.getElementById('trip-name').value.trim();
+  const start = document.getElementById('trip-start').value;
+  const end = document.getElementById('trip-end').value;
+  const location = document.getElementById('trip-location').value.trim();
+  const errEl = document.getElementById('trip-error');
+  if (!name || !start || !end) {
+    errEl.textContent = 'Nom, date de début et date de fin sont requis.';
+    errEl.style.display = 'block';
+    return;
+  }
+  if (start > end) {
+    errEl.textContent = 'La date de début doit précéder la date de fin.';
+    errEl.style.display = 'block';
+    return;
+  }
+  const climber = getActive();
+  if (!climber.trips) climber.trips = [];
+  if (id) {
+    const t = climber.trips.find(x=>x.id===id);
+    if (t) { t.name=name; t.start=start; t.end=end; t.location=location; }
+  } else {
+    climber.trips.push({id:'trip_'+Date.now(), name, start, end, location});
+  }
+  saveDB();
+  closeModal('trip-modal');
+  renderTripsList();
+}
+
+function deleteTrip(id) {
+  if (!confirm('Supprimer ce trip ?')) return;
+  const climber = getActive();
+  climber.trips = (climber.trips||[]).filter(t=>t.id!==id);
+  selectedTripIds = selectedTripIds.filter(x=>x!==id);
+  saveDB();
+  renderTripsList();
 }
 
 // — Pyramid page —
@@ -2944,16 +3165,6 @@ function renderPyramidPage() {
   // Stats table
   const ref=getRefGrade();
   const rows=usedGrades.map(g=>{const d=byGrade[g];const total=(d.tete||0)+(d.moulinette||0)+(d.flash||0)+(d.av||0)+(d.try||0);return `<div class="pyr-row" style="grid-template-columns:60px 40px 40px 40px 40px 1fr;margin-bottom:6px;font-size:13px">
-    <span class="grade ${gradeClass(g)}">${g}</span>
-    <span>${d.tete||0}</span><span>${d.moulinette||0}</span><span>${(d.flash||0)+(d.av||0)}</span><span>${d.try||0}</span>
-    <span style="color:var(--muted)">${total} enc.</span>
-  </div>`;});
-  document.getElementById('grade-stats-table').innerHTML=rows.length?`<div class="pyr-row" style="grid-template-columns:60px 40px 40px 40px 40px 1fr;font-weight:600;font-size:11px;color:var(--muted);margin-bottom:8px"><span>Grade</span><span>Tête</span><span>Mouli.</span><span>Flash</span><span>Essai</span><span></span></div>`+rows.join(''):'<p style="color:var(--muted);font-size:13px">Pas de données</p>';
-    <span class="grade ${gradeClass(g)}">${g}</span>
-    <span>${d.tete||0}</span><span>${d.moulinette||0}</span><span>${d.av||0}</span><span>${d.flash||0}</span><span>${d.try||0}</span>
-    <span style="color:var(--muted)">${total} enc.</span>
-  </div>`;});
-  document.getElementById('grade-stats-table').innerHTML=rows.length?`<div class="pyr-row" style="grid-template-columns:60px 40px 40px 40px 40px 40px 1fr;font-weight:600;font-size:11px;color:var(--muted);margin-bottom:8px"><span>Grade</span><span>Tête</span><span>Mouli.</span><span>À vue</span><span>Flash</span><span>Essai</span><span></span></div>`+rows.join(''):'<p style="color:var(--muted);font-size:13px">Pas de données</p>';
     <span class="grade ${gradeClass(g)}">${g}</span>
     <span>${d.tete||0}</span><span>${d.moulinette||0}</span><span>${(d.flash||0)+(d.av||0)}</span><span>${d.try||0}</span>
     <span style="color:var(--muted)">${total} enc.</span>
