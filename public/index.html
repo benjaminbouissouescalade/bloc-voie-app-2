@@ -632,13 +632,29 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <button class="btn" id="cal-today">Aujourd'hui</button>
     </div>
   </div>
+
+  <div class="panel" id="plan-objective-banner" style="margin-bottom:16px"></div>
+
+  <div style="display:flex;gap:8px;margin-bottom:14px" id="cal-zoom-picker">
+    <button class="time-filter-btn" data-calzoom="week" onclick="setCalZoom('week')">Semaine</button>
+    <button class="time-filter-btn active" data-calzoom="month" onclick="setCalZoom('month')">Mois</button>
+    <button class="time-filter-btn" data-calzoom="year" onclick="setCalZoom('year')">Année</button>
+  </div>
+
   <div style="display:grid;grid-template-columns:1fr 270px;gap:20px;align-items:start">
-    <div class="panel">
+    <div class="panel" id="cal-month-view">
       <div class="cal-header">
         <div class="cal-day-label">Lun</div><div class="cal-day-label">Mar</div><div class="cal-day-label">Mer</div>
         <div class="cal-day-label">Jeu</div><div class="cal-day-label">Ven</div><div class="cal-day-label">Sam</div><div class="cal-day-label">Dim</div>
       </div>
       <div class="cal-grid" id="cal-grid"></div>
+    </div>
+    <div class="panel" id="cal-week-view" style="display:none">
+      <div class="cal-header" id="cal-week-header"></div>
+      <div class="cal-grid" id="cal-week-grid" style="grid-template-rows:1fr"></div>
+    </div>
+    <div class="panel" id="cal-year-view" style="display:none">
+      <div id="cal-year-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px"></div>
     </div>
     <div class="panel" style="max-height:600px;display:flex;flex-direction:column">
       <div class="panel-header" style="margin-bottom:8px">
@@ -656,6 +672,24 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <div class="stat-card"><div class="stat-label">Minutes</div><div class="stat-value" id="cal-minutes">0</div></div>
       <div class="stat-card"><div class="stat-label">Charge totale</div><div class="stat-value" id="cal-load">0</div></div>
       <div class="stat-card"><div class="stat-label">Ascensions cotées</div><div class="stat-value" id="cal-ascents">0</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- Popup : que faire de la séance déposée sur une date ? -->
+<div class="modal-backdrop" id="drop-choice-modal">
+  <div class="modal" style="width:min(420px,100%)">
+    <div class="modal-header">
+      <span class="modal-title">Programmer cette séance</span>
+      <button class="btn sm" onclick="closeModal('drop-choice-modal')">Fermer</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--muted);margin-bottom:14px" id="drop-choice-desc"></p>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <button class="btn primary" style="justify-content:flex-start" onclick="dropChoiceOnce()">📌 Une seule fois, à cette date</button>
+        <button class="btn" style="justify-content:flex-start" onclick="dropChoiceCycle('simple')">🔁 Cycle simple — X fois sur une période</button>
+        <button class="btn" style="justify-content:flex-start" onclick="dropChoiceCycle('detailed')">📅 Cycle détaillé — jours fixes chaque semaine</button>
+      </div>
     </div>
   </div>
 </div>
@@ -3165,9 +3199,79 @@ function renderDashboard() {
   document.getElementById('type-legend').innerHTML=typeKeys.map(k=>`<span class="legend-item"><span class="legend-swatch" style="background:${(SESSION_TYPES[k]||SESSION_TYPES.autre).color}"></span>${(SESSION_TYPES[k]||SESSION_TYPES.autre).label}</span>`).join('');
 }
 
-// — Calendar —
+// — Objectif de l'athlète (posé par lui-même ou par le coach) —
+function renderPlanObjective() {
+  const el = document.getElementById('plan-objective-banner');
+  if (!el) return;
+  const c = getActive();
+  const goals = (c?.profile?.goals) || [];
+  if (!c) { el.innerHTML = ''; return; }
+  if (!goals.length) {
+    el.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <span style="font-size:13px;color:var(--muted)">🎯 Aucun objectif défini pour ${esc(c.name)}.</span>
+      <button class="btn sm" onclick="openProfileDetailModal('${c.id}')">Définir un objectif</button>
+    </div>`;
+    return;
+  }
+  const today = new Date().toISOString().slice(0,10);
+  const dated = goals.filter(g => g.date).sort((a,b) => a.date.localeCompare(b.date));
+  const future = dated.filter(g => g.date >= today);
+  const chosen = future[0] || dated[dated.length-1] || goals[goals.length-1];
+  const daysLeft = chosen.date ? Math.ceil((new Date(chosen.date+'T00:00:00') - new Date(today+'T00:00:00')) / 86400000) : null;
+  el.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+    <div style="display:flex;align-items:center;gap:10px">
+      <span style="font-size:18px">🎯</span>
+      <div>
+        <div style="font-weight:600;font-size:14px">Objectif de ${esc(c.name)} : ${esc(chosen.text)}</div>
+        <div style="font-size:12px;color:var(--muted)">${daysLeft===null?'Pas de date fixée':(daysLeft>=0?daysLeft+' jour'+(daysLeft>1?'s':'')+' restant'+(daysLeft>1?'s':''):'Date dépassée')}</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px">
+      ${chosen.date?`<span style="background:var(--accent2);color:var(--accent);font-size:12px;padding:4px 12px;border-radius:99px">${fmtDate(chosen.date)}</span>`:''}
+      <button class="btn sm coach-only-btn" onclick="openProfileDetailModal('${c.id}')">Modifier</button>
+    </div>
+  </div>`;
+}
+
+// — Calendar : zoom Semaine / Mois / Année —
 let calDate = new Date();
+let calZoom = 'month';
+function setCalZoom(mode) {
+  calZoom = mode;
+  document.querySelectorAll('#cal-zoom-picker .time-filter-btn').forEach(b => b.classList.toggle('active', b.dataset.calzoom === mode));
+  document.getElementById('cal-month-view').style.display = mode === 'month' ? '' : 'none';
+  document.getElementById('cal-week-view').style.display = mode === 'week' ? '' : 'none';
+  document.getElementById('cal-year-view').style.display = mode === 'year' ? '' : 'none';
+  renderCalendar();
+}
+window.setCalZoom = setCalZoom;
+
+// Construit une case de calendrier (jour) entièrement câblée — réutilisée par les vues mois et semaine
+function buildCalCell(ds, dayNum, isOther, todayStr) {
+  const cell = document.createElement('div');
+  const dayLogs = getLogs().filter(l => l.date === ds);
+  const load = dayLogs.reduce((s,l) => s + sessionLoad(l), 0);
+  const doneLogsForCell = dayLogs.filter(l => !l.planned);
+  const plannedLogsForCell = dayLogs.filter(l => l.planned);
+  const hasHard = doneLogsForCell.some(l => l.intensity >= 4);
+  cell.className = 'cal-cell' + (isOther?' other-month':'') + (ds===todayStr?' today':'') + (doneLogsForCell.length&&!hasHard?' has-session':doneLogsForCell.length&&hasHard?' has-hard':'') + (plannedLogsForCell.length?' has-planned':'');
+  cell.innerHTML = `${plannedLogsForCell.length?`<div class="cal-planned-badge" title="${plannedLogsForCell.length} séance${plannedLogsForCell.length>1?'s':''} prévue${plannedLogsForCell.length>1?'s':''}">📌</div>`:''}<div class="cal-num">${dayNum}</div><div class="cal-dots">${dayLogs.map(l=>`<div class="cal-dot${l.planned?' cal-dot-planned':''}" style="${l.planned?`border-color:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`:`background:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`}" title="${l.planned?'Prévue':''}"></div>`).join('')}</div>${load?`<div style="font-size:10px;color:var(--muted);margin-top:3px">${load}</div>`:''}`;
+  cell.onclick = () => openDayModal(ds);
+  cell.ondragover = (e) => { e.preventDefault(); cell.classList.add('drag-over'); };
+  cell.ondragleave = () => cell.classList.remove('drag-over');
+  cell.ondrop = (e) => { e.preventDefault(); cell.classList.remove('drag-over'); onBankDropOnDate(ds); };
+  return { cell, dayLogs, isOther };
+}
+
 function renderCalendar() {
+  renderPlanObjective();
+  if (calZoom === 'week') renderCalendarWeek();
+  else if (calZoom === 'year') renderCalendarYear();
+  else renderCalendarMonth();
+  renderCalBankMini();
+}
+
+function renderCalendarMonth() {
   const y=calDate.getFullYear(), m=calDate.getMonth();
   document.getElementById('cal-month-label').textContent=new Date(y,m,1).toLocaleDateString('fr-FR',{month:'long',year:'numeric'});
   document.getElementById('cal-month-title').textContent=new Date(y,m,1).toLocaleDateString('fr-FR',{month:'long',year:'numeric'});
@@ -3176,35 +3280,78 @@ function renderCalendar() {
   const todayStr=new Date().toISOString().slice(0,10);
   let totalLoad=0,totalAscents=0,totalMinutes=0,totalSessions=0;
   for(let i=0;i<42;i++){
-    const cell=document.createElement('div');
     let dayNum=i-firstDay+1, isOther=false;
     if(dayNum<1){dayNum+=new Date(y,m,0).getDate();isOther=true;}
     else if(dayNum>daysInMonth){dayNum-=daysInMonth;isOther=true;}
-    const dateStr=`${isOther?(dayNum<=7?new Date(y,m+1,1):new Date(y,m-1,1)):new Date(y,m,1)}`.slice(0,10);
-    // Compute proper date str
     let ds;
     if(i<firstDay){const pm=new Date(y,m,0);ds=`${pm.getFullYear()}-${String(pm.getMonth()+1).padStart(2,'0')}-${String(new Date(y,m,0).getDate()-firstDay+i+1).padStart(2,'0')}`;}
     else if(i>=firstDay+daysInMonth){const nm=new Date(y,m+1,1);ds=`${nm.getFullYear()}-${String(nm.getMonth()+1).padStart(2,'0')}-${String(i-firstDay-daysInMonth+1).padStart(2,'0')}`;}
     else{ds=`${y}-${String(m+1).padStart(2,'0')}-${String(dayNum).padStart(2,'0')}`;}
-    const dayLogs=getLogs().filter(l=>l.date===ds);
-    const load=dayLogs.reduce((s,l)=>s+sessionLoad(l),0);
-    const doneLogsForCell=dayLogs.filter(l=>!l.planned);
-    const plannedLogsForCell=dayLogs.filter(l=>l.planned);
-    const hasHard=doneLogsForCell.some(l=>l.intensity>=4);
-    cell.className='cal-cell'+(isOther?' other-month':'')+(ds===todayStr?' today':'')+(doneLogsForCell.length&&!hasHard?' has-session':doneLogsForCell.length&&hasHard?' has-hard':'')+(plannedLogsForCell.length?' has-planned':'');
-    cell.innerHTML=`${plannedLogsForCell.length?`<div class="cal-planned-badge" title="${plannedLogsForCell.length} séance${plannedLogsForCell.length>1?'s':''} prévue${plannedLogsForCell.length>1?'s':''}">📌</div>`:''}<div class="cal-num">${dayNum}</div><div class="cal-dots">${dayLogs.map(l=>`<div class="cal-dot${l.planned?' cal-dot-planned':''}" style="${l.planned?`border-color:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`:`background:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`}" title="${l.planned?'Prévue':''}"></div>`).join('')}</div>${load?`<div style="font-size:10px;color:var(--muted);margin-top:3px">${load}</div>`:''}`;
-    cell.onclick=()=>openDayModal(ds);
-    cell.ondragover=(e)=>{e.preventDefault();cell.classList.add('drag-over');};
-    cell.ondragleave=()=>cell.classList.remove('drag-over');
-    cell.ondrop=(e)=>{e.preventDefault();cell.classList.remove('drag-over');onBankDropOnDate(ds);};
+    const { cell, dayLogs, isOther: other } = buildCalCell(ds, dayNum, isOther, todayStr);
     grid.appendChild(cell);
-    if(!isOther){const doneLogs=dayLogs.filter(l=>!l.planned);totalSessions+=doneLogs.length;totalMinutes+=doneLogs.reduce((s,l)=>s+(l.minutes||0),0);totalLoad+=load;totalAscents+=doneLogs.reduce((s,l)=>s+(l.ascents||[]).length,0);}
+    if(!other){const doneLogs=dayLogs.filter(l=>!l.planned);const load=dayLogs.reduce((s,l)=>s+sessionLoad(l),0);totalSessions+=doneLogs.length;totalMinutes+=doneLogs.reduce((s,l)=>s+(l.minutes||0),0);totalLoad+=load;totalAscents+=doneLogs.reduce((s,l)=>s+(l.ascents||[]).length,0);}
   }
   document.getElementById('cal-count').textContent=totalSessions;
   document.getElementById('cal-minutes').textContent=totalMinutes;
   document.getElementById('cal-load').textContent=totalLoad;
   document.getElementById('cal-ascents').textContent=totalAscents;
-  renderCalBankMini();
+}
+
+function renderCalendarWeek() {
+  const d = new Date(calDate);
+  const monday = new Date(d); monday.setDate(d.getDate() - ((d.getDay()+6)%7));
+  const todayStr = new Date().toISOString().slice(0,10);
+  const label = `Semaine du ${fmtDate(monday.toISOString().slice(0,10))}`;
+  document.getElementById('cal-month-label').textContent = label;
+  document.getElementById('cal-month-title').textContent = label;
+  const headerEl = document.getElementById('cal-week-header');
+  const dayNames = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
+  headerEl.innerHTML = dayNames.map(n => `<div class="cal-day-label">${n}</div>`).join('');
+  const grid = document.getElementById('cal-week-grid');
+  grid.innerHTML = '';
+  grid.style.gridTemplateColumns = 'repeat(7,1fr)';
+  let totalLoad=0,totalAscents=0,totalMinutes=0,totalSessions=0;
+  for (let i=0;i<7;i++) {
+    const dd = new Date(monday); dd.setDate(monday.getDate()+i);
+    const ds = dd.toISOString().slice(0,10);
+    const { cell, dayLogs } = buildCalCell(ds, dd.getDate(), false, todayStr);
+    cell.style.minHeight = '110px';
+    grid.appendChild(cell);
+    const doneLogs = dayLogs.filter(l=>!l.planned);
+    const load = dayLogs.reduce((s,l)=>s+sessionLoad(l),0);
+    totalSessions+=doneLogs.length; totalMinutes+=doneLogs.reduce((s,l)=>s+(l.minutes||0),0); totalLoad+=load; totalAscents+=doneLogs.reduce((s,l)=>s+(l.ascents||[]).length,0);
+  }
+  document.getElementById('cal-count').textContent=totalSessions;
+  document.getElementById('cal-minutes').textContent=totalMinutes;
+  document.getElementById('cal-load').textContent=totalLoad;
+  document.getElementById('cal-ascents').textContent=totalAscents;
+}
+
+function renderCalendarYear() {
+  const y = calDate.getFullYear();
+  document.getElementById('cal-month-label').textContent = String(y);
+  document.getElementById('cal-month-title').textContent = String(y);
+  const grid = document.getElementById('cal-year-grid');
+  const logs = getLogs();
+  let totalLoad=0,totalAscents=0,totalMinutes=0,totalSessions=0;
+  grid.innerHTML = Array.from({length:12},(_,m)=>{
+    const monthLogs = logs.filter(l => { const d=new Date(l.date+'T00:00:00'); return d.getFullYear()===y && d.getMonth()===m; });
+    const doneLogs = monthLogs.filter(l=>!l.planned);
+    const plannedLogs = monthLogs.filter(l=>l.planned);
+    const load = monthLogs.reduce((s,l)=>s+sessionLoad(l),0);
+    totalSessions+=doneLogs.length; totalMinutes+=doneLogs.reduce((s,l)=>s+(l.minutes||0),0); totalLoad+=load; totalAscents+=doneLogs.reduce((s,l)=>s+(l.ascents||[]).length,0);
+    const intensity = Math.min(1, load/300);
+    const monthName = new Date(y,m,1).toLocaleDateString('fr-FR',{month:'long'});
+    return `<div onclick="calDate=new Date(${y},${m},1);setCalZoom('month')" style="cursor:pointer;border:1px solid var(--border);border-radius:var(--r-sm);padding:12px;background:color-mix(in srgb, var(--accent) ${Math.round(intensity*22)}%, var(--surface2))">
+      <div style="font-weight:600;font-size:13px;text-transform:capitalize;margin-bottom:6px">${monthName}</div>
+      <div style="font-size:11px;color:var(--muted)">${doneLogs.length} séance${doneLogs.length!==1?'s':''} · charge ${load}</div>
+      ${plannedLogs.length?`<div style="font-size:11px;color:var(--accent);margin-top:2px">📌 ${plannedLogs.length} prévue${plannedLogs.length>1?'s':''}</div>`:''}
+    </div>`;
+  }).join('');
+  document.getElementById('cal-count').textContent=totalSessions;
+  document.getElementById('cal-minutes').textContent=totalMinutes;
+  document.getElementById('cal-load').textContent=totalLoad;
+  document.getElementById('cal-ascents').textContent=totalAscents;
 }
 
 // Mini-liste de la banque de séances, glissable, affichée à côté du calendrier
@@ -3229,8 +3376,18 @@ function renderCalBankMini() {
     </div>`;
   }).join('');
 }
-document.getElementById('cal-prev').onclick=()=>{calDate.setMonth(calDate.getMonth()-1);renderCalendar();};
-document.getElementById('cal-next').onclick=()=>{calDate.setMonth(calDate.getMonth()+1);renderCalendar();};
+document.getElementById('cal-prev').onclick=()=>{
+  if (calZoom==='week') calDate.setDate(calDate.getDate()-7);
+  else if (calZoom==='year') calDate.setFullYear(calDate.getFullYear()-1);
+  else calDate.setMonth(calDate.getMonth()-1);
+  renderCalendar();
+};
+document.getElementById('cal-next').onclick=()=>{
+  if (calZoom==='week') calDate.setDate(calDate.getDate()+7);
+  else if (calZoom==='year') calDate.setFullYear(calDate.getFullYear()+1);
+  else calDate.setMonth(calDate.getMonth()+1);
+  renderCalendar();
+};
 document.getElementById('cal-today').onclick=()=>{calDate=new Date();renderCalendar();};
 
 // — Glisser-déposer : Banque de séances → Calendrier —
@@ -3244,12 +3401,42 @@ function onBankDragStart(e, id) {
 function onBankDragEnd(e) {
   e.currentTarget.classList.remove('dragging');
 }
+let pendingDrop = null; // {bankId, dateStr} — séance glissée en attente d'un choix (une fois / cycle)
 function onBankDropOnDate(dateStr) {
   const id = draggedBankItemId;
   draggedBankItemId = null;
   if (!id) return;
-  addPlannedSessionFromBank(id, dateStr);
+  const item = getBank().find(x => x.id === id);
+  if (!item) return;
+  pendingDrop = { bankId: id, dateStr };
+  const descEl = document.getElementById('drop-choice-desc');
+  if (descEl) descEl.textContent = `"${item.name}" — ${fmtDate(dateStr)}`;
+  document.getElementById('drop-choice-modal').classList.add('open');
 }
+function dropChoiceOnce() {
+  if (!pendingDrop) return;
+  addPlannedSessionFromBank(pendingDrop.bankId, pendingDrop.dateStr);
+  closeModal('drop-choice-modal');
+  pendingDrop = null;
+}
+function dropChoiceCycle(mode) {
+  if (!pendingDrop) return;
+  const { bankId, dateStr } = pendingDrop;
+  closeModal('drop-choice-modal');
+  openCycleModal();
+  document.getElementById('cycle-start').value = dateStr;
+  setCycleMode(mode);
+  if (mode === 'simple') {
+    cycleItems = [{ bankId, freq: 4 }];
+    renderCycleItemsList();
+  } else {
+    const sel = document.getElementById('cycle-detailed-bank-select');
+    if (sel) sel.value = bankId;
+  }
+  pendingDrop = null;
+}
+window.dropChoiceOnce = dropChoiceOnce;
+window.dropChoiceCycle = dropChoiceCycle;
 function addPlannedSessionFromBank(bankId, dateStr) {
   const item = getBank().find(x => x.id === bankId);
   if (!item) return;
