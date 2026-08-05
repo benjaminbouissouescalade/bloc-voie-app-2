@@ -3986,6 +3986,7 @@ function updateSessionTypeUI(savedBNoGrade) {
 
 // — New Session —
 let editingId=null, sessionAscents=[];
+let sNewSessionDateLocked=false; // évite que renderNewSession() n'écrase une date déjà fixée (ex. clic sur une case du calendrier)
 function newSession(date=null){
   editingId=null; sessionAscents=[];
   document.getElementById('edit-log-id').value='';
@@ -4001,6 +4002,7 @@ function newSession(date=null){
   document.getElementById('delete-session-btn').style.display='none';
   updateSessionTypeUI({});
   renderAscentsEditor();
+  if (date) sNewSessionDateLocked = true;
 }
 function editSession(id){
   const log=getLogs().find(l=>l.id===id);if(!log)return;
@@ -4021,7 +4023,8 @@ function editSession(id){
   renderAscentsEditor();
 }
 function renderNewSession(){
-  if(!editingId&&!sessionAscents.length) newSession();
+  if(!editingId&&!sessionAscents.length&&!sNewSessionDateLocked) newSession();
+  sNewSessionDateLocked=false;
   document.getElementById('s-ref-grade-display').textContent=getRefGrade();
   // Target grade select
   const tg=document.getElementById('p-target-grade');
