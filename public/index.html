@@ -1033,17 +1033,19 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 
 <!-- Modal cycle -->
 <div class="modal-backdrop" id="cycle-modal">
-  <div class="modal" style="width:min(600px,100%)">
+  <div class="modal" style="width:min(680px,100%)">
     <div class="modal-header">
       <span class="modal-title">Créer un cycle</span>
       <button class="btn sm" onclick="closeModal('cycle-modal')">Fermer</button>
     </div>
     <div class="modal-body">
-      <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Choisis des séances de ta banque et le nombre de fois où chacune doit revenir sur la période — le cycle les répartit automatiquement sur le calendrier.</p>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Choisis des séances de ta banque et répartis-les sur la période — le cycle les place automatiquement sur le calendrier. Tu peux créer plusieurs cycles différents (ex. un cycle "physique" + un cycle "escalade") : ils se superposent sur le calendrier sans s'écraser.</p>
+
       <div class="form-group coach-only-btn" id="cycle-targets-group">
         <label class="form-label">Appliquer à <span style="font-weight:400;color:var(--muted)">(un ou plusieurs athlètes)</span></label>
         <div id="cycle-targets-list" style="display:flex;flex-direction:column;gap:6px;max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px"></div>
       </div>
+
       <div class="form-row form-row-2">
         <div class="form-group" style="margin-bottom:0">
           <label class="form-label">Début du cycle</label>
@@ -1054,20 +1056,51 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
           <input class="form-control" type="number" min="1" max="16" value="4" id="cycle-weeks">
         </div>
       </div>
+
       <div class="form-group">
-        <label class="form-label">Jours disponibles</label>
-        <div id="cycle-avail-days" style="display:flex;gap:10px;flex-wrap:wrap"></div>
+        <label class="form-label">Repos minimum entre deux séances <span style="font-weight:400;color:var(--muted)">(heures — alerte si non respecté, ne bloque pas)</span></label>
+        <input class="form-control" type="number" min="0" max="120" step="1" value="24" id="cycle-rest-hours" style="max-width:140px">
       </div>
-      <div class="form-group" style="border-top:1px solid var(--border);padding-top:14px">
-        <label class="form-label">Ajouter une séance au cycle</label>
-        <div style="display:flex;gap:8px">
-          <select class="form-control" id="cycle-bank-select" style="flex:1"></select>
-          <input class="form-control" type="number" min="1" max="60" value="4" id="cycle-freq" style="width:90px" title="Nombre de fois sur la période">
-          <button class="btn primary" onclick="addCycleItem()">+ Ajouter</button>
+
+      <div style="height:1px;background:var(--border);margin:16px 0"></div>
+
+      <div style="display:flex;gap:8px;margin-bottom:14px" id="cycle-mode-picker">
+        <button class="time-filter-btn active" data-cyclemode="simple" onclick="setCycleMode('simple')">🔁 Simple — nombre de fois sur la période</button>
+        <button class="time-filter-btn" data-cyclemode="detailed" onclick="setCycleMode('detailed')">📅 Détaillé — jour par jour</button>
+      </div>
+
+      <!-- Mode simple : fréquence + répartition auto sur les jours disponibles -->
+      <div id="cycle-simple-block">
+        <div class="form-group">
+          <label class="form-label">Jours disponibles</label>
+          <div id="cycle-avail-days" style="display:flex;gap:10px;flex-wrap:wrap"></div>
         </div>
+        <div class="form-group" style="border-top:1px solid var(--border);padding-top:14px">
+          <label class="form-label">Ajouter une séance au cycle</label>
+          <div style="display:flex;gap:8px">
+            <select class="form-control" id="cycle-bank-select" style="flex:1"></select>
+            <input class="form-control" type="number" min="1" max="60" value="4" id="cycle-freq" style="width:90px" title="Nombre de fois sur la période">
+            <button class="btn primary" onclick="addCycleItem()">+ Ajouter</button>
+          </div>
+        </div>
+        <div id="cycle-items-list" style="margin-bottom:14px"></div>
       </div>
-      <div id="cycle-items-list" style="margin-bottom:14px"></div>
+
+      <!-- Mode détaillé : jour de semaine précis → séance précise, répété chaque semaine de la période -->
+      <div id="cycle-detailed-block" style="display:none">
+        <div class="form-group" style="border-top:1px solid var(--border);padding-top:14px">
+          <label class="form-label">Ajouter une séance à un ou plusieurs jours fixes <span style="font-weight:400;color:var(--muted)">(répété chaque semaine de la période)</span></label>
+          <div style="display:flex;gap:8px;margin-bottom:8px">
+            <select class="form-control" id="cycle-detailed-bank-select" style="flex:1"></select>
+            <button class="btn primary" onclick="addCycleDetailedItem()">+ Ajouter</button>
+          </div>
+          <div id="cycle-detailed-days" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+        </div>
+        <div id="cycle-detailed-list" style="margin-bottom:14px"></div>
+      </div>
+
       <div id="cycle-error" style="background:var(--warm2);color:var(--warm);border-radius:8px;padding:10px;font-size:13px;margin-bottom:12px;display:none"></div>
+      <div id="cycle-warning" style="background:#fdf6e3;color:#8a6a10;border:1px solid #e8d08a;border-radius:8px;padding:10px;font-size:13px;margin-bottom:12px;display:none"></div>
       <button class="btn primary" style="width:100%" onclick="generateCycle()">Générer le cycle</button>
     </div>
   </div>
@@ -3243,9 +3276,21 @@ function addPlannedSessionFromBank(bankId, dateStr) {
   openDayModal(dateStr);
 }
 
-// ═══════════════ CYCLE (fréquence de séances sur une période) ═══════════════
-let cycleItems = []; // [{bankId, freq}]
+// ═══════════════ CYCLE (fréquence de séances sur une période, ou jour par jour) ═══════════════
+let cycleItems = []; // mode simple : [{bankId, freq}]
+let cycleDetailedItems = []; // mode détaillé : [{bankId, days:[0..6]}]
+let cycleMode = 'simple';
 const CYCLE_DAY_LABELS = [['1','Lun'],['2','Mar'],['3','Mer'],['4','Jeu'],['5','Ven'],['6','Sam'],['0','Dim']];
+
+function setCycleMode(mode) {
+  cycleMode = mode;
+  document.querySelectorAll('#cycle-mode-picker .time-filter-btn').forEach(b => b.classList.toggle('active', b.dataset.cyclemode === mode));
+  const simpleBlock = document.getElementById('cycle-simple-block');
+  const detailedBlock = document.getElementById('cycle-detailed-block');
+  if (simpleBlock) simpleBlock.style.display = mode === 'simple' ? '' : 'none';
+  if (detailedBlock) detailedBlock.style.display = mode === 'detailed' ? '' : 'none';
+}
+window.setCycleMode = setCycleMode;
 
 function openCycleModal() {
   const c = getActive();
@@ -3262,11 +3307,16 @@ function openCycleModal() {
   const startEl = document.getElementById('cycle-start');
   if (!startEl.value) startEl.value = new Date().toISOString().slice(0,10);
   document.getElementById('cycle-weeks').value = 4;
+  document.getElementById('cycle-rest-hours').value = 24;
   cycleItems = [];
+  cycleDetailedItems = [];
   renderCycleItemsList();
+  renderCycleDetailedItemsList();
   document.getElementById('cycle-error').style.display = 'none';
+  document.getElementById('cycle-warning').style.display = 'none';
+  setCycleMode('simple');
 
-  // Jours disponibles
+  // Jours disponibles (mode simple)
   const daysEl = document.getElementById('cycle-avail-days');
   daysEl.innerHTML = CYCLE_DAY_LABELS.map(([v,label]) =>
     `<label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer">
@@ -3274,12 +3324,21 @@ function openCycleModal() {
     </label>`
   ).join('');
 
-  // Sélecteur de séances de la banque
+  // Jours fixes (mode détaillé — rien coché par défaut, à choisir par séance)
+  const detDaysEl = document.getElementById('cycle-detailed-days');
+  detDaysEl.innerHTML = CYCLE_DAY_LABELS.map(([v,label]) =>
+    `<label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;padding:5px 10px;border:1px solid var(--border);border-radius:99px">
+      <input type="checkbox" class="cycle-detailed-day-cb" value="${v}" style="width:14px;height:14px"> ${label}
+    </label>`
+  ).join('');
+
+  // Sélecteurs de séances de la banque (les deux modes)
   const bank = getBank();
-  const sel = document.getElementById('cycle-bank-select');
-  sel.innerHTML = bank.length
+  const bankOptions = bank.length
     ? bank.map(s => `<option value="${s.id}">${esc(s.name)} (${s.duration||90} min)</option>`).join('')
     : `<option value="">— Banque vide —</option>`;
+  document.getElementById('cycle-bank-select').innerHTML = bankOptions;
+  document.getElementById('cycle-detailed-bank-select').innerHTML = bankOptions;
 
   document.getElementById('cycle-modal').classList.add('open');
 }
@@ -3293,12 +3352,10 @@ function addCycleItem() {
   else cycleItems.push({ bankId, freq });
   renderCycleItemsList();
 }
-
 function removeCycleItem(bankId) {
   cycleItems = cycleItems.filter(it => it.bankId !== bankId);
   renderCycleItemsList();
 }
-
 function renderCycleItemsList() {
   const el = document.getElementById('cycle-items-list');
   if (!cycleItems.length) { el.innerHTML = `<p style="font-size:12px;color:var(--muted)">Aucune séance ajoutée pour l'instant.</p>`; return; }
@@ -3314,12 +3371,46 @@ function renderCycleItemsList() {
   }).join('');
 }
 
+function addCycleDetailedItem() {
+  const bankId = document.getElementById('cycle-detailed-bank-select').value;
+  const days = Array.from(document.querySelectorAll('.cycle-detailed-day-cb:checked')).map(el => +el.value);
+  if (!bankId || !days.length) return;
+  const existing = cycleDetailedItems.find(it => it.bankId === bankId);
+  if (existing) existing.days = [...new Set([...existing.days, ...days])];
+  else cycleDetailedItems.push({ bankId, days });
+  document.querySelectorAll('.cycle-detailed-day-cb').forEach(cb => cb.checked = false);
+  renderCycleDetailedItemsList();
+}
+function removeCycleDetailedItem(bankId) {
+  cycleDetailedItems = cycleDetailedItems.filter(it => it.bankId !== bankId);
+  renderCycleDetailedItemsList();
+}
+function renderCycleDetailedItemsList() {
+  const el = document.getElementById('cycle-detailed-list');
+  if (!el) return;
+  if (!cycleDetailedItems.length) { el.innerHTML = `<p style="font-size:12px;color:var(--muted)">Aucune séance ajoutée pour l'instant.</p>`; return; }
+  const bank = getBank();
+  const dayLabel = v => (CYCLE_DAY_LABELS.find(([dv]) => +dv === v) || [null,'?'])[1];
+  el.innerHTML = cycleDetailedItems.map(it => {
+    const s = bank.find(x => x.id === it.bankId);
+    const name = s ? s.name : '(séance supprimée)';
+    const daysSorted = it.days.slice().sort((a,b) => (a===0?7:a) - (b===0?7:b));
+    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r-xs);background:var(--surface2);margin-bottom:6px">
+      <span style="flex:1;font-size:13px;font-weight:500">${esc(name)}</span>
+      <span style="font-size:12px;color:var(--muted)">${daysSorted.map(dayLabel).join(', ')}</span>
+      <button class="btn sm danger" onclick="removeCycleDetailedItem('${it.bankId}')">✕</button>
+    </div>`;
+  }).join('');
+}
+
 function generateCycle() {
   const errEl = document.getElementById('cycle-error');
+  const warnEl = document.getElementById('cycle-warning');
   errEl.style.display = 'none';
+  warnEl.style.display = 'none';
   const start = document.getElementById('cycle-start').value;
   const weeks = Math.max(1, Math.min(16, +document.getElementById('cycle-weeks').value || 4));
-  const availDays = Array.from(document.querySelectorAll('#cycle-avail-days input:checked')).map(el => +el.value);
+  const restHours = Math.max(0, +document.getElementById('cycle-rest-hours').value || 0);
 
   // Athlètes cibles : sélection multiple si coach, sinon uniquement le profil actif
   let targetIds = isAdmin()
@@ -3328,29 +3419,37 @@ function generateCycle() {
   if (!targetIds.length) { const a = getActive(); if (a) targetIds = [a.id]; }
 
   if (!start) { errEl.textContent = 'Choisis une date de début.'; errEl.style.display = ''; return; }
-  if (!cycleItems.length) { errEl.textContent = 'Ajoute au moins une séance au cycle.'; errEl.style.display = ''; return; }
-  if (!availDays.length) { errEl.textContent = 'Sélectionne au moins un jour disponible.'; errEl.style.display = ''; return; }
   if (!targetIds.length) { errEl.textContent = 'Sélectionne au moins un athlète.'; errEl.style.display = ''; return; }
 
-  // Construit la liste des dates éligibles sur la période
   const totalDays = weeks * 7;
   const startDate = new Date(start + 'T00:00:00');
-  const eligibleDates = [];
-  for (let i = 0; i < totalDays; i++) {
-    const d = new Date(startDate); d.setDate(d.getDate() + i);
-    if (availDays.includes(d.getDay())) eligibleDates.push(d.toISOString().slice(0,10));
-  }
-  if (!eligibleDates.length) { errEl.textContent = 'Aucun jour disponible sur cette période.'; errEl.style.display = ''; return; }
-
+  const cycleEndDateStr = new Date(startDate.getTime() + (totalDays - 1) * 86400000).toISOString().slice(0,10);
   const bank = getBank();
-  let created = 0;
-  const targetNames = [];
 
-  targetIds.forEach(climberId => {
-    const climber = db.climbers.find(cl => cl.id === climberId);
-    if (!climber) return;
-    if (!climber.logs) climber.logs = [];
-    targetNames.push(climber.name);
+  // — Construit la liste des {dateStr, bankId} à créer, selon le mode actif —
+  let plannedEntries = [];
+
+  if (cycleMode === 'detailed') {
+    if (!cycleDetailedItems.length) { errEl.textContent = 'Ajoute au moins une séance au cycle détaillé.'; errEl.style.display = ''; return; }
+    for (let i = 0; i < totalDays; i++) {
+      const d = new Date(startDate); d.setDate(d.getDate() + i);
+      const dow = d.getDay();
+      const dateStr = d.toISOString().slice(0,10);
+      cycleDetailedItems.forEach(it => {
+        if (it.days.includes(dow)) plannedEntries.push({ dateStr, bankId: it.bankId });
+      });
+    }
+    if (!plannedEntries.length) { errEl.textContent = 'Aucune date ne correspond aux jours choisis sur cette période.'; errEl.style.display = ''; return; }
+  } else {
+    const availDays = Array.from(document.querySelectorAll('#cycle-avail-days input:checked')).map(el => +el.value);
+    if (!cycleItems.length) { errEl.textContent = 'Ajoute au moins une séance au cycle.'; errEl.style.display = ''; return; }
+    if (!availDays.length) { errEl.textContent = 'Sélectionne au moins un jour disponible.'; errEl.style.display = ''; return; }
+    const eligibleDates = [];
+    for (let i = 0; i < totalDays; i++) {
+      const d = new Date(startDate); d.setDate(d.getDate() + i);
+      if (availDays.includes(d.getDay())) eligibleDates.push(d.toISOString().slice(0,10));
+    }
+    if (!eligibleDates.length) { errEl.textContent = 'Aucun jour disponible sur cette période.'; errEl.style.display = ''; return; }
     cycleItems.forEach(it => {
       const item = bank.find(s => s.id === it.bankId);
       if (!item) return;
@@ -3358,24 +3457,57 @@ function generateCycle() {
       for (let i = 0; i < n; i++) {
         // Répartition régulière de chaque occurrence sur les jours éligibles
         const idx = Math.round((i + 0.5) * (eligibleDates.length / n)) % eligibleDates.length;
-        const dateStr = eligibleDates[idx];
-        climber.logs.push({
-          id: 'log_' + Date.now() + '_' + Math.random().toString(36).slice(2,6) + '_' + climberId.slice(-4),
-          date: dateStr,
-          type: item.type || 'autre',
-          minutes: item.duration || 90,
-          intensity: item.intensity || 3,
-          shape: 'normal',
-          location: '',
-          support: item.support || '',
-          notes: item.name,
-          ascents: [],
-          bNoGrade: {},
-          planned: true,
-          bankRef: it.bankId
-        });
-        created++;
+        plannedEntries.push({ dateStr: eligibleDates[idx], bankId: it.bankId });
       }
+    });
+  }
+
+  // — Crée les séances pour chaque athlète cible, en vérifiant le repos minimum —
+  const minGapDays = restHours / 24;
+  let created = 0;
+  const targetNames = [];
+  const conflicts = [];
+
+  targetIds.forEach(climberId => {
+    const climber = db.climbers.find(cl => cl.id === climberId);
+    if (!climber) return;
+    if (!climber.logs) climber.logs = [];
+    targetNames.push(climber.name);
+
+    // Dates déjà occupées sur la période (séances existantes d'autres cycles, prévues ou faites)
+    const periodEndDate = new Date(startDate.getTime() + totalDays * 86400000);
+    const knownDates = climber.logs
+      .filter(l => { const d = new Date(l.date + 'T00:00:00'); return d >= startDate && d < periodEndDate; })
+      .map(l => l.date);
+
+    plannedEntries.forEach(entry => {
+      const item = bank.find(s => s.id === entry.bankId);
+      if (!item) return;
+      if (minGapDays > 0) {
+        const newD = new Date(entry.dateStr + 'T00:00:00');
+        for (const other of knownDates) {
+          if (other === entry.dateStr) { conflicts.push(`${climber.name} : deux séances le même jour (${fmtDate(entry.dateStr)})`); continue; }
+          const gapDays = Math.abs((newD - new Date(other + 'T00:00:00')) / 86400000);
+          if (gapDays < minGapDays) conflicts.push(`${climber.name} : ${fmtDate(other)} et ${fmtDate(entry.dateStr)} (${Math.round(gapDays*24)}h d'écart)`);
+        }
+      }
+      knownDates.push(entry.dateStr);
+      climber.logs.push({
+        id: 'log_' + Date.now() + '_' + Math.random().toString(36).slice(2,6) + '_' + climberId.slice(-4),
+        date: entry.dateStr,
+        type: item.type || 'autre',
+        minutes: item.duration || 90,
+        intensity: item.intensity || 3,
+        shape: 'normal',
+        location: '',
+        support: item.support || '',
+        notes: item.name,
+        ascents: [],
+        bNoGrade: {},
+        planned: true,
+        bankRef: entry.bankId
+      });
+      created++;
     });
   });
 
@@ -3383,8 +3515,15 @@ function generateCycle() {
   closeModal('cycle-modal');
   renderCalendar();
   if (document.getElementById('page-planning')?.classList.contains('active')) renderPlanning();
+
   const perAthlete = Math.round(created / targetIds.length);
-  alert(`${perAthlete} séance${perAthlete>1?'s':''} programmée${perAthlete>1?'s':''} chacun pour ${targetNames.join(', ')}, du ${fmtDate(eligibleDates[0])} au ${fmtDate(eligibleDates[eligibleDates.length-1])}.`);
+  let msg = `${perAthlete} séance${perAthlete>1?'s':''} programmée${perAthlete>1?'s':''} chacun pour ${targetNames.join(', ')}, du ${fmtDate(start)} au ${fmtDate(cycleEndDateStr)}.`;
+  if (conflicts.length) {
+    const uniq = [...new Set(conflicts)].slice(0, 5);
+    msg += `\n\n⚠️ Repos minimum de ${restHours}h non respecté sur certaines séances (le cycle a quand même été créé, ajuste manuellement si besoin) :\n` + uniq.join('\n')
+      + (conflicts.length > 5 ? `\n… et ${conflicts.length - 5} autre(s).` : '');
+  }
+  alert(msg);
 }
 
 // — Performance —
