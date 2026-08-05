@@ -401,6 +401,10 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 .sb-intensity span.on { background:var(--accent); }
 .sb-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:14px; }
 .sb-empty { text-align:center; padding:48px 24px; color:var(--muted); border:2px dashed var(--border); border-radius:var(--radius); }
+.sb-quick-row { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-bottom:8px; }
+.sb-quick-label { font-size:11px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.03em; margin-right:2px; }
+.sb-quick-pill { border-radius:99px !important; font-size:12.5px !important; padding:6px 14px !important; }
+.sb-quick-pill.active { background:var(--accent); color:#fff; border-color:var(--accent); font-weight:600; }
 .ai-gen-box { background:linear-gradient(135deg,#eef2ff 0%,#f3edf8 100%); border:1px solid #c7d2fe; border-radius:var(--radius); padding:16px; margin-bottom:16px; }
 
 /* AI Coach */
@@ -1260,6 +1264,12 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <button class="btn coach-only-btn" id="sb-new-btn">+ Créer manuellement</button>
       <button class="btn primary coach-only-btn" id="sb-ai-btn">✦ Générer avec l'IA</button>
     </div>
+  </div>
+
+  <!-- Menus rapides par objectif / type -->
+  <div style="background:var(--surface2,#f4f2ee);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:14px">
+    <div class="sb-quick-row" id="sb-quick-goal"></div>
+    <div class="sb-quick-row" id="sb-quick-type" style="margin-bottom:0"></div>
   </div>
 
   <!-- Filtre / recherche -->
@@ -4596,8 +4606,42 @@ const SB_GOAL_LABELS = {
 };
 const SB_LEVEL_LABELS = {debutant:'Débutant', intermediaire:'Intermédiaire', confirme:'Confirmé', expert:'Expert'};
 const SB_TYPE_TAG_CLASS = {bloc:'type-bloc', voies:'type-voies', falaise:'type-falaise', ppg:'type-ppg', mobilite:'type-mobilite'};
+const SB_GOAL_GROUPS = {
+  projet:'Intensité', force_max:'Intensité', puissance:'Intensité', doigts_max:'Intensité',
+  volume:'Endurance', resi:'Endurance', arc:'Endurance', circuit:'Endurance',
+  technique:'Technique', dalle:'Technique', devers:'Technique', coordination:'Technique', flasher:'Technique',
+  comp_simulation:'Compétition', onsight:'Compétition', peaking:'Compétition',
+  recuperation:'Récup', prevention:'Récup', retour_blessure:'Récup'
+};
 
 function getBank() { return db.sessionBank || (db.sessionBank = []); }
+
+function sbRenderQuickFilters() {
+  const goalWrap = document.getElementById('sb-quick-goal');
+  const typeWrap = document.getElementById('sb-quick-type');
+  if (!goalWrap || !typeWrap) return;
+  const bank = getBank();
+  const curGoal = document.getElementById('sb-goal-filter')?.value || '';
+  const curType = document.getElementById('sb-type-filter')?.value || '';
+
+  const goalsPresent = [...new Set(bank.map(s => s.goal))].filter(g => SB_GOAL_LABELS[g]);
+  goalsPresent.sort((a,b) => (SB_GOAL_GROUPS[a]||'').localeCompare(SB_GOAL_GROUPS[b]||'') || SB_GOAL_LABELS[a].localeCompare(SB_GOAL_LABELS[b]));
+  goalWrap.innerHTML = `<span class="sb-quick-label">🎯 Objectif</span>`
+    + `<button class="btn sm sb-quick-pill${curGoal===''?' active':''}" onclick="sbQuickSet('goal','')">Tous</button>`
+    + goalsPresent.map(g => `<button class="btn sm sb-quick-pill${curGoal===g?' active':''}" onclick="sbQuickSet('goal','${g}')" title="${SB_GOAL_GROUPS[g]||''}">${SB_GOAL_LABELS[g]}</button>`).join('');
+
+  const typesPresent = [...new Set(bank.map(s => s.type))].filter(t => SESSION_TYPES[t]);
+  typesPresent.sort((a,b) => (SESSION_TYPES[a].group||'').localeCompare(SESSION_TYPES[b].group||'') || SESSION_TYPES[a].label.localeCompare(SESSION_TYPES[b].label));
+  typeWrap.innerHTML = `<span class="sb-quick-label">🧗 Type / outil</span>`
+    + `<button class="btn sm sb-quick-pill${curType===''?' active':''}" onclick="sbQuickSet('type','')">Tous</button>`
+    + typesPresent.map(t => `<button class="btn sm sb-quick-pill${curType===t?' active':''}" onclick="sbQuickSet('type','${t}')" title="${SESSION_TYPES[t].group||''}">${SESSION_TYPES[t].label}</button>`).join('');
+}
+function sbQuickSet(kind, value) {
+  const el = document.getElementById(kind === 'type' ? 'sb-type-filter' : 'sb-goal-filter');
+  if (el) el.value = value;
+  sbRenderGrid();
+}
+window.sbQuickSet = sbQuickSet;
 
 function renderSessionBank() {
   // Tags picker in editor
@@ -4613,6 +4657,7 @@ function renderSessionBank() {
 }
 
 function sbRenderGrid() {
+  sbRenderQuickFilters();
   const search    = (document.getElementById('sb-search')?.value || '').toLowerCase();
   const typeF     = document.getElementById('sb-type-filter')?.value || '';
   const goalF     = document.getElementById('sb-goal-filter')?.value || '';
