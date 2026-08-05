@@ -134,6 +134,11 @@ button, input, select, textarea { font-family: inherit; }
 .page { display: none; }
 .page.active { display: block; }
 
+/* Mode aperçu athlète : teinte visuelle pour qu'on sente qu'on est "dans" un autre compte */
+body.preview-mode .main { background: #f7f4ec; box-shadow: inset 0 0 0 3px rgba(45,90,61,.25); border-radius: 10px; }
+body.preview-mode .sidebar { background: #f7f4ec; border-right-color: #2d5a3d; }
+body.preview-mode #sidebar-user { color: #2d5a3d !important; font-weight: 700; }
+
 /* Headers */
 .page-header { margin-bottom: 28px; }
 .page-header h2 { font-family: var(--serif); font-size: 32px; color: var(--text); letter-spacing: -.5px; }
@@ -520,7 +525,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   </div>
  <div class="sidebar-footer">
     <div id="sidebar-user" style="font-size:12px;color:var(--muted);margin-bottom:8px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
-    <button class="btn sm" style="width:100%;justify-content:center;margin-bottom:6px" onclick="openClimberModal()">
+    <button class="btn sm coach-only-btn" style="width:100%;justify-content:center;margin-bottom:6px" onclick="openClimberModal()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:14px;height:14px"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/><path d="M19 8h2m-1-1v2"/></svg>
       Gérer les grimpeurs
     </button>
@@ -2799,9 +2804,17 @@ function refreshCurrentUser() {
 var previewMode = false;
 function isAdmin() { return window.currentUser?.role === 'admin' && !previewMode; }
 function togglePreviewMode() {
+  if (!previewMode) {
+    const active = getActive();
+    if (active && active.id === window.currentUser?.climberId) {
+      alert("L'aperçu athlète sert à voir ce qu'un AUTRE athlète voit dans son compte. Sélectionne d'abord un athlète que tu coaches (bouton \"Sélectionner\" sur sa carte dans \"Gérer les grimpeurs\"), puis active l'aperçu.");
+      return;
+    }
+  }
   previewMode = !previewMode;
   const banner = document.getElementById('preview-mode-banner');
   const nameEl = document.getElementById('preview-mode-name');
+  document.body.classList.toggle('preview-mode', previewMode);
   if (previewMode) {
     const active = getActive();
     if (nameEl) nameEl.textContent = active ? active.name : "l'athlète";
@@ -2815,14 +2828,26 @@ function togglePreviewMode() {
   renderPage(document.querySelector('.nav-btn.active')?.dataset.page || 'dashboard');
 }
 window.togglePreviewMode = togglePreviewMode;
+function updateSidebarIdentity() {
+  const el = document.getElementById('sidebar-user');
+  if (!el || !window.currentUser) return;
+  if (previewMode) {
+    const active = getActive();
+    el.textContent = `👁 Aperçu — ${active ? active.name : ''} côté athlète`;
+  } else {
+    el.textContent = window.currentUser.name + (window.currentUser.role === 'admin' ? ' · coach' : '');
+  }
+}
 function applyRoleUI() {
   const admin = isAdmin();
   const inviteWrap = document.getElementById('invite-athlete-btn-wrap');
   if (inviteWrap) inviteWrap.style.display = admin ? '' : 'none';
   const previewBtn = document.getElementById('preview-toggle-btn');
   if (previewBtn) previewBtn.style.display = (window.currentUser?.role === 'admin') ? '' : 'none';
+  if (previewBtn) previewBtn.textContent = previewMode ? "↩ Quitter l'aperçu" : "👁 Voir comme l'athlète";
   document.querySelectorAll('.coach-only-btn').forEach(el => { el.style.display = admin ? '' : 'none'; });
   sbApplyEditorAccess();
+  updateSidebarIdentity();
 }
 
 function sbApplyEditorAccess() {
