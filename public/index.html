@@ -1139,6 +1139,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     <div id="plan-explanation" style="margin-top:14px;padding:12px;background:var(--surface2);border-radius:var(--r-sm);font-size:13px;color:var(--muted);line-height:1.6"></div>
     <div style="margin-top:16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap" id="plan-save-row">
       <button class="btn primary" id="plan-save-btn" onclick="saveCurrentPlan()">📌 Assigner ce planning</button>
+      <button class="btn coach-only-btn" id="plan-copy-btn" onclick="openCopyPlanModal()">📋 Copier vers d'autres athlètes</button>
       <span style="font-size:12px;color:var(--muted)" id="plan-save-status"></span>
     </div>
   </div>
@@ -1976,6 +1977,21 @@ Utilise les raccourcis ci-dessus ou pose-moi directement une question. Par exemp
       </div>
 
       <button class="btn primary" style="width:100%;margin-top:8px" onclick="saveProfileDetail()">Enregistrer le profil</button>
+    </div>
+  </div>
+</div>
+<!-- Modal copier le planning vers d'autres athlètes -->
+<div class="modal-backdrop" id="copy-plan-modal">
+  <div class="modal" style="width:min(440px,100%)">
+    <div class="modal-header">
+      <span class="modal-title">Copier ce planning</span>
+      <button class="btn sm" onclick="closeModal('copy-plan-modal')">Fermer</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Applique le planning affiché ci-contre à un ou plusieurs autres athlètes. Ça écrase leur planning assigné actuel s'ils en ont un.</p>
+      <div id="copy-plan-error" style="background:var(--warm2);color:var(--warm);border-radius:8px;padding:10px;font-size:13px;margin-bottom:12px;display:none"></div>
+      <div id="copy-plan-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px;max-height:280px;overflow-y:auto"></div>
+      <button class="btn primary" style="width:100%" id="copy-plan-confirm-btn" onclick="confirmCopyPlan()">Copier</button>
     </div>
   </div>
 </div>
@@ -4331,13 +4347,7 @@ async function saveCurrentPlan() {
   const statusEl = document.getElementById('plan-save-status');
   if (!c) return;
   if (!authToken()) { if (statusEl) statusEl.textContent = 'Connecte-toi pour assigner un planning.'; return; }
-  const data = {
-    subText: document.getElementById('plan-result-sub').textContent || '',
-    gridHtml: document.getElementById('plan-week-grid').innerHTML || '',
-    detailHtml: document.getElementById('plan-week-detail').innerHTML || '',
-    explanationHtml: document.getElementById('plan-explanation').innerHTML || '',
-    generatedAt: Date.now()
-  };
+  const data = currentPlanData();
   if (statusEl) statusEl.textContent = 'Enregistrement…';
   try {
     const r = await fetch(`/api/plans/${c.id}`, {
@@ -4356,6 +4366,69 @@ async function saveCurrentPlan() {
     }
   } catch (e) {
     if (statusEl) statusEl.textContent = '⚠️ Erreur réseau';
+  }
+}
+
+// — Copier le planning affiché vers un ou plusieurs autres athlètes —
+function currentPlanData() {
+  return {
+    subText: document.getElementById('plan-result-sub').textContent || '',
+    gridHtml: document.getElementById('plan-week-grid').innerHTML || '',
+    detailHtml: document.getElementById('plan-week-detail').innerHTML || '',
+    explanationHtml: document.getElementById('plan-explanation').innerHTML || '',
+    generatedAt: Date.now()
+  };
+}
+
+function openCopyPlanModal() {
+  const active = getActive();
+  const others = (db.climbers || []).filter(c => c.id !== active?.id);
+  const errEl = document.getElementById('copy-plan-error');
+  const list = document.getElementById('copy-plan-list');
+  errEl.style.display = 'none';
+  if (!others.length) {
+    list.innerHTML = `<p style="font-size:13px;color:var(--muted)">Tu n'as pas d'autre athlète à qui copier ce planning.</p>`;
+  } else {
+    list.innerHTML = others.map(c => `
+      <label style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;cursor:pointer">
+        <input type="checkbox" class="copy-plan-cb" value="${c.id}" style="width:16px;height:16px;accent-color:var(--accent)">
+        <span class="cc-avatar" style="width:26px;height:26px;font-size:11px;background:${c.color}">${esc(c.name.trim().split(/\s+/).map(w=>w[0]).join('').toUpperCase().slice(0,2))}</span>
+        <span style="font-size:13px">${esc(c.name)}</span>
+      </label>`).join('');
+  }
+  document.getElementById('copy-plan-modal').classList.add('open');
+}
+
+async function confirmCopyPlan() {
+  const targets = Array.prototype.map.call(document.querySelectorAll('.copy-plan-cb:checked'), cb => cb.value);
+  const errEl = document.getElementById('copy-plan-error');
+  errEl.style.display = 'none';
+  if (!targets.length) { errEl.textContent = 'Sélectionne au moins un athlète.'; errEl.style.display = ''; return; }
+  const data = currentPlanData();
+  const btn = document.getElementById('copy-plan-confirm-btn');
+  btn.disabled = true; btn.textContent = 'Copie en cours…';
+  let ok = 0, failed = [];
+  for (const climberId of targets) {
+    try {
+      const r = await fetch(`/api/plans/${climberId}`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ data })
+      });
+      if (r.ok) ok++;
+      else failed.push(db.climbers.find(c=>c.id===climberId)?.name || climberId);
+    } catch (e) {
+      failed.push(db.climbers.find(c=>c.id===climberId)?.name || climberId);
+    }
+  }
+  btn.disabled = false; btn.textContent = 'Copier';
+  if (failed.length) {
+    errEl.textContent = `Copié à ${ok} athlète${ok>1?'s':''}. Échec pour : ${failed.join(', ')}.`;
+    errEl.style.display = '';
+  } else {
+    closeModal('copy-plan-modal');
+    const statusEl = document.getElementById('plan-save-status');
+    if (statusEl) statusEl.textContent = `✓ Planning copié à ${ok} athlète${ok>1?'s':''}.`;
   }
 }
 
