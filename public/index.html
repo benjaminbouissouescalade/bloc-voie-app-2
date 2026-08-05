@@ -1039,7 +1039,11 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <button class="btn sm" onclick="closeModal('cycle-modal')">Fermer</button>
     </div>
     <div class="modal-body">
-      <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Choisis des séances de ta banque et le nombre de fois où chacune doit revenir sur la période — le cycle les répartit automatiquement sur le calendrier de <strong id="cycle-target-name">—</strong>.</p>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Choisis des séances de ta banque et le nombre de fois où chacune doit revenir sur la période — le cycle les répartit automatiquement sur le calendrier.</p>
+      <div class="form-group coach-only-btn" id="cycle-targets-group">
+        <label class="form-label">Appliquer à <span style="font-weight:400;color:var(--muted)">(un ou plusieurs athlètes)</span></label>
+        <div id="cycle-targets-list" style="display:flex;flex-direction:column;gap:6px;max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px"></div>
+      </div>
       <div class="form-row form-row-2">
         <div class="form-group" style="margin-bottom:0">
           <label class="form-label">Début du cycle</label>
@@ -3245,7 +3249,16 @@ const CYCLE_DAY_LABELS = [['1','Lun'],['2','Mar'],['3','Mer'],['4','Jeu'],['5','
 
 function openCycleModal() {
   const c = getActive();
-  document.getElementById('cycle-target-name').textContent = c?.name || '—';
+  const targetsGroup = document.getElementById('cycle-targets-group');
+  const targetsList = document.getElementById('cycle-targets-list');
+  if (targetsGroup) targetsGroup.style.display = isAdmin() ? '' : 'none';
+  if (targetsList) {
+    targetsList.innerHTML = (db.climbers || []).map(cl => `
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+        <input type="checkbox" class="cycle-target-cb" value="${cl.id}" ${cl.id === c?.id ? 'checked' : ''} style="width:15px;height:15px;accent-color:var(--accent)">
+        ${esc(cl.name)}
+      </label>`).join('');
+  }
   const startEl = document.getElementById('cycle-start');
   if (!startEl.value) startEl.value = new Date().toISOString().slice(0,10);
   document.getElementById('cycle-weeks').value = 4;
@@ -3308,9 +3321,16 @@ function generateCycle() {
   const weeks = Math.max(1, Math.min(16, +document.getElementById('cycle-weeks').value || 4));
   const availDays = Array.from(document.querySelectorAll('#cycle-avail-days input:checked')).map(el => +el.value);
 
+  // Athlètes cibles : sélection multiple si coach, sinon uniquement le profil actif
+  let targetIds = isAdmin()
+    ? Array.from(document.querySelectorAll('.cycle-target-cb:checked')).map(el => el.value)
+    : [];
+  if (!targetIds.length) { const a = getActive(); if (a) targetIds = [a.id]; }
+
   if (!start) { errEl.textContent = 'Choisis une date de début.'; errEl.style.display = ''; return; }
   if (!cycleItems.length) { errEl.textContent = 'Ajoute au moins une séance au cycle.'; errEl.style.display = ''; return; }
   if (!availDays.length) { errEl.textContent = 'Sélectionne au moins un jour disponible.'; errEl.style.display = ''; return; }
+  if (!targetIds.length) { errEl.textContent = 'Sélectionne au moins un athlète.'; errEl.style.display = ''; return; }
 
   // Construit la liste des dates éligibles sur la période
   const totalDays = weeks * 7;
@@ -3323,42 +3343,48 @@ function generateCycle() {
   if (!eligibleDates.length) { errEl.textContent = 'Aucun jour disponible sur cette période.'; errEl.style.display = ''; return; }
 
   const bank = getBank();
-  const climber = getActive();
-  if (!climber.logs) climber.logs = [];
   let created = 0;
+  const targetNames = [];
 
-  cycleItems.forEach(it => {
-    const item = bank.find(s => s.id === it.bankId);
-    if (!item) return;
-    const n = Math.max(1, it.freq);
-    for (let i = 0; i < n; i++) {
-      // Répartition régulière de chaque occurrence sur les jours éligibles
-      const idx = Math.round((i + 0.5) * (eligibleDates.length / n)) % eligibleDates.length;
-      const dateStr = eligibleDates[idx];
-      climber.logs.push({
-        id: 'log_' + Date.now() + '_' + Math.random().toString(36).slice(2,6),
-        date: dateStr,
-        type: item.type || 'autre',
-        minutes: item.duration || 90,
-        intensity: item.intensity || 3,
-        shape: 'normal',
-        location: '',
-        support: item.support || '',
-        notes: item.name,
-        ascents: [],
-        bNoGrade: {},
-        planned: true,
-        bankRef: it.bankId
-      });
-      created++;
-    }
+  targetIds.forEach(climberId => {
+    const climber = db.climbers.find(cl => cl.id === climberId);
+    if (!climber) return;
+    if (!climber.logs) climber.logs = [];
+    targetNames.push(climber.name);
+    cycleItems.forEach(it => {
+      const item = bank.find(s => s.id === it.bankId);
+      if (!item) return;
+      const n = Math.max(1, it.freq);
+      for (let i = 0; i < n; i++) {
+        // Répartition régulière de chaque occurrence sur les jours éligibles
+        const idx = Math.round((i + 0.5) * (eligibleDates.length / n)) % eligibleDates.length;
+        const dateStr = eligibleDates[idx];
+        climber.logs.push({
+          id: 'log_' + Date.now() + '_' + Math.random().toString(36).slice(2,6) + '_' + climberId.slice(-4),
+          date: dateStr,
+          type: item.type || 'autre',
+          minutes: item.duration || 90,
+          intensity: item.intensity || 3,
+          shape: 'normal',
+          location: '',
+          support: item.support || '',
+          notes: item.name,
+          ascents: [],
+          bNoGrade: {},
+          planned: true,
+          bankRef: it.bankId
+        });
+        created++;
+      }
+    });
   });
 
   saveDB();
   closeModal('cycle-modal');
   renderCalendar();
   if (document.getElementById('page-planning')?.classList.contains('active')) renderPlanning();
-  alert(`${created} séance${created>1?'s':''} programmée${created>1?'s':''} sur le calendrier de ${climber.name}, du ${fmtDate(eligibleDates[0])} au ${fmtDate(eligibleDates[eligibleDates.length-1])}.`);
+  const perAthlete = Math.round(created / targetIds.length);
+  alert(`${perAthlete} séance${perAthlete>1?'s':''} programmée${perAthlete>1?'s':''} chacun pour ${targetNames.join(', ')}, du ${fmtDate(eligibleDates[0])} au ${fmtDate(eligibleDates[eligibleDates.length-1])}.`);
 }
 
 // — Performance —
