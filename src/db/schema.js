@@ -64,6 +64,9 @@ async function initDB() {
         created_at  TIMESTAMPTZ DEFAULT NOW(),
         updated_at  TIMESTAMPTZ DEFAULT NOW()
       );
+      ALTER TABLE session_bank ADD COLUMN IF NOT EXISTS category TEXT;
+      ALTER TABLE session_bank ADD COLUMN IF NOT EXISTS subcategory TEXT;
+      ALTER TABLE session_bank ADD COLUMN IF NOT EXISTS cross_tags JSONB DEFAULT '[]';
       CREATE TABLE IF NOT EXISTS goals (
         id            TEXT PRIMARY KEY,
         climber_id    TEXT NOT NULL REFERENCES climbers(id) ON DELETE CASCADE,
