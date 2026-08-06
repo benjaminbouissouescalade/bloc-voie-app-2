@@ -46,6 +46,8 @@ async function initDB() {
       );
       ALTER TABLE logs ADD COLUMN IF NOT EXISTS planned BOOLEAN DEFAULT false;
       ALTER TABLE logs ADD COLUMN IF NOT EXISTS bank_ref TEXT;
+      ALTER TABLE logs ADD COLUMN IF NOT EXISTS cycle_id TEXT;
+      ALTER TABLE logs ADD COLUMN IF NOT EXISTS cycle_name TEXT;
       CREATE INDEX IF NOT EXISTS idx_logs_climber_date ON logs(climber_id, date DESC);
       CREATE TABLE IF NOT EXISTS session_bank (
         id          TEXT PRIMARY KEY,
