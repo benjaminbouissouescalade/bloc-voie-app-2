@@ -1075,6 +1075,11 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     <div class="modal-body">
       <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Choisis des séances de ta banque et répartis-les sur la période — le cycle les place automatiquement sur le calendrier. Tu peux créer plusieurs cycles différents (ex. un cycle "physique" + un cycle "escalade") : ils se superposent sur le calendrier sans s'écraser.</p>
 
+      <div class="form-group">
+        <label class="form-label">Nom du cycle <span style="font-weight:400;color:var(--muted)">(affiché en couleur dans la vue Année)</span></label>
+        <input class="form-control" type="text" id="cycle-name" placeholder="Ex. Force, Falaise, Prépa compét…">
+      </div>
+
       <div class="form-group coach-only-btn" id="cycle-targets-group">
         <label class="form-label">Appliquer à <span style="font-weight:400;color:var(--muted)">(un ou plusieurs athlètes)</span></label>
         <div id="cycle-targets-list" style="display:flex;flex-direction:column;gap:6px;max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px"></div>
@@ -3327,6 +3332,33 @@ function renderCalendarWeek() {
   document.getElementById('cal-ascents').textContent=totalAscents;
 }
 
+// Couleur stable par nom de cycle (hash simple sur le nom)
+const CYCLE_COLOR_PALETTE = ['#2d5a3d','#1a4a7a','#b07a10','#c4501a','#5a2d82','#7a1a3d','#1a6a7a','#4a5a1a'];
+function colorForCycleName(name) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return CYCLE_COLOR_PALETTE[h % CYCLE_COLOR_PALETTE.length];
+}
+
+// Découpe un mois en semaines (lundi-dimanche) pour la vue Année
+function monthWeekRows(y, m, logs) {
+  const daysInMonth = new Date(y, m+1, 0).getDate();
+  const rows = [];
+  let d = 1;
+  while (d <= daysInMonth) {
+    const dow = (new Date(y, m, d).getDay() + 6) % 7; // 0 = lundi
+    const rowEnd = Math.min(daysInMonth, d + (6 - dow));
+    const rowLogs = logs.filter(l => {
+      const dt = new Date(l.date + 'T00:00:00');
+      return dt.getFullYear() === y && dt.getMonth() === m && dt.getDate() >= d && dt.getDate() <= rowEnd;
+    });
+    const cycleNames = [...new Set(rowLogs.map(l => l.cycleName).filter(Boolean))];
+    rows.push({ start: d, end: rowEnd, cycleNames });
+    d = rowEnd + 1;
+  }
+  return rows;
+}
+
 function renderCalendarYear() {
   const y = calDate.getFullYear();
   document.getElementById('cal-month-label').textContent = String(y);
@@ -3342,10 +3374,17 @@ function renderCalendarYear() {
     totalSessions+=doneLogs.length; totalMinutes+=doneLogs.reduce((s,l)=>s+(l.minutes||0),0); totalLoad+=load; totalAscents+=doneLogs.reduce((s,l)=>s+(l.ascents||[]).length,0);
     const intensity = Math.min(1, load/300);
     const monthName = new Date(y,m,1).toLocaleDateString('fr-FR',{month:'long'});
+    const weekRows = monthWeekRows(y, m, monthLogs);
+    const weekRowsHtml = weekRows.map(w => {
+      if (!w.cycleNames.length) return `<div style="height:16px;border-radius:3px;background:var(--border);opacity:.35;margin-bottom:3px"></div>`;
+      return `<div onclick="event.stopPropagation();calDate=new Date(${y},${m},${w.start});setCalZoom('week')" style="display:flex;gap:3px;align-items:center;height:16px;margin-bottom:3px;cursor:pointer">
+        ${w.cycleNames.map(n => `<span style="display:flex;align-items:center;gap:3px;background:${colorForCycleName(n)};color:#fff;font-size:9px;padding:1px 6px;border-radius:99px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:${Math.floor(100/w.cycleNames.length)}%">${esc(n)}</span>`).join('')}
+      </div>`;
+    }).join('');
     return `<div onclick="calDate=new Date(${y},${m},1);setCalZoom('month')" style="cursor:pointer;border:1px solid var(--border);border-radius:var(--r-sm);padding:12px;background:color-mix(in srgb, var(--accent) ${Math.round(intensity*22)}%, var(--surface2))">
       <div style="font-weight:600;font-size:13px;text-transform:capitalize;margin-bottom:6px">${monthName}</div>
-      <div style="font-size:11px;color:var(--muted)">${doneLogs.length} séance${doneLogs.length!==1?'s':''} · charge ${load}</div>
-      ${plannedLogs.length?`<div style="font-size:11px;color:var(--accent);margin-top:2px">📌 ${plannedLogs.length} prévue${plannedLogs.length>1?'s':''}</div>`:''}
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px">${doneLogs.length} séance${doneLogs.length!==1?'s':''} · charge ${load}${plannedLogs.length?` · 📌 ${plannedLogs.length}`:''}</div>
+      <div>${weekRowsHtml}</div>
     </div>`;
   }).join('');
   document.getElementById('cal-count').textContent=totalSessions;
@@ -3425,6 +3464,9 @@ function dropChoiceCycle(mode) {
   closeModal('drop-choice-modal');
   openCycleModal();
   document.getElementById('cycle-start').value = dateStr;
+  const droppedItem = getBank().find(x => x.id === bankId);
+  const nameEl = document.getElementById('cycle-name');
+  if (nameEl && droppedItem) nameEl.value = droppedItem.name;
   setCycleMode(mode);
   if (mode === 'simple') {
     cycleItems = [{ bankId, freq: 4 }];
@@ -3495,6 +3537,7 @@ function openCycleModal() {
   if (!startEl.value) startEl.value = new Date().toISOString().slice(0,10);
   document.getElementById('cycle-weeks').value = 4;
   document.getElementById('cycle-rest-hours').value = 24;
+  document.getElementById('cycle-name').value = '';
   cycleItems = [];
   cycleDetailedItems = [];
   renderCycleItemsList();
@@ -3598,6 +3641,8 @@ function generateCycle() {
   const start = document.getElementById('cycle-start').value;
   const weeks = Math.max(1, Math.min(16, +document.getElementById('cycle-weeks').value || 4));
   const restHours = Math.max(0, +document.getElementById('cycle-rest-hours').value || 0);
+  const cycleName = (document.getElementById('cycle-name').value || '').trim() || 'Cycle';
+  const cycleId = 'cyc_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
 
   // Athlètes cibles : sélection multiple si coach, sinon uniquement le profil actif
   let targetIds = isAdmin()
@@ -3692,7 +3737,9 @@ function generateCycle() {
         ascents: [],
         bNoGrade: {},
         planned: true,
-        bankRef: entry.bankId
+        bankRef: entry.bankId,
+        cycleId,
+        cycleName
       });
       created++;
     });
