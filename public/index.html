@@ -1348,10 +1348,15 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     </div>
   </div>
 
-  <!-- Menus rapides par objectif / type -->
+  <!-- Bibliothèque : dossiers / sous-dossiers -->
+  <div style="background:var(--surface2,#f4f2ee);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:10px">
+    <div class="sb-quick-label" style="display:block;margin-bottom:6px">📁 Dossiers</div>
+    <div class="sb-quick-row" id="sb-category-row"></div>
+    <div class="sb-quick-row" id="sb-subcategory-row" style="margin-bottom:0;margin-top:4px"></div>
+  </div>
   <div style="background:var(--surface2,#f4f2ee);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:14px">
-    <div class="sb-quick-row" id="sb-quick-goal"></div>
-    <div class="sb-quick-row" id="sb-quick-type" style="margin-bottom:0"></div>
+    <div class="sb-quick-label" style="display:block;margin-bottom:6px">🏷️ Filtres transversaux</div>
+    <div class="sb-quick-row" id="sb-crosstag-row" style="margin-bottom:0"></div>
   </div>
 
   <!-- Filtre / recherche -->
@@ -1625,6 +1630,16 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <button class="btn sm" onclick="sbCloseEditor()">✕ Fermer</button>
     </div>
     <input type="hidden" id="sb-edit-id">
+    <div class="form-row form-row-2">
+      <div class="form-group" style="margin:0">
+        <label class="form-label">📁 Dossier</label>
+        <select class="form-control" id="sb-category"></select>
+      </div>
+      <div class="form-group" style="margin:0">
+        <label class="form-label">Sous-dossier</label>
+        <select class="form-control" id="sb-subcategory"></select>
+      </div>
+    </div>
     <div class="form-row form-row-3">
       <div class="form-group" style="margin:0">
         <label class="form-label">Nom de la séance</label>
@@ -1762,6 +1777,14 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     <div class="form-group">
       <label class="form-label">Tags (styles travaillés)</label>
       <div id="sb-tags-picker" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px"></div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">🏷️ Filtres transversaux <span style="font-weight:400;color:var(--muted)">(optionnel, plusieurs possibles)</span></label>
+      <div id="sb-crosstag-picker" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px"></div>
+    </div>
+    <div class="form-group coach-only-btn" id="sb-ai-review-group">
+      <button class="btn sm" id="sb-ai-review-btn" onclick="sbAskAiReview()">✦ Avis de l'IA sur cette fiche</button>
+      <div id="sb-ai-review-result" style="display:none;margin-top:10px;padding:12px;background:var(--surface2);border-radius:var(--r-sm);font-size:13px;line-height:1.6;white-space:pre-wrap"></div>
     </div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px">
       <button class="btn danger sm coach-only-btn" id="sb-delete-btn" style="display:none;margin-right:auto">Supprimer</button>
@@ -5114,34 +5137,84 @@ const SB_GOAL_GROUPS = {
   recuperation:'Récup', prevention:'Récup', retour_blessure:'Récup'
 };
 
+// — Bibliothèque de la banque de séances : dossiers / sous-dossiers —
+const BANK_TAXONOMY = {
+  "Échauffement": ["Échauffement général","Échauffement spécifique","Activation doigts","Activation épaules","Activation gainage","Jeux d'échauffement"],
+  "Bloc": ["Bloc limite","Bloc flash","Bloc à vue","Circuits blocs","Doubles mouvements","Coordination","Dynamique","Statique","Compression","Dalle","Dévers","Toit","Jetés","Talons","Pointes","Coincements","Blocs à thème","Création de blocs"],
+  "Voie": ["Voie à vue","Voie flash","Voie projet","Continuité","Résistance","Puissance-résistance","Lecture de voie","Gestion des repos","Clipage","Chutes","Grandes voies"],
+  "Spray Wall": ["Circuits","Blocs imposés","Blocs aléatoires","Répétitions","Lecture","Création"],
+  "Kilter / Moon / Tension": ["Benchmark","Volume","Limite","Répétitions","Création","Défis"],
+  "Campus": ["Doubles","Échelles","Touches","Max reach","Puissance","Vitesse","Coordination"],
+  "Hangboard": ["Suspensions maximales","Repeaters","Endurance doigts","Suspensions lestées","Suspensions délestées","Tests"],
+  "No Hang": ["Force doigts","Rééducation","Prévention","Tests"],
+  "Force": ["Tractions","Tractions lestées","Tractions explosives","Blocages","Tirages","Poussées","Compression","Gainage","Jambes","Explosivité"],
+  "Cardio": ["Intervalles","Zone 2","HIIT","Récupération active"],
+  "Mobilité": ["Épaules","Hanches","Chevilles","Dos","Poignets","Thorax"],
+  "Prévention": ["Doigts","Coudes","Épaules","Poignets","Lombaires","Genoux","Chevilles"],
+  "Technique": ["Lecture","Placement","Pieds","Équilibre","Respiration","Relâchement","Coordination","Visualisation"],
+  "Mental": ["Concentration","Routine","Gestion du stress","Confiance","Engagement","Chute"],
+  "Tests": ["Force doigts","Tractions","Résistance","Puissance","Mobilité","Gainage","Coordination"],
+  "Jeux": ["Défis individuels","Défis équipe","Jeux de mémoire","Jeux de lecture","Jeux de coordination"],
+  "Enfants": ["Parcours","Jeux","Coordination","Équilibre","Motricité"],
+  "Rééducation": ["Retour blessure doigts","Retour blessure épaule","Retour blessure coude","Retour blessure genou"],
+  "Récupération": ["Retour au calme","Étirements","Respiration","Automassage","Mobilité légère"]
+};
+const BANK_CROSS_TAGS = ["Exercices sans matériel","Exercices en binôme","Exercices en groupe","Exercices chronométrés","Exercices à contraintes","Exercices avec handicap","Exercices compétition","Exercices ludiques","Exercices d'évaluation","Exercices de coaching","Situations-problèmes","Circuits prêts à l'emploi","Séances complètes","Progressions pédagogiques","Variantes d'exercices","Exercices par niveau","Exercices par durée","Exercices par objectif"];
+// Correspondance dossier → type existant (pour la couleur du calendrier, la charge, etc.)
+const BANK_CATEGORY_TO_TYPE = {
+  "Échauffement":'ppg', "Bloc":'bloc', "Voie":'voies', "Spray Wall":'pan', "Kilter / Moon / Tension":'pan',
+  "Campus":'doigts', "Hangboard":'doigts', "No Hang":'doigts', "Force":'musculation', "Cardio":'cardio',
+  "Mobilité":'mobilite', "Prévention":'mobilite', "Technique":'autre', "Mental":'mentale', "Tests":'ppg',
+  "Jeux":'autre', "Enfants":'autre', "Rééducation":'recup_active', "Récupération":'recup_active'
+};
+
 function getBank() { return db.sessionBank || (db.sessionBank = []); }
 
-function sbRenderQuickFilters() {
-  const goalWrap = document.getElementById('sb-quick-goal');
-  const typeWrap = document.getElementById('sb-quick-type');
-  if (!goalWrap || !typeWrap) return;
-  const bank = getBank();
-  const curGoal = document.getElementById('sb-goal-filter')?.value || '';
-  const curType = document.getElementById('sb-type-filter')?.value || '';
+// — Navigation bibliothèque : dossier (catégorie) → sous-dossier, + filtres transversaux —
+let sbActiveCategory = '';
+let sbActiveSubcategory = '';
+let sbActiveCrossTags = new Set();
+function jsAttr(s) { return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
 
-  const goalsPresent = [...new Set(bank.map(s => s.goal))].filter(g => SB_GOAL_LABELS[g]);
-  goalsPresent.sort((a,b) => (SB_GOAL_GROUPS[a]||'').localeCompare(SB_GOAL_GROUPS[b]||'') || SB_GOAL_LABELS[a].localeCompare(SB_GOAL_LABELS[b]));
-  goalWrap.innerHTML = `<span class="sb-quick-label">🎯 Objectif</span>`
-    + `<button class="btn sm sb-quick-pill${curGoal===''?' active':''}" onclick="sbQuickSet('goal','')">Tous</button>`
-    + goalsPresent.map(g => `<button class="btn sm sb-quick-pill${curGoal===g?' active':''}" onclick="sbQuickSet('goal','${g}')" title="${SB_GOAL_GROUPS[g]||''}">${SB_GOAL_LABELS[g]}</button>`).join('');
-
-  const typesPresent = [...new Set(bank.map(s => s.type))].filter(t => SESSION_TYPES[t]);
-  typesPresent.sort((a,b) => (SESSION_TYPES[a].group||'').localeCompare(SESSION_TYPES[b].group||'') || SESSION_TYPES[a].label.localeCompare(SESSION_TYPES[b].label));
-  typeWrap.innerHTML = `<span class="sb-quick-label">🧗 Type / outil</span>`
-    + `<button class="btn sm sb-quick-pill${curType===''?' active':''}" onclick="sbQuickSet('type','')">Tous</button>`
-    + typesPresent.map(t => `<button class="btn sm sb-quick-pill${curType===t?' active':''}" onclick="sbQuickSet('type','${t}')" title="${SESSION_TYPES[t].group||''}">${SESSION_TYPES[t].label}</button>`).join('');
+function sbRenderCategoryNav() {
+  const catRow = document.getElementById('sb-category-row');
+  const subRow = document.getElementById('sb-subcategory-row');
+  if (!catRow || !subRow) return;
+  const cats = Object.keys(BANK_TAXONOMY);
+  catRow.innerHTML = `<button class="btn sm sb-quick-pill${!sbActiveCategory?' active':''}" onclick="sbSetCategory('')">Tous les dossiers</button>`
+    + cats.map(c => `<button class="btn sm sb-quick-pill${sbActiveCategory===c?' active':''}" onclick="sbSetCategory('${jsAttr(c)}')">${esc(c)}</button>`).join('');
+  if (sbActiveCategory && BANK_TAXONOMY[sbActiveCategory]) {
+    const subs = BANK_TAXONOMY[sbActiveCategory];
+    subRow.style.display = '';
+    subRow.innerHTML = `<button class="btn sm sb-quick-pill${!sbActiveSubcategory?' active':''}" onclick="sbSetSubcategory('')">Tout le dossier</button>`
+      + subs.map(s => `<button class="btn sm sb-quick-pill${sbActiveSubcategory===s?' active':''}" onclick="sbSetSubcategory('${jsAttr(s)}')">${esc(s)}</button>`).join('');
+  } else {
+    subRow.style.display = 'none';
+    subRow.innerHTML = '';
+  }
 }
-function sbQuickSet(kind, value) {
-  const el = document.getElementById(kind === 'type' ? 'sb-type-filter' : 'sb-goal-filter');
-  if (el) el.value = value;
+function sbSetCategory(cat) {
+  sbActiveCategory = cat;
+  sbActiveSubcategory = '';
   sbRenderGrid();
 }
-window.sbQuickSet = sbQuickSet;
+function sbSetSubcategory(sub) {
+  sbActiveSubcategory = sub;
+  sbRenderGrid();
+}
+window.sbSetCategory = sbSetCategory;
+window.sbSetSubcategory = sbSetSubcategory;
+
+function sbRenderCrossTagRow() {
+  const row = document.getElementById('sb-crosstag-row');
+  if (!row) return;
+  row.innerHTML = BANK_CROSS_TAGS.map(t => `<button class="btn sm sb-quick-pill${sbActiveCrossTags.has(t)?' active':''}" onclick="sbToggleCrossTag('${jsAttr(t)}')">${esc(t)}</button>`).join('');
+}
+function sbToggleCrossTag(tag) {
+  if (sbActiveCrossTags.has(tag)) sbActiveCrossTags.delete(tag); else sbActiveCrossTags.add(tag);
+  sbRenderGrid();
+}
+window.sbToggleCrossTag = sbToggleCrossTag;
 
 function renderSessionBank() {
   // Tags picker in editor
@@ -5153,11 +5226,38 @@ function renderSessionBank() {
       </label>`
     ).join('');
   }
+  // Filtres transversaux picker dans l'éditeur
+  const ctp = document.getElementById('sb-crosstag-picker');
+  if (ctp && !ctp.innerHTML) {
+    ctp.innerHTML = BANK_CROSS_TAGS.map(t =>
+      `<label style="display:inline-flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;padding:3px 0">
+        <input type="checkbox" class="sb-crosstag-cb" value="${esc(t)}" style="accent-color:var(--accent)"> ${esc(t)}
+      </label>`
+    ).join('');
+  }
+  // Sélecteur de dossier dans l'éditeur
+  const catSel = document.getElementById('sb-category');
+  if (catSel && !catSel.dataset.filled) {
+    catSel.innerHTML = `<option value="">— Aucun —</option>` + Object.keys(BANK_TAXONOMY).map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+    catSel.dataset.filled = '1';
+    catSel.onchange = sbUpdateSubcategoryOptions;
+  }
   sbRenderGrid();
 }
 
+function sbUpdateSubcategoryOptions(preselect) {
+  const catSel = document.getElementById('sb-category');
+  const subSel = document.getElementById('sb-subcategory');
+  if (!catSel || !subSel) return;
+  const cat = catSel.value;
+  const subs = BANK_TAXONOMY[cat] || [];
+  subSel.innerHTML = `<option value="">— Aucun —</option>` + subs.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
+  if (preselect && subs.includes(preselect)) subSel.value = preselect;
+}
+
 function sbRenderGrid() {
-  sbRenderQuickFilters();
+  sbRenderCategoryNav();
+  sbRenderCrossTagRow();
   const search    = (document.getElementById('sb-search')?.value || '').toLowerCase();
   const typeF     = document.getElementById('sb-type-filter')?.value || '';
   const goalF     = document.getElementById('sb-goal-filter')?.value || '';
@@ -5168,7 +5268,7 @@ function sbRenderGrid() {
   const bank      = getBank();
 
   // Show/hide reset button
-  const hasFilters = typeF||goalF||supportF||levelF||sourceF||search;
+  const hasFilters = typeF||goalF||supportF||levelF||sourceF||search||sbActiveCategory||sbActiveSubcategory||sbActiveCrossTags.size;
   const resetBtn = document.getElementById('sb-reset-filters');
   if (resetBtn) resetBtn.style.display = hasFilters ? '' : 'none';
 
@@ -5213,6 +5313,9 @@ function sbRenderGrid() {
   if (levelF)   items = items.filter(s => s.level === levelF);
   if (sourceF)  items = items.filter(s => (s.source||'manual') === sourceF);
   if (activeTag) items = items.filter(s => (s.tags||[]).includes(activeTag));
+  if (sbActiveCategory) items = items.filter(s => s.category === sbActiveCategory);
+  if (sbActiveSubcategory) items = items.filter(s => s.subcategory === sbActiveSubcategory);
+  if (sbActiveCrossTags.size) items = items.filter(s => (s.crossTags||[]).some(t => sbActiveCrossTags.has(t)));
 
   // ── Sort ──
   const sorters = {
@@ -5249,9 +5352,12 @@ function sbRenderGrid() {
     const srcBadge = s.source === 'ai'
       ? `<span style="font-size:10px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;padding:2px 6px;border-radius:99px;font-weight:600">✦ IA</span>`
       : '';
+    const catBadge = s.category
+      ? `<span class="sb-tag" style="background:${colorForCycleName(s.category)}22;border-color:${colorForCycleName(s.category)}55;color:${colorForCycleName(s.category)}">📁 ${esc(s.category)}${s.subcategory?' › '+esc(s.subcategory):''}</span>`
+      : `<span class="sb-tag ${SB_TYPE_TAG_CLASS[s.type]||''}">${typeLabels[s.type]||s.type}</span>`;
     return `<div class="sb-card ${isActive?'active':''}" draggable="true" ondragstart="onBankDragStart(event,'${s.id}')" ondragend="onBankDragEnd(event)" title="Glisse cette séance sur une case du calendrier pour la programmer" onclick="sbEditCard('${s.id}')">
-      <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px">
-        <span class="sb-tag ${SB_TYPE_TAG_CLASS[s.type]||''}">${typeLabels[s.type]||s.type}</span>
+      <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+        ${catBadge}
         <span class="sb-tag">${SB_GOAL_LABELS[s.goal]||s.goal}</span>
         ${srcBadge}
         <span style="margin-left:auto;font-size:11px;color:var(--muted)">${s.duration||90} min</span>
@@ -5289,6 +5395,16 @@ function sbEditCard(id) {
   document.querySelectorAll('#sb-tags-picker input').forEach(el => {
     el.checked = (s.tags||[]).includes(el.value);
   });
+  // Dossier / sous-dossier
+  const sbCatEl = document.getElementById('sb-category');
+  if (sbCatEl) { sbCatEl.value = s.category || ''; sbUpdateSubcategoryOptions(s.subcategory || ''); }
+  // Filtres transversaux
+  document.querySelectorAll('.sb-crosstag-cb').forEach(el => {
+    el.checked = (s.crossTags||[]).includes(el.value);
+  });
+  const sbAiResult = document.getElementById('sb-ai-review-result');
+  if (sbAiResult) { sbAiResult.style.display = 'none'; sbAiResult.innerHTML = ''; }
+  sbPendingAiReview = null;
   document.getElementById('sb-delete-btn').style.display = '';
   document.getElementById('sb-editor-panel').style.display = '';
   document.getElementById('sb-editor-panel').scrollIntoView({behavior:'smooth', block:'nearest'});
@@ -5300,6 +5416,7 @@ function sbCloseEditor() {
   document.getElementById('sb-editor-panel').style.display = 'none';
   document.getElementById('sb-edit-id').value = '';
   sbPendingAiCard = null;
+  sbPendingAiReview = null;
   sbRenderGrid();
 }
 
@@ -5315,6 +5432,12 @@ function sbNewCard() {
   document.getElementById('sb-description').value = '';
   const sbSupEl = document.getElementById('sb-support'); if (sbSupEl) sbSupEl.value = '';
   document.querySelectorAll('#sb-tags-picker input').forEach(el => el.checked = false);
+  const sbCatEl2 = document.getElementById('sb-category');
+  if (sbCatEl2) { sbCatEl2.value = ''; sbUpdateSubcategoryOptions(''); }
+  document.querySelectorAll('.sb-crosstag-cb').forEach(el => el.checked = false);
+  const sbAiResult2 = document.getElementById('sb-ai-review-result');
+  if (sbAiResult2) { sbAiResult2.style.display = 'none'; sbAiResult2.innerHTML = ''; }
+  sbPendingAiReview = null;
   document.getElementById('sb-delete-btn').style.display = 'none';
   document.getElementById('sb-editor-panel').style.display = '';
   document.getElementById('sb-editor-panel').scrollIntoView({behavior:'smooth', block:'nearest'});
@@ -5326,6 +5449,7 @@ function sbSave() {
   const name = document.getElementById('sb-name').value.trim();
   if (!name) { alert('Donne un nom à la séance.'); return; }
   const tags = Array.from(document.querySelectorAll('#sb-tags-picker input:checked')).map(el=>el.value);
+  const crossTags = Array.from(document.querySelectorAll('.sb-crosstag-cb:checked')).map(el=>el.value);
   const editId = document.getElementById('sb-edit-id').value;
   // Detect if this save comes from an AI-generated card being edited
   const isAiEdit = !editId && sbPendingAiCard !== null;
@@ -5340,6 +5464,9 @@ function sbSave() {
     support:     document.getElementById('sb-support')?.value || '',
     description: document.getElementById('sb-description').value.trim(),
     tags,
+    category:    document.getElementById('sb-category')?.value || '',
+    subcategory: document.getElementById('sb-subcategory')?.value || '',
+    crossTags,
     createdAt:   editId ? (getBank().find(s=>s.id===editId)?.createdAt || Date.now()) : Date.now(),
     source:      editId ? (getBank().find(s=>s.id===editId)?.source || 'manual') : (isAiEdit ? 'ai' : 'manual'),
   };
@@ -5458,6 +5585,95 @@ Réponds UNIQUEMENT en JSON valide, sans markdown, sans backticks, avec exacteme
   btn.textContent = '✦ Générer la séance';
 }
 
+async function sbAskAiReview() {
+  const name        = document.getElementById('sb-name').value.trim();
+  const type        = document.getElementById('sb-type').value;
+  const level       = document.getElementById('sb-level').value;
+  const duration    = document.getElementById('sb-duration').value;
+  const intensity   = document.getElementById('sb-intensity').value;
+  const goal        = document.getElementById('sb-goal').value;
+  const description = document.getElementById('sb-description').value.trim();
+  const category     = document.getElementById('sb-category')?.value || '';
+  const subcategory  = document.getElementById('sb-subcategory')?.value || '';
+  const tags = Array.from(document.querySelectorAll('#sb-tags-picker input:checked')).map(el=>el.value);
+
+  if (!name && !description) { alert('Renseigne au moins un nom ou une description avant de demander un avis à l\'IA.'); return; }
+
+  const btn = document.getElementById('sb-ai-review-btn');
+  const resultBox = document.getElementById('sb-ai-review-result');
+  btn.disabled = true;
+  btn.textContent = '✦ Analyse en cours…';
+  resultBox.style.display = '';
+  resultBox.innerHTML = `<div style="color:var(--muted);font-style:italic">L'IA relit la fiche…</div>`;
+
+  const prompt = `Tu es un coach d'escalade expert et exigeant. Voici une fiche de séance type telle que rédigée par un coach :
+
+Nom : ${name || '(non précisé)'}
+Type : ${type}
+Dossier : ${category || '(non classé)'}${subcategory ? ' / ' + subcategory : ''}
+Niveau : ${level}
+Durée : ${duration} min
+Intensité : ${intensity}/5
+Objectif : ${goal}
+Tags : ${tags.join(', ') || '(aucun)'}
+Description : ${description || '(vide)'}
+
+Analyse cette fiche de manière critique et concrète : cohérence du contenu avec le type/objectif/durée annoncés, clarté et exploitabilité de la description pour un coach ou un athlète, points faibles ou manques, suggestions d'amélioration.
+
+Réponds UNIQUEMENT en JSON valide, sans markdown ni backticks, avec exactement ces champs :
+{
+  "opinion": "Avis critique en 3-6 phrases, concret et actionnable",
+  "correctedName": "Nom amélioré si pertinent, sinon null",
+  "correctedDescription": "Description corrigée/améliorée si pertinent (reprend et enrichit l'originale), sinon null"
+}`;
+
+  try {
+    const resp = await fetch('/api/ai/chat', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ messages: [{role:'user', content: prompt}], max_tokens: 2048 })
+    });
+    const data = await resp.json();
+    if (data.error) {
+      throw new Error(typeof data.error === 'string' ? data.error : (data.error.message || 'Erreur API Anthropic'));
+    }
+    const raw = (data.content||[]).map(b=>b.text||'').join('');
+    const cleaned = raw.replace(/```json|```/g,'').trim();
+    const parsed = JSON.parse(cleaned);
+
+    sbPendingAiReview = parsed;
+    const hasCorrections = !!(parsed.correctedName || parsed.correctedDescription);
+
+    resultBox.innerHTML = `
+      <div style="font-weight:600;margin-bottom:8px">✦ Avis de l'IA</div>
+      <div style="margin-bottom:${hasCorrections?'12px':'0'}">${esc(parsed.opinion || 'Pas d\'avis particulier.')}</div>
+      ${hasCorrections ? `
+        <div style="border-top:1px solid var(--border);padding-top:10px;margin-top:4px">
+          ${parsed.correctedName ? `<div style="font-size:12px;color:var(--muted);margin-bottom:4px">Nom suggéré : <strong>${esc(parsed.correctedName)}</strong></div>` : ''}
+          ${parsed.correctedDescription ? `<div style="font-size:12px;color:var(--muted);margin-bottom:8px;white-space:pre-wrap">${esc(parsed.correctedDescription)}</div>` : ''}
+          <button class="btn sm primary" id="sb-ai-review-apply-btn">Appliquer la correction</button>
+        </div>` : ''}
+    `;
+    if (hasCorrections) {
+      document.getElementById('sb-ai-review-apply-btn').onclick = sbApplyAiReview;
+    }
+  } catch(e) {
+    resultBox.innerHTML = `<div style="color:var(--warm);font-size:13px">⚠️ Erreur : ${esc(e.message)}. Vérifie la connexion API.</div>`;
+  }
+
+  btn.disabled = false;
+  btn.textContent = "✦ Avis de l'IA sur cette fiche";
+}
+
+function sbApplyAiReview() {
+  if (!sbPendingAiReview) return;
+  if (sbPendingAiReview.correctedName) document.getElementById('sb-name').value = sbPendingAiReview.correctedName;
+  if (sbPendingAiReview.correctedDescription) document.getElementById('sb-description').value = sbPendingAiReview.correctedDescription;
+  const resultBox = document.getElementById('sb-ai-review-result');
+  resultBox.innerHTML += `<div style="color:var(--accent);font-size:12px;margin-top:8px">✓ Correction appliquée à la fiche. N'oublie pas d'enregistrer.</div>`;
+  sbPendingAiReview = null;
+}
+
 window.sbAiAddToBank = function(card) {
   db.sessionBank = db.sessionBank || [];
   db.sessionBank.push(card);
@@ -5552,6 +5768,9 @@ document.getElementById('sb-reset-filters').onclick = () => {
       b.style.background = ''; b.style.color = ''; b.style.borderColor = '';
     });
   }
+  sbActiveCategory = '';
+  sbActiveSubcategory = '';
+  sbActiveCrossTags = new Set();
   sbRenderGrid();
 };
 
@@ -6093,6 +6312,7 @@ function rangeToDate(range){
 // ═══════════════ AI COACH ═══════════════
 let aiHistory = []; // [{role:'user'|'assistant', content:''}]
 let sbPendingAiCard = null; // Stores the last AI-generated session card
+let sbPendingAiReview = null; // Stores the last AI review/correction suggestion for the current card
 let aiLoading = false;
 
 function buildClimberContext() {
