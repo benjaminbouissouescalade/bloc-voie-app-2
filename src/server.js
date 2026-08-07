@@ -14,6 +14,7 @@ app.use('/api/logs',     require('./routes/logs'));
 app.use('/api/bank',     require('./routes/bank'));
 app.use('/api/plans',    require('./routes/plans'));
 app.use('/api/ai',       require('./routes/ai'));
+app.use('/api/news',     require('./routes/news'));
 app.get('/api/health', (req, res) => { res.json({ status: 'ok' }); });
 app.get('*', (req, res) => { res.sendFile(path.join(__dirname, '../public/index.html')); });
 async function start() {
