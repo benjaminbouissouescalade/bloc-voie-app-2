@@ -903,6 +903,15 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     <p>Suivi du volume, de l'intensité et des C-Levels Kaya</p>
   </div>
 
+  <div class="time-filters">
+    <button class="time-filter-btn" data-wl-range="week">Cette semaine</button>
+    <button class="time-filter-btn" data-wl-range="month">Ce mois</button>
+    <button class="time-filter-btn" data-wl-range="3m">3M</button>
+    <button class="time-filter-btn active" data-wl-range="6m">6M</button>
+    <button class="time-filter-btn" data-wl-range="1y">1 an</button>
+    <button class="time-filter-btn" data-wl-range="all">Tout</button>
+  </div>
+
   <div class="stat-grid stat-grid-4">
     <div class="stat-card accent">
       <div class="stat-label">Charge 7 jours</div>
@@ -941,7 +950,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     <div class="panel">
       <div class="panel-header">
         <span class="panel-title">Volume d'entraînement hebdo</span>
-        <span class="panel-sub">16 dernières semaines</span>
+        <span class="panel-sub" id="wl-vol-sub">16 dernières semaines</span>
       </div>
       <div class="chart-wrap" style="height:200px"><canvas id="volChart" aria-label="Volume hebdomadaire">Volume hebdomadaire</canvas></div>
     </div>
@@ -953,30 +962,12 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     </div>
   </div>
 
-  <div class="two-col">
-    <div class="panel">
-      <div class="panel-header">
-        <span class="panel-title">Charge cumulée (comparaison)</span>
-        <span class="panel-sub">12 sem. actuelles vs 12 sem. précédentes</span>
-      </div>
-      <div class="chart-wrap" style="height:180px"><canvas id="cumChart" aria-label="Charge cumulée comparaison">Charge cumulée</canvas></div>
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">Charge cumulée (comparaison)</span>
+      <span class="panel-sub">12 sem. actuelles vs 12 sem. précédentes</span>
     </div>
-    <div class="panel">
-      <div class="panel-header">
-        <span class="panel-title">Heatmap de charge — mois en cours</span>
-      </div>
-      <div class="cal-header" style="margin-bottom:4px">
-        <div class="cal-day-label">L</div><div class="cal-day-label">M</div><div class="cal-day-label">M</div>
-        <div class="cal-day-label">J</div><div class="cal-day-label">V</div><div class="cal-day-label">S</div><div class="cal-day-label">D</div>
-      </div>
-      <div class="heatmap" id="load-heatmap"></div>
-      <div class="legend" style="margin-top:10px">
-        <span class="legend-item"><span class="legend-swatch" style="background:#c8e6d4"></span>C1</span>
-        <span class="legend-item"><span class="legend-swatch" style="background:#8ecba5"></span>C2</span>
-        <span class="legend-item"><span class="legend-swatch" style="background:#4da872"></span>C3</span>
-        <span class="legend-item"><span class="legend-swatch" style="background:#2d7a4e"></span>C4</span>
-      </div>
-    </div>
+    <div class="chart-wrap" style="height:180px"><canvas id="cumChart" aria-label="Charge cumulée comparaison">Charge cumulée</canvas></div>
   </div>
 
   <div class="panel">
@@ -3965,6 +3956,8 @@ function renderSmallPyramid(logs, ctx='all', loc='all') {
 }
 
 // — Workload —
+let wlRange = '6m';
+const WL_RANGE_LABELS = { week:'Cette semaine', month:'Ce mois', '3m':'3 derniers mois', '6m':'6 derniers mois', '1y':'12 derniers mois', all:'Depuis le début' };
 function renderWorkload() {
   const l7=getLoadRange(7),l28=getLoadRange(28),l365=getLoadRange(365);
   document.getElementById('wl-load7').textContent=l7;
@@ -3974,7 +3967,9 @@ function renderWorkload() {
   document.getElementById('wl-load-year').textContent=l365;
   document.getElementById('wl-ref-grade').textContent=getRefGrade();
 
-  const wData=weeklyData(16);
+  const wData=weeklyData(perfWeeksForRange(wlRange));
+  const wlSub=document.getElementById('wl-vol-sub');
+  if (wlSub) wlSub.textContent = WL_RANGE_LABELS[wlRange] || '';
   makeChart('volChart',{
     type:'bar',
     data:{
@@ -4025,22 +4020,11 @@ function renderWorkload() {
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{font:{size:9},maxTicksLimit:6}},y:{grid:{color:'rgba(0,0,0,.05)'},ticks:{font:{size:10}}}}}
   });
 
-  // Heatmap
-  const hm=document.getElementById('load-heatmap');hm.innerHTML='';
-  const now=new Date(),y=now.getFullYear(),m=now.getMonth();
-  const firstDay=(new Date(y,m,1).getDay()+6)%7, daysInMonth=new Date(y,m+1,0).getDate();
-  for(let i=0;i<firstDay;i++){const d=document.createElement('div');hm.appendChild(d);}
-  for(let d=1;d<=daysInMonth;d++){
-    const ds=`${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const load=getLogs().filter(l=>l.date===ds).reduce((s,l)=>s+sessionLoad(l),0);
-    const lvl=load===0?0:load<=30?1:load<=65?2:load<=100?3:load<=150?4:5;
-    const cell=document.createElement('div');
-    cell.className=`heat-cell load-${lvl}`;cell.title=`${d}/${m+1}: charge ${load}`;
-    hm.appendChild(cell);
-  }
-
   renderTripsList();
 }
+document.querySelectorAll('[data-wl-range]').forEach(b=>{
+  b.onclick=()=>{document.querySelectorAll('[data-wl-range]').forEach(x=>x.classList.remove('active'));b.classList.add('active');wlRange=b.dataset.wlRange;renderWorkload();};
+});
 
 // — Trips (comparaison de périodes) —
 let selectedTripIds = [];
