@@ -434,6 +434,13 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 .ai-shortcut { padding: 6px 12px; border-radius: 99px; border: 1px solid var(--border2); background: var(--surface); color: var(--text); font-size: 12px; cursor: pointer; transition: all .12s; }
 .ai-shortcut:hover { background: var(--accent2); border-color: rgba(45,90,61,.3); color: var(--accent); }
 .ai-ctx-bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 10px 12px; background: var(--accent2); border-radius: var(--r-sm); margin-bottom: 14px; font-size: 12px; }
+.sb-ai-chat { display: flex; flex-direction: column; }
+.sb-ai-messages { max-height: 280px; min-height: 90px; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; background: var(--surface2); border-radius: var(--radius) var(--radius) 0 0; border: 1px solid var(--border); border-bottom: none; }
+.sb-ai-messages .ai-msg { max-width: 90%; }
+.sb-ai-messages .ai-bubble { font-size: 13px; padding: 9px 12px; }
+.sb-ai-input-bar { display: flex; gap: 8px; padding: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 0 0 var(--radius) var(--radius); }
+.sb-ai-input-bar textarea { flex: 1; border: 1px solid var(--border2); border-radius: var(--r-sm); padding: 8px 10px; font-size: 13px; resize: none; min-height: 38px; max-height: 100px; background: var(--surface2); color: var(--text); outline: none; transition: border-color .12s; line-height: 1.4; }
+.sb-ai-input-bar textarea:focus { border-color: var(--accent); background: var(--surface); }
 .ai-ctx-pill { background: rgba(45,90,61,.15); color: var(--accent); padding: 3px 8px; border-radius: 99px; font-weight: 600; }
 .nav-btn .ai-badge { font-size: 10px; background: linear-gradient(135deg,#6366f1,#8b5cf6); color:#fff; padding:1px 5px; border-radius:99px; margin-left:2px; }
 
@@ -1810,8 +1817,19 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <div id="sb-crosstag-picker" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px"></div>
     </div>
     <div class="form-group coach-only-btn" id="sb-ai-review-group">
-      <button class="btn sm" id="sb-ai-review-btn" onclick="sbAskAiReview()">✦ Avis de l'IA sur cette fiche</button>
-      <div id="sb-ai-review-result" style="display:none;margin-top:10px;padding:12px;background:var(--surface2);border-radius:var(--r-sm);font-size:13px;line-height:1.6;white-space:pre-wrap"></div>
+      <label class="form-label" style="margin-bottom:6px">✦ Avis de l'IA sur cette fiche</label>
+      <div class="sb-ai-chat">
+        <div class="sb-ai-messages" id="sb-ai-review-messages">
+          <div class="ai-msg assistant">
+            <div class="ai-sender">IA</div>
+            <div class="ai-bubble">Demande-moi un avis sur cette fiche, une correction, ou pose une question — je peux voir tous les champs déjà remplis. Tu peux enchaîner les questions ensuite.</div>
+          </div>
+        </div>
+        <div class="sb-ai-input-bar">
+          <textarea id="sb-ai-review-input" placeholder="Ex : Cette séance est-elle adaptée à un niveau intermédiaire ?" rows="1" onkeydown="sbAiReviewKeydown(event)"></textarea>
+          <button class="ai-send-btn" id="sb-ai-review-send-btn" onclick="sbAskAiReview()" title="Envoyer">↑</button>
+        </div>
+      </div>
     </div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px">
       <button class="btn danger sm coach-only-btn" id="sb-delete-btn" style="display:none;margin-right:auto">Supprimer</button>
@@ -5477,9 +5495,8 @@ function sbEditCard(id) {
   document.querySelectorAll('.sb-crosstag-cb').forEach(el => {
     el.checked = (s.crossTags||[]).includes(el.value);
   });
-  const sbAiResult = document.getElementById('sb-ai-review-result');
-  if (sbAiResult) { sbAiResult.style.display = 'none'; sbAiResult.innerHTML = ''; }
-  sbPendingAiReview = null;
+  sbAiReviewHistory = [];
+  sbRenderAiReviewMessages();
   document.getElementById('sb-delete-btn').style.display = '';
   document.getElementById('sb-editor-panel').style.display = '';
   document.getElementById('sb-editor-panel').scrollIntoView({behavior:'smooth', block:'nearest'});
@@ -5491,7 +5508,7 @@ function sbCloseEditor() {
   document.getElementById('sb-editor-panel').style.display = 'none';
   document.getElementById('sb-edit-id').value = '';
   sbPendingAiCard = null;
-  sbPendingAiReview = null;
+  sbAiReviewHistory = [];
   sbRenderGrid();
 }
 
@@ -5510,9 +5527,8 @@ function sbNewCard() {
   const sbCatEl2 = document.getElementById('sb-category');
   if (sbCatEl2) { sbCatEl2.value = ''; sbUpdateSubcategoryOptions(''); }
   document.querySelectorAll('.sb-crosstag-cb').forEach(el => el.checked = false);
-  const sbAiResult2 = document.getElementById('sb-ai-review-result');
-  if (sbAiResult2) { sbAiResult2.style.display = 'none'; sbAiResult2.innerHTML = ''; }
-  sbPendingAiReview = null;
+  sbAiReviewHistory = [];
+  sbRenderAiReviewMessages();
   document.getElementById('sb-delete-btn').style.display = 'none';
   document.getElementById('sb-editor-panel').style.display = '';
   document.getElementById('sb-editor-panel').scrollIntoView({behavior:'smooth', block:'nearest'});
@@ -5660,7 +5676,8 @@ Réponds UNIQUEMENT en JSON valide, sans markdown, sans backticks, avec exacteme
   btn.textContent = '✦ Générer la séance';
 }
 
-async function sbAskAiReview() {
+// Contexte de la fiche envoyé à l'IA en tout premier message de la conversation
+function sbBuildCardContext() {
   const name        = document.getElementById('sb-name').value.trim();
   const type        = document.getElementById('sb-type').value;
   const level       = document.getElementById('sb-level').value;
@@ -5671,17 +5688,7 @@ async function sbAskAiReview() {
   const category     = document.getElementById('sb-category')?.value || '';
   const subcategory  = document.getElementById('sb-subcategory')?.value || '';
   const tags = Array.from(document.querySelectorAll('#sb-tags-picker input:checked')).map(el=>el.value);
-
-  if (!name && !description) { alert('Renseigne au moins un nom ou une description avant de demander un avis à l\'IA.'); return; }
-
-  const btn = document.getElementById('sb-ai-review-btn');
-  const resultBox = document.getElementById('sb-ai-review-result');
-  btn.disabled = true;
-  btn.textContent = '✦ Analyse en cours…';
-  resultBox.style.display = '';
-  resultBox.innerHTML = `<div style="color:var(--muted);font-style:italic">L'IA relit la fiche…</div>`;
-
-  const prompt = `Tu es un coach d'escalade expert et exigeant. Voici une fiche de séance type telle que rédigée par un coach :
+  return `Tu es un coach d'escalade expert. Voici une fiche de séance type telle que rédigée par un coach. Réponds en français, de façon concrète et actionnable, en 2 à 5 phrases sauf si on te demande plus de détail.
 
 Nom : ${name || '(non précisé)'}
 Type : ${type}
@@ -5691,63 +5698,108 @@ Durée : ${duration} min
 Intensité : ${intensity}/5
 Objectif : ${goal}
 Tags : ${tags.join(', ') || '(aucun)'}
-Description : ${description || '(vide)'}
+Description : ${description || '(vide)'}`;
+}
 
-Analyse cette fiche de manière critique et concrète : cohérence du contenu avec le type/objectif/durée annoncés, clarté et exploitabilité de la description pour un coach ou un athlète, points faibles ou manques, suggestions d'amélioration.
+function sbAiReviewKeydown(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sbAskAiReview(); }
+}
 
-Réponds UNIQUEMENT en JSON valide, sans markdown ni backticks, avec exactement ces champs :
-{
-  "opinion": "Avis critique en 3-6 phrases, concret et actionnable",
-  "correctedName": "Nom amélioré si pertinent, sinon null",
-  "correctedDescription": "Description corrigée/améliorée si pertinent (reprend et enrichit l'originale), sinon null"
-}`;
+async function sbAskAiReview() {
+  if (sbAiReviewLoading) return;
+  const input = document.getElementById('sb-ai-review-input');
+  let msg = input.value.trim();
+  if (!msg && sbAiReviewHistory.length === 0) {
+    msg = "Donne-moi ton avis critique sur cette fiche : cohérence avec le type/objectif/durée, clarté pour un coach ou un athlète, et propose une correction si besoin.";
+  }
+  if (!msg) return;
+
+  input.value = '';
+  input.style.height = 'auto';
+  sbAiReviewLoading = true;
+  document.getElementById('sb-ai-review-send-btn').disabled = true;
+
+  sbAiReviewHistory.push({ role: 'user', content: msg });
+  sbRenderAiReviewMessages();
+
+  const loadingId = 'sb-ai-review-loading-' + Date.now();
+  sbAddAiReviewLoadingBubble(loadingId);
 
   try {
+    const context = sbBuildCardContext();
+    let messages;
+    if (sbAiReviewHistory.length === 1) {
+      messages = [{ role: 'user', content: context + '\n\n---\nQuestion du coach : ' + sbAiReviewHistory[0].content }];
+    } else {
+      messages = [
+        { role: 'user', content: context },
+        { role: 'assistant', content: "Compris, j'ai lu la fiche. Je suis prêt à donner mon avis et répondre à tes questions." }
+      ];
+      for (const turn of sbAiReviewHistory) messages.push({ role: turn.role, content: turn.content });
+    }
+
     const resp = await fetch('/api/ai/chat', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ messages: [{role:'user', content: prompt}], max_tokens: 2048 })
+      body: JSON.stringify({ messages, max_tokens: 1024 })
     });
     const data = await resp.json();
-    if (data.error) {
-      throw new Error(typeof data.error === 'string' ? data.error : (data.error.message || 'Erreur API Anthropic'));
-    }
-    const raw = (data.content||[]).map(b=>b.text||'').join('');
-    const cleaned = raw.replace(/```json|```/g,'').trim();
-    const parsed = JSON.parse(cleaned);
+    sbRemoveAiReviewLoadingBubble(loadingId);
 
-    sbPendingAiReview = parsed;
-    const hasCorrections = !!(parsed.correctedName || parsed.correctedDescription);
+    const reply = Array.isArray(data.content)
+      ? data.content.filter(b => b && b.type === 'text' && b.text).map(b => b.text).join('\n').trim()
+      : '';
 
-    resultBox.innerHTML = `
-      <div style="font-weight:600;margin-bottom:8px">✦ Avis de l'IA</div>
-      <div style="margin-bottom:${hasCorrections?'12px':'0'}">${esc(parsed.opinion || 'Pas d\'avis particulier.')}</div>
-      ${hasCorrections ? `
-        <div style="border-top:1px solid var(--border);padding-top:10px;margin-top:4px">
-          ${parsed.correctedName ? `<div style="font-size:12px;color:var(--muted);margin-bottom:4px">Nom suggéré : <strong>${esc(parsed.correctedName)}</strong></div>` : ''}
-          ${parsed.correctedDescription ? `<div style="font-size:12px;color:var(--muted);margin-bottom:8px;white-space:pre-wrap">${esc(parsed.correctedDescription)}</div>` : ''}
-          <button class="btn sm primary" id="sb-ai-review-apply-btn">Appliquer la correction</button>
-        </div>` : ''}
-    `;
-    if (hasCorrections) {
-      document.getElementById('sb-ai-review-apply-btn').onclick = sbApplyAiReview;
+    if (reply) {
+      const truncated = data.stop_reason === 'max_tokens' ? '\n\n*[réponse coupée — pose une question plus ciblée]*' : '';
+      sbAiReviewHistory.push({ role: 'assistant', content: reply + truncated });
+    } else if (data.error) {
+      sbAiReviewHistory.push({ role: 'assistant', content: `⚠️ Erreur API : ${(typeof data.error === 'string' ? data.error : data.error.message) || 'Vérifie la connexion.'}` });
+    } else {
+      sbAiReviewHistory.push({ role: 'assistant', content: '⚠️ Réponse inattendue. Réessaie.' });
     }
   } catch(e) {
-    resultBox.innerHTML = `<div style="color:var(--warm);font-size:13px">⚠️ Erreur : ${esc(e.message)}. Vérifie la connexion API.</div>`;
+    sbRemoveAiReviewLoadingBubble(loadingId);
+    sbAiReviewHistory.push({ role: 'assistant', content: `⚠️ Erreur de connexion : ${e.message}` });
   }
 
-  btn.disabled = false;
-  btn.textContent = "✦ Avis de l'IA sur cette fiche";
+  sbRenderAiReviewMessages();
+  sbAiReviewLoading = false;
+  document.getElementById('sb-ai-review-send-btn').disabled = false;
+  input.focus();
 }
 
-function sbApplyAiReview() {
-  if (!sbPendingAiReview) return;
-  if (sbPendingAiReview.correctedName) document.getElementById('sb-name').value = sbPendingAiReview.correctedName;
-  if (sbPendingAiReview.correctedDescription) document.getElementById('sb-description').value = sbPendingAiReview.correctedDescription;
-  const resultBox = document.getElementById('sb-ai-review-result');
-  resultBox.innerHTML += `<div style="color:var(--accent);font-size:12px;margin-top:8px">✓ Correction appliquée à la fiche. N'oublie pas d'enregistrer.</div>`;
-  sbPendingAiReview = null;
+function sbAddAiReviewLoadingBubble(id) {
+  const container = document.getElementById('sb-ai-review-messages');
+  const div = document.createElement('div');
+  div.className = 'ai-msg assistant';
+  div.id = id;
+  div.innerHTML = `<div class="ai-sender">IA</div><div class="ai-bubble loading">En train de relire la fiche…</div>`;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
 }
+function sbRemoveAiReviewLoadingBubble(id) { document.getElementById(id)?.remove(); }
+
+function sbRenderAiReviewMessages() {
+  const container = document.getElementById('sb-ai-review-messages');
+  if (!container) return;
+  const greetingHtml = `<div class="ai-msg assistant">
+    <div class="ai-sender">IA</div>
+    <div class="ai-bubble">Demande-moi un avis sur cette fiche, une correction, ou pose une question — je peux voir tous les champs déjà remplis. Tu peux enchaîner les questions ensuite.</div>
+  </div>`;
+  container.innerHTML = greetingHtml + sbAiReviewHistory.map(m => {
+    const isUser = m.role === 'user';
+    return `<div class="ai-msg ${isUser?'user':'assistant'}">
+      <div class="ai-sender">${isUser ? 'Toi' : 'IA'}</div>
+      <div class="ai-bubble">${esc(m.content)}</div>
+    </div>`;
+  }).join('');
+  container.scrollTop = container.scrollHeight;
+}
+(function() {
+  const ta = document.getElementById('sb-ai-review-input');
+  if (ta) ta.oninput = () => { ta.style.height='auto'; ta.style.height=Math.min(ta.scrollHeight,100)+'px'; };
+})();
 
 window.sbAiAddToBank = function(card) {
   db.sessionBank = db.sessionBank || [];
@@ -6387,7 +6439,8 @@ function rangeToDate(range){
 // ═══════════════ AI COACH ═══════════════
 let aiHistory = []; // [{role:'user'|'assistant', content:''}]
 let sbPendingAiCard = null; // Stores the last AI-generated session card
-let sbPendingAiReview = null; // Stores the last AI review/correction suggestion for the current card
+let sbAiReviewHistory = []; // Historique du chat "avis IA" pour la fiche en cours d'édition
+let sbAiReviewLoading = false;
 let aiLoading = false;
 
 function buildClimberContext() {
