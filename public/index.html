@@ -7135,7 +7135,7 @@ let newsTickerTimer = null;
 
 function buildAthleteActivityItems() {
   const items = [];
-  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 2); // dernières 48h
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 7); // derniers 7 jours
   const cutoffStr = cutoff.toISOString().slice(0, 10);
   (db.climbers || []).forEach(c => {
     (c.logs || []).filter(l => !l.planned && l.date >= cutoffStr).forEach(l => {
