@@ -972,7 +972,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <span style="left:100%">2+</span>
     </div>
     <p style="font-size:12.5px;color:var(--muted);margin:14px 0 0;line-height:1.55">
-      Ce ratio compare ta charge des <strong>7 derniers jours</strong> à ta charge <strong>moyenne hebdomadaire des 4 dernières semaines</strong>. Entre <strong>0,8 et 1,3</strong> : zone optimale, charge stable, risque faible. En dessous de <strong>0,8</strong> : tu perds probablement en forme (sous-charge). Au-dessus de <strong>1,5</strong> : ta charge grimpe trop vite par rapport à ce à quoi ton corps est habitué — le risque de blessure augmente nettement.
+      Ce ratio compare ta charge des <strong>7 derniers jours</strong> à ta charge <strong>moyenne hebdomadaire des 4 dernières semaines</strong>. Entre <strong>0,8 et 1,3</strong> : zone optimale, charge stable, risque faible. En dessous de <strong>0,8</strong> : ta charge a nettement baissé — c'est tout à fait normal, et même recommandé, après une semaine de repos ou de décharge planifiée. Ce n'est un signal à surveiller que si ça dure sur plusieurs semaines sans que ce soit voulu (perte de forme progressive). Au-dessus de <strong>1,5</strong> : ta charge grimpe trop vite par rapport à ce à quoi ton corps est habitué — le risque de blessure augmente nettement.
     </p>
   </div>
 
@@ -1056,7 +1056,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       À grade égal : un enchaînement à vue ou flash (sans essai préalable) rapporte un léger bonus, un enchaînement en tête classique compte plein pot, et une moulinette compte un peu moins (l'effort est moindre). Un essai non abouti compte pour une fraction de la charge, selon le nombre de tentatives et le pourcentage de la voie réalisé — répéter les tentatives compte de moins en moins à chaque fois, puisque tu te reposes entre chaque essai.</p>
 
       <p><strong>4. Les blocs sans cotation précise</strong><br>
-      Pour les séances de bloc enregistrées sans cotation détaillée, la charge dépend de la difficulté choisie (facile / classique / dur) et du nombre de blocs enchaînés ou tentés.</p>
+      Pour les séances de bloc enregistrées sans cotation détaillée, le "niveau perçu" que tu choisis (facile / moyen-facile / niveau de travail / dur) est traduit en équivalent de cotation par rapport à <strong>ton propre grade de référence</strong> — comme pour les voies cotées, un bloc "dur" pèse donc plus lourd si tu grimpes en 8a que si tu grimpes en 5c. La charge dépend ensuite du nombre de blocs sortis et tentés.</p>
 
       <p><strong>5. Charge de séance, puis charge cumulée</strong><br>
       La charge d'une séance = la somme de toutes tes ascensions et blocs de cette séance. Les indicateurs "7 jours", "28 jours", etc. additionnent simplement la charge de toutes les séances sur cette période.</p>
@@ -2314,7 +2314,6 @@ const SUPPORTS = {
   // ── Autre ──
   autre_support:  { label: 'Autre',                   group: 'Autre', icon: '•' },
 };
-const BOULDER_DIFF = {easy:0.55,easy_plus:0.75,classic:1.0,hard:1.3};
 const C_LEVELS = [{max:30,cls:'c1',label:'C1'},{max:65,cls:'c2',label:'C2'},{max:100,cls:'c3',label:'C3'},{max:Infinity,cls:'c4',label:'C4'}];
 const KAYA_BASE = 100, KAYA_GROWTH = 1.18;
 
@@ -3167,13 +3166,15 @@ function ascentLoad(a, refGrade) {
   return Math.round(base * statusMul);
 }
 
+// Offset en "crans de cotation" par rapport au niveau perçu du bloc (relatif à ton grade de référence)
+const BOULDER_DIFF_OFFSET = {easy:-4,easy_plus:-2,classic:0,hard:2};
 function boulderLoad(b, refGrade) {
   if (!b || (!b.sent && !b.tries)) return 0;
-  const ri = GRADE_IDX[refGrade]||18;
-  const base = KAYA_BASE * Math.pow(KAYA_GROWTH, -2);
-  const diff = BOULDER_DIFF[b.diff]||1;
+  const offset = BOULDER_DIFF_OFFSET[b.diff] ?? 0;
+  // Un bloc "au niveau" pèse comme une voie ~2 crans sous ta référence (effort plus court qu'une voie complète)
+  const base = KAYA_BASE * Math.pow(KAYA_GROWTH, offset - 2);
   const vol = (b.sent||0) + 0.6*(b.tries||0)*((b.progress||60)/100);
-  return Math.round(base * diff * vol * 0.5);
+  return Math.round(base * vol * 0.5);
 }
 
 function sessionLoad(log) {
@@ -4034,7 +4035,7 @@ const WL_RANGE_LABELS = { week:'Cette semaine', month:'Ce mois', '3m':'3 dernier
 // Ratio charge aiguë (7j) / charge chronique (moyenne hebdo des 4 dernières semaines)
 function acwrZone(ratio) {
   if (ratio===null) return { label:'Pas assez de données', color:'var(--muted)', bg:'var(--surface2)' };
-  if (ratio < 0.8) return { label:'Sous-charge', color:'#fff', bg:'#3d7ab8' };
+  if (ratio < 0.8) return { label:'Charge basse (repos ?)', color:'#fff', bg:'#3d7ab8' };
   if (ratio <= 1.3) return { label:'Zone optimale', color:'#fff', bg:'#2d7a4e' };
   if (ratio <= 1.5) return { label:'Vigilance', color:'#fff', bg:'#b07a10' };
   return { label:'Risque élevé', color:'#fff', bg:'#c4501a' };
