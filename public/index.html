@@ -32,21 +32,35 @@
     <input id="ob-password" type="password" placeholder="••••••••" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box">
   </div>
 
+  <div style="font-size:12px;font-weight:700;color:#2d5a3d;text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Photo de profil <span style="font-weight:400;text-transform:none;color:#7a7566">(optionnel)</span></div>
+  <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px">
+    <div id="ob-photo-preview" style="width:60px;height:60px;border-radius:50%;background:#e8e5de;display:flex;align-items:center;justify-content:center;font-size:24px;overflow:hidden;flex-shrink:0;color:#a8a296">🧗</div>
+    <div>
+      <input type="file" id="ob-photo-input" accept="image/*" onchange="obHandlePhotoChange(event)" style="display:block;font-size:12px">
+      <div style="font-size:11px;color:#a8a296;margin-top:4px">JPEG/PNG — redimensionnée automatiquement</div>
+    </div>
+  </div>
+
   <div style="font-size:12px;font-weight:700;color:#2d5a3d;text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Niveau & mensurations</div>
-  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px">
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin-bottom:6px">
     <div>
       <label style="font-size:11px;font-weight:600;color:#7a7566;display:block;margin-bottom:4px">NIVEAU ACTUEL</label>
       <select id="ob-level" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box"></select>
     </div>
     <div>
       <label style="font-size:11px;font-weight:600;color:#7a7566;display:block;margin-bottom:4px">TAILLE (CM)</label>
-      <input id="ob-height" type="number" min="100" max="230" placeholder="175" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box">
+      <input id="ob-height" type="number" min="100" max="230" placeholder="175" oninput="obUpdateApeIndex()" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box">
     </div>
     <div>
       <label style="font-size:11px;font-weight:600;color:#7a7566;display:block;margin-bottom:4px">POIDS (KG)</label>
       <input id="ob-weight" type="number" min="30" max="200" placeholder="68" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box">
     </div>
+    <div>
+      <label style="font-size:11px;font-weight:600;color:#7a7566;display:block;margin-bottom:4px">ENVERGURE (CM)</label>
+      <input id="ob-armspan" type="number" min="100" max="240" placeholder="178" oninput="obUpdateApeIndex()" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box">
+    </div>
   </div>
+  <div id="ob-ape-note" style="font-size:11px;color:#a8a296;margin-bottom:20px;min-height:14px"></div>
 
   <div style="font-size:12px;font-weight:700;color:#2d5a3d;text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Matériel / outils disponibles</div>
   <div id="ob-equip" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:20px"></div>
@@ -2187,16 +2201,33 @@ Utilise les raccourcis ci-dessus ou pose-moi directement une question. Par exemp
       <input type="hidden" id="pd-climber-id">
       <div id="pd-error" style="background:var(--warm2);color:var(--warm);border-radius:8px;padding:10px;font-size:13px;margin-bottom:12px;display:none"></div>
 
-      <div class="form-row form-row-2">
+      <div class="form-group">
+        <label class="form-label">Photo de profil</label>
+        <div style="display:flex;align-items:center;gap:14px">
+          <div id="pd-photo-preview" style="width:64px;height:64px;border-radius:50%;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:26px;overflow:hidden;flex-shrink:0;color:var(--muted)">🧗</div>
+          <div>
+            <input type="file" id="pd-photo-input" accept="image/*" onchange="pdHandlePhotoChange(event)" style="display:block;font-size:12px">
+            <div style="font-size:11px;color:var(--muted);margin-top:4px">JPEG/PNG — redimensionnée automatiquement</div>
+            <button type="button" id="pd-photo-remove-btn" class="btn sm" style="margin-top:6px;display:none" onclick="pdRemovePhoto()">🗑 Retirer la photo</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-row form-row-3">
         <div class="form-group">
           <label class="form-label">Taille (cm)</label>
-          <input class="form-control" type="number" min="100" max="230" id="pd-height">
+          <input class="form-control" type="number" min="100" max="230" id="pd-height" oninput="pdUpdateApeIndex()">
         </div>
         <div class="form-group">
           <label class="form-label">Poids (kg)</label>
           <input class="form-control" type="number" min="30" max="200" id="pd-weight">
         </div>
+        <div class="form-group">
+          <label class="form-label">Envergure (cm)</label>
+          <input class="form-control" type="number" min="100" max="240" id="pd-armspan" oninput="pdUpdateApeIndex()">
+        </div>
       </div>
+      <div id="pd-ape-note" style="font-size:12px;color:var(--muted);margin:-8px 0 14px"></div>
       <div class="form-row form-row-2">
         <div class="form-group">
           <label class="form-label">Séances / semaine</label>
@@ -5563,6 +5594,47 @@ let sbActiveSubcategory = '';
 let sbActiveCrossTags = new Set();
 function jsAttr(s) { return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
 
+// ═══════════════ PHOTO PROFIL / ENVERGURE — helpers partagés ═══════════════
+function resizeImageToDataUrl(file, maxSize = 320, quality = 0.82) {
+  return new Promise((resolve, reject) => {
+    if (!file || !file.type || !file.type.startsWith('image/')) { reject(new Error('Fichier non image')); return; }
+    if (file.size > 15 * 1024 * 1024) { reject(new Error('Image trop volumineuse')); return; }
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error || new Error('Lecture impossible'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('Image invalide'));
+      img.onload = () => {
+        let { width, height } = img;
+        if (width >= height) { if (width > maxSize) { height = Math.round(height * maxSize / width); width = maxSize; } }
+        else { if (height > maxSize) { width = Math.round(width * maxSize / height); height = maxSize; } }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+window.resizeImageToDataUrl = resizeImageToDataUrl;
+
+function apeIndexText(height, armSpan) {
+  if (!height || !armSpan) return '';
+  const diff = armSpan - height;
+  if (diff === 0) return "Indice d'envergure : 0 cm (envergure = taille)";
+  return `Indice d'envergure : ${diff > 0 ? '+' : ''}${diff} cm ${diff > 0 ? '(bras plus longs que la taille)' : '(bras plus courts que la taille)'}`;
+}
+window.apeIndexText = apeIndexText;
+
+function avatarPhotoStyle(photo, color) {
+  return photo
+    ? `background-image:url('${photo}');background-size:cover;background-position:center;background-color:${color}`
+    : `background:${color}`;
+}
+
 function sbRenderCategoryNav() {
   const catRow = document.getElementById('sb-category-row');
   const subRow = document.getElementById('sb-subcategory-row');
@@ -6201,8 +6273,13 @@ function renderSidebarStats(){
   const stats = climberStats(c);
   const total = getLogs().length;
   const initials = c.name.trim().split(/\s+/).map(w=>w[0]).join('').toUpperCase().slice(0,2);
-  document.getElementById('sidebar-avatar').textContent = initials;
-  document.getElementById('sidebar-avatar').style.background = c.color;
+  const avatarEl = document.getElementById('sidebar-avatar');
+  const photo = c.profile?.photo;
+  avatarEl.textContent = photo ? '' : initials;
+  avatarEl.style.backgroundColor = c.color;
+  avatarEl.style.backgroundImage = photo ? `url('${photo}')` : '';
+  avatarEl.style.backgroundSize = 'cover';
+  avatarEl.style.backgroundPosition = 'center';
   document.getElementById('sidebar-name').textContent = c.name;
   // Show: current level if available, else declared, else ref grade
   const displayGrade = stats.currentLvl || c.level || getRefGrade();
@@ -6299,9 +6376,10 @@ function renderClimberCards() {
       ? `<div class="cc-trend"><span class="${stats.trend.dir}">${stats.trend.dir==='up'?'↑':stats.trend.dir==='down'?'↓':'→'} ${stats.trend.label}</span> vs 3 séances préc.</div>`
       : '';
 
+    const photo = c.profile?.photo;
     return `<div class="climber-card ${isActive?'active-card':''}">
       ${isActive?`<div style="position:absolute;top:8px;right:8px;font-size:10px;font-weight:700;color:var(--accent);background:var(--accent2);padding:2px 7px;border-radius:99px">Actif</div>`:''}
-      <div class="cc-avatar" style="background:${c.color}">${initials}</div>
+      <div class="cc-avatar" style="${avatarPhotoStyle(photo, c.color)}">${photo?'':initials}</div>
       <div class="cc-name">${esc(c.name)}</div>
       <div class="cc-stats">${stats.sessionCount} séance${stats.sessionCount!==1?'s':''}</div>
       <div class="cc-grade-row">
@@ -6382,10 +6460,14 @@ function openProfileDetailModal(climberId) {
   document.getElementById('pd-error').style.display = 'none';
   document.getElementById('pd-height').value = p.height || '';
   document.getElementById('pd-weight').value = p.weight || '';
+  document.getElementById('pd-armspan').value = p.armSpan || '';
   document.getElementById('pd-sessions-week').value = p.sessionsPerWeek || '';
   document.getElementById('pd-minutes-session').value = p.minutesPerSession || '';
   pdGoals = Array.isArray(p.goals) ? p.goals.slice() : [];
   renderPdGoals();
+  pdPhotoDataUrl = undefined;
+  pdRenderPhotoPreview(p.photo || null, c.color);
+  pdUpdateApeIndex();
 
   const eq = document.getElementById('pd-equip');
   const selected = new Set(p.equipment || []);
@@ -6409,6 +6491,55 @@ function pdRatingChanged() {
   refreshAllPerfRadars('pd-perf-sections', 'pd-overview-radar', pdHasCoachData);
 }
 
+// undefined = pas de changement (garder la photo existante), null = suppression explicite, string = nouvelle photo
+let pdPhotoDataUrl = undefined;
+function pdRenderPhotoPreview(photo, color) {
+  const prev = document.getElementById('pd-photo-preview');
+  const removeBtn = document.getElementById('pd-photo-remove-btn');
+  if (!prev) return;
+  if (photo) {
+    prev.style.backgroundImage = `url('${photo}')`;
+    prev.style.backgroundSize = 'cover';
+    prev.style.backgroundPosition = 'center';
+    prev.textContent = '';
+    if (removeBtn) removeBtn.style.display = '';
+  } else {
+    prev.style.backgroundImage = '';
+    prev.style.backgroundColor = color || 'var(--surface2)';
+    prev.textContent = '🧗';
+    if (removeBtn) removeBtn.style.display = 'none';
+  }
+}
+function pdHandlePhotoChange(e) {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  const climberId = document.getElementById('pd-climber-id').value;
+  const c = db.climbers.find(x => x.id === climberId);
+  resizeImageToDataUrl(file).then(dataUrl => {
+    pdPhotoDataUrl = dataUrl;
+    pdRenderPhotoPreview(dataUrl, c?.color);
+  }).catch(() => {
+    const errEl = document.getElementById('pd-error');
+    errEl.textContent = 'Impossible de charger cette image, réessaie avec une autre photo';
+    errEl.style.display = '';
+  });
+}
+function pdRemovePhoto() {
+  pdPhotoDataUrl = null;
+  const climberId = document.getElementById('pd-climber-id').value;
+  const c = db.climbers.find(x => x.id === climberId);
+  pdRenderPhotoPreview(null, c?.color);
+  const input = document.getElementById('pd-photo-input');
+  if (input) input.value = '';
+}
+function pdUpdateApeIndex() {
+  const note = document.getElementById('pd-ape-note');
+  if (!note) return;
+  const height = parseInt(document.getElementById('pd-height').value, 10) || null;
+  const armSpan = parseInt(document.getElementById('pd-armspan').value, 10) || null;
+  note.textContent = apeIndexText(height, armSpan);
+}
+
 async function saveProfileDetail() {
   const climberId = document.getElementById('pd-climber-id').value;
   const c = db.climbers.find(x => x.id === climberId);
@@ -6422,6 +6553,8 @@ async function saveProfileDetail() {
     ...(c.profile || {}),
     height: parseInt(document.getElementById('pd-height').value, 10) || null,
     weight: parseInt(document.getElementById('pd-weight').value, 10) || null,
+    armSpan: parseInt(document.getElementById('pd-armspan').value, 10) || null,
+    photo: pdPhotoDataUrl !== undefined ? pdPhotoDataUrl : (c.profile?.photo || null),
     sessionsPerWeek: parseInt(document.getElementById('pd-sessions-week').value, 10) || null,
     minutesPerSession: parseInt(document.getElementById('pd-minutes-session').value, 10) || null,
     equipment,
@@ -6437,6 +6570,8 @@ async function saveProfileDetail() {
     });
     if (!r.ok) { const d = await r.json(); errEl.textContent = d.error || 'Erreur lors de l\'enregistrement'; errEl.style.display = ''; return; }
     saveDB();
+    if (document.getElementById('climber-cards-grid')) renderClimberCards();
+    if (climberId === getActive()?.id) renderSidebarStats();
     closeModal('profile-detail-modal');
   } catch (e) {
     errEl.textContent = 'Erreur réseau'; errEl.style.display = '';
@@ -7117,6 +7252,36 @@ async function checkInviteLink(token){
 
 var OB_EQUIP_OPTIONS=["Salle d'escalade","Bloc en salle","Pan / Board (Moon, Kilter, Tension)","Campus board","Poutre à doigts (hangboard)","Salle de musculation","Corde à sauter","Anneaux de gym","Mur perso / home wall","Élastiques de résistance"];
 var obGoals=[];
+var obPhotoDataUrl=null;
+
+function obHandlePhotoChange(e){
+  var file=e.target.files && e.target.files[0];
+  if(!file)return;
+  if(!window.resizeImageToDataUrl){return;}
+  window.resizeImageToDataUrl(file).then(function(dataUrl){
+    obPhotoDataUrl=dataUrl;
+    var prev=document.getElementById("ob-photo-preview");
+    if(prev){
+      prev.style.backgroundImage="url("+dataUrl+")";
+      prev.style.backgroundSize="cover";
+      prev.style.backgroundPosition="center";
+      prev.textContent="";
+    }
+  }).catch(function(){
+    var errEl=document.getElementById("ob-error");
+    if(errEl){ errEl.textContent="Impossible de charger cette image, réessaie avec une autre photo"; errEl.style.display=""; }
+  });
+}
+window.obHandlePhotoChange=obHandlePhotoChange;
+
+function obUpdateApeIndex(){
+  var note=document.getElementById("ob-ape-note");
+  if(!note)return;
+  var height=parseInt(document.getElementById("ob-height").value,10)||null;
+  var armSpan=parseInt(document.getElementById("ob-armspan").value,10)||null;
+  note.textContent=(window.apeIndexText?window.apeIndexText(height,armSpan):"");
+}
+window.obUpdateApeIndex=obUpdateApeIndex;
 
 function populateOnboardingForm(){
   var lvl=document.getElementById("ob-level");
@@ -7190,6 +7355,8 @@ async function submitOnboarding(){
     minutesPerSession: parseInt(document.getElementById("ob-minutes-session").value,10)||null,
     height: parseInt(document.getElementById("ob-height").value,10)||null,
     weight: parseInt(document.getElementById("ob-weight").value,10)||null,
+    armSpan: parseInt(document.getElementById("ob-armspan").value,10)||null,
+    photo: obPhotoDataUrl||null,
     goals: obGoals,
     selfRating: readPerfSide("ob-perf-sections", "self")
   };
