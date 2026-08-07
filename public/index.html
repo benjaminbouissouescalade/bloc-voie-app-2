@@ -898,9 +898,12 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 
 <!-- ═══════════════ WORKLOAD ═══════════════ -->
 <div class="page" id="page-workload">
-  <div class="page-header">
-    <h2>Charge d'entraînement</h2>
-    <p>Suivi du volume, de l'intensité et des C-Levels Kaya</p>
+  <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px">
+    <div>
+      <h2>Charge d'entraînement</h2>
+      <p>Suivi du volume, de l'intensité et des C-Levels Kaya</p>
+    </div>
+    <button class="btn sm" onclick="document.getElementById('wl-info-modal').classList.add('open')">ℹ️ Comment la charge est calculée ?</button>
   </div>
 
   <div class="time-filters">
@@ -991,6 +994,37 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <button class="perf-tab" data-rank="loadPerDay">Charge / jour</button>
     </div>
     <div id="trip-ranking"></div>
+  </div>
+</div>
+
+<!-- Modal explication du calcul de charge -->
+<div class="modal-backdrop" id="wl-info-modal">
+  <div class="modal" style="width:min(560px,100%)">
+    <div class="modal-header">
+      <span class="modal-title">Comment la charge est calculée</span>
+      <button class="btn sm" onclick="closeModal('wl-info-modal')">Fermer</button>
+    </div>
+    <div class="modal-body" style="font-size:13.5px;line-height:1.65;color:var(--text)">
+      <p style="margin-top:0">La <strong>charge</strong> mesure l'effort fourni pendant une séance. Elle est calculée automatiquement à partir de tes ascensions (voies) et de tes blocs — tu n'as rien à saisir toi-même.</p>
+
+      <p><strong>1. Un grade de référence, propre à toi</strong><br>
+      L'app calcule ton "grade de référence" : le niveau que tu enchaînes dans environ 70% de tes ascensions sur les 90 derniers jours. C'est ton niveau actuel réel, pas un niveau déclaré une fois pour toutes — il évolue avec toi.</p>
+
+      <p><strong>2. La difficulté compte de façon exponentielle</strong><br>
+      Chaque ascension au-dessus de ton grade de référence rapporte beaucoup plus de charge qu'une ascension en dessous (environ +18% par cran de cotation au-dessus de ta référence, et inversement en dessous). Une voie à ta limite pèse donc bien plus qu'une voie facile, ce qui reflète l'effort réel fourni.</p>
+
+      <p><strong>3. Le type de réalisation compte aussi</strong><br>
+      À grade égal : un enchaînement à vue ou flash (sans essai préalable) rapporte un léger bonus, un enchaînement en tête classique compte plein pot, et une moulinette compte un peu moins (l'effort est moindre). Un essai non abouti compte pour une fraction de la charge, selon le nombre de tentatives et le pourcentage de la voie réalisé — répéter les tentatives compte de moins en moins à chaque fois, puisque tu te reposes entre chaque essai.</p>
+
+      <p><strong>4. Les blocs sans cotation précise</strong><br>
+      Pour les séances de bloc enregistrées sans cotation détaillée, la charge dépend de la difficulté choisie (facile / classique / dur) et du nombre de blocs enchaînés ou tentés.</p>
+
+      <p><strong>5. Charge de séance, puis charge cumulée</strong><br>
+      La charge d'une séance = la somme de toutes tes ascensions et blocs de cette séance. Les indicateurs "7 jours", "28 jours", etc. additionnent simplement la charge de toutes les séances sur cette période.</p>
+
+      <p style="margin-bottom:0"><strong>6. Les niveaux C1 à C4</strong><br>
+      Inspirés du système Kaya, ils classent ta charge sur une période donnée : <strong>C1</strong> (0–30) charge légère, <strong>C2</strong> (31–65) modérée, <strong>C3</strong> (66–100) soutenue, <strong>C4</strong> (&gt;100) très élevée. Ça t'aide à repérer en un coup d'œil si tu es en sous-charge ou en surcharge par rapport à ton niveau récent.</p>
+    </div>
   </div>
 </div>
 
@@ -4025,6 +4059,7 @@ function renderWorkload() {
 document.querySelectorAll('[data-wl-range]').forEach(b=>{
   b.onclick=()=>{document.querySelectorAll('[data-wl-range]').forEach(x=>x.classList.remove('active'));b.classList.add('active');wlRange=b.dataset.wlRange;renderWorkload();};
 });
+document.getElementById('wl-info-modal').addEventListener('click',e=>{if(e.target.id==='wl-info-modal')closeModal('wl-info-modal');});
 
 // — Trips (comparaison de périodes) —
 let selectedTripIds = [];
