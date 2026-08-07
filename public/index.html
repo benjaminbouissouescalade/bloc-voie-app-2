@@ -63,6 +63,10 @@
     </div>
   </div>
 
+  <div style="font-size:12px;font-weight:700;color:#2d5a3d;text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Auto-évaluation <span style="font-weight:400;text-transform:none;color:#7a7566">— où tu en es sur chaque facteur (Acquis / Moyen / À travailler)</span></div>
+  <div style="height:200px;margin-bottom:14px"><canvas id="ob-overview-radar" aria-label="Vue d'ensemble par thème">Vue d'ensemble</canvas></div>
+  <div id="ob-perf-sections" style="margin-bottom:20px"></div>
+
   <div style="font-size:12px;font-weight:700;color:#2d5a3d;text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Objectifs <span style="font-weight:400;text-transform:none;color:#7a7566">(optionnel)</span></div>
   <div id="ob-goals-list" style="margin-bottom:8px"></div>
   <div style="display:flex;gap:8px;margin-bottom:24px">
@@ -449,6 +453,20 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 .sb-ai-input-bar { display: flex; gap: 8px; padding: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 0 0 var(--radius) var(--radius); }
 .sb-ai-input-bar textarea { flex: 1; border: 1px solid var(--border2); border-radius: var(--r-sm); padding: 8px 10px; font-size: 13px; resize: none; min-height: 38px; max-height: 100px; background: var(--surface2); color: var(--text); outline: none; transition: border-color .12s; line-height: 1.4; }
 .sb-ai-input-bar textarea:focus { border-color: var(--accent); background: var(--surface); }
+.perf-theme-block { border: 1px solid var(--border); border-radius: var(--r-sm); margin-bottom: 10px; overflow: hidden; }
+.perf-theme-block summary { cursor: pointer; padding: 10px 14px; font-weight: 600; font-size: 13px; background: var(--surface2); list-style: none; }
+.perf-theme-block summary::-webkit-details-marker { display: none; }
+.perf-theme-block summary::before { content: '▸ '; }
+.perf-theme-block[open] summary::before { content: '▾ '; }
+.perf-theme-body { padding: 10px 14px 14px; }
+.perf-rate-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.perf-rate-row:last-child { border-bottom: none; }
+.perf-rate-label { font-size: 12.5px; flex: 1; min-width: 140px; }
+.perf-rate-toggle { display: flex; gap: 4px; flex-shrink: 0; }
+.perf-rate-btn { padding: 4px 9px; border-radius: 99px; border: 1px solid var(--border2); background: var(--surface); color: var(--muted); font-size: 11px; font-weight: 500; cursor: pointer; transition: all .12s; }
+.perf-rate-btn:hover:not(:disabled) { background: var(--surface2); }
+.perf-rate-btn:disabled { cursor: not-allowed; }
+.perf-radar-mini { height: 220px; }
 .ai-ctx-pill { background: rgba(45,90,61,.15); color: var(--accent); padding: 3px 8px; border-radius: 99px; font-weight: 600; }
 .nav-btn .ai-badge { font-size: 10px; background: linear-gradient(135deg,#6366f1,#8b5cf6); color:#fff; padding:1px 5px; border-radius:99px; margin-left:2px; }
 
@@ -2144,7 +2162,7 @@ Utilise les raccourcis ci-dessus ou pose-moi directement une question. Par exemp
 </div>
 <!-- Modal profil détaillé (édition coach) -->
 <div class="modal-backdrop" id="profile-detail-modal">
-  <div class="modal" style="width:min(640px,100%)">
+  <div class="modal" style="width:min(720px,100%)">
     <div class="modal-header">
       <span class="modal-title">Profil détaillé — <span id="pd-name"></span></span>
       <button class="btn sm" onclick="closeModal('profile-detail-modal')">Fermer</button>
@@ -2187,6 +2205,13 @@ Utilise les raccourcis ci-dessus ou pose-moi directement une question. Par exemp
           <input class="form-control" type="date" id="pd-goal-date" style="flex:1">
           <button class="btn sm" onclick="pdAddGoal()">+ Ajouter</button>
         </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Facteurs de performance</label>
+        <p style="font-size:12px;color:var(--muted);margin:2px 0 12px">Vue d'ensemble par thème, puis détail de chaque thème — auto-évaluation de l'athlète et évaluation du coach sur l'échelle Acquis / Moyen / À travailler.</p>
+        <div class="chart-wrap" style="height:240px;margin-bottom:14px"><canvas id="pd-overview-radar" aria-label="Vue d'ensemble par thème">Vue d'ensemble</canvas></div>
+        <div id="pd-perf-sections"></div>
       </div>
 
       <button class="btn primary" style="width:100%;margin-top:8px" onclick="saveProfileDetail()">Enregistrer le profil</button>
@@ -5321,6 +5346,168 @@ const SB_GOAL_GROUPS = {
   recuperation:'Récup', prevention:'Récup', retour_blessure:'Récup'
 };
 
+// — Facteurs de performance escalade (graphiques en araignée du profil) —
+// Repris de la grille d'évaluation coach : 4 thèmes, chacun avec ses facteurs détaillés.
+const PERF_THEMES = {
+  Tactique: ["Anticipation itinéraire","Rythme","Mémorisation","Décision","Réorganisation","Relâchement","Échauffement et routine définis"],
+  Technique: ["Répertoire gestuel","Coordination","Finesse d'action","Préhensions mains","Préhensions pieds","Mousquetonnage","Équilibre","Technique en toit","Technique en dalle (sur volumes)"],
+  Physique: ["Force maximale","Explosivité","Puissance","Force-endurance","Proprioception","Stamina (ARC) / endurance","Gainage","Mobilité","Souplesse"],
+  Mental: ["Engagement","Attribution causale","Concentration","Visualisation","Gestion du stress","Combativité","Dialogue interne","Prise de décision"]
+};
+const PERF_THEME_NAMES = Object.keys(PERF_THEMES);
+const PERF_RATING_LEVELS = [
+  {value:1, label:'À travailler', color:'#c4501a'},
+  {value:2, label:'Moyen',        color:'#b07a10'},
+  {value:3, label:'Acquis',       color:'#2d7a4e'}
+];
+function perfEmptyThemeRatings() {
+  const o = {};
+  PERF_THEME_NAMES.forEach(t => { o[t] = {}; PERF_THEMES[t].forEach(f => o[t][f] = 2); });
+  return o;
+}
+function perfMergeRatings(values) {
+  const v = perfEmptyThemeRatings();
+  PERF_THEME_NAMES.forEach(t => { v[t] = { ...v[t], ...((values||{})[t])||{} }; });
+  return v;
+}
+function perfThemeAverage(ratings, theme) {
+  const factors = PERF_THEMES[theme];
+  const vals = factors.map(f => (ratings && ratings[theme] && ratings[theme][f]) || 2);
+  return vals.reduce((s,v)=>s+v,0) / vals.length;
+}
+function perfRateButtonsHtml(theme, factor, value, side, editable, onChange) {
+  return PERF_RATING_LEVELS.map(lv => `
+    <button type="button" class="perf-rate-btn${value===lv.value?' active':''}" data-val="${lv.value}"
+      ${editable ? `onclick="perfToggleRate(this,'${onChange}')"` : 'disabled'}
+      style="${value===lv.value?`background:${lv.color};color:#fff;border-color:${lv.color}`:''}${editable?'':';opacity:.5;cursor:not-allowed'}">${lv.label}</button>
+  `).join('');
+}
+// Rend les 4 blocs de thèmes (repliables) : mini radar + colonnes auto-éval / éval coach
+function renderPerfSections(containerId, selfValues, coachValues, canEditSelf, canEditCoach, onChange) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  const sv = perfMergeRatings(selfValues), cv = perfMergeRatings(coachValues);
+  const showCoach = canEditCoach || !!(coachValues && Object.keys(coachValues).length);
+  const selfColHtml = (theme) => `
+    <div>
+      ${showCoach ? `<div style="font-size:11px;font-weight:600;color:#2d5a3d;margin-bottom:6px">🧗 Athlète</div>` : ''}
+      ${PERF_THEMES[theme].map(f => `
+        <div class="perf-rate-row">
+          <span class="perf-rate-label">${esc(f)}</span>
+          <div class="perf-rate-toggle" data-theme="${esc(theme)}" data-factor="${esc(f)}" data-side="self" data-container="${esc(containerId)}">
+            ${perfRateButtonsHtml(theme, f, sv[theme][f], 'self', canEditSelf, onChange)}
+          </div>
+        </div>`).join('')}
+    </div>`;
+  const coachColHtml = (theme) => `
+    <div>
+      <div style="font-size:11px;font-weight:600;color:#b07a10;margin-bottom:6px">🎯 Coach</div>
+      ${PERF_THEMES[theme].map(f => `
+        <div class="perf-rate-row">
+          <span class="perf-rate-label">${esc(f)}</span>
+          <div class="perf-rate-toggle" data-theme="${esc(theme)}" data-factor="${esc(f)}" data-side="coach" data-container="${esc(containerId)}">
+            ${perfRateButtonsHtml(theme, f, cv[theme][f], 'coach', canEditCoach, onChange)}
+          </div>
+        </div>`).join('')}
+    </div>`;
+  el.innerHTML = PERF_THEME_NAMES.map((theme, i) => `
+    <details class="perf-theme-block" ${i===0?'open':''}>
+      <summary>${theme}</summary>
+      <div class="perf-theme-body">
+        <div class="chart-wrap perf-radar-mini" style="margin-bottom:12px"><canvas id="${containerId}-radar-${theme}" aria-label="${esc(theme)}">${esc(theme)}</canvas></div>
+        <div class="${showCoach?'form-row form-row-2':''}">
+          ${selfColHtml(theme)}
+          ${showCoach ? coachColHtml(theme) : ''}
+        </div>
+      </div>
+    </details>`).join('');
+}
+function perfToggleRate(btn, onChange) {
+  const group = btn.closest('.perf-rate-toggle');
+  const val = +btn.dataset.val;
+  const lv = PERF_RATING_LEVELS.find(l=>l.value===val);
+  group.querySelectorAll('.perf-rate-btn').forEach(b => {
+    const active = +b.dataset.val === val;
+    b.classList.toggle('active', active);
+    b.style.background = active ? lv.color : '';
+    b.style.borderColor = active ? lv.color : '';
+    b.style.color = active ? '#fff' : '';
+  });
+  if (group.dataset.side === 'coach') {
+    const container = document.getElementById(group.dataset.container);
+    if (container) container.dataset.coachTouched = '1';
+  }
+  if (onChange && window[onChange]) window[onChange]();
+}
+// Lit les valeurs actuellement affichées pour un "côté" (self ou coach) dans un conteneur de sections
+function readPerfSide(containerId, side) {
+  const el = document.getElementById(containerId);
+  const v = perfEmptyThemeRatings();
+  if (!el) return v;
+  el.querySelectorAll(`.perf-rate-toggle[data-side="${side}"]`).forEach(group => {
+    const theme = group.dataset.theme, factor = group.dataset.factor;
+    const active = group.querySelector('.perf-rate-btn.active');
+    if (active && v[theme]) v[theme][factor] = +active.dataset.val;
+  });
+  return v;
+}
+// Radar 4 axes (moyenne par thème) — vue d'ensemble
+function renderPerfOverviewRadar(canvasId, selfRatings, coachRatings, hasCoachData) {
+  if (!document.getElementById(canvasId)) return;
+  const datasets = [{
+    label: 'Athlète',
+    data: PERF_THEME_NAMES.map(t => perfThemeAverage(selfRatings, t)),
+    borderColor: '#2d5a3d', backgroundColor: 'rgba(45,90,61,.18)', pointBackgroundColor: '#2d5a3d', borderWidth: 2
+  }];
+  if (hasCoachData) datasets.push({
+    label: 'Coach',
+    data: PERF_THEME_NAMES.map(t => perfThemeAverage(coachRatings, t)),
+    borderColor: '#b07a10', backgroundColor: 'rgba(176,122,16,.15)', pointBackgroundColor: '#b07a10', borderWidth: 2, borderDash: [4,3]
+  });
+  makeChart(canvasId, {
+    type: 'radar',
+    data: { labels: PERF_THEME_NAMES, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: hasCoachData, position: 'bottom', labels: { font: { size: 11 } } } },
+      scales: { r: { min: 1, max: 3, ticks: { stepSize: 1, font: { size: 9 }, callback:(v)=>({1:'À travailler',2:'Moyen',3:'Acquis'})[v]||v }, pointLabels: { font: { size: 12, weight: '600' } } } }
+    }
+  });
+}
+// Radar détaillé pour un thème donné (tous ses facteurs)
+function renderPerfThemeRadar(canvasId, theme, selfRatings, coachRatings, hasCoachData) {
+  if (!document.getElementById(canvasId)) return;
+  const factors = PERF_THEMES[theme];
+  const datasets = [{
+    label: 'Athlète',
+    data: factors.map(f => (selfRatings && selfRatings[theme] && selfRatings[theme][f]) || 2),
+    borderColor: '#2d5a3d', backgroundColor: 'rgba(45,90,61,.18)', pointBackgroundColor: '#2d5a3d', borderWidth: 2
+  }];
+  if (hasCoachData) datasets.push({
+    label: 'Coach',
+    data: factors.map(f => (coachRatings && coachRatings[theme] && coachRatings[theme][f]) || 2),
+    borderColor: '#b07a10', backgroundColor: 'rgba(176,122,16,.15)', pointBackgroundColor: '#b07a10', borderWidth: 2, borderDash: [4,3]
+  });
+  makeChart(canvasId, {
+    type: 'radar',
+    data: { labels: factors, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: hasCoachData, position: 'bottom', labels: { font: { size: 10 } } } },
+      scales: { r: { min: 1, max: 3, ticks: { display: false, stepSize: 1 }, pointLabels: { font: { size: 9 } } } }
+    }
+  });
+}
+// Rafraîchit vue d'ensemble + 4 radars détaillés à partir des toggles actuellement affichés dans containerId
+function refreshAllPerfRadars(containerId, overviewCanvasId, hasCoachData) {
+  const selfR = readPerfSide(containerId, 'self');
+  const coachR = readPerfSide(containerId, 'coach');
+  const touched = document.getElementById(containerId)?.dataset.coachTouched === '1';
+  const hasCoach = !!hasCoachData || touched;
+  renderPerfOverviewRadar(overviewCanvasId, selfR, coachR, hasCoach);
+  PERF_THEME_NAMES.forEach(t => renderPerfThemeRadar(containerId+'-radar-'+t, t, selfR, coachR, hasCoach));
+}
+
 // — Bibliothèque de la banque de séances : dossiers / sous-dossiers —
 const BANK_TAXONOMY = {
   "Échauffement": ["Échauffement général","Échauffement spécifique","Activation doigts","Activation épaules","Activation gainage","Jeux d'échauffement"],
@@ -6191,7 +6378,19 @@ function openProfileDetailModal(climberId) {
       <input type="checkbox" class="pd-equip-cb" value="${esc(opt)}" ${selected.has(opt)?'checked':''} style="cursor:pointer">${esc(opt)}
     </label>`).join('');
 
+  const canEditSelf = climberId === window.currentUser?.climberId;
+  const canEditCoach = isAdmin();
+  pdHasCoachData = !!(p.coachRating && Object.keys(p.coachRating).length);
+  const sectionsEl = document.getElementById('pd-perf-sections');
+  if (sectionsEl) sectionsEl.dataset.coachTouched = '';
+  renderPerfSections('pd-perf-sections', p.selfRating, p.coachRating, canEditSelf, canEditCoach, 'pdRatingChanged');
+  refreshAllPerfRadars('pd-perf-sections', 'pd-overview-radar', pdHasCoachData);
+
   document.getElementById('profile-detail-modal').classList.add('open');
+}
+let pdHasCoachData = false;
+function pdRatingChanged() {
+  refreshAllPerfRadars('pd-perf-sections', 'pd-overview-radar', pdHasCoachData);
 }
 
 async function saveProfileDetail() {
@@ -6201,6 +6400,8 @@ async function saveProfileDetail() {
   errEl.style.display = 'none';
   if (!c) { errEl.textContent = 'Grimpeur introuvable'; errEl.style.display = ''; return; }
   const equipment = Array.prototype.map.call(document.querySelectorAll('.pd-equip-cb:checked'), cb => cb.value);
+  const canEditSelf = climberId === window.currentUser?.climberId;
+  const canEditCoach = isAdmin();
   c.profile = {
     ...(c.profile || {}),
     height: parseInt(document.getElementById('pd-height').value, 10) || null,
@@ -6208,7 +6409,9 @@ async function saveProfileDetail() {
     sessionsPerWeek: parseInt(document.getElementById('pd-sessions-week').value, 10) || null,
     minutesPerSession: parseInt(document.getElementById('pd-minutes-session').value, 10) || null,
     equipment,
-    goals: pdGoals
+    goals: pdGoals,
+    selfRating: canEditSelf ? readPerfSide('pd-perf-sections', 'self') : (c.profile?.selfRating || undefined),
+    coachRating: canEditCoach ? readPerfSide('pd-perf-sections', 'coach') : (c.profile?.coachRating || undefined)
   };
   try {
     const r = await fetch('/api/climbers', {
@@ -6845,7 +7048,17 @@ function populateOnboardingForm(){
     }).join("");
     eq.dataset.filled="1";
   }
+  var sections=document.getElementById("ob-perf-sections");
+  if(sections && !sections.dataset.filled){
+    renderPerfSections("ob-perf-sections", null, null, true, false, "obRatingChanged");
+    refreshAllPerfRadars("ob-perf-sections", "ob-overview-radar", false);
+    sections.dataset.filled="1";
+  }
 }
+function obRatingChanged(){
+  refreshAllPerfRadars("ob-perf-sections", "ob-overview-radar", false);
+}
+window.obRatingChanged=obRatingChanged;
 
 function renderObGoals(){
   var list=document.getElementById("ob-goals-list");
@@ -6891,7 +7104,8 @@ async function submitOnboarding(){
     minutesPerSession: parseInt(document.getElementById("ob-minutes-session").value,10)||null,
     height: parseInt(document.getElementById("ob-height").value,10)||null,
     weight: parseInt(document.getElementById("ob-weight").value,10)||null,
-    goals: obGoals
+    goals: obGoals,
+    selfRating: readPerfSide("ob-perf-sections", "self")
   };
   var payload={
     token: token,
