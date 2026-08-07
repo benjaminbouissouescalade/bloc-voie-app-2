@@ -36,6 +36,28 @@ function parseRss(xml) {
   return items;
 }
 
+async function fetchFeed(url) {
+  // fetch global natif (Node >=18) — plus besoin de node-fetch, un point de panne en moins
+  const fetchFn = globalThis.fetch || (await import('node-fetch')).default;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  try {
+    const resp = await fetchFn(url, {
+      redirect: 'follow',
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'application/rss+xml, application/xml, text/xml, */*',
+        'Accept-Language': 'fr-FR,fr;q=0.9,en;q=0.8'
+      }
+    });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    return await resp.text();
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 // GET /api/news — dernières actus escalade (mises en cache côté serveur)
 router.get('/', async (req, res) => {
   const now = Date.now();
@@ -43,12 +65,7 @@ router.get('/', async (req, res) => {
     return res.json({ items: cache.items, cached: true });
   }
   try {
-    const { default: fetch } = await import('node-fetch');
-    const resp = await fetch(FEED_URL, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; BlocVoieApp/1.0)' }
-    });
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    const xml = await resp.text();
+    const xml = await fetchFeed(FEED_URL);
     const items = parseRss(xml);
     if (items.length) cache = { items, fetchedAt: now };
     res.json({ items: cache.items, cached: false });
