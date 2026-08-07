@@ -121,6 +121,13 @@ button, input, select, textarea { font-family: inherit; }
 
 /* Layout */
 .app { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+.news-ticker { position: sticky; top: 0; z-index: 60; display: flex; align-items: center; gap: 10px; padding: 8px 20px; background: var(--accent); color: #fff; font-size: 13px; }
+.news-ticker.hidden { display: none; }
+.news-ticker-icon { flex-shrink: 0; }
+.news-ticker-text { color: #fff; text-decoration: none; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.news-ticker-text[href]:hover { text-decoration: underline; cursor: pointer; }
+.news-ticker-close { background: none; border: none; color: rgba(255,255,255,.7); cursor: pointer; font-size: 13px; flex-shrink: 0; line-height: 1; padding: 2px 4px; }
+.news-ticker-close:hover { color: #fff; }
 .sidebar { background: var(--surface); border-right: 1px solid var(--border); padding: 20px 0; position: sticky; top: 0; height: 100vh; overflow-y: auto; display: flex; flex-direction: column; }
 .logo { padding: 0 20px 24px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
 .logo h1 { font-family: var(--serif); font-size: 22px; color: var(--accent); letter-spacing: -.3px; }
@@ -486,6 +493,11 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 </style>
 </head>
 <body>
+<div id="news-ticker-banner" class="news-ticker hidden">
+  <span class="news-ticker-icon" id="news-ticker-icon">📰</span>
+  <a id="news-ticker-link" class="news-ticker-text" target="_blank" rel="noopener">Chargement des actualités…</a>
+  <button class="news-ticker-close" onclick="dismissNewsTicker()" title="Masquer le bandeau">✕</button>
+</div>
 <div class="app">
 
 <!-- Sidebar -->
@@ -6978,7 +6990,77 @@ window.initAppData = async function() {
   renderSidebarStats();
   renderDashboard();
   if (typeof applyRoleUI === 'function') applyRoleUI();
+  initNewsTicker();
 };
+
+// ═══════════════ BANDEAU NEWS + ACTIVITÉ DES ATHLÈTES ═══════════════
+let newsTickerItems = [];
+let newsTickerIdx = 0;
+let newsTickerTimer = null;
+
+function buildAthleteActivityItems() {
+  const items = [];
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 2); // dernières 48h
+  const cutoffStr = cutoff.toISOString().slice(0, 10);
+  (db.climbers || []).forEach(c => {
+    (c.logs || []).filter(l => !l.planned && l.date >= cutoffStr).forEach(l => {
+      const t = SESSION_TYPES[l.type] || SESSION_TYPES.autre;
+      items.push({ type: 'activity', text: `${c.name} a validé une séance ${t.label} (${fmtDate(l.date)})`, link: null, date: l.date });
+    });
+  });
+  items.sort((a, b) => b.date.localeCompare(a.date));
+  return items.slice(0, 8);
+}
+
+async function initNewsTicker() {
+  const banner = document.getElementById('news-ticker-banner');
+  if (!banner) return;
+  if (localStorage.getItem('bv_news_ticker_dismissed') === '1') { banner.classList.add('hidden'); return; }
+
+  const activityItems = buildAthleteActivityItems();
+  let newsItems = [];
+  try {
+    const r = await fetch('/api/news');
+    const d = await r.json();
+    newsItems = (d.items || []).map(it => ({ type: 'news', text: it.title, link: it.link }));
+  } catch (e) { /* silencieux — le bandeau se rabat sur l'activité des athlètes s'il y en a */ }
+
+  newsTickerItems = [];
+  const maxLen = Math.max(newsItems.length, activityItems.length);
+  for (let i = 0; i < maxLen; i++) {
+    if (newsItems[i]) newsTickerItems.push(newsItems[i]);
+    if (activityItems[i]) newsTickerItems.push(activityItems[i]);
+  }
+  if (!newsTickerItems.length) { banner.classList.add('hidden'); return; }
+
+  banner.classList.remove('hidden');
+  newsTickerIdx = 0;
+  renderNewsTickerItem();
+  if (newsTickerTimer) clearInterval(newsTickerTimer);
+  newsTickerTimer = setInterval(() => {
+    newsTickerIdx = (newsTickerIdx + 1) % newsTickerItems.length;
+    renderNewsTickerItem();
+  }, 7000);
+}
+
+function renderNewsTickerItem() {
+  const it = newsTickerItems[newsTickerIdx];
+  if (!it) return;
+  const iconEl = document.getElementById('news-ticker-icon');
+  const linkEl = document.getElementById('news-ticker-link');
+  if (!iconEl || !linkEl) return;
+  iconEl.textContent = it.type === 'news' ? '📰' : '✅';
+  linkEl.textContent = it.text;
+  if (it.link) { linkEl.href = it.link; linkEl.style.cursor = 'pointer'; }
+  else { linkEl.removeAttribute('href'); linkEl.style.cursor = 'default'; }
+}
+
+function dismissNewsTicker() {
+  localStorage.setItem('bv_news_ticker_dismissed', '1');
+  document.getElementById('news-ticker-banner')?.classList.add('hidden');
+  if (newsTickerTimer) clearInterval(newsTickerTimer);
+}
+window.dismissNewsTicker = dismissNewsTicker;
 // N'appelle le backend que si on a déjà un token (sinon on attend le login)
 if (authToken()) { initAppData(); }
 </script>
