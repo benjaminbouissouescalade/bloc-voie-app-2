@@ -3893,8 +3893,8 @@ function renderPerformance() {
     <div class="stat-card warm"><div class="stat-label">Grade de référence</div><div class="stat-value">${ref}</div></div>
   `;
 
-  // Line chart — weekly best grade
-  const wData=weeklyData(24);
+  // Line chart — weekly best grade (respecte la période sélectionnée)
+  const wData=weeklyData(perfWeeksForRange(perfRange));
   const wBestTete=wData.map(w=>{
     const wLogs=getLogs().filter(l=>{const d=new Date(l.date);return d>=w.start&&d<w.end;});
     const grades=wLogs.flatMap(l=>(l.ascents||[]).filter(a=>a.status==='tete'&&GRADES.includes(a.grade)).map(a=>GRADE_IDX[a.grade]));
@@ -6426,6 +6426,17 @@ function esc(s=''){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt
 function fmtDate(ds){return new Date(ds+'T00:00:00').toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'});}
 function gradeClass(g){const i=GRADE_IDX[g]||0;return i<16?'g-easy':i<22?'g-mid':i<28?'g-hard':'g-elite';}
 function statusLabel(s){return {tete:'Tête',moulinette:'Moulinette',av:'À vue',flash:'Flash',try:'Essai'}[s]||s;}
+// Nombre de semaines à afficher dans le graphe "Évolution des meilleures cotations" selon la période sélectionnée
+function perfWeeksForRange(range) {
+  const since = rangeToDate(range);
+  const now = new Date();
+  if (since) return Math.max(1, Math.ceil((now - since) / (7*24*3600*1000)));
+  // 'all' : depuis la première séance enregistrée (minimum 12 semaines pour garder un graphe lisible)
+  const logs = getLogs();
+  if (!logs.length) return 12;
+  const earliest = logs.reduce((min,l) => { const d=new Date(l.date); return d<min?d:min; }, now);
+  return Math.max(12, Math.ceil((now - earliest) / (7*24*3600*1000)) + 1);
+}
 function rangeToDate(range){
   const d=new Date();
   if(range==='week'){d.setDate(d.getDate()-7);return d;}
