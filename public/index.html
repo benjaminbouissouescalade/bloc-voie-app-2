@@ -505,10 +505,10 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     </button>
   </div>
   <div class="nav-group">
-    <div class="nav-label">Planification</div>
+    <div class="nav-label">Coach</div>
     <button class="nav-btn" data-page="planning">
       <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
-      Planification
+      Coach
     </button>
     <button class="nav-btn" data-page="session-bank">
       <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="4" rx="1"/><rect x="3" y="10" width="18" height="4" rx="1"/><rect x="3" y="17" width="18" height="4" rx="1"/></svg>
@@ -623,55 +623,30 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   <div class="page-header" style="display:flex;justify-content:space-between;align-items:center">
     <div>
       <h2>Calendrier</h2>
-      <p id="cal-month-title">—</p>
+      <p id="cal2-month-title">—</p>
     </div>
     <div class="month-nav">
-      <button class="btn" id="cal-prev">←</button>
-      <span id="cal-month-label"></span>
-      <button class="btn" id="cal-next">→</button>
-      <button class="btn" id="cal-today">Aujourd'hui</button>
+      <button class="btn" id="cal2-prev">←</button>
+      <span id="cal2-month-label"></span>
+      <button class="btn" id="cal2-next">→</button>
+      <button class="btn" id="cal2-today">Aujourd'hui</button>
     </div>
   </div>
 
-  <div class="panel" id="plan-objective-banner" style="margin-bottom:16px"></div>
-
-  <div style="display:flex;gap:8px;margin-bottom:14px" id="cal-zoom-picker">
-    <button class="time-filter-btn" data-calzoom="week" onclick="setCalZoom('week')">Semaine</button>
-    <button class="time-filter-btn active" data-calzoom="month" onclick="setCalZoom('month')">Mois</button>
-    <button class="time-filter-btn" data-calzoom="year" onclick="setCalZoom('year')">Année</button>
-  </div>
-
-  <div style="display:grid;grid-template-columns:1fr 270px;gap:20px;align-items:start">
-    <div class="panel" id="cal-month-view">
-      <div class="cal-header">
-        <div class="cal-day-label">Lun</div><div class="cal-day-label">Mar</div><div class="cal-day-label">Mer</div>
-        <div class="cal-day-label">Jeu</div><div class="cal-day-label">Ven</div><div class="cal-day-label">Sam</div><div class="cal-day-label">Dim</div>
-      </div>
-      <div class="cal-grid" id="cal-grid"></div>
+  <div class="panel" id="cal2-month-view">
+    <div class="cal-header">
+      <div class="cal-day-label">Lun</div><div class="cal-day-label">Mar</div><div class="cal-day-label">Mer</div>
+      <div class="cal-day-label">Jeu</div><div class="cal-day-label">Ven</div><div class="cal-day-label">Sam</div><div class="cal-day-label">Dim</div>
     </div>
-    <div class="panel" id="cal-week-view" style="display:none">
-      <div class="cal-header" id="cal-week-header"></div>
-      <div class="cal-grid" id="cal-week-grid" style="grid-template-rows:1fr"></div>
-    </div>
-    <div class="panel" id="cal-year-view" style="display:none">
-      <div id="cal-year-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px"></div>
-    </div>
-    <div class="panel" style="max-height:600px;display:flex;flex-direction:column">
-      <div class="panel-header" style="margin-bottom:8px">
-        <span class="panel-title" style="font-size:13px">📋 Banque de séances</span>
-      </div>
-      <p style="font-size:11px;color:var(--muted);margin-bottom:8px">Glisse une séance sur un jour du calendrier pour la programmer.</p>
-      <input class="form-control" style="font-size:12px;padding:6px 8px;margin-bottom:8px" id="cal-bank-search" placeholder="Rechercher…" oninput="renderCalBankMini()">
-      <div id="cal-bank-mini" style="overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:6px"></div>
-    </div>
+    <div class="cal-grid" id="cal2-grid"></div>
   </div>
   <div class="panel">
     <div class="panel-header"><span class="panel-title">Séances du mois</span></div>
     <div class="stat-grid stat-grid-4" style="margin-bottom:0">
-      <div class="stat-card"><div class="stat-label">Séances</div><div class="stat-value" id="cal-count">0</div></div>
-      <div class="stat-card"><div class="stat-label">Minutes</div><div class="stat-value" id="cal-minutes">0</div></div>
-      <div class="stat-card"><div class="stat-label">Charge totale</div><div class="stat-value" id="cal-load">0</div></div>
-      <div class="stat-card"><div class="stat-label">Ascensions cotées</div><div class="stat-value" id="cal-ascents">0</div></div>
+      <div class="stat-card"><div class="stat-label">Séances</div><div class="stat-value" id="cal2-count">0</div></div>
+      <div class="stat-card"><div class="stat-label">Minutes</div><div class="stat-value" id="cal2-minutes">0</div></div>
+      <div class="stat-card"><div class="stat-label">Charge totale</div><div class="stat-value" id="cal2-load">0</div></div>
+      <div class="stat-card"><div class="stat-label">Ascensions cotées</div><div class="stat-value" id="cal2-ascents">0</div></div>
     </div>
   </div>
 </div>
@@ -1183,16 +1158,68 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   </div>
 </div>
 
-<!-- ═══════════════ PLANNING ═══════════════ -->
+<!-- ═══════════════ PLANNING (COACH) ═══════════════ -->
 <div class="page" id="page-planning">
   <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px">
     <div>
-      <h2>Planification</h2>
+      <h2>Coach</h2>
       <p id="plan-ctx-bar" style="color:var(--muted);font-size:13px">—</p>
     </div>
     <div style="display:flex;gap:8px">
       <button class="btn" id="open-cycle-btn" style="font-size:14px;padding:12px 20px" onclick="openCycleModal()">🔁 Créer un cycle</button>
       <button class="btn primary" id="gen-plan-btn" style="font-size:14px;padding:12px 20px">⟳ Générer le planning</button>
+    </div>
+  </div>
+
+  <!-- Calendrier de planification : objectif, zoom, glisser-déposer depuis la banque -->
+  <div class="panel" id="plan-objective-banner" style="margin-bottom:16px"></div>
+
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+    <div style="display:flex;gap:8px" id="cal-zoom-picker">
+      <button class="time-filter-btn" data-calzoom="week" onclick="setCalZoom('week')">Semaine</button>
+      <button class="time-filter-btn active" data-calzoom="month" onclick="setCalZoom('month')">Mois</button>
+      <button class="time-filter-btn" data-calzoom="year" onclick="setCalZoom('year')">Année</button>
+    </div>
+    <div class="month-nav">
+      <button class="btn" id="cal-prev">←</button>
+      <span id="cal-month-label"></span>
+      <button class="btn" id="cal-next">→</button>
+      <button class="btn" id="cal-today">Aujourd'hui</button>
+    </div>
+  </div>
+  <p id="cal-month-title" style="display:none">—</p>
+
+  <div style="display:grid;grid-template-columns:1fr 270px;gap:20px;align-items:start;margin-bottom:20px">
+    <div class="panel" id="cal-month-view">
+      <div class="cal-header">
+        <div class="cal-day-label">Lun</div><div class="cal-day-label">Mar</div><div class="cal-day-label">Mer</div>
+        <div class="cal-day-label">Jeu</div><div class="cal-day-label">Ven</div><div class="cal-day-label">Sam</div><div class="cal-day-label">Dim</div>
+      </div>
+      <div class="cal-grid" id="cal-grid"></div>
+    </div>
+    <div class="panel" id="cal-week-view" style="display:none">
+      <div class="cal-header" id="cal-week-header"></div>
+      <div class="cal-grid" id="cal-week-grid" style="grid-template-rows:1fr"></div>
+    </div>
+    <div class="panel" id="cal-year-view" style="display:none">
+      <div id="cal-year-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px"></div>
+    </div>
+    <div class="panel" style="max-height:600px;display:flex;flex-direction:column">
+      <div class="panel-header" style="margin-bottom:8px">
+        <span class="panel-title" style="font-size:13px">📋 Banque de séances</span>
+      </div>
+      <p style="font-size:11px;color:var(--muted);margin-bottom:8px">Glisse une séance sur un jour du calendrier pour la programmer.</p>
+      <input class="form-control" style="font-size:12px;padding:6px 8px;margin-bottom:8px" id="cal-bank-search" placeholder="Rechercher…" oninput="renderCalBankMini()">
+      <div id="cal-bank-mini" style="overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:6px"></div>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="panel-header"><span class="panel-title">Séances du mois</span></div>
+    <div class="stat-grid stat-grid-4" style="margin-bottom:0">
+      <div class="stat-card"><div class="stat-label">Séances</div><div class="stat-value" id="cal-count">0</div></div>
+      <div class="stat-card"><div class="stat-label">Minutes</div><div class="stat-value" id="cal-minutes">0</div></div>
+      <div class="stat-card"><div class="stat-label">Charge totale</div><div class="stat-value" id="cal-load">0</div></div>
+      <div class="stat-card"><div class="stat-label">Ascensions cotées</div><div class="stat-value" id="cal-ascents">0</div></div>
     </div>
   </div>
 
@@ -3128,7 +3155,7 @@ function makeChart(id, cfg) {
 // ═══════════════ RENDER FUNCTIONS ═══════════════
 function renderPage(name) {
   if(name==='dashboard') renderDashboard();
-  if(name==='calendar') renderCalendar();
+  if(name==='calendar') renderSimpleCalendar();
   if(name==='performance') renderPerformance();
   if(name==='workload') renderWorkload();
   if(name==='pyramid') renderPyramidPage();
@@ -3451,6 +3478,52 @@ document.getElementById('cal-next').onclick=()=>{
   renderCalendar();
 };
 document.getElementById('cal-today').onclick=()=>{calDate=new Date();renderCalendar();};
+
+// — Calendrier simple (Carnet d'entraînement) : lecture / ajout de séances, sans les outils de planification coach —
+let cal2Date = new Date();
+function buildCal2Cell(ds, dayNum, isOther, todayStr) {
+  const cell = document.createElement('div');
+  const dayLogs = getLogs().filter(l => l.date === ds);
+  const load = dayLogs.reduce((s,l) => s + sessionLoad(l), 0);
+  const doneLogsForCell = dayLogs.filter(l => !l.planned);
+  const plannedLogsForCell = dayLogs.filter(l => l.planned);
+  const hasHard = doneLogsForCell.some(l => l.intensity >= 4);
+  cell.className = 'cal-cell' + (isOther?' other-month':'') + (ds===todayStr?' today':'') + (doneLogsForCell.length&&!hasHard?' has-session':doneLogsForCell.length&&hasHard?' has-hard':'') + (plannedLogsForCell.length?' has-planned':'');
+  cell.innerHTML = `${plannedLogsForCell.length?`<div class="cal-planned-badge" title="${plannedLogsForCell.length} séance${plannedLogsForCell.length>1?'s':''} prévue${plannedLogsForCell.length>1?'s':''}">📌</div>`:''}<div class="cal-num">${dayNum}</div><div class="cal-dots">${dayLogs.map(l=>`<div class="cal-dot${l.planned?' cal-dot-planned':''}" style="${l.planned?`border-color:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`:`background:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`}" title="${l.planned?'Prévue':''}"></div>`).join('')}</div>${load?`<div style="font-size:10px;color:var(--muted);margin-top:3px">${load}</div>`:''}`;
+  cell.onclick = () => openDayModal(ds);
+  return { cell, dayLogs, isOther };
+}
+
+function renderSimpleCalendar() {
+  const gridEl = document.getElementById('cal2-grid');
+  if (!gridEl) return;
+  const y=cal2Date.getFullYear(), m=cal2Date.getMonth();
+  document.getElementById('cal2-month-label').textContent=new Date(y,m,1).toLocaleDateString('fr-FR',{month:'long',year:'numeric'});
+  document.getElementById('cal2-month-title').textContent=new Date(y,m,1).toLocaleDateString('fr-FR',{month:'long',year:'numeric'});
+  const first=new Date(y,m,1), firstDay=(first.getDay()+6)%7, daysInMonth=new Date(y,m+1,0).getDate();
+  gridEl.innerHTML='';
+  const todayStr=new Date().toISOString().slice(0,10);
+  let totalLoad=0,totalAscents=0,totalMinutes=0,totalSessions=0;
+  for(let i=0;i<42;i++){
+    let dayNum=i-firstDay+1, isOther=false;
+    if(dayNum<1){dayNum+=new Date(y,m,0).getDate();isOther=true;}
+    else if(dayNum>daysInMonth){dayNum-=daysInMonth;isOther=true;}
+    let ds;
+    if(i<firstDay){const pm=new Date(y,m,0);ds=`${pm.getFullYear()}-${String(pm.getMonth()+1).padStart(2,'0')}-${String(new Date(y,m,0).getDate()-firstDay+i+1).padStart(2,'0')}`;}
+    else if(i>=firstDay+daysInMonth){const nm=new Date(y,m+1,1);ds=`${nm.getFullYear()}-${String(nm.getMonth()+1).padStart(2,'0')}-${String(i-firstDay-daysInMonth+1).padStart(2,'0')}`;}
+    else{ds=`${y}-${String(m+1).padStart(2,'0')}-${String(dayNum).padStart(2,'0')}`;}
+    const { cell, dayLogs, isOther: other } = buildCal2Cell(ds, dayNum, isOther, todayStr);
+    gridEl.appendChild(cell);
+    if(!other){const doneLogs=dayLogs.filter(l=>!l.planned);const load=dayLogs.reduce((s,l)=>s+sessionLoad(l),0);totalSessions+=doneLogs.length;totalMinutes+=doneLogs.reduce((s,l)=>s+(l.minutes||0),0);totalLoad+=load;totalAscents+=doneLogs.reduce((s,l)=>s+(l.ascents||[]).length,0);}
+  }
+  document.getElementById('cal2-count').textContent=totalSessions;
+  document.getElementById('cal2-minutes').textContent=totalMinutes;
+  document.getElementById('cal2-load').textContent=totalLoad;
+  document.getElementById('cal2-ascents').textContent=totalAscents;
+}
+document.getElementById('cal2-prev').onclick=()=>{ cal2Date.setMonth(cal2Date.getMonth()-1); renderSimpleCalendar(); };
+document.getElementById('cal2-next').onclick=()=>{ cal2Date.setMonth(cal2Date.getMonth()+1); renderSimpleCalendar(); };
+document.getElementById('cal2-today').onclick=()=>{ cal2Date=new Date(); renderSimpleCalendar(); };
 
 // — Glisser-déposer : Banque de séances → Calendrier —
 let draggedBankItemId = null;
@@ -4693,7 +4766,8 @@ function deletePlannedSession(id, dateStr) {
   getActive().logs = (getActive().logs||[]).filter(l=>l.id!==id);
   saveDB();
   openDayModal(dateStr);
-  renderCalendar();
+  if (document.getElementById('cal-grid')) renderCalendar();
+  if (document.getElementById('cal2-grid')) renderSimpleCalendar();
 }
 function closeModal(id){document.getElementById(id).classList.remove('open');}
 document.getElementById('day-modal').addEventListener('click',e=>{if(e.target.id==='day-modal')closeModal('day-modal');});
@@ -4722,6 +4796,7 @@ const DAY_NAMES_FULL = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi'
 let planWeekType = 'build';
 
 function renderPlanning() {
+  renderCalendar();
   const c = getActive();
   const ref = getRefGrade();
   const stats = climberStats(c);
