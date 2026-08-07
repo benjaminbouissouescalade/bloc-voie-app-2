@@ -509,6 +509,10 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 
   <div class="nav-group">
     <div class="nav-label">Général</div>
+    <button class="nav-btn" onclick="openProfileDetailModal(getActive().id)">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.5-7 8-7s8 3 8 7"/></svg>
+      Profil
+    </button>
     <button class="nav-btn active" data-page="dashboard">
       <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
       Tableau de bord
