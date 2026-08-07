@@ -15,6 +15,9 @@ app.use('/api/bank',     require('./routes/bank'));
 app.use('/api/plans',    require('./routes/plans'));
 app.use('/api/ai',       require('./routes/ai'));
 app.use('/api/news',     require('./routes/news'));
+const fingerProfileRoutes = require('./routes/fingerProfile');
+app.use('/api/finger-profile', fingerProfileRoutes);
+app.use('/api/finger-profile-expected', fingerProfileRoutes.expectedRouter);
 app.get('/api/health', (req, res) => { res.json({ status: 'ok' }); });
 app.get('*', (req, res) => { res.sendFile(path.join(__dirname, '../public/index.html')); });
 async function start() {
