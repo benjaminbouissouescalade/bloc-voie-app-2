@@ -68,11 +68,11 @@ router.get('/', async (req, res) => {
     const xml = await fetchFeed(FEED_URL);
     const items = parseRss(xml);
     if (items.length) cache = { items, fetchedAt: now };
-    res.json({ items: cache.items, cached: false });
+    res.json({ items: cache.items, cached: false, debug: items.length ? undefined : ('0 item parsé, réponse reçue (' + xml.length + ' car.), début: ' + xml.slice(0, 120)) });
   } catch (err) {
     console.error('Erreur récupération flux RSS actus escalade:', err.message);
     // On renvoie le cache existant (même expiré) plutôt qu'une erreur — le bandeau reste silencieux si vide
-    res.json({ items: cache.items, cached: true, stale: true });
+    res.json({ items: cache.items, cached: true, stale: true, debug: err.message });
   }
 });
 
