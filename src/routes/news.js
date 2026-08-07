@@ -3,7 +3,7 @@
 const express = require('express');
 const router = express.Router();
 
-const FEED_URL = 'https://planetgrimpe.com/actualites/feed/';
+const FEED_URL = 'https://planetgrimpe.com/feed/'; // flux global du site (le flux de la page /actualites/ est un agrégat sans propre flux RSS — canal vide)
 const TTL_MS = 3 * 60 * 60 * 1000; // 3h — évite de solliciter le site à chaque visite
 
 let cache = { items: [], fetchedAt: 0 };
