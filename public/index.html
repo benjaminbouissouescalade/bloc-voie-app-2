@@ -514,6 +514,15 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 .fp-confidence-badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 99px; }
 .fp-quality-warn { font-size: 11px; color: var(--warm); margin: 4px 0; }
 .game-hidden { display: none !important; }
+.badge-card { border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; text-align: center; background: var(--surface2); }
+.badge-card.unlocked { border-color: var(--accent); background: var(--accent2); }
+.badge-card.locked { opacity: 0.6; }
+.badge-icon { font-size: 26px; margin-bottom: 6px; }
+.badge-label { font-size: 12px; font-weight: 600; margin-bottom: 8px; min-height: 30px; }
+.badge-bar { height: 5px; border-radius: 99px; background: var(--border); overflow: hidden; margin-bottom: 6px; }
+.badge-bar-fill { height: 100%; background: var(--accent); border-radius: 99px; }
+.badge-progress-text { font-size: 11px; color: var(--muted); }
+.badge-card.unlocked .badge-progress-text { color: var(--accent); font-weight: 600; }
 .crew-card { border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; background: var(--surface2); margin-bottom: 14px; }
 .crew-member-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
 .crew-member-row:last-child { border-bottom: none; }
@@ -610,6 +619,10 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     <button class="nav-btn" data-page="finger-profile">
       <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2v6M9 4v4M15 4v4M6 8v4a6 6 0 0012 0V8"/><path d="M6 14v2a6 6 0 0012 0v-2"/></svg>
       Finger Profile
+    </button>
+    <button class="nav-btn" data-page="badges">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="6"/><path d="M8.5 13.5L7 22l5-3 5 3-1.5-8.5"/></svg>
+      Badges
     </button>
   </div>
   <div class="nav-group">
@@ -1437,6 +1450,18 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <div id="fp-expected-container" style="margin-top:16px"></div>
     </div>
   </div>
+</div>
+
+<!-- ═══════════════ BADGES ═══════════════ -->
+<div class="page" id="page-badges">
+  <div class="page-header">
+    <div>
+      <h2>Badges</h2>
+      <p>Tes réussites d'entraînement — <span id="badges-athlete-name"></span></p>
+    </div>
+    <div id="badges-summary" style="font-size:13px;color:var(--muted)"></div>
+  </div>
+  <div id="badges-grid"></div>
 </div>
 
 <!-- ═══════════════ COMMUNAUTÉ ═══════════════ -->
@@ -3555,6 +3580,65 @@ function sessionLoad(log) {
   return Math.round(al+bl);
 }
 
+// ═══════════════ BADGES (tableau de bord personnel, indépendant du mode jeu) ═══════════════
+function bngSentTotal(b) {
+  if (!b) return 0;
+  return (b.facileSent||0) + (b.moyenSent||0) + (b.travailSent||0) + (b.sent||0);
+}
+function countCompletedCycles(logs) {
+  const planned = {}, done = {};
+  (logs||[]).forEach(l => {
+    if (!l.cycleId) return;
+    if (l.planned) planned[l.cycleId] = (planned[l.cycleId]||0) + 1;
+    else done[l.cycleId] = (done[l.cycleId]||0) + 1;
+  });
+  return Object.keys(planned).filter(cid => (done[cid]||0) >= planned[cid]).length;
+}
+function bestSentGradeIdx(logs) {
+  let best = -1;
+  (logs||[]).forEach(l => (l.ascents||[]).forEach(a => {
+    if (['tete','av','flash','moulinette'].includes(a.status) && GRADE_IDX[a.grade]!==undefined) {
+      best = Math.max(best, GRADE_IDX[a.grade]);
+    }
+  }));
+  return best;
+}
+const BADGE_CATEGORIES = [
+  { id:'grades',   label:'Premiers envois',      icon:'🧗', type:'grade',
+    tiers:['5a','6a','6b','6c','7a','7b','7c','8a','8b','8c','9a'] },
+  { id:'sessions', label:'Régularité',            icon:'📅', type:'count', unitLabel:'séances',
+    tiers:[10,50,100,365,500], statFn: logs => (logs||[]).filter(l=>!l.planned).length },
+  { id:'bloc',     label:'Volume bloc',           icon:'🪨', type:'count', unitLabel:'blocs sortis',
+    tiers:[100,500,1000], statFn: logs => (logs||[]).reduce((s,l)=>s+bngSentTotal(l.bNoGrade),0) },
+  { id:'doigts',   label:'Travail des doigts',    icon:'🤏', type:'count', unitLabel:'séances doigts',
+    tiers:[10,25,50], statFn: logs => (logs||[]).filter(l=>!l.planned && l.type==='doigts').length },
+  { id:'cycles',   label:'Cycles bouclés',        icon:'🔁', type:'count', unitLabel:'cycles',
+    tiers:[1,3,10], statFn: logs => countCompletedCycles(logs) }
+];
+function computeBadgeState(climber) {
+  const logs = climber?.logs || [];
+  const bestIdx = bestSentGradeIdx(logs);
+  const result = [];
+  BADGE_CATEGORIES.forEach(cat => {
+    const current = cat.type==='grade' ? bestIdx : cat.statFn(logs);
+    cat.tiers.forEach(tier => {
+      const target = cat.type==='grade' ? GRADE_IDX[tier] : tier;
+      const unlocked = current >= target;
+      result.push({
+        catId: cat.id, catLabel: cat.label, icon: cat.icon,
+        label: cat.type==='grade' ? `Premier ${tier}` : `${tier} ${cat.unitLabel}`,
+        unlocked,
+        currentDisp: cat.type==='grade' ? (bestIdx>=0?GRADES[bestIdx]:'—') : current,
+        target,
+        progressPct: cat.type==='grade'
+          ? (unlocked?100:Math.max(0,Math.min(99,Math.round(((bestIdx+1)/(target+1))*100))))
+          : Math.max(0,Math.min(100,Math.round((current/target)*100)))
+      });
+    });
+  });
+  return result;
+}
+
 function getLoadRange(daysBack) {
   const cutoff = new Date(); cutoff.setDate(cutoff.getDate()-daysBack);
   return Math.round(getLogs().filter(l=>new Date(l.date)>=cutoff).reduce((s,l)=>s+sessionLoad(l),0));
@@ -3614,6 +3698,7 @@ function renderPage(name) {
   if(name==='workload') renderWorkload();
   if(name==='pyramid') renderPyramidPage();
   if(name==='finger-profile') renderFingerProfile();
+  if(name==='badges') renderBadges();
   if(name==='community') renderCommunity();
   if(name==='history') renderHistory();
   if(name==='new-session') renderNewSession();
@@ -5206,6 +5291,37 @@ function crewShowSuccess(html) {
   if (okEl) { okEl.innerHTML = html; okEl.style.display = ''; }
 }
 
+function renderBadges() {
+  const c = getActive();
+  const nameEl = document.getElementById('badges-athlete-name');
+  if (nameEl) nameEl.textContent = c ? c.name : '';
+  const badges = computeBadgeState(c);
+  const unlockedCount = badges.filter(b=>b.unlocked).length;
+  const summaryEl = document.getElementById('badges-summary');
+  if (summaryEl) summaryEl.textContent = `${unlockedCount} / ${badges.length} badges débloqués`;
+
+  const grouped = {};
+  badges.forEach(b => { (grouped[b.catId] = grouped[b.catId]||[]).push(b); });
+
+  const container = document.getElementById('badges-grid');
+  if (!container) return;
+  container.innerHTML = BADGE_CATEGORIES.map(cat => {
+    const items = grouped[cat.id] || [];
+    return `<div class="panel" style="margin-bottom:16px">
+      <div class="panel-header"><span class="panel-title">${cat.icon} ${esc(cat.label)}</span></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px">
+        ${items.map(b => `
+          <div class="badge-card ${b.unlocked?'unlocked':'locked'}">
+            <div class="badge-icon">${b.unlocked?cat.icon:'🔒'}</div>
+            <div class="badge-label">${esc(b.label)}</div>
+            <div class="badge-bar"><div class="badge-bar-fill" style="width:${b.progressPct}%"></div></div>
+            <div class="badge-progress-text">${b.unlocked?'Débloqué ✓':(cat.type==='grade'?esc(b.currentDisp):`${b.currentDisp} / ${b.target}`)}</div>
+          </div>`).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
+
 async function renderCommunity() {
   const container = document.getElementById('crew-list-container');
   if (!container) return;
@@ -5302,6 +5418,9 @@ function renderCrewActivity(items, crewId) {
     } else if (a.kind === 'pr') {
       icon = '🏆';
       text = `<strong>${esc(a.climberName)}</strong> a battu son record ${esc(a.payload?.statusLabel || '')} : <strong>${esc(a.payload?.grade || '')}</strong> 🎉`;
+    } else if (a.kind === 'badge_unlocked') {
+      icon = a.payload?.icon || '🎖️';
+      text = `<strong>${esc(a.climberName)}</strong> a débloqué le badge <strong>${esc(a.payload?.label || '')}</strong>`;
     } else {
       text = `<strong>${esc(a.climberName)}</strong> — ${esc(a.kind)}`;
     }
@@ -5823,6 +5942,10 @@ document.getElementById('save-session-btn').onclick=()=>{
     diff:fieldStr('s-b-diff','travail'),
     styles
   };
+  // Préserve cycleId/cycleName/bankRef quand on complète une séance planifiée issue d'un cycle
+  // (ce formulaire générique n'a pas de champ pour ça — sans ça, terminer une séance de cycle
+  // la faisait disparaître de la Vue Année et cassait le suivi "cycles bouclés").
+  const existingLog = editingId ? (getActive().logs||[]).find(l=>l.id===editingId) : null;
   const payload={
     id:editingId||('log_'+Date.now()),
     date:document.getElementById('s-date').value,
@@ -5834,16 +5957,23 @@ document.getElementById('save-session-btn').onclick=()=>{
     support:fieldStr('s-support'),
     notes:fieldStr('s-notes'),
     ascents:JSON.parse(JSON.stringify(sessionAscents)),
-    bNoGrade
+    bNoGrade,
+    ...(existingLog?.cycleId ? { cycleId: existingLog.cycleId, cycleName: existingLog.cycleName } : {}),
+    ...(existingLog?.bankRef ? { bankRef: existingLog.bankRef } : {})
   };
   const isNewCompletedSession = !editingId && !payload.planned;
   const newPRs = isNewCompletedSession ? detectNewPRs(payload) : [];
+  const prevBadgeKeys = isNewCompletedSession
+    ? new Set(computeBadgeState(getActive()).filter(b=>b.unlocked).map(b=>b.catId+':'+b.label))
+    : null;
   if(editingId){const idx=getActive().logs.findIndex(l=>l.id===editingId);if(idx>=0)getActive().logs[idx]=payload;}
   else{getActive().logs.push(payload);}
   saveDB();
   if (isNewCompletedSession) {
     crewPostActivityBestEffort('session_logged', { type: payload.type, minutes: payload.minutes });
     newPRs.forEach(pr => crewPostActivityBestEffort('pr', pr));
+    const newBadges = computeBadgeState(getActive()).filter(b=>b.unlocked && !prevBadgeKeys.has(b.catId+':'+b.label));
+    newBadges.forEach(b => crewPostActivityBestEffort('badge_unlocked', { label: b.label, icon: b.icon }));
   }
   editingId=null;sessionAscents=[];switchPage('history');
 };
