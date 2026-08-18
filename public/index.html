@@ -3514,13 +3514,37 @@ function ascentLoad(a, refGrade) {
   return Math.round(base * statusMul);
 }
 
-// Offset en "crans de cotation" par rapport au niveau perçu du bloc (relatif à ton grade de référence)
-const BOULDER_DIFF_OFFSET = {easy:-4,easy_plus:-2,classic:0,hard:2};
+// Offset en "crans de cotation" par rapport au niveau perçu du bloc (relatif à ton grade de référence).
+// 5 paliers : échauffement < facile < moyen < travail (réalisé entre à vue et 10 essais) < dur/projet (+10 essais ou pas encore réalisé).
+// Les anciennes clés (easy/easy_plus/classic/hard) restent supportées pour l'historique déjà enregistré.
+const BOULDER_DIFF_OFFSET = {
+  echauffement: -8, easy: -6,
+  facile: -6,
+  moyen: -4.5, easy_plus: -4.5,
+  travail: -3.5, classic: -3.5,
+  dur: 1.5, hard: 1.5
+};
 function boulderLoad(b, refGrade) {
-  if (!b || (!b.sent && !b.tries)) return 0;
-  const offset = BOULDER_DIFF_OFFSET[b.diff] ?? 0;
-  // Un bloc "au niveau" pèse comme une voie ~2 crans sous ta référence (effort plus court qu'une voie complète)
-  const base = KAYA_BASE * Math.pow(KAYA_GROWTH, offset - 2);
+  if (!b) return 0;
+  // Nouveau format (bloc salle) : 3 paliers indépendants dans la même séance —
+  // facile / moyen / travail-dur-projet (ce dernier bascule auto en "dur" au-delà de 10 essais cumulés).
+  if (b.facileSent!==undefined || b.moyenSent!==undefined || b.travailSent!==undefined || b.travailTries!==undefined) {
+    const facileSent = b.facileSent||0, moyenSent = b.moyenSent||0;
+    const travailSent = b.travailSent||0, travailTries = b.travailTries||0;
+    if (!facileSent && !moyenSent && !travailSent && !travailTries) return 0;
+    const travailProgress = b.travailProgress||60;
+    const baseFacile  = KAYA_BASE * Math.pow(KAYA_GROWTH, BOULDER_DIFF_OFFSET.facile);
+    const baseMoyen   = KAYA_BASE * Math.pow(KAYA_GROWTH, BOULDER_DIFF_OFFSET.moyen);
+    const travailOffset = travailTries > 10 ? BOULDER_DIFF_OFFSET.dur : BOULDER_DIFF_OFFSET.travail;
+    const baseTravail = KAYA_BASE * Math.pow(KAYA_GROWTH, travailOffset);
+    const volTravail = travailSent + 0.6*travailTries*(travailProgress/100);
+    const load = baseFacile*facileSent + baseMoyen*moyenSent + baseTravail*volTravail;
+    return Math.round(load * 0.5);
+  }
+  // Ancien format (une seule catégorie "diff" partagée) : encore utilisé par le panneau Voies/Falaise et l'historique bloc pré-refonte.
+  if (!b.sent && !b.tries) return 0;
+  const offset = BOULDER_DIFF_OFFSET[b.diff] ?? BOULDER_DIFF_OFFSET.travail;
+  const base = KAYA_BASE * Math.pow(KAYA_GROWTH, offset);
   const vol = (b.sent||0) + 0.6*(b.tries||0)*((b.progress||60)/100);
   return Math.round(base * vol * 0.5);
 }
@@ -5417,11 +5441,17 @@ function renderHistory() {
         </div>
       </div>
       ${l.notes?`<div class="log-tags"><span style="font-size:12px;color:var(--muted)">${l.notes.slice(0,100)}${l.notes.length>100?'…':''}</span></div>`:''}
-      ${(l.ascents||[]).length||l.bNoGrade?.sent||l.bNoGrade?.tries?`<div class="log-tags">
+      ${(()=>{
+        const bng = l.bNoGrade;
+        const bngSentTotal = bng ? ((bng.facileSent||0)+(bng.moyenSent||0)+(bng.travailSent||0)+(bng.sent||0)) : 0;
+        const bngTriesTotal = bng ? ((bng.travailTries||0)+(bng.tries||0)) : 0;
+        if (!(l.ascents||[]).length && !bngSentTotal && !bngTriesTotal) return '';
+        return `<div class="log-tags">
         ${(l.ascents||[]).slice(0,6).map(a=>`<span class="chip">${a.grade} · ${statusLabel(a.status)}</span>`).join('')}
         ${(l.ascents||[]).length>6?`<span class="chip">+${(l.ascents||[]).length-6}</span>`:''}
-        ${l.bNoGrade?.sent?`<span class="chip">${l.bNoGrade.sent} blocs sortis</span>`:''}
-      </div>`:''}
+        ${bngSentTotal?`<span class="chip">${bngSentTotal} blocs sortis</span>`:''}
+      </div>`;
+      })()}
     </div>`;
   }).join('');
 }
@@ -5499,40 +5529,58 @@ function updateSessionTypeUI(savedBNoGrade) {
     // Dummy hidden fields so save logic doesn't break
     if (!document.getElementById('s-b-tries')) {
       const h = (id, val) => { const i=document.createElement('input'); i.type='hidden'; i.id=id; i.value=val; panel.appendChild(i); };
-      h('s-b-tries','0'); h('s-b-progress','60'); h('s-b-diff','classic');
+      h('s-b-tries','0'); h('s-b-progress','60'); h('s-b-diff','travail');
     }
   } else if (cfg.extraPanel === 'bloc') {
-    // Bloc salle : blocs non cotés
+    // Bloc salle : blocs non cotés, répartis sur 3 paliers indépendants (plus d'exclusivité entre échauffement/travail/projet dans une même séance)
+    const legacyMode = bData.facileSent===undefined && bData.moyenSent===undefined && bData.travailSent===undefined && bData.travailTries===undefined;
+    const bFacile      = legacyMode ? 0 : (bData.facileSent||0);
+    const bMoyen        = legacyMode ? 0 : (bData.moyenSent||0);
+    const bTravailSent  = legacyMode ? (bData.sent||0)     : (bData.travailSent||0);
+    const bTravailTries = legacyMode ? (bData.tries||0)    : (bData.travailTries||0);
+    const bTravailProg  = legacyMode ? (bData.progress||60): (bData.travailProgress||60);
     panel.innerHTML = `
       <div class="panel-header"><span class="panel-title">Bloc sans cotation (salle)</span><span class="panel-sub" style="font-size:12px;color:var(--muted)">Optionnel si tu as saisi des blocs cotés</span></div>
-      <div class="form-row form-row-3">
-        <div class="form-group" style="margin:0">
-          <label class="form-label">Blocs sortis</label>
-          <input class="form-control" type="number" id="s-b-sent" value="${bData.sent||0}" min="0" oninput="updateLoadPreview()">
-        </div>
-        <div class="form-group" style="margin:0">
-          <label class="form-label">Essais non sortis</label>
-          <input class="form-control" type="number" id="s-b-tries" value="${bData.tries||0}" min="0" oninput="updateLoadPreview()">
-        </div>
-        <div class="form-group" style="margin:0">
-          <label class="form-label">Niveau perçu</label>
-          <select class="form-control" id="s-b-diff" onchange="updateLoadPreview()">
-            <option value="easy" ${(bData.diff||'classic')==='easy'?'selected':''}>Facile / échauff.</option>
-            <option value="easy_plus" ${(bData.diff||'classic')==='easy_plus'?'selected':''}>Moyen-facile</option>
-            <option value="classic" ${(bData.diff||'classic')==='classic'?'selected':''}>Niveau de travail</option>
-            <option value="hard" ${(bData.diff||'classic')==='hard'?'selected':''}>Dur</option>
-          </select>
+      <div class="form-group">
+        <label class="form-label">Blocs faciles</label>
+        <div class="slider-row">
+          <input type="range" id="s-b-facile" min="0" max="40" step="1" value="${bFacile}"
+            oninput="document.getElementById('s-b-facile-disp').textContent=this.value; updateLoadPreview()">
+          <span class="slider-value" id="s-b-facile-disp">${bFacile}</span>
         </div>
       </div>
-      <div class="form-row form-row-2">
-        <div class="form-group" style="margin:0">
-          <label class="form-label">% moyen complété sur essais</label>
-          <input class="form-control" type="number" id="s-b-progress" value="${bData.progress||60}" min="1" max="100" oninput="updateLoadPreview()">
+      <div class="form-group">
+        <label class="form-label">Blocs moyens</label>
+        <div class="slider-row">
+          <input type="range" id="s-b-moyen" min="0" max="30" step="1" value="${bMoyen}"
+            oninput="document.getElementById('s-b-moyen-disp').textContent=this.value; updateLoadPreview()">
+          <span class="slider-value" id="s-b-moyen-disp">${bMoyen}</span>
         </div>
-        <div class="form-group" style="margin:0">
-          <label class="form-label">Charge estimée</label>
-          <input class="form-control" id="s-b-preview" disabled value="—">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Blocs travail / dur / projet — sortis</label>
+        <div class="slider-row">
+          <input type="range" id="s-b-travail" min="0" max="20" step="1" value="${bTravailSent}"
+            oninput="document.getElementById('s-b-travail-disp').textContent=this.value; updateLoadPreview()">
+          <span class="slider-value" id="s-b-travail-disp">${bTravailSent}</span>
         </div>
+        <label class="form-label" style="margin-top:10px">Essais non sortis sur ces blocs</label>
+        <div class="slider-row">
+          <input type="range" id="s-b-travail-tries" min="0" max="30" step="1" value="${bTravailTries}"
+            oninput="document.getElementById('s-b-travail-tries-disp').textContent=this.value; updateLoadPreview()">
+          <span class="slider-value" id="s-b-travail-tries-disp">${bTravailTries}</span>
+        </div>
+        <label class="form-label" style="margin-top:10px">% moyen complété sur ces essais</label>
+        <div class="slider-row">
+          <input type="range" id="s-b-travail-progress" min="10" max="100" step="5" value="${bTravailProg}"
+            oninput="document.getElementById('s-b-travail-progress-disp').textContent=this.value+'%'; updateLoadPreview()">
+          <span class="slider-value" id="s-b-travail-progress-disp">${bTravailProg}%</span>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">Au-delà de 10 essais cumulés sur ces blocs, ils basculent automatiquement en "dur / projet" dans le calcul de charge — pas besoin de choisir la catégorie toi-même.</div>
+      </div>
+      <div class="form-group" style="margin:0">
+        <label class="form-label">Charge estimée</label>
+        <input class="form-control" id="s-b-preview" disabled value="—">
       </div>
       <div class="form-group">
         <label class="form-label">Styles dominants</label>
@@ -5559,10 +5607,11 @@ function updateSessionTypeUI(savedBNoGrade) {
         <div class="form-group" style="margin:0">
           <label class="form-label">Intensité perçue du volume non coté</label>
           <select class="form-control" id="s-b-diff" onchange="updateLoadPreview()">
-            <option value="easy" ${(bData.diff||'classic')==='easy'?'selected':''}>Échauffement / facile</option>
-            <option value="easy_plus" ${(bData.diff||'classic')==='easy_plus'?'selected':''}>Moyen</option>
-            <option value="classic" ${(bData.diff||'classic')==='classic'?'selected':''}>Volume de travail</option>
-            <option value="hard" ${(bData.diff||'classic')==='hard'?'selected':''}>Intensif / projet</option>
+            <option value="echauffement" ${(bData.diff||'travail')==='echauffement'?'selected':''}>Échauffement</option>
+            <option value="facile" ${(bData.diff||'travail')==='facile'?'selected':''}>Facile</option>
+            <option value="moyen" ${(bData.diff||'travail')==='moyen'?'selected':''}>Moyen</option>
+            <option value="travail" ${(bData.diff||'travail')==='travail'?'selected':''}>Travail (à vue → 10 essais)</option>
+            <option value="dur" ${(bData.diff||'travail')==='dur'?'selected':''}>Dur / projet (+10 essais)</option>
           </select>
         </div>
         <div class="form-group" style="margin:0">
@@ -5697,11 +5746,17 @@ function updateLoadPreview(){
   const routeLoad = Math.round(sessionAscents.reduce((s,a)=>s+ascentLoad(a,ref), 0));
 
   // Panneau complémentaire (bloc non coté / volume additionnel)
-  const b = {
+  const b = cfg.extraPanel === 'bloc' ? {
+    facileSent:      fieldVal('s-b-facile', 0),
+    moyenSent:       fieldVal('s-b-moyen', 0),
+    travailSent:     fieldVal('s-b-travail', 0),
+    travailTries:    fieldVal('s-b-travail-tries', 0),
+    travailProgress: fieldVal('s-b-travail-progress', 60)
+  } : {
     sent:     fieldVal('s-b-sent', 0),
     tries:    fieldVal('s-b-tries', 0),
     progress: fieldVal('s-b-progress', 60),
-    diff:     fieldStr('s-b-diff', 'classic')
+    diff:     fieldStr('s-b-diff', 'travail')
   };
   const bLoad = Math.round(boulderLoad(b, ref));
 
@@ -5769,10 +5824,26 @@ document.getElementById('s-type').addEventListener('change', () => {
 
 document.getElementById('save-session-btn').onclick=()=>{
   const styles=Array.from(document.querySelectorAll('#s-b-styles input:checked')).map(el=>el.value);
+  const sType = getCurrentSessionType();
+  const sCfg = SESSION_CONFIG[sType] || SESSION_CONFIG.autre;
+  const bNoGrade = sCfg.extraPanel === 'bloc' ? {
+    facileSent:      fieldVal('s-b-facile', 0),
+    moyenSent:       fieldVal('s-b-moyen', 0),
+    travailSent:     fieldVal('s-b-travail', 0),
+    travailTries:    fieldVal('s-b-travail-tries', 0),
+    travailProgress: fieldVal('s-b-travail-progress', 60),
+    styles
+  } : {
+    sent:fieldVal('s-b-sent', 0),
+    tries:fieldVal('s-b-tries', 0),
+    progress:fieldVal('s-b-progress', 60),
+    diff:fieldStr('s-b-diff','travail'),
+    styles
+  };
   const payload={
     id:editingId||('log_'+Date.now()),
     date:document.getElementById('s-date').value,
-    type:getCurrentSessionType(),
+    type:sType,
     minutes:fieldVal('s-minutes', 90),
     intensity:fieldVal('s-intensity', 3),
     shape:fieldStr('s-shape', 'normal'),
@@ -5780,13 +5851,7 @@ document.getElementById('save-session-btn').onclick=()=>{
     support:fieldStr('s-support'),
     notes:fieldStr('s-notes'),
     ascents:JSON.parse(JSON.stringify(sessionAscents)),
-    bNoGrade:{
-      sent:fieldVal('s-b-sent', 0),
-      tries:fieldVal('s-b-tries', 0),
-      progress:fieldVal('s-b-progress', 60),
-      diff:fieldStr('s-b-diff','classic'),
-      styles
-    }
+    bNoGrade
   };
   const isNewCompletedSession = !editingId && !payload.planned;
   const newPRs = isNewCompletedSession ? detectNewPRs(payload) : [];
