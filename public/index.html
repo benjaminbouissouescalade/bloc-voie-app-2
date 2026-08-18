@@ -3515,7 +3515,7 @@ function ascentLoad(a, refGrade) {
 }
 
 // Offset en "crans de cotation" par rapport au niveau perçu du bloc (relatif à ton grade de référence).
-// 5 paliers : échauffement < facile < moyen < travail (réalisé entre à vue et 10 essais) < dur/projet (+10 essais ou pas encore réalisé).
+// 5 paliers : échauffement < facile < moyen < travail (réalisé à ton meilleur niveau, à vue ou en moins de 6 essais) < dur/projet (+6 essais ou pas encore réalisé).
 // Les anciennes clés (easy/easy_plus/classic/hard) restent supportées pour l'historique déjà enregistré.
 const BOULDER_DIFF_OFFSET = {
   echauffement: -11.25, easy: -9.25,
@@ -3527,17 +3527,16 @@ const BOULDER_DIFF_OFFSET = {
 function boulderLoad(b, refGrade) {
   if (!b) return 0;
   // Nouveau format (bloc salle) : 3 paliers indépendants dans la même séance —
-  // facile / moyen / travail-dur-projet (ce dernier bascule auto en "dur" au-delà de 10 essais cumulés).
+  // facile / moyen / travail-dur-projet (ce dernier bascule auto en "dur" au-delà de 6 essais cumulés).
   if (b.facileSent!==undefined || b.moyenSent!==undefined || b.travailSent!==undefined || b.travailTries!==undefined) {
     const facileSent = b.facileSent||0, moyenSent = b.moyenSent||0;
     const travailSent = b.travailSent||0, travailTries = b.travailTries||0;
     if (!facileSent && !moyenSent && !travailSent && !travailTries) return 0;
-    const travailProgress = b.travailProgress||60;
     const baseFacile  = KAYA_BASE * Math.pow(KAYA_GROWTH, BOULDER_DIFF_OFFSET.facile);
     const baseMoyen   = KAYA_BASE * Math.pow(KAYA_GROWTH, BOULDER_DIFF_OFFSET.moyen);
-    const travailOffset = travailTries > 10 ? BOULDER_DIFF_OFFSET.dur : BOULDER_DIFF_OFFSET.travail;
+    const travailOffset = travailTries > 6 ? BOULDER_DIFF_OFFSET.dur : BOULDER_DIFF_OFFSET.travail;
     const baseTravail = KAYA_BASE * Math.pow(KAYA_GROWTH, travailOffset);
-    const volTravail = travailSent + 0.6*travailTries*(travailProgress/100);
+    const volTravail = travailSent + 0.6*travailTries;
     const load = baseFacile*facileSent + baseMoyen*moyenSent + baseTravail*volTravail;
     return Math.round(load * 0.5);
   }
@@ -5538,7 +5537,6 @@ function updateSessionTypeUI(savedBNoGrade) {
     const bMoyen        = legacyMode ? 0 : (bData.moyenSent||0);
     const bTravailSent  = legacyMode ? (bData.sent||0)     : (bData.travailSent||0);
     const bTravailTries = legacyMode ? (bData.tries||0)    : (bData.travailTries||0);
-    const bTravailProg  = legacyMode ? (bData.progress||60): (bData.travailProgress||60);
     panel.innerHTML = `
       <div class="panel-header"><span class="panel-title">Bloc sans cotation (salle)</span><span class="panel-sub" style="font-size:12px;color:var(--muted)">Optionnel si tu as saisi des blocs cotés</span></div>
       <div class="form-group">
@@ -5558,7 +5556,7 @@ function updateSessionTypeUI(savedBNoGrade) {
         </div>
       </div>
       <div class="form-group">
-        <label class="form-label">Blocs travail / dur / projet — sortis</label>
+        <label class="form-label">Blocs travail / dur / projet* — sortis</label>
         <div class="slider-row">
           <input type="range" id="s-b-travail" min="0" max="20" step="1" value="${bTravailSent}"
             oninput="document.getElementById('s-b-travail-disp').textContent=this.value; updateLoadPreview()">
@@ -5570,23 +5568,11 @@ function updateSessionTypeUI(savedBNoGrade) {
             oninput="document.getElementById('s-b-travail-tries-disp').textContent=this.value; updateLoadPreview()">
           <span class="slider-value" id="s-b-travail-tries-disp">${bTravailTries}</span>
         </div>
-        <label class="form-label" style="margin-top:10px">% moyen complété sur ces essais</label>
-        <div class="slider-row">
-          <input type="range" id="s-b-travail-progress" min="10" max="100" step="5" value="${bTravailProg}"
-            oninput="document.getElementById('s-b-travail-progress-disp').textContent=this.value+'%'; updateLoadPreview()">
-          <span class="slider-value" id="s-b-travail-progress-disp">${bTravailProg}%</span>
-        </div>
-        <div style="font-size:11px;color:var(--muted);margin-top:4px">Au-delà de 10 essais cumulés sur ces blocs, ils basculent automatiquement en "dur / projet" dans le calcul de charge — pas besoin de choisir la catégorie toi-même.</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">* Bloc réalisé à ton meilleur niveau : à vue ou en moins de 6 essais. Au-delà de 6 essais cumulés, il bascule automatiquement en "dur / projet" dans le calcul de charge.</div>
       </div>
       <div class="form-group" style="margin:0">
         <label class="form-label">Charge estimée</label>
         <input class="form-control" id="s-b-preview" disabled value="—">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Styles dominants</label>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px" id="s-b-styles">
-          ${STYLES.map(s=>`<label style="display:inline-flex;align-items:center;gap:5px;font-size:12px;cursor:pointer"><input type="checkbox" value="${s}" ${selStyles.includes(s)?'checked':''} onchange="updateLoadPreview()" style="accent-color:var(--accent)"> ${s}</label>`).join('')}
-        </div>
       </div>`;
   } else {
     // Voies / Falaise : section légère pour le volume total et les secteurs
@@ -5750,8 +5736,7 @@ function updateLoadPreview(){
     facileSent:      fieldVal('s-b-facile', 0),
     moyenSent:       fieldVal('s-b-moyen', 0),
     travailSent:     fieldVal('s-b-travail', 0),
-    travailTries:    fieldVal('s-b-travail-tries', 0),
-    travailProgress: fieldVal('s-b-travail-progress', 60)
+    travailTries:    fieldVal('s-b-travail-tries', 0)
   } : {
     sent:     fieldVal('s-b-sent', 0),
     tries:    fieldVal('s-b-tries', 0),
@@ -5830,9 +5815,7 @@ document.getElementById('save-session-btn').onclick=()=>{
     facileSent:      fieldVal('s-b-facile', 0),
     moyenSent:       fieldVal('s-b-moyen', 0),
     travailSent:     fieldVal('s-b-travail', 0),
-    travailTries:    fieldVal('s-b-travail-tries', 0),
-    travailProgress: fieldVal('s-b-travail-progress', 60),
-    styles
+    travailTries:    fieldVal('s-b-travail-tries', 0)
   } : {
     sent:fieldVal('s-b-sent', 0),
     tries:fieldVal('s-b-tries', 0),
