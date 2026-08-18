@@ -3518,11 +3518,11 @@ function ascentLoad(a, refGrade) {
 // 5 paliers : échauffement < facile < moyen < travail (réalisé entre à vue et 10 essais) < dur/projet (+10 essais ou pas encore réalisé).
 // Les anciennes clés (easy/easy_plus/classic/hard) restent supportées pour l'historique déjà enregistré.
 const BOULDER_DIFF_OFFSET = {
-  echauffement: -8, easy: -6,
-  facile: -6,
-  moyen: -4.5, easy_plus: -4.5,
-  travail: -3.5, classic: -3.5,
-  dur: 1.5, hard: 1.5
+  echauffement: -11.25, easy: -9.25,
+  facile: -9.25,
+  moyen: -7.75, easy_plus: -7.75,
+  travail: -6.75, classic: -6.75,
+  dur: -1.75, hard: -1.75
 };
 function boulderLoad(b, refGrade) {
   if (!b) return 0;
