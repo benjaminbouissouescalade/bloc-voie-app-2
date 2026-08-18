@@ -513,6 +513,22 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 .fp-result-interpretation { font-size: 12px; color: var(--text); line-height: 1.5; }
 .fp-confidence-badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 99px; }
 .fp-quality-warn { font-size: 11px; color: var(--warm); margin: 4px 0; }
+.game-hidden { display: none !important; }
+.crew-card { border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; background: var(--surface2); margin-bottom: 14px; }
+.crew-member-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.crew-member-row:last-child { border-bottom: none; }
+.crew-member-avatar { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #fff; flex-shrink: 0; }
+.crew-member-name { font-weight: 600; font-size: 14px; }
+.crew-member-stats { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.crew-type-chip { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 99px; background: var(--accent2); color: var(--accent); margin-right: 4px; margin-top: 4px; }
+.crew-adherence-pill { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 99px; flex-shrink: 0; }
+.crew-kudos-btn { background: none; border: 1px solid var(--border2); border-radius: 99px; padding: 4px 10px; font-size: 13px; cursor: pointer; flex-shrink: 0; }
+.crew-kudos-btn:hover { background: var(--surface2); }
+.crew-kudos-btn.given { background: var(--accent2); border-color: var(--accent); }
+.crew-activity-item { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.crew-activity-item:last-child { border-bottom: none; }
+.crew-activity-icon { font-size: 18px; flex-shrink: 0; }
+.crew-activity-time { font-size: 11px; color: var(--muted); margin-top: 2px; }
 .ai-ctx-pill { background: rgba(45,90,61,.15); color: var(--accent); padding: 3px 8px; border-radius: 99px; font-weight: 600; }
 .nav-btn .ai-badge { font-size: 10px; background: linear-gradient(135deg,#6366f1,#8b5cf6); color:#fff; padding:1px 5px; border-radius:99px; margin-left:2px; }
 
@@ -615,8 +631,18 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       Historique
     </button>
   </div>
+  <div class="nav-group game-hidden" id="nav-group-community">
+    <div class="nav-label">Communauté</div>
+    <button class="nav-btn" data-page="community">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="9" r="3"/><circle cx="16" cy="9" r="3"/><path d="M2 20c0-3.5 2.7-6 6-6s6 2.5 6 6M10 20c0-3.5 2.7-6 6-6s6 2.5 6 6"/></svg>
+      Communauté 🎮
+    </button>
+  </div>
  <div class="sidebar-footer">
     <div id="sidebar-user" style="font-size:12px;color:var(--muted);margin-bottom:8px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
+    <button class="btn sm" id="game-mode-toggle-btn" style="width:100%;justify-content:center;margin-bottom:6px" onclick="toggleGameMode()">
+      🎮 Mode jeu : <span id="game-mode-status">Off</span>
+    </button>
     <button class="btn sm coach-only-btn" style="width:100%;justify-content:center;margin-bottom:6px" onclick="openClimberModal()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:14px;height:14px"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/><path d="M19 8h2m-1-1v2"/></svg>
       Gérer les grimpeurs
@@ -1411,6 +1437,40 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <div id="fp-expected-container" style="margin-top:16px"></div>
     </div>
   </div>
+</div>
+
+<!-- ═══════════════ COMMUNAUTÉ ═══════════════ -->
+<div class="page" id="page-community">
+  <div class="page-header">
+    <div>
+      <h2>Communauté 🎮</h2>
+      <p>Entraîne-toi avec tes potes — activité de la semaine, encouragements, et petit coup de pression sympa</p>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header"><span class="panel-title">Rejoindre ou créer un crew</span></div>
+    <div class="form-row form-row-2">
+      <div class="form-group">
+        <label class="form-label">Créer un nouveau crew</label>
+        <div style="display:flex;gap:8px">
+          <input class="form-control" type="text" id="crew-new-name" placeholder="Ex. Les Grimpeurs du Mardi">
+          <button class="btn primary" onclick="crewCreate()">Créer</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Rejoindre avec un code</label>
+        <div style="display:flex;gap:8px">
+          <input class="form-control" type="text" id="crew-join-code" placeholder="Ex. AB3D9K" style="text-transform:uppercase">
+          <button class="btn primary" onclick="crewJoin()">Rejoindre</button>
+        </div>
+      </div>
+    </div>
+    <div id="crew-action-error" style="display:none;background:var(--warm2);color:var(--warm);border-radius:8px;padding:10px;font-size:13px"></div>
+    <div id="crew-action-success" style="display:none;background:var(--accent2);color:var(--accent);border-radius:8px;padding:10px;font-size:13px"></div>
+  </div>
+
+  <div id="crew-list-container"></div>
 </div>
 
 <!-- ═══════════════ PYRAMID ═══════════════ -->
@@ -3311,6 +3371,38 @@ function applyRoleUI() {
   document.querySelectorAll('.coach-only-btn').forEach(el => { el.style.display = admin ? '' : 'none'; });
   sbApplyEditorAccess();
   updateSidebarIdentity();
+  applyGameModeUI();
+}
+
+function applyGameModeUI() {
+  const c = getActive();
+  const on = !!(c && c.profile && c.profile.gameMode);
+  const group = document.getElementById('nav-group-community');
+  if (group) group.classList.toggle('game-hidden', !on);
+  const status = document.getElementById('game-mode-status');
+  if (status) status.textContent = on ? 'On' : 'Off';
+  const btn = document.getElementById('game-mode-toggle-btn');
+  if (btn) btn.classList.toggle('primary', on);
+  // Si la page Communauté était affichée et qu'on désactive le mode jeu, retour au tableau de bord
+  if (!on && document.getElementById('page-community')?.classList.contains('active')) {
+    switchPage('dashboard');
+  }
+}
+
+async function toggleGameMode() {
+  const c = getActive();
+  if (!c) return;
+  c.profile = c.profile || {};
+  c.profile.gameMode = !c.profile.gameMode;
+  applyGameModeUI();
+  try {
+    await fetch('/api/climbers', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ id: c.id, name: c.name, color: c.color, level: c.level, trips: c.trips || [], profile: c.profile })
+    });
+    saveDB();
+  } catch (e) { /* best-effort, l'état local reste correct */ }
 }
 
 function sbApplyEditorAccess() {
@@ -3499,6 +3591,7 @@ function renderPage(name) {
   if(name==='workload') renderWorkload();
   if(name==='pyramid') renderPyramidPage();
   if(name==='finger-profile') renderFingerProfile();
+  if(name==='community') renderCommunity();
   if(name==='history') renderHistory();
   if(name==='new-session') renderNewSession();
   if(name==='planning') renderPlanning();
@@ -4185,6 +4278,14 @@ function generateCycle() {
   closeModal('cycle-modal');
   renderCalendar();
   if (document.getElementById('page-planning')?.classList.contains('active')) renderPlanning();
+
+  // Notifie les crews (communauté) si la personne connectée lance un cycle pour elle-même
+  const cycleTypeCounts = {};
+  plannedEntries.forEach(e => { const item = bank.find(s => s.id === e.bankId); if (item) { const t = item.type || 'autre'; cycleTypeCounts[t] = (cycleTypeCounts[t] || 0) + 1; } });
+  const dominantCycleType = Object.entries(cycleTypeCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'autre';
+  if (targetIds.includes(window.currentUser?.climberId)) {
+    crewPostCycleStartedBestEffort(cycleName, dominantCycleType);
+  }
 
   const perAthlete = Math.round(created / targetIds.length);
   let msg = `${perAthlete} séance${perAthlete>1?'s':''} programmée${perAthlete>1?'s':''} chacun pour ${targetNames.join(', ')}, du ${fmtDate(start)} au ${fmtDate(cycleEndDateStr)}.`;
@@ -4997,6 +5098,251 @@ function fpRenderExpectedProfile(profile, container) {
   container.innerHTML = html;
 }
 
+// ═══════════════ COMMUNAUTÉ / CREWS (mode jeu) ═══════════════
+let crewCache = [];
+
+const CREW_ACTIVITY_FLAVOR = {
+  doigts: 'attaque un cycle doigts — attention, il/elle va devenir plus fort(e) en force de doigts 💪',
+  ppg: 'attaque un cycle de renforcement général',
+  musculation: 'attaque un cycle de musculation',
+  prehension: 'travaille sa préhension / systémique',
+  cardio: 'attaque un cycle cardio',
+  mobilite: 'attaque un cycle mobilité / souplesse',
+  yoga: 'part sur un cycle yoga',
+  recup_active: 'planifie un cycle de récupération active',
+  kiné: 'programme du soin / kiné',
+  bloc: 'attaque un cycle bloc',
+  voies: 'attaque un cycle voies',
+  falaise: 'part en cycle falaise',
+  pan: 'attaque un cycle pan / board',
+  competition: 'prépare une compétition',
+  via_ferrata: 'part sur un cycle via ferrata',
+  video: 'bosse sa tactique en vidéo',
+  mentale: 'travaille sa préparation mentale',
+  autre: "a lancé un nouveau cycle d'entraînement"
+};
+function crewCycleFlavor(type) { return CREW_ACTIVITY_FLAVOR[type] || CREW_ACTIVITY_FLAVOR.autre; }
+
+function crewPostActivityBestEffort(kind, payload) {
+  fetch('/api/crews', { headers: authHeaders() })
+    .then(r => r.ok ? r.json() : [])
+    .then(crews => {
+      (crews || []).forEach(c => {
+        fetch('/api/crews/' + c.id + '/activity', {
+          method: 'POST', headers: authHeaders(),
+          body: JSON.stringify({ kind, payload })
+        }).catch(() => {});
+      });
+    })
+    .catch(() => {});
+}
+function crewPostCycleStartedBestEffort(cycleName, type) {
+  crewPostActivityBestEffort('cycle_started', { cycleName, type });
+}
+
+// Détection de records persos (au moment du save, avant que la nouvelle séance ne soit
+// ajoutée aux logs) — comparé séparément par style d'ascension (tête / flash-à vue / moulinette),
+// comme les "meilleurs enchaînements" déjà affichés sur la page Performance.
+function detectNewPRs(payload) {
+  const prevLogs = (getActive().logs || []).filter(l => !l.planned);
+  const sentAscents = (payload.ascents || []).filter(a => ['tete', 'av', 'flash', 'moulinette'].includes(a.status));
+  if (!sentAscents.length) return [];
+  const bestIdx = (list) => list.length ? Math.max(...list.map(a => GRADE_IDX[a.grade] ?? -1)) : -1;
+  const prevBest = {
+    tete: bestIdx(prevLogs.flatMap(l => (l.ascents || []).filter(a => a.status === 'tete'))),
+    flash: bestIdx(prevLogs.flatMap(l => (l.ascents || []).filter(a => ['flash', 'av'].includes(a.status)))),
+    moulinette: bestIdx(prevLogs.flatMap(l => (l.ascents || []).filter(a => a.status === 'moulinette')))
+  };
+  const newBest = { tete: -1, flash: -1, moulinette: -1 };
+  sentAscents.forEach(a => {
+    const idx = GRADE_IDX[a.grade];
+    if (idx === undefined) return;
+    const key = a.status === 'tete' ? 'tete' : (a.status === 'moulinette' ? 'moulinette' : 'flash');
+    if (idx > newBest[key]) newBest[key] = idx;
+  });
+  const labels = { tete: 'en tête', flash: 'en flash / à vue', moulinette: 'en moulinette' };
+  const prs = [];
+  Object.keys(labels).forEach(key => {
+    if (newBest[key] > -1 && newBest[key] > prevBest[key]) {
+      prs.push({ statusKey: key, statusLabel: labels[key], grade: GRADES[newBest[key]] });
+    }
+  });
+  return prs;
+}
+
+function crewShowError(msg) {
+  const errEl = document.getElementById('crew-action-error');
+  const okEl = document.getElementById('crew-action-success');
+  if (okEl) okEl.style.display = 'none';
+  if (errEl) { errEl.textContent = msg; errEl.style.display = ''; }
+}
+function crewShowSuccess(html) {
+  const errEl = document.getElementById('crew-action-error');
+  const okEl = document.getElementById('crew-action-success');
+  if (errEl) errEl.style.display = 'none';
+  if (okEl) { okEl.innerHTML = html; okEl.style.display = ''; }
+}
+
+async function renderCommunity() {
+  const container = document.getElementById('crew-list-container');
+  if (!container) return;
+  document.getElementById('crew-action-error').style.display = 'none';
+  document.getElementById('crew-action-success').style.display = 'none';
+  container.innerHTML = '<p style="font-size:13px;color:var(--muted)">Chargement…</p>';
+  try {
+    const r = await fetch('/api/crews', { headers: authHeaders() });
+    const crews = await r.json();
+    if (!r.ok) { container.innerHTML = `<p style="color:var(--warm);font-size:13px">${esc(crews.error || 'Erreur de chargement')}</p>`; return; }
+    crewCache = crews;
+    if (!crews.length) {
+      container.innerHTML = `<div class="panel"><p style="font-size:13px;color:var(--muted)">Tu ne fais partie d'aucun crew pour l'instant — crée-en un ou rejoins celui d'un(e) coéquipier(ère) avec son code ci-dessus.</p></div>`;
+      return;
+    }
+    container.innerHTML = crews.map(c => `
+      <div class="crew-card">
+        <div class="panel-header">
+          <span class="panel-title">${esc(c.name)}</span>
+          <div style="display:flex;gap:8px">
+            <button class="btn sm" onclick="crewGenerateInvite('${c.id}')">+ Inviter</button>
+            <button class="btn sm danger" onclick="crewLeaveConfirm('${c.id}')">Quitter</button>
+          </div>
+        </div>
+        <div id="crew-board-${c.id}"><p style="font-size:13px;color:var(--muted)">Chargement…</p></div>
+        <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px">
+          <div style="font-weight:600;font-size:13px;margin-bottom:8px">Activité récente</div>
+          <div id="crew-activity-${c.id}"><p style="font-size:12px;color:var(--muted)">Chargement…</p></div>
+        </div>
+      </div>`).join('');
+    crews.forEach(c => crewLoadDetails(c.id));
+  } catch (e) {
+    container.innerHTML = '<p style="color:var(--warm);font-size:13px">Erreur réseau</p>';
+  }
+}
+
+async function crewLoadDetails(crewId) {
+  try {
+    const [boardR, activityR] = await Promise.all([
+      fetch('/api/crews/' + crewId + '/board', { headers: authHeaders() }),
+      fetch('/api/crews/' + crewId + '/activity', { headers: authHeaders() })
+    ]);
+    if (boardR.ok) renderCrewBoard(await boardR.json(), crewId);
+    if (activityR.ok) renderCrewActivity(await activityR.json(), crewId);
+  } catch (e) { /* silencieux — le reste de la page reste utilisable */ }
+}
+
+function renderCrewBoard(data, crewId) {
+  const el = document.getElementById('crew-board-' + crewId);
+  if (!el) return;
+  const me = getActive();
+  if (!data.board || !data.board.length) { el.innerHTML = '<p style="font-size:13px;color:var(--muted)">Aucun membre.</p>'; return; }
+  const maxSessions = Math.max(0, ...data.board.map(m => m.completedTotal));
+  el.innerHTML = data.board.map(m => {
+    const isCrowned = maxSessions > 0 && m.completedTotal === maxSessions;
+    const initials = m.name.trim().split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 2);
+    const typeChips = Object.entries(m.byType || {}).map(([t, n]) => {
+      const meta = SESSION_TYPES[t] || SESSION_TYPES.autre;
+      return `<span class="crew-type-chip">${n}× ${esc(meta.label)}</span>`;
+    }).join('');
+    const adherenceHtml = m.adherence !== null && m.adherence !== undefined
+      ? `<span class="crew-adherence-pill" style="background:${m.adherence >= 80 ? 'var(--accent2)' : 'var(--warm2)'};color:${m.adherence >= 80 ? 'var(--accent)' : 'var(--warm)'}">${m.adherence}% du programme</span>`
+      : '';
+    const isMe = m.climberId === me?.id;
+    const kudosGiven = (data.myKudosGivenTo || []).includes(m.climberId);
+    const emptyNote = m.completedTotal === 0 ? " — pas encore de séance cette semaine" : '';
+    return `
+      <div class="crew-member-row">
+        <div class="crew-member-avatar" style="background:${m.color}">${initials}</div>
+        <div style="flex:1">
+          <div class="crew-member-name">${isCrowned ? '👑 ' : ''}${esc(m.name)}</div>
+          <div class="crew-member-stats">${m.completedTotal} séance${m.completedTotal !== 1 ? 's' : ''} cette semaine${emptyNote}${typeChips ? '<br>' + typeChips : ''}</div>
+        </div>
+        ${adherenceHtml}
+        ${m.kudosReceived ? `<span title="Encouragements reçus cette semaine" style="font-size:12px;color:var(--muted)">👏×${m.kudosReceived}</span>` : ''}
+        ${!isMe ? `<button class="crew-kudos-btn ${kudosGiven ? 'given' : ''}" onclick="crewGiveKudos('${crewId}','${m.climberId}')" title="Encourager">${kudosGiven ? '👏 Envoyé' : '👏 Encourager'}</button>` : ''}
+      </div>`;
+  }).join('');
+}
+
+function renderCrewActivity(items, crewId) {
+  const el = document.getElementById('crew-activity-' + crewId);
+  if (!el) return;
+  if (!items || !items.length) { el.innerHTML = `<p style="font-size:12px;color:var(--muted)">Rien pour l'instant.</p>`; return; }
+  el.innerHTML = items.map(a => {
+    let icon = '🔔', text;
+    if (a.kind === 'cycle_started') {
+      icon = '🔥';
+      text = `<strong>${esc(a.climberName)}</strong> ${crewCycleFlavor(a.payload?.type)}${a.payload?.cycleName ? ' — ' + esc(a.payload.cycleName) : ''}`;
+    } else if (a.kind === 'session_logged') {
+      icon = '✅';
+      const meta = SESSION_TYPES[a.payload?.type] || SESSION_TYPES.autre;
+      text = `<strong>${esc(a.climberName)}</strong> a complété une séance ${esc(meta.label)}`;
+    } else if (a.kind === 'pr') {
+      icon = '🏆';
+      text = `<strong>${esc(a.climberName)}</strong> a battu son record ${esc(a.payload?.statusLabel || '')} : <strong>${esc(a.payload?.grade || '')}</strong> 🎉`;
+    } else {
+      text = `<strong>${esc(a.climberName)}</strong> — ${esc(a.kind)}`;
+    }
+    const dateStr = new Date(a.createdAt).toISOString().slice(0, 10);
+    return `<div class="crew-activity-item"><span class="crew-activity-icon">${icon}</span><div><div>${text}</div><div class="crew-activity-time">${fmtDate(dateStr)}</div></div></div>`;
+  }).join('');
+}
+
+async function crewCreate() {
+  const nameEl = document.getElementById('crew-new-name');
+  const name = nameEl.value.trim();
+  if (!name) { crewShowError('Donne un nom à ton crew'); return; }
+  try {
+    const r = await fetch('/api/crews', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ name }) });
+    const d = await r.json();
+    if (!r.ok) { crewShowError(d.error || 'Erreur'); return; }
+    nameEl.value = '';
+    crewShowSuccess(`Crew "${esc(d.crew.name)}" créé ! Clique sur "+ Inviter" pour partager un code à tes coéquipiers.`);
+    renderCommunity();
+  } catch (e) { crewShowError('Erreur réseau'); }
+}
+
+async function crewJoin() {
+  const codeEl = document.getElementById('crew-join-code');
+  const code = codeEl.value.trim();
+  if (!code) { crewShowError('Entre un code'); return; }
+  try {
+    const r = await fetch('/api/crews/join', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ code }) });
+    const d = await r.json();
+    if (!r.ok) { crewShowError(d.error || 'Erreur'); return; }
+    codeEl.value = '';
+    crewShowSuccess(`Tu as rejoint le crew "${esc(d.crew.name)}" !`);
+    renderCommunity();
+  } catch (e) { crewShowError('Erreur réseau'); }
+}
+
+async function crewGenerateInvite(crewId) {
+  try {
+    const r = await fetch('/api/crews/' + crewId + '/invite', { method: 'POST', headers: authHeaders() });
+    const d = await r.json();
+    if (!r.ok) { crewShowError(d.error || 'Erreur'); return; }
+    crewShowSuccess(`Code d'invitation (valable 14 jours) : <strong style="font-size:16px;letter-spacing:.05em">${esc(d.code)}</strong> — partage-le à ton/ta coéquipier(ère), il/elle l'entre dans "Rejoindre avec un code".`);
+  } catch (e) { crewShowError('Erreur réseau'); }
+}
+
+function crewLeaveConfirm(crewId) {
+  const crew = crewCache.find(c => c.id === crewId);
+  if (!confirm(`Quitter le crew "${crew?.name || ''}" ?`)) return;
+  crewLeave(crewId);
+}
+async function crewLeave(crewId) {
+  try {
+    await fetch('/api/crews/' + crewId + '/leave', { method: 'DELETE', headers: authHeaders() });
+    renderCommunity();
+  } catch (e) { /* silencieux */ }
+}
+
+async function crewGiveKudos(crewId, toClimberId) {
+  try {
+    await fetch('/api/crews/' + crewId + '/kudos', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ toClimberId, emoji: '👏' }) });
+    crewLoadDetails(crewId);
+  } catch (e) { /* silencieux */ }
+}
+
 // — Pyramid page —
 let pyrFullRange='3m',pyrFullLoc='all';
 function renderPyramidPage() {
@@ -5442,9 +5788,16 @@ document.getElementById('save-session-btn').onclick=()=>{
       styles
     }
   };
+  const isNewCompletedSession = !editingId && !payload.planned;
+  const newPRs = isNewCompletedSession ? detectNewPRs(payload) : [];
   if(editingId){const idx=getActive().logs.findIndex(l=>l.id===editingId);if(idx>=0)getActive().logs[idx]=payload;}
   else{getActive().logs.push(payload);}
-  saveDB();editingId=null;sessionAscents=[];switchPage('history');
+  saveDB();
+  if (isNewCompletedSession) {
+    crewPostActivityBestEffort('session_logged', { type: payload.type, minutes: payload.minutes });
+    newPRs.forEach(pr => crewPostActivityBestEffort('pr', pr));
+  }
+  editingId=null;sessionAscents=[];switchPage('history');
 };
 document.getElementById('delete-session-btn').onclick=()=>{
   if(!editingId||!confirm('Supprimer cette séance ?'))return;
@@ -7138,6 +7491,7 @@ function switchClimber(id) {
   saveDB();
   closeModal('climber-modal');
   renderSidebarStats();
+  applyGameModeUI();
   renderPage(document.querySelector('.nav-btn.active')?.dataset.page||'dashboard');
 }
 
