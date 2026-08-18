@@ -95,6 +95,67 @@ async function initDB() {
         expires_at  TIMESTAMPTZ,
         used_at     TIMESTAMPTZ
       );
+      CREATE TABLE IF NOT EXISTS finger_tests (
+        id                    TEXT PRIMARY KEY,
+        climber_id            TEXT NOT NULL REFERENCES climbers(id) ON DELETE CASCADE,
+        test_date             DATE NOT NULL,
+        reference_dataset_id  TEXT DEFAULT 'berta_2024',
+        body_mass_kg          NUMERIC,
+        rp_grade              TEXT,
+        rp_ircra              INTEGER,
+        mvc_kg                NUMERIC,
+        mvc_kg_kg             NUMERIC,
+        intermittent_kg_s_kg  NUMERIC,
+        continuous_kg_s_kg    NUMERIC,
+        finger_hang_s         NUMERIC,
+        quality_flags         JSONB DEFAULT '{}',
+        comparison_mode       TEXT DEFAULT 'same_sex',
+        notes                 TEXT DEFAULT '',
+        created_at            TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_finger_tests_climber ON finger_tests(climber_id, test_date DESC);
+
+      -- Communauté / mode jeu : crews indépendants de la relation coach-athlète (peuvent
+      -- rassembler des grimpeurs de coachs différents, via un code d'invitation partagé).
+      CREATE TABLE IF NOT EXISTS crews (
+        id          TEXT PRIMARY KEY,
+        name        TEXT NOT NULL,
+        created_by  TEXT NOT NULL REFERENCES climbers(id) ON DELETE CASCADE,
+        created_at  TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS crew_members (
+        crew_id     TEXT NOT NULL REFERENCES crews(id) ON DELETE CASCADE,
+        climber_id  TEXT NOT NULL REFERENCES climbers(id) ON DELETE CASCADE,
+        joined_at   TIMESTAMPTZ DEFAULT NOW(),
+        PRIMARY KEY (crew_id, climber_id)
+      );
+      CREATE TABLE IF NOT EXISTS crew_invites (
+        code        TEXT PRIMARY KEY,
+        crew_id     TEXT NOT NULL REFERENCES crews(id) ON DELETE CASCADE,
+        created_by  TEXT,
+        created_at  TIMESTAMPTZ DEFAULT NOW(),
+        expires_at  TIMESTAMPTZ
+      );
+      CREATE TABLE IF NOT EXISTS crew_activity (
+        id          TEXT PRIMARY KEY,
+        crew_id     TEXT NOT NULL REFERENCES crews(id) ON DELETE CASCADE,
+        climber_id  TEXT NOT NULL REFERENCES climbers(id) ON DELETE CASCADE,
+        kind        TEXT NOT NULL,
+        payload     JSONB DEFAULT '{}',
+        created_at  TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS crew_kudos (
+        id              TEXT PRIMARY KEY,
+        crew_id         TEXT NOT NULL REFERENCES crews(id) ON DELETE CASCADE,
+        from_climber_id TEXT NOT NULL REFERENCES climbers(id) ON DELETE CASCADE,
+        to_climber_id   TEXT NOT NULL REFERENCES climbers(id) ON DELETE CASCADE,
+        week_start      DATE NOT NULL,
+        emoji           TEXT DEFAULT '👏',
+        created_at      TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_crew_members_climber ON crew_members(climber_id);
+      CREATE INDEX IF NOT EXISTS idx_crew_activity_crew ON crew_activity(crew_id, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_crew_kudos_lookup ON crew_kudos(crew_id, to_climber_id, week_start);
     `);
     console.log('✅ Base de données initialisée');
   } catch (err) {
