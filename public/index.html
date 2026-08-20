@@ -523,39 +523,31 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 .fp-quality-warn { font-size: 11px; color: var(--warm); margin: 4px 0; }
 .game-hidden { display: none !important; }
 /* Catégories de badges — en-tête éditorial numéroté */
-.badge-cat-block { margin-bottom: 28px; }
-.badge-cat-header { display: flex; align-items: baseline; gap: 10px; margin-bottom: 14px; }
+.badge-cat-block { margin-bottom: 52px; }
+.badge-cat-header { display: flex; align-items: baseline; gap: 10px; margin-bottom: 22px; }
 .badge-cat-num { font-family: var(--serif); font-size: 13px; color: var(--dg-green); letter-spacing: .02em; }
 .badge-cat-title { font-family: var(--serif); font-size: 16px; font-weight: 400; text-transform: uppercase; letter-spacing: .02em; color: var(--text); }
-.badge-cat-line { flex: 1; height: 1px; background: var(--border2); }
-.badge-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+.badge-cat-line { flex: 1; height: 1px; background: var(--border); }
+.badge-grid { display: flex; flex-wrap: wrap; gap: 30px 26px; }
 
-/* Cartes badge — insigne technique */
-.badge-card { border: 1px solid var(--border); border-radius: var(--r-xs); padding: 16px 10px 14px; text-align: center; background: var(--surface); position: relative; }
-.badge-card.unlocked { border-color: var(--dg-black); background: var(--dg-black); }
-.badge-card.locked { background: var(--surface2); border-color: var(--border); }
+/* Badges = objets graphiques posés sur le fond, pas de carte */
+.badge-item { width: 52px; text-align: center; }
 
 /* Forme du badge (SVG) : cercle / hexagone / écusson / rectangle / losange selon la famille */
-.badge-shape { position: relative; width: 60px; height: 60px; margin: 0 auto 10px; }
+.badge-shape { position: relative; width: 52px; height: 52px; margin: 0 auto; }
 .badge-shape-svg { width: 100%; height: 100%; overflow: visible; }
-.badge-shape-svg > * { stroke-width: 1.6; vector-effect: non-scaling-stroke; }
-.locked .badge-shape-svg > * { fill: none; stroke: #c4c4bf; }
-.unlocked .badge-shape-svg > * { fill: transparent; stroke: var(--dg-green); }
-.unlocked.max-tier .badge-shape-svg > * { stroke-width: 2.4; }
-.badge-shape-value { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: var(--serif); font-weight: 400; line-height: 1; color: #b3b3ae; }
-.badge-shape-value.sz-lg { font-size: 20px; }
-.badge-shape-value.sz-md { font-size: 16px; }
-.badge-shape-value.sz-sm { font-size: 12px; letter-spacing: -.02em; }
+.badge-shape-svg > * { stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.locked .badge-shape-svg > * { fill: none; stroke: #d2d2cd; }
+.unlocked .badge-shape-svg > * { fill: var(--dg-black); stroke: var(--dg-black); }
+.unlocked.max-tier .badge-shape-svg > * { stroke: var(--dg-green); stroke-width: 2; }
+.badge-shape-value { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: var(--serif); font-weight: 400; line-height: 1; color: #c4c4bf; }
+.badge-shape-value.sz-lg { font-size: 17px; }
+.badge-shape-value.sz-md { font-size: 14px; }
+.badge-shape-value.sz-sm { font-size: 10.5px; letter-spacing: -.02em; }
 .unlocked .badge-shape-value { color: #fff; }
 
-/* Débloqué : tag + petit repère vert discret, pas de gros texte "Débloqué" */
-.badge-tag { font-size: 10px; font-weight: 600; letter-spacing: .06em; color: #9fc4b3; text-transform: uppercase; margin-bottom: 8px; }
-.badge-check-line { width: 18px; height: 2px; background: var(--dg-green); margin: 0 auto; }
-
-/* Verrouillé : ligne de progression fine + objectif */
-.badge-progress-line { height: 1px; background: var(--border2); margin: 0 10px 6px; position: relative; }
-.badge-progress-fill { position: absolute; top: -1px; left: 0; height: 3px; background: var(--dg-green); }
-.badge-objectif { font-size: 9.5px; font-weight: 600; letter-spacing: .04em; color: var(--muted); text-transform: uppercase; }
+/* Seul le prochain objectif de chaque catégorie affiche un repère de progression */
+.badge-next-pct { margin-top: 6px; font-size: 10px; font-weight: 600; color: var(--dg-green); letter-spacing: .02em; }
 .crew-card { border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; background: var(--surface2); margin-bottom: 14px; }
 .crew-member-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
 .crew-member-row:last-child { border-bottom: none; }
@@ -3661,18 +3653,18 @@ function computeBadgeState(climber) {
   const result = [];
   BADGE_CATEGORIES.forEach(cat => {
     const current = cat.type==='grade' ? bestIdx : cat.statFn(logs);
+    let nextObjectiveSet = false;
     cat.tiers.forEach((tier, tierIdx) => {
       const target = cat.type==='grade' ? GRADE_IDX[tier] : tier;
       const unlocked = current >= target;
+      const isNextObjective = !unlocked && !nextObjectiveSet;
+      if (isNextObjective) nextObjectiveSet = true;
       result.push({
         catId: cat.id, catLabel: cat.label, icon: cat.icon, shape: cat.shape, tag: cat.tag,
         tierIdx, isMaxTier: tierIdx === cat.tiers.length-1,
         label: cat.type==='grade' ? `Premier ${tier}` : `${tier} ${cat.unitLabel}`,
-        unlocked,
-        headlineUnlocked: cat.type==='grade' ? String(tier).toUpperCase() : String(tier),
-        headlineLocked: cat.type==='grade' ? (bestIdx>=0?GRADES[bestIdx].toUpperCase():'—') : String(current),
-        objectifDisp: cat.type==='grade' ? String(tier).toUpperCase() : `${tier} ${cat.unitLabel||''}`.trim().toUpperCase(),
-        currentDisp: cat.type==='grade' ? (bestIdx>=0?GRADES[bestIdx]:'—') : current,
+        unlocked, isNextObjective,
+        headline: String(tier).toUpperCase(),
         target,
         progressPct: cat.type==='grade'
           ? (unlocked?100:Math.max(0,Math.min(99,Math.round(((bestIdx+1)/(target+1))*100))))
@@ -5359,17 +5351,14 @@ function renderBadges() {
       </div>
       <div class="badge-grid">
         ${items.map(b => {
-          const headline = b.unlocked ? b.headlineUnlocked : b.headlineLocked;
-          const sizeCls = headline.length<=2?'sz-lg':headline.length===3?'sz-md':'sz-sm';
+          const sizeCls = b.headline.length<=2?'sz-lg':b.headline.length===3?'sz-md':'sz-sm';
           return `
-          <div class="badge-card shape-${b.shape} ${b.unlocked?'unlocked':'locked'} ${b.isMaxTier?'max-tier':''}">
+          <div class="badge-item shape-${b.shape} ${b.unlocked?'unlocked':'locked'} ${b.isMaxTier?'max-tier':''}">
             <div class="badge-shape">
               <svg class="badge-shape-svg" viewBox="0 0 64 64">${BADGE_SHAPE_SVG[b.shape]}</svg>
-              <div class="badge-shape-value ${sizeCls}">${esc(headline)}</div>
+              <div class="badge-shape-value ${sizeCls}">${esc(b.headline)}</div>
             </div>
-            ${b.unlocked
-              ? `<div class="badge-tag">${esc(b.tag)}</div><div class="badge-check-line"></div>`
-              : `<div class="badge-progress-line"><div class="badge-progress-fill" style="width:${b.progressPct}%"></div></div><div class="badge-objectif">Objectif ${esc(b.objectifDisp)}</div>`}
+            ${b.isNextObjective ? `<div class="badge-next-pct">${b.progressPct}%</div>` : ''}
           </div>`;
         }).join('')}
       </div>
