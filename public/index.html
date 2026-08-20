@@ -1,22 +1,22 @@
 <div id="auth-screen" style="position:fixed;inset:0;background:#f4f2ee;display:flex;align-items:center;justify-content:center;z-index:200;font-family:system-ui,sans-serif">
 <div style="background:#fff;border-radius:16px;padding:40px;width:min(400px,90%);box-shadow:0 4px 24px rgba(0,0,0,.12)">
-<div style="font-size:26px;font-weight:700;color:#2d5a3d;margin-bottom:4px">Bloc &amp; Voie</div>
+<div style="font-family:'Anton',sans-serif;text-transform:uppercase;font-size:26px;font-weight:400;color:#0e0e0e;margin-bottom:4px">Digger<span style="color:#6fa82c">.</span></div>
 <div style="font-size:13px;color:#7a7566;margin-bottom:24px">Carnet escalade</div>
 <div id="ae" style="background:#fef3ec;color:#c4501a;border-radius:8px;padding:10px;font-size:13px;margin-bottom:12px;display:none"></div>
 <label style="font-size:11px;font-weight:600;color:#7a7566;display:block;margin-bottom:4px">EMAIL</label>
 <input id="le" type="email" placeholder="ton@email.com" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;margin-bottom:12px">
 <label style="font-size:11px;font-weight:600;color:#7a7566;display:block;margin-bottom:4px">MOT DE PASSE</label>
 <input id="lp" type="password" placeholder="••••••••" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;margin-bottom:20px">
-<button id="lb" style="width:100%;background:#2d5a3d;color:#fff;border:none;padding:12px;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer">Se connecter</button>
+<button id="lb" style="width:100%;background:#6fa82c;color:#fff;border:none;padding:12px;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer">Se connecter</button>
 </div></div>
 
 <div id="onboarding-screen" style="position:fixed;inset:0;background:#f4f2ee;display:none;align-items:center;justify-content:center;z-index:200;font-family:system-ui,sans-serif;padding:20px;box-sizing:border-box">
 <div style="background:#fff;border-radius:16px;padding:36px;width:min(640px,100%);max-height:92vh;overflow-y:auto;box-shadow:0 4px 24px rgba(0,0,0,.12);box-sizing:border-box">
-  <div style="font-size:24px;font-weight:700;color:#2d5a3d;margin-bottom:4px">Bienvenue sur Bloc &amp; Voie</div>
+  <div style="font-size:24px;font-weight:700;color:#0e0e0e;margin-bottom:4px">Bienvenue sur Digger<span style="color:#6fa82c">.</span></div>
   <div style="font-size:13px;color:#7a7566;margin-bottom:24px">Invité(e) par <strong id="ob-coach-name">ton coach</strong> — quelques infos pour démarrer.</div>
   <div id="ob-error" style="background:#fef3ec;color:#c4501a;border-radius:8px;padding:10px;font-size:13px;margin-bottom:16px;display:none"></div>
 
-  <div style="font-size:12px;font-weight:700;color:#2d5a3d;text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Compte</div>
+  <div style="font-size:12px;font-weight:700;color:#6fa82c;text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Compte</div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
     <div>
       <label style="font-size:11px;font-weight:600;color:#7a7566;display:block;margin-bottom:4px">PRÉNOM / PSEUDO</label>
@@ -32,7 +32,7 @@
     <input id="ob-password" type="password" placeholder="••••••••" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box">
   </div>
 
-  <div style="font-size:12px;font-weight:700;color:#2d5a3d;text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Photo de profil <span style="font-weight:400;text-transform:none;color:#7a7566">(optionnel)</span></div>
+  <div style="font-size:12px;font-weight:700;color:#6fa82c;text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Photo de profil <span style="font-weight:400;text-transform:none;color:#7a7566">(optionnel)</span></div>
   <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px">
     <div id="ob-photo-preview" style="width:60px;height:60px;border-radius:50%;background:#e8e5de;display:flex;align-items:center;justify-content:center;font-size:24px;overflow:hidden;flex-shrink:0;color:#a8a296">🧗</div>
     <div>
@@ -41,7 +41,7 @@
     </div>
   </div>
 
-  <div style="font-size:12px;font-weight:700;color:#2d5a3d;text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Niveau & mensurations</div>
+  <div style="font-size:12px;font-weight:700;color:#6fa82c;text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Niveau & mensurations</div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
     <div>
       <label style="font-size:11px;font-weight:600;color:#7a7566;display:block;margin-bottom:4px">SEXE <span style="font-weight:400">(pour le module Finger Profile)</span></label>
@@ -72,10 +72,10 @@
   </div>
   <div id="ob-ape-note" style="font-size:11px;color:#a8a296;margin-bottom:20px;min-height:14px"></div>
 
-  <div style="font-size:12px;font-weight:700;color:#2d5a3d;text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Matériel / outils disponibles</div>
+  <div style="font-size:12px;font-weight:700;color:#6fa82c;text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Matériel / outils disponibles</div>
   <div id="ob-equip" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:20px"></div>
 
-  <div style="font-size:12px;font-weight:700;color:#2d5a3d;text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Temps disponible pour l'entraînement</div>
+  <div style="font-size:12px;font-weight:700;color:#6fa82c;text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Temps disponible pour l'entraînement</div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
     <div>
       <label style="font-size:11px;font-weight:600;color:#7a7566;display:block;margin-bottom:4px">SÉANCES / SEMAINE</label>
@@ -87,11 +87,11 @@
     </div>
   </div>
 
-  <div style="font-size:12px;font-weight:700;color:#2d5a3d;text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Auto-évaluation <span style="font-weight:400;text-transform:none;color:#7a7566">— où tu en es sur chaque facteur (Acquis / Moyen / À travailler)</span></div>
+  <div style="font-size:12px;font-weight:700;color:#6fa82c;text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Auto-évaluation <span style="font-weight:400;text-transform:none;color:#7a7566">— où tu en es sur chaque facteur (Acquis / Moyen / À travailler)</span></div>
   <div style="height:200px;margin-bottom:14px"><canvas id="ob-overview-radar" aria-label="Vue d'ensemble par thème">Vue d'ensemble</canvas></div>
   <div id="ob-perf-sections" style="margin-bottom:20px"></div>
 
-  <div style="font-size:12px;font-weight:700;color:#2d5a3d;text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Objectifs <span style="font-weight:400;text-transform:none;color:#7a7566">(optionnel)</span></div>
+  <div style="font-size:12px;font-weight:700;color:#6fa82c;text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Objectifs <span style="font-weight:400;text-transform:none;color:#7a7566">(optionnel)</span></div>
   <div id="ob-goals-list" style="margin-bottom:8px"></div>
   <div style="display:flex;gap:8px;margin-bottom:24px">
     <input id="ob-goal-text" type="text" placeholder="Ex. Enchaîner un 7c" style="flex:2;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box">
@@ -99,7 +99,7 @@
     <button onclick="obAddGoal()" style="background:#f4f2ee;border:1px solid #ddd;border-radius:8px;padding:0 14px;font-size:13px;font-weight:600;cursor:pointer">+ Ajouter</button>
   </div>
 
-  <button id="ob-submit" onclick="submitOnboarding()" style="width:100%;background:#2d5a3d;color:#fff;border:none;padding:13px;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer">Créer mon compte</button>
+  <button id="ob-submit" onclick="submitOnboarding()" style="width:100%;background:#6fa82c;color:#fff;border:none;padding:13px;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer">Créer mon compte</button>
 </div>
 </div>
 
@@ -108,21 +108,29 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Bloc & Voie — Carnet d'entraînement</title>
+<title>Digger — Carnet d'entraînement</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <style>
 :root {
-  --bg: #f4f2ee;
+  /* Digger DA — noir / charbon / crème / vert. Valeurs approximées depuis la charte fournie,
+     à corriger si tu as les codes hexa exacts (une seule ligne à changer). */
+  --dg-black: #0e0e0e;
+  --dg-charcoal: #2a2a2a;
+  --dg-cream: #e8e6dc;
+  --dg-green: #6fa82c;
+  --dg-green-dark: #2e7032;
+
+  --bg: var(--dg-cream);
   --surface: #ffffff;
-  --surface2: #f9f8f5;
-  --border: rgba(30,28,20,.1);
-  --border2: rgba(30,28,20,.18);
-  --text: #1e1c14;
-  --muted: #7a7566;
-  --accent: #2d5a3d;
-  --accent2: #e8f5ed;
+  --surface2: #f4f2e9;
+  --border: rgba(14,14,14,.1);
+  --border2: rgba(14,14,14,.2);
+  --text: var(--dg-black);
+  --muted: #6b6a63;
+  --accent: var(--dg-green);
+  --accent2: #e8f3dc;
   --warm: #c4501a;
   --warm2: #fef3ec;
   --gold: #b07a10;
@@ -131,13 +139,13 @@
   --blue2: #e8f0fa;
   --purple: #5a2d82;
   --purple2: #f3edf8;
-  --radius: 16px;
-  --r-sm: 10px;
-  --r-xs: 6px;
-  --font: 'DM Sans', system-ui, sans-serif;
-  --serif: 'DM Serif Display', Georgia, serif;
-  --shadow: 0 2px 12px rgba(30,28,20,.07);
-  --shadow2: 0 8px 32px rgba(30,28,20,.12);
+  --radius: 12px;
+  --r-sm: 8px;
+  --r-xs: 5px;
+  --font: 'Space Grotesk', system-ui, sans-serif;
+  --serif: 'Anton', 'Space Grotesk', system-ui, sans-serif;
+  --shadow: 0 2px 12px rgba(14,14,14,.07);
+  --shadow2: 0 8px 32px rgba(14,14,14,.12);
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; }
@@ -152,18 +160,18 @@ button, input, select, textarea { font-family: inherit; }
 .news-ticker-text[href]:hover { text-decoration: underline; cursor: pointer; }
 .news-ticker-close { background: none; border: none; color: rgba(255,255,255,.7); cursor: pointer; font-size: 13px; flex-shrink: 0; line-height: 1; padding: 2px 4px; }
 .news-ticker-close:hover { color: #fff; }
-.sidebar { background: var(--surface); border-right: 1px solid var(--border); padding: 20px 0; position: sticky; top: 0; height: 100vh; overflow-y: auto; display: flex; flex-direction: column; }
-.logo { padding: 0 20px 24px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
-.logo h1 { font-family: var(--serif); font-size: 22px; color: var(--accent); letter-spacing: -.3px; }
-.logo p { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.sidebar { background: var(--dg-black); border-right: 1px solid var(--dg-black); padding: 20px 0; position: sticky; top: 0; height: 100vh; overflow-y: auto; display: flex; flex-direction: column; }
+.logo { padding: 0 20px 24px; border-bottom: 1px solid rgba(255,255,255,.12); margin-bottom: 16px; }
+.logo h1 { font-family: var(--serif); font-size: 22px; color: #fff; letter-spacing: -.3px; text-transform: uppercase; }
+.logo p { font-size: 12px; color: #8a897f; margin-top: 2px; }
 .nav-group { margin-bottom: 8px; }
-.nav-label { font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding: 0 20px 6px; }
-.nav-btn { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 20px; background: none; border: none; cursor: pointer; color: var(--muted); font-size: 14px; font-weight: 400; border-radius: 0; transition: all .15s; text-align: left; }
-.nav-btn:hover { background: var(--surface2); color: var(--text); }
-.nav-btn.active { background: var(--accent2); color: var(--accent); font-weight: 500; }
+.nav-label { font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: #6f6e65; padding: 0 20px 6px; }
+.nav-btn { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 20px; background: none; border: none; cursor: pointer; color: #b0afa6; font-size: 14px; font-weight: 400; border-radius: 0; transition: all .15s; text-align: left; }
+.nav-btn:hover { background: rgba(255,255,255,.06); color: #fff; }
+.nav-btn.active { background: var(--dg-green); color: var(--dg-black); font-weight: 600; }
 .nav-btn .icon { width: 20px; height: 20px; opacity: .7; flex-shrink: 0; }
 .nav-btn.active .icon { opacity: 1; }
-.sidebar-footer { margin-top: auto; padding: 16px 20px; border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); }
+.sidebar-footer { margin-top: auto; padding: 16px 20px; border-top: 1px solid rgba(255,255,255,.12); font-size: 12px; color: #8a897f; }
 
 .main { padding: 28px; overflow-x: hidden; }
 .page { display: none; }
@@ -171,8 +179,8 @@ button, input, select, textarea { font-family: inherit; }
 
 /* Mode aperçu athlète : teinte visuelle pour qu'on sente qu'on est "dans" un autre compte */
 body.preview-mode .main { background: #f7f4ec; box-shadow: inset 0 0 0 3px rgba(45,90,61,.25); border-radius: 10px; }
-body.preview-mode .sidebar { background: #f7f4ec; border-right-color: #2d5a3d; }
-body.preview-mode #sidebar-user { color: #2d5a3d !important; font-weight: 700; }
+body.preview-mode .sidebar { background: #f7f4ec; border-right-color: #6fa82c; }
+body.preview-mode #sidebar-user { color: #6fa82c !important; font-weight: 700; }
 
 /* Headers */
 .page-header { margin-bottom: 28px; }
@@ -207,14 +215,14 @@ body.preview-mode #sidebar-user { color: #2d5a3d !important; font-weight: 700; }
 .btn { border: 1px solid var(--border2); background: var(--surface); color: var(--text); border-radius: var(--r-sm); padding: 9px 14px; cursor: pointer; font-size: 13px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; transition: all .12s; white-space: nowrap; }
 .btn:hover { background: var(--surface2); }
 .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
-.btn.primary:hover { background: #245030; }
+.btn.primary:hover { background: #5a8a22; }
 .btn.sm { padding: 6px 10px; font-size: 12px; border-radius: var(--r-xs); }
 .btn.danger { color: var(--warm); }
 .btn.danger:hover { background: var(--warm2); }
 
 /* Grade badge */
 .grade { display: inline-flex; align-items: center; justify-content: center; height: 28px; min-width: 44px; border-radius: 99px; font-size: 13px; font-weight: 600; padding: 0 10px; }
-.g-easy { background: #e8f5ed; color: #2d5a3d; }
+.g-easy { background: #e8f5ed; color: #6fa82c; }
 .g-mid { background: #fdf6e3; color: #b07a10; }
 .g-hard { background: #fef3ec; color: #c4501a; }
 .g-elite { background: #f3edf8; color: #5a2d82; }
@@ -232,7 +240,7 @@ body.preview-mode #sidebar-user { color: #2d5a3d !important; font-weight: 700; }
 
 /* C-Level badges */
 .clevel { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: var(--r-sm); font-size: 13px; font-weight: 700; border: 1.5px solid; }
-.c1 { background: #e8f5ed; color: #2d5a3d; border-color: #b8dcc5; }
+.c1 { background: #e8f5ed; color: #6fa82c; border-color: #b8dcc5; }
 .c2 { background: #fdf6e3; color: #b07a10; border-color: #e8d08a; }
 .c3 { background: #fef3ec; color: #c4501a; border-color: #f4b896; }
 .c4 { background: #f3edf8; color: #5a2d82; border-color: #d4aff0; }
@@ -443,7 +451,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 .sb-tag.type-voies { background:#e8f0fa; color:#1a4a7a; border-color:#b5d4f4; }
 .sb-tag.type-falaise { background:#fdf6e3; color:#b07a10; border-color:#e8d08a; }
 .sb-tag.type-ppg { background:#fef3ec; color:#c4501a; border-color:#f4b896; }
-.sb-tag.type-mobilite { background:#e8f5ed; color:#2d5a3d; border-color:#b8dcc5; }
+.sb-tag.type-mobilite { background:#e8f5ed; color:#6fa82c; border-color:#b8dcc5; }
 .sb-intensity { display:inline-flex; gap:2px; }
 .sb-intensity span { width:7px; height:7px; border-radius:50%; background:var(--border2); }
 .sb-intensity span.on { background:var(--accent); }
@@ -471,7 +479,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 .ai-input-bar textarea { flex: 1; border: 1px solid var(--border2); border-radius: var(--r-sm); padding: 10px 12px; font-size: 14px; resize: none; min-height: 44px; max-height: 140px; background: var(--surface2); color: var(--text); outline: none; transition: border-color .12s; line-height: 1.4; }
 .ai-input-bar textarea:focus { border-color: var(--accent); background: var(--surface); }
 .ai-send-btn { background: var(--accent); color: #fff; border: none; border-radius: var(--r-sm); padding: 0 18px; cursor: pointer; font-size: 20px; flex-shrink: 0; transition: background .12s; display: flex; align-items: center; }
-.ai-send-btn:hover { background: #245030; }
+.ai-send-btn:hover { background: #5a8a22; }
 .ai-send-btn:disabled { background: var(--border2); cursor: not-allowed; }
 .ai-shortcuts { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
 .ai-shortcut { padding: 6px 12px; border-radius: 99px; border: 1px solid var(--border2); background: var(--surface); color: var(--text); font-size: 12px; cursor: pointer; transition: all .12s; }
@@ -567,14 +575,14 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 <!-- Sidebar -->
 <aside class="sidebar">
   <div class="logo">
-    <h1>Bloc & Voie</h1>
+    <h1>Digger<span style="color:var(--dg-green)">.</span></h1>
     <p>Carnet d'entraînement</p>
   </div>
 
   <!-- Climber switcher -->
   <div class="climber-switcher">
     <button class="climber-active" onclick="openClimberModal()" title="Changer de grimpeur">
-      <div class="climber-avatar" id="sidebar-avatar" style="background:#2d5a3d">?</div>
+      <div class="climber-avatar" id="sidebar-avatar" style="background:#6fa82c">?</div>
       <div class="climber-info">
         <div class="climber-name" id="sidebar-name">—</div>
         <div class="climber-grade" id="sidebar-grade">grade réf. —</div>
@@ -676,9 +684,9 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 <!-- Main -->
 <main class="main">
 
-<div id="preview-mode-banner" style="display:none;position:sticky;top:0;z-index:50;background:#2d5a3d;color:#fff;padding:10px 16px;border-radius:10px;margin-bottom:16px;font-size:13px;font-weight:600;align-items:center;justify-content:space-between;gap:12px">
+<div id="preview-mode-banner" style="display:none;position:sticky;top:0;z-index:50;background:#6fa82c;color:#fff;padding:10px 16px;border-radius:10px;margin-bottom:16px;font-size:13px;font-weight:600;align-items:center;justify-content:space-between;gap:12px">
   <span>👁 Mode aperçu — vue de <span id="preview-mode-name">l'athlète</span> côté athlète</span>
-  <button class="btn sm" style="background:#fff;color:#2d5a3d;border:none" onclick="togglePreviewMode()">Quitter l'aperçu</button>
+  <button class="btn sm" style="background:#fff;color:#6fa82c;border:none" onclick="togglePreviewMode()">Quitter l'aperçu</button>
 </div>
 
 <!-- ═══════════════ DASHBOARD ═══════════════ -->
@@ -2593,11 +2601,11 @@ Utilise les raccourcis ci-dessus ou pose-moi directement une question. Par exemp
 // ═══════════════ DATA & CONSTANTS ═══════════════
 const GRADES = ["4a","4a+","4b","4b+","4c","4c+","5a","5a+","5b","5b+","5c","5c+","6a","6a+","6b","6b+","6c","6c+","7a","7a+","7b","7b+","7c","7c+","8a","8a+","8b","8b+","8c","8c+","9a","9a+"];
 const GRADE_IDX = Object.fromEntries(GRADES.map((g,i)=>[g,i]));
-const CLIMBER_COLORS = ['#2d5a3d','#1a4a7a','#b07a10','#c4501a','#5a2d82','#7a1a3d','#1a6a7a','#4a5a1a','#7a3a1a','#2a2a7a'];
+const CLIMBER_COLORS = ['#6fa82c','#1a4a7a','#b07a10','#c4501a','#5a2d82','#7a1a3d','#1a6a7a','#4a5a1a','#7a3a1a','#2a2a7a'];
 
 const SESSION_TYPES = {
   // ── Escalade ──
-  bloc:          {label:'Bloc salle',            color:'#2d5a3d', group:'Escalade'},
+  bloc:          {label:'Bloc salle',            color:'#6fa82c', group:'Escalade'},
   voies:         {label:'Voies salle',            color:'#1a4a7a', group:'Escalade'},
   falaise:       {label:'Falaise / Outdoor',      color:'#b07a10', group:'Escalade'},
   pan:           {label:'Pan / Woody / Board',    color:'#4a7a1a', group:'Escalade'},
@@ -3311,7 +3319,7 @@ function loadDB() {
       // Migrate old single-climber format
       if (d && d.logs && !d.climbers) {
         const id = 'c_'+Date.now();
-        return { climbers: [{id, name:'Grimpeur 1', color:'#2d5a3d', level:'7a', logs: d.logs, trips: []}], activeId: id };
+        return { climbers: [{id, name:'Grimpeur 1', color:'#6fa82c', level:'7a', logs: d.logs, trips: []}], activeId: id };
       }
       if (d && d.climbers && d.climbers.length) {
         if (!d.sessionBank) d.sessionBank = mkSampleBank();
@@ -3324,7 +3332,7 @@ function loadDB() {
   const id1 = 'c_sample1', id2 = 'c_sample2';
   return {
     climbers: [
-      {id: id1, name: 'Ben', color: '#2d5a3d', level: '7b', logs: mkSampleLogs(), trips: []},
+      {id: id1, name: 'Ben', color: '#6fa82c', level: '7b', logs: mkSampleLogs(), trips: []},
       {id: id2, name: 'Marie', color: '#1a4a7a', level: '6c', logs: mkSampleLogs2(), trips: []},
     ],
     activeId: id1,
@@ -3748,8 +3756,8 @@ function renderDashboard() {
       labels:wData.map(w=>w.label),
       datasets:[{
         data:wData.map(w=>w.avgInt||null),
-        borderColor:'#2d5a3d',backgroundColor:'rgba(45,90,61,.08)',tension:.4,fill:true,
-        pointBackgroundColor:'#2d5a3d',pointRadius:3,spanGaps:true
+        borderColor:'#6fa82c',backgroundColor:'rgba(45,90,61,.08)',tension:.4,fill:true,
+        pointBackgroundColor:'#6fa82c',pointRadius:3,spanGaps:true
       }]
     },
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{font:{size:10}}},y:{min:0,max:5,grid:{color:'rgba(0,0,0,.05)'},ticks:{font:{size:10},stepSize:1}}}}
@@ -3924,7 +3932,7 @@ function renderCalendarWeek() {
 }
 
 // Couleur stable par nom de cycle (hash simple sur le nom)
-const CYCLE_COLOR_PALETTE = ['#2d5a3d','#1a4a7a','#b07a10','#c4501a','#5a2d82','#7a1a3d','#1a6a7a','#4a5a1a'];
+const CYCLE_COLOR_PALETTE = ['#6fa82c','#1a4a7a','#b07a10','#c4501a','#5a2d82','#7a1a3d','#1a6a7a','#4a5a1a'];
 function colorForCycleName(name) {
   let h = 0;
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
@@ -4441,7 +4449,7 @@ function renderPerformance() {
     data:{
       labels:wData.map(w=>w.label),
       datasets:[
-        {label:'Tête',data:wBestTete,borderColor:'#2d5a3d',backgroundColor:'transparent',tension:.4,pointRadius:3,pointBackgroundColor:'#2d5a3d',spanGaps:true},
+        {label:'Tête',data:wBestTete,borderColor:'#6fa82c',backgroundColor:'transparent',tension:.4,pointRadius:3,pointBackgroundColor:'#6fa82c',spanGaps:true},
         {label:'Moulinette',data:wBestMoul,borderColor:'#b07a10',backgroundColor:'transparent',tension:.4,pointRadius:3,pointBackgroundColor:'#b07a10',borderDash:[4,3],spanGaps:true},
       ]
     },
@@ -4451,7 +4459,7 @@ function renderPerformance() {
     }}
   });
   document.getElementById('perf-line-legend').innerHTML=`
-    <span class="legend-item"><span class="legend-swatch" style="background:#2d5a3d"></span>Tête</span>
+    <span class="legend-item"><span class="legend-swatch" style="background:#6fa82c"></span>Tête</span>
     <span class="legend-item"><span class="legend-swatch" style="background:#b07a10;opacity:.7"></span>Moulinette</span>
   `;
 
@@ -4488,7 +4496,7 @@ function renderSmallPyramid(logs, ctx='all', loc='all') {
     return `<div class="pyr-row">
       <div class="pyr-grade">${g}</div>
       <div class="pyr-bars">
-        ${barW(d.tete,'#2d5a3d')}${barW(d.moulinette,'#b07a10')}${barW(d.flash||d.av,'#7ab8f5')}${barW(d.try,'#d9cff5')}
+        ${barW(d.tete,'#6fa82c')}${barW(d.moulinette,'#b07a10')}${barW(d.flash||d.av,'#7ab8f5')}${barW(d.try,'#d9cff5')}
       </div>
       <div class="pyr-count">${total}</div>
     </div>`;
@@ -4585,7 +4593,7 @@ function renderWorkload() {
     data:{
       labels:weeklyData(12).map(w=>w.label),
       datasets:[
-        {label:'Actuel',data:cumCurrent,borderColor:'#2d5a3d',backgroundColor:'rgba(45,90,61,.08)',fill:true,tension:.3,pointRadius:2},
+        {label:'Actuel',data:cumCurrent,borderColor:'#6fa82c',backgroundColor:'rgba(45,90,61,.08)',fill:true,tension:.3,pointRadius:2},
         {label:'Précédent',data:cumPrev,borderColor:'rgba(45,90,61,.35)',backgroundColor:'transparent',borderDash:[4,3],tension:.3,pointRadius:2}
       ]
     },
@@ -4835,7 +4843,7 @@ function openTripDetail(id) {
       const barW = (n,color,label) => n?`<div class="pyr-bar" style="width:${Math.max(6,(n/maxCount)*300)}px;background:${color}" title="${label}: ${n}"></div>`:'';
       return `<div class="pyr-row">
         <div class="pyr-grade">${g}</div>
-        <div class="pyr-bars">${barW(d.sent,'#2d5a3d','Envoyées')}${barW(d.try,'#d9cff5','Essais')}</div>
+        <div class="pyr-bars">${barW(d.sent,'#6fa82c','Envoyées')}${barW(d.try,'#d9cff5','Essais')}</div>
         <div class="pyr-count">${d.sent+d.try}</div>
       </div>`;
     }).join('')}</div>` : '<p class="trip-empty">Aucune ascension enregistrée sur cette période.</p>'}
@@ -5509,7 +5517,7 @@ function renderPyramidPage() {
     return `<div class="pyr-row">
       <div class="pyr-grade">${g}</div>
       <div class="pyr-bars">
-        ${barW(d.tete,'#2d5a3d','Tête')}${barW(d.moulinette,'#b07a10','Moulinette')}${barW((d.flash||0)+(d.av||0),'#7ab8f5','Flash/AV')}${barW(d.try,'#d9cff5','Essai')}
+        ${barW(d.tete,'#6fa82c','Tête')}${barW(d.moulinette,'#b07a10','Moulinette')}${barW((d.flash||0)+(d.av||0),'#7ab8f5','Flash/AV')}${barW(d.try,'#d9cff5','Essai')}
       </div>
       <div class="pyr-count">${total}</div>
     </div>`;
@@ -6503,7 +6511,7 @@ function renderPerfSections(containerId, selfValues, coachValues, canEditSelf, c
   const showCoach = canEditCoach || !!(coachValues && Object.keys(coachValues).length);
   const selfColHtml = (theme) => `
     <div>
-      ${showCoach ? `<div style="font-size:11px;font-weight:600;color:#2d5a3d;margin-bottom:6px">🧗 Athlète</div>` : ''}
+      ${showCoach ? `<div style="font-size:11px;font-weight:600;color:#6fa82c;margin-bottom:6px">🧗 Athlète</div>` : ''}
       ${PERF_THEMES[theme].map(f => `
         <div class="perf-rate-row">
           <span class="perf-rate-label">${esc(f)}</span>
@@ -6570,7 +6578,7 @@ function renderPerfOverviewRadar(canvasId, selfRatings, coachRatings, hasCoachDa
   const datasets = [{
     label: 'Athlète',
     data: PERF_THEME_NAMES.map(t => perfThemeAverage(selfRatings, t)),
-    borderColor: '#2d5a3d', backgroundColor: 'rgba(45,90,61,.18)', pointBackgroundColor: '#2d5a3d', borderWidth: 2
+    borderColor: '#6fa82c', backgroundColor: 'rgba(45,90,61,.18)', pointBackgroundColor: '#6fa82c', borderWidth: 2
   }];
   if (hasCoachData) datasets.push({
     label: 'Coach',
@@ -6594,7 +6602,7 @@ function renderPerfThemeRadar(canvasId, theme, selfRatings, coachRatings, hasCoa
   const datasets = [{
     label: 'Athlète',
     data: factors.map(f => (selfRatings && selfRatings[theme] && selfRatings[theme][f]) || 2),
-    borderColor: '#2d5a3d', backgroundColor: 'rgba(45,90,61,.18)', pointBackgroundColor: '#2d5a3d', borderWidth: 2
+    borderColor: '#6fa82c', backgroundColor: 'rgba(45,90,61,.18)', pointBackgroundColor: '#6fa82c', borderWidth: 2
   }];
   if (hasCoachData) datasets.push({
     label: 'Coach',
@@ -7354,7 +7362,7 @@ function renderSidebarStats(){
 }
 
 // ═══════════════ CLIMBER MODAL ═══════════════
-const AVATAR_COLORS = ['#2d5a3d','#1a4a7a','#b07a10','#c4501a','#5a2d82','#7a1a3d','#1a6a7a','#4a5a1a','#7a3a1a','#2a2a7a'];
+const AVATAR_COLORS = ['#6fa82c','#1a4a7a','#b07a10','#c4501a','#5a2d82','#7a1a3d','#1a6a7a','#4a5a1a','#7a3a1a','#2a2a7a'];
 let cfSelectedColor = AVATAR_COLORS[0];
 
 function openClimberModal() {
