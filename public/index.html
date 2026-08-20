@@ -175,9 +175,9 @@ button, input, select, textarea { font-family: inherit; }
 .logo p { font-size: 12px; color: #8a897f; margin-top: 2px; }
 .nav-group { margin-bottom: 8px; }
 .nav-label { font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: #6f6e65; padding: 0 20px 6px; }
-.nav-btn { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 20px; background: none; border: none; border-left: 3px solid transparent; cursor: pointer; color: #b0afa6; font-size: 14px; font-weight: 400; border-radius: 0; transition: all .15s; text-align: left; }
-.nav-btn:hover { background: rgba(255,255,255,.06); color: #fff; }
-.nav-btn.active { background: rgba(31,90,67,.28); border-left-color: #3d8a68; color: #fff; font-weight: 600; }
+.nav-btn { display: flex; align-items: center; gap: 10px; width: calc(100% - 20px); margin: 1px 10px; padding: 10px 12px; background: none; border: none; cursor: pointer; color: #b0afa6; font-size: 14px; font-weight: 400; border-radius: var(--r-sm); transition: all .15s; text-align: left; }
+.nav-btn:hover { background: rgba(255,255,255,.07); color: #fff; }
+.nav-btn.active { background: var(--dg-green); color: #fff; font-weight: 600; }
 .nav-btn .icon { width: 20px; height: 20px; opacity: .7; flex-shrink: 0; }
 .nav-btn.active .icon { opacity: 1; }
 .sidebar-footer { margin-top: auto; padding: 16px 20px; border-top: 1px solid rgba(255,255,255,.12); font-size: 12px; color: #8a897f; }
@@ -201,7 +201,7 @@ body.preview-mode #sidebar-user { color: #1f5a43 !important; font-weight: 700; }
 .stat-grid-4 { grid-template-columns: repeat(4, 1fr); }
 .stat-grid-3 { grid-template-columns: repeat(3, 1fr); }
 .stat-grid-2 { grid-template-columns: repeat(2, 1fr); }
-.stat-card { position: relative; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 26px 18px 20px; counter-increment: statnum; }
+.stat-card { position: relative; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 26px 18px 20px; counter-increment: statnum; box-shadow: var(--shadow); }
 .stat-card::before { content: counter(statnum, decimal-leading-zero); position: absolute; top: 12px; left: 18px; font-family: var(--serif); font-size: 10px; font-weight: 400; letter-spacing: .04em; color: var(--muted); opacity: .6; }
 .stat-card::after { content: ''; position: absolute; left: 18px; bottom: 12px; width: 20px; height: 2px; background: var(--dg-green); }
 .stat-card:nth-of-type(4n+2)::after { background: var(--dg-mineral); }
@@ -213,13 +213,24 @@ body.preview-mode #sidebar-user { color: #1f5a43 !important; font-weight: 700; }
 .stat-card.accent { background: var(--accent2); border-color: rgba(31,90,67,.15); }
 .stat-card.accent::after { background: var(--dg-green); }
 .stat-card.accent .stat-value { color: var(--accent); }
+.stat-card.hero { background: var(--dg-green-deep); border-color: var(--dg-green-deep); box-shadow: var(--shadow); }
+.stat-card.hero .stat-label, .stat-card.hero .stat-sub { color: rgba(245,245,241,.62); }
+.stat-card.hero .stat-value { color: var(--dg-offwhite); }
+.stat-card.hero::before { color: rgba(245,245,241,.45); }
+.stat-card.hero::after { background: var(--dg-sable); }
+.stat-card.tint-mineral { background: var(--mineral2); border-color: rgba(85,122,130,.18); }
+.stat-card.tint-mineral .stat-value { color: var(--dg-mineral); }
+.stat-card.tint-mineral::after { background: var(--dg-mineral); }
+#dash-top-stats .stat-card:nth-of-type(4)::after { background: var(--dg-green); }
+.mini-spark { height: 20px; margin-top: 8px; }
+.mini-spark-svg { width: 100%; height: 100%; display: block; }
 .stat-card.warm { background: var(--terra2); border-color: rgba(201,107,66,.18); }
 .stat-card.warm::after { background: var(--dg-terra); }
 .stat-card.warm .stat-value { color: var(--dg-terra); }
 .stat-card.warm .stat-value { color: var(--warm); }
 
 /* Panels */
-.panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 20px; }
+.panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 20px; box-shadow: var(--shadow); }
 .panel-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
 .panel-title { font-weight: 600; font-size: 15px; }
 .panel-sub { font-size: 12px; color: var(--muted); }
@@ -540,38 +551,37 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 .fp-quality-warn { font-size: 11px; color: var(--warm); margin: 4px 0; }
 .game-hidden { display: none !important; }
 /* Catégories de badges — en-tête éditorial numéroté */
-.badge-cat-block { margin-bottom: 52px; }
-.badge-cat-header { display: flex; align-items: baseline; gap: 10px; margin-bottom: 22px; }
+.badge-cat-block { margin-bottom: 34px; }
+.badge-cat-header { display: flex; align-items: baseline; gap: 10px; margin-bottom: 16px; }
 .badge-cat-num { font-family: var(--serif); font-size: 13px; color: var(--dg-green); letter-spacing: .02em; }
 .badge-cat-title { font-family: var(--serif); font-size: 16px; font-weight: 400; text-transform: uppercase; letter-spacing: .02em; color: var(--text); }
 .badge-cat-line { flex: 1; height: 1px; background: var(--border); }
-.badge-grid { display: flex; flex-wrap: wrap; gap: 30px 26px; }
+.badge-grid { display: flex; flex-wrap: wrap; gap: 18px 16px; }
 
 /* Badges = objets graphiques posés sur le fond, pas de carte */
-.badge-item { width: 52px; text-align: center; }
+.badge-item { width: 60px; text-align: center; }
 
 /* Forme du badge (SVG) : cercle / hexagone / écusson / rectangle / losange selon la famille */
-.badge-shape { position: relative; width: 52px; height: 52px; margin: 0 auto; }
+.badge-shape { position: relative; width: 60px; height: 60px; margin: 0 auto; }
 .badge-shape-svg { width: 100%; height: 100%; overflow: visible; }
 .badge-shape-svg > * { stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.badge-shape-svg .badge-inner-ring * { fill: none; }
 .locked .badge-shape-svg > * { fill: none; stroke: #d2d2cd; }
 .badge-shape-value { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: var(--serif); font-weight: 400; line-height: 1; color: #c4c4bf; }
-.badge-shape-value.sz-lg { font-size: 17px; }
-.badge-shape-value.sz-md { font-size: 14px; }
-.badge-shape-value.sz-sm { font-size: 10.5px; letter-spacing: -.02em; }
-.unlocked.max-tier .badge-shape-svg > * { stroke-width: 2; }
+.badge-shape-value.sz-lg { font-size: 19px; }
+.badge-shape-value.sz-md { font-size: 15px; }
+.badge-shape-value.sz-sm { font-size: 11.5px; letter-spacing: -.02em; }
+.unlocked.max-tier .badge-shape-svg > * { stroke-width: 2.2; }
 
-/* Débloqué : une couleur propre à chaque famille de badge, jamais toutes noires */
-.unlocked.shape-circle .badge-shape-svg > * { fill: var(--dg-green); stroke: var(--dg-green); }
-.unlocked.shape-circle .badge-shape-value { color: var(--dg-offwhite); }
-.unlocked.shape-hexagon .badge-shape-svg > * { fill: var(--dg-anthracite); stroke: var(--dg-mineral); }
-.unlocked.shape-hexagon .badge-shape-value { color: #fff; }
-.unlocked.shape-rect .badge-shape-svg > * { fill: var(--dg-offwhite); stroke: var(--dg-terra); }
-.unlocked.shape-rect .badge-shape-value { color: var(--dg-anthracite); }
-.unlocked.shape-shield .badge-shape-svg > * { fill: var(--dg-green); stroke: var(--dg-green-dark); }
-.unlocked.shape-shield .badge-shape-value { color: var(--dg-offwhite); }
-.unlocked.shape-diamond .badge-shape-svg > * { fill: var(--dg-anthracite); stroke: var(--dg-sable); }
-.unlocked.shape-diamond .badge-shape-value { color: var(--dg-sable); }
+/* Débloqué : la couleur progresse avec la difficulté du palier, pas avec la famille */
+.unlocked.stage-0 .badge-shape-svg > * { fill: var(--dg-offwhite); stroke: var(--dg-green); }
+.unlocked.stage-0 .badge-shape-value { color: var(--dg-green); }
+.unlocked.stage-1 .badge-shape-svg > * { fill: var(--dg-green); stroke: var(--dg-green); }
+.unlocked.stage-1 .badge-shape-value { color: var(--dg-offwhite); }
+.unlocked.stage-2 .badge-shape-svg > * { fill: var(--dg-anthracite); stroke: var(--dg-terra); }
+.unlocked.stage-2 .badge-shape-value { color: var(--dg-offwhite); }
+.unlocked.stage-3 .badge-shape-svg > * { fill: var(--dg-black); stroke: var(--dg-sable); }
+.unlocked.stage-3 .badge-shape-value { color: var(--dg-offwhite); }
 
 /* Seul le prochain objectif de chaque catégorie affiche un repère de progression */
 .badge-next-pct { margin-top: 6px; font-size: 10px; font-weight: 600; color: var(--dg-green); letter-spacing: .02em; }
@@ -739,18 +749,19 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     <h2>Tableau de bord</h2>
     <p id="dashDate">—</p>
   </div>
-  <div class="stat-grid stat-grid-4">
-    <div class="stat-card accent">
+  <div class="stat-grid stat-grid-4" id="dash-top-stats">
+    <div class="stat-card hero">
       <div class="stat-label">Grade de référence</div>
       <div class="stat-value" id="dash-ref-grade">—</div>
       <div class="stat-sub">90 derniers jours</div>
     </div>
-    <div class="stat-card">
+    <div class="stat-card warm">
       <div class="stat-label">Charge 7 jours</div>
       <div class="stat-value" id="dash-load7">0</div>
       <div class="stat-sub" id="dash-clevel7">C1</div>
+      <div class="mini-spark" id="dash-load7-spark"></div>
     </div>
-    <div class="stat-card">
+    <div class="stat-card tint-mineral">
       <div class="stat-label">Charge 28 jours</div>
       <div class="stat-value" id="dash-load28">0</div>
       <div class="stat-sub" id="dash-clevel28">C1</div>
@@ -3680,10 +3691,13 @@ const BADGE_TICK_POS = [
   {x1:32,y1:64,x2:32,y2:69},
   {x1:0,y1:32,x2:-5,y2:32}
 ];
-function badgeDetailSvg(tierIdx, isMaxTier) {
+function badgeDetailSvg(shape, tierIdx, isMaxTier, stage) {
   const n = Math.min(tierIdx, 4);
   let svg = BADGE_TICK_POS.slice(0, n).map(p=>`<line x1="${p.x1}" y1="${p.y1}" x2="${p.x2}" y2="${p.y2}"/>`).join('');
-  if (isMaxTier) svg += `<circle cx="32" cy="-8" r="2.5"/>`;
+  if (stage >= 2) {
+    svg += `<g class="badge-inner-ring" transform="translate(32,32) scale(0.72) translate(-32,-32)" stroke-dasharray="8 6">${BADGE_SHAPE_SVG[shape]}</g>`;
+  }
+  if (isMaxTier) svg += `<circle cx="32" cy="-8" r="2.5"/><line x1="27" y1="70" x2="37" y2="70"/>`;
   return svg;
 }
 function computeBadgeState(climber) {
@@ -3698,9 +3712,12 @@ function computeBadgeState(climber) {
       const unlocked = current >= target;
       const isNextObjective = !unlocked && !nextObjectiveSet;
       if (isNextObjective) nextObjectiveSet = true;
+      const isMaxTier = tierIdx === cat.tiers.length-1;
+      const ratio = cat.tiers.length>1 ? tierIdx/(cat.tiers.length-1) : 1;
+      const stage = isMaxTier ? 3 : ratio < 0.34 ? 0 : ratio < 0.67 ? 1 : 2;
       result.push({
         catId: cat.id, catLabel: cat.label, icon: cat.icon, shape: cat.shape, tag: cat.tag,
-        tierIdx, isMaxTier: tierIdx === cat.tiers.length-1,
+        tierIdx, isMaxTier, stage,
         label: cat.type==='grade' ? `Premier ${tier}` : `${tier} ${cat.unitLabel}`,
         unlocked, isNextObjective,
         headline: String(tier).toUpperCase(),
@@ -3737,6 +3754,14 @@ function weeklyData(nWeeks=16) {
     results.push({start,end,load:Math.round(load),sessions:logs.length,avgInt:Math.round(avgInt*10)/10,label});
   }
   return results;
+}
+
+function miniSparkSvg(values, color) {
+  if (!values || !values.length) return '';
+  const max = Math.max(...values, 1);
+  const w = 60, h = 20, step = w/((values.length-1)||1);
+  const pts = values.map((v,i)=>`${(i*step).toFixed(1)},${(h-(v/max)*h*0.85-2).toFixed(1)}`).join(' ');
+  return `<svg viewBox="0 0 ${w} ${h}" class="mini-spark-svg" preserveAspectRatio="none"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg>`;
 }
 
 // ═══════════════ NAVIGATION ═══════════════
@@ -3792,6 +3817,8 @@ function renderDashboard() {
   document.getElementById('dash-clevel7').innerHTML=`<span class="clevel ${cLevel(l7).cls}" style="padding:2px 8px;font-size:11px">${cLevel(l7).label}</span>`;
   document.getElementById('dash-load28').textContent=l28;
   document.getElementById('dash-clevel28').innerHTML=`<span class="clevel ${cLevel(l28).cls}" style="padding:2px 8px;font-size:11px">${cLevel(l28).label}</span>`;
+  const sparkEl = document.getElementById('dash-load7-spark');
+  if (sparkEl) sparkEl.innerHTML = miniSparkSvg(weeklyData(8).map(w=>w.load), '#c96b42');
   const now=new Date(), monthStr=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
   const monthLogs=getLogs().filter(l=>l.date.startsWith(monthStr) && !l.planned);
   document.getElementById('dash-month-sessions').textContent=monthLogs.length;
@@ -3823,7 +3850,7 @@ function renderDashboard() {
       labels:wData.map(w=>w.label),
       datasets:[{
         data:wData.map(w=>w.avgInt||null),
-        borderColor:'#1f5a43',backgroundColor:'rgba(31,90,67,.08)',tension:.4,fill:true,
+        borderColor:'#1f5a43',backgroundColor:'rgba(31,90,67,.22)',tension:.4,fill:true,
         pointBackgroundColor:'#1f5a43',pointRadius:3,spanGaps:true
       }]
     },
@@ -4660,7 +4687,7 @@ function renderWorkload() {
     data:{
       labels:weeklyData(12).map(w=>w.label),
       datasets:[
-        {label:'Actuel',data:cumCurrent,borderColor:'#1f5a43',backgroundColor:'rgba(31,90,67,.08)',fill:true,tension:.3,pointRadius:2},
+        {label:'Actuel',data:cumCurrent,borderColor:'#1f5a43',backgroundColor:'rgba(31,90,67,.22)',fill:true,tension:.3,pointRadius:2},
         {label:'Précédent',data:cumPrev,borderColor:'rgba(31,90,67,.35)',backgroundColor:'transparent',borderDash:[4,3],tension:.3,pointRadius:2}
       ]
     },
@@ -5392,9 +5419,9 @@ function renderBadges() {
         ${items.map(b => {
           const sizeCls = b.headline.length<=2?'sz-lg':b.headline.length===3?'sz-md':'sz-sm';
           return `
-          <div class="badge-item shape-${b.shape} ${b.unlocked?'unlocked':'locked'} ${b.isMaxTier?'max-tier':''}">
+          <div class="badge-item shape-${b.shape} stage-${b.stage} ${b.unlocked?'unlocked':'locked'} ${b.isMaxTier?'max-tier':''}">
             <div class="badge-shape">
-              <svg class="badge-shape-svg" viewBox="0 0 64 64">${BADGE_SHAPE_SVG[b.shape]}${badgeDetailSvg(b.tierIdx,b.isMaxTier)}</svg>
+              <svg class="badge-shape-svg" viewBox="0 0 64 64">${BADGE_SHAPE_SVG[b.shape]}${badgeDetailSvg(b.shape,b.tierIdx,b.isMaxTier,b.stage)}</svg>
               <div class="badge-shape-value ${sizeCls}">${esc(b.headline)}</div>
             </div>
             ${b.isNextObjective ? `<div class="badge-next-pct">${b.progressPct}%</div>` : ''}
