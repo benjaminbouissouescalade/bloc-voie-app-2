@@ -695,17 +695,13 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   </div>
   <div class="nav-group mode-mine">
     <div class="nav-label">Analyse</div>
-    <button class="nav-btn" data-page="performance">
-      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 17l4-8 4 4 4-6 4 6"/><path d="M3 21h18"/></svg>
-      Performance
-    </button>
     <button class="nav-btn" data-page="workload">
       <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 20V10M17 20V4M7 20v-6"/></svg>
       Charge (Workload)
     </button>
-    <button class="nav-btn" data-page="pyramid">
-      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3L21 20H3L12 3z"/><path d="M8 20h8M6.5 15h11M5 20"/></svg>
-      Pyramide
+    <button class="nav-btn" data-page="performance">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 17l4-8 4 4 4-6 4 6"/><path d="M3 21h18"/></svg>
+      Performance
     </button>
     <button class="nav-btn" data-page="finger-profile">
       <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2v6M9 4v4M15 4v4M6 8v4a6 6 0 0012 0V8"/><path d="M6 14v2a6 6 0 0012 0v-2"/></svg>
@@ -1127,6 +1123,37 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <span class="legend-item"><span class="legend-swatch" style="background:var(--accent)"></span>Enchaîné tête</span>
       <span class="legend-item"><span class="legend-swatch" style="background:#b07a10"></span>Moulinette</span>
       <span class="legend-item"><span class="legend-swatch" style="background:#7ab8f5"></span>Flash</span>
+    </div>
+  </div>
+
+  <div class="time-filters">
+    <button class="time-filter-btn" data-pyr-range="month">Ce mois</button>
+    <button class="time-filter-btn active" data-pyr-range="3m">3 mois</button>
+    <button class="time-filter-btn" data-pyr-range="6m">6 mois</button>
+    <button class="time-filter-btn" data-pyr-range="1y">1 an</button>
+    <button class="time-filter-btn" data-pyr-range="all">Tout</button>
+  </div>
+  <div class="two-col">
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Pyramide complète</span>
+        <div class="perf-tabs" id="pyr-full-tabs">
+          <button class="perf-tab active" data-pyrfull="all">Tout</button>
+          <button class="perf-tab" data-pyrfull="salle">Salle</button>
+          <button class="perf-tab" data-pyrfull="falaise">Falaise</button>
+        </div>
+      </div>
+      <div id="full-pyramid"></div>
+      <div class="legend" style="margin-top:12px">
+        <span class="legend-item"><span class="legend-swatch" style="background:var(--accent)"></span>Enchaîné tête</span>
+        <span class="legend-item"><span class="legend-swatch" style="background:#b07a10"></span>Moulinette</span>
+        <span class="legend-item"><span class="legend-swatch" style="background:#7ab8f5"></span>Flash / À vue</span>
+        <span class="legend-item"><span class="legend-swatch" style="background:#d9cff5"></span>Travail</span>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="panel-title">Stats par grade</span></div>
+      <div id="grade-stats-table"></div>
     </div>
   </div>
 </div>
@@ -1594,44 +1621,6 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   </div>
 
   <div id="crew-list-container"></div>
-</div>
-
-<!-- ═══════════════ PYRAMID ═══════════════ -->
-<div class="page" id="page-pyramid">
-  <div class="page-header">
-    <h2>Pyramide des cotations</h2>
-    <p>Visualise la répartition de tes ascensions par grade</p>
-  </div>
-  <div class="time-filters">
-    <button class="time-filter-btn" data-pyr-range="month">Ce mois</button>
-    <button class="time-filter-btn active" data-pyr-range="3m">3 mois</button>
-    <button class="time-filter-btn" data-pyr-range="6m">6 mois</button>
-    <button class="time-filter-btn" data-pyr-range="1y">1 an</button>
-    <button class="time-filter-btn" data-pyr-range="all">Tout</button>
-  </div>
-  <div class="two-col">
-    <div class="panel">
-      <div class="panel-header">
-        <span class="panel-title">Pyramide</span>
-        <div class="perf-tabs" id="pyr-full-tabs">
-          <button class="perf-tab active" data-pyrfull="all">Tout</button>
-          <button class="perf-tab" data-pyrfull="salle">Salle</button>
-          <button class="perf-tab" data-pyrfull="falaise">Falaise</button>
-        </div>
-      </div>
-      <div id="full-pyramid"></div>
-      <div class="legend" style="margin-top:12px">
-        <span class="legend-item"><span class="legend-swatch" style="background:var(--accent)"></span>Enchaîné tête</span>
-        <span class="legend-item"><span class="legend-swatch" style="background:#b07a10"></span>Moulinette</span>
-        <span class="legend-item"><span class="legend-swatch" style="background:#7ab8f5"></span>Flash / À vue</span>
-        <span class="legend-item"><span class="legend-swatch" style="background:#d9cff5"></span>Travail</span>
-      </div>
-    </div>
-    <div class="panel">
-      <div class="panel-header"><span class="panel-title">Stats par grade</span></div>
-      <div id="grade-stats-table"></div>
-    </div>
-  </div>
 </div>
 
 <!-- ═══════════════ PLANNING (COACH) ═══════════════ -->
@@ -3351,7 +3340,7 @@ function applyRoleUI() {
 }
 
 // ═══════════════ MODE MES DONNÉES / MON COACH ═══════════════
-const APPMODE_MINE_PAGES = ['dashboard','calendar','new-session','performance','workload','pyramid','finger-profile','badges','ai-coach','history','community'];
+const APPMODE_MINE_PAGES = ['dashboard','calendar','new-session','performance','workload','finger-profile','badges','ai-coach','history','community'];
 const APPMODE_COACH_PAGES = ['planning','session-bank'];
 let appMode = 'mine';
 try { appMode = localStorage.getItem('appMode') || 'mine'; } catch (e) {}
@@ -3688,9 +3677,8 @@ function makeChart(id, cfg) {
 function renderPage(name) {
   if(name==='dashboard') renderDashboard();
   if(name==='calendar') renderSimpleCalendar();
-  if(name==='performance') renderPerformance();
+  if(name==='performance') { renderPerformance(); renderPyramidPage(); }
   if(name==='workload') renderWorkload();
-  if(name==='pyramid') renderPyramidPage();
   if(name==='finger-profile') renderFingerProfile();
   if(name==='badges') renderBadges();
   if(name==='community') renderCommunity();
