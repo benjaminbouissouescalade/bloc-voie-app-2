@@ -3957,19 +3957,42 @@ function renderCalendarYear() {
   const grid = document.getElementById('cal-year-grid');
   const logs = getLogs();
   let totalLoad=0,totalAscents=0,totalMinutes=0,totalSessions=0;
-  grid.innerHTML = Array.from({length:12},(_,m)=>{
+
+  // Passe 1 : calcule les semaines de chaque mois pour pouvoir détecter
+  // les cycles qui traversent une frontière de mois (ex: dernière semaine d'avril = 1ère de mai).
+  const monthsInfo = Array.from({length:12},(_,m)=>{
     const monthLogs = logs.filter(l => { const d=new Date(l.date+'T00:00:00'); return d.getFullYear()===y && d.getMonth()===m; });
+    return { m, monthLogs, weekRows: monthWeekRows(y, m, monthLogs) };
+  });
+  monthsInfo.forEach((info, m) => {
+    const prev = monthsInfo[m-1];
+    if (!prev) return;
+    const prevLast = prev.weekRows[prev.weekRows.length-1];
+    const curFirst = info.weekRows[0];
+    if (!prevLast || !curFirst) return;
+    const shared = prevLast.cycleNames.filter(n => curFirst.cycleNames.includes(n));
+    if (shared.length) {
+      prevLast.continuesInto = shared;
+      curFirst.continuesFrom = shared;
+    }
+  });
+
+  grid.innerHTML = monthsInfo.map(({m, monthLogs, weekRows}) => {
     const doneLogs = monthLogs.filter(l=>!l.planned);
     const plannedLogs = monthLogs.filter(l=>l.planned);
     const load = monthLogs.reduce((s,l)=>s+sessionLoad(l),0);
     totalSessions+=doneLogs.length; totalMinutes+=doneLogs.reduce((s,l)=>s+(l.minutes||0),0); totalLoad+=load; totalAscents+=doneLogs.reduce((s,l)=>s+(l.ascents||[]).length,0);
     const intensity = Math.min(1, load/300);
     const monthName = new Date(y,m,1).toLocaleDateString('fr-FR',{month:'long'});
-    const weekRows = monthWeekRows(y, m, monthLogs);
+    const prevMonthName = m>0 ? new Date(y,m-1,1).toLocaleDateString('fr-FR',{month:'long'}) : '';
+    const nextMonthName = m<11 ? new Date(y,m+1,1).toLocaleDateString('fr-FR',{month:'long'}) : '';
     const weekRowsHtml = weekRows.map(w => {
       if (w.cycleNames.length) {
+        const col = colorForCycleName(w.cycleNames[0]);
+        const fromTag = w.continuesFrom ? `<span title="Suite du cycle commencé en ${esc(prevMonthName)}" style="color:${col};font-size:10px;font-weight:700;flex-shrink:0">↳</span>` : '';
+        const intoTag = w.continuesInto ? `<span title="Se poursuit en ${esc(nextMonthName)}" style="color:${col};font-size:10px;font-weight:700;flex-shrink:0">→</span>` : '';
         return `<div onclick="event.stopPropagation();calDate=new Date(${y},${m},${w.start});setCalZoom('week')" style="display:flex;gap:3px;align-items:center;height:16px;margin-bottom:3px;cursor:pointer">
-          ${w.cycleNames.map(n => `<span style="display:flex;align-items:center;gap:3px;background:${colorForCycleName(n)};color:#fff;font-size:9px;padding:1px 6px;border-radius:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:${Math.floor(100/w.cycleNames.length)}%">${esc(n)}</span>`).join('')}
+          ${fromTag}${w.cycleNames.map(n => `<span style="display:flex;align-items:center;gap:3px;background:${colorForCycleName(n)};color:#fff;font-size:9px;padding:1px 6px;border-radius:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:${Math.floor(100/w.cycleNames.length)}%">${esc(n)}</span>`).join('')}${intoTag}
         </div>`;
       }
       if (w.rowLogs.length) {
@@ -3986,7 +4009,10 @@ function renderCalendarYear() {
       return `<div style="height:16px;border-radius:3px;background:var(--border);opacity:.35;margin-bottom:3px"></div>`;
     }).join('');
     const isCurrentMonth = (m === new Date().getMonth() && y === new Date().getFullYear());
-    return `<div onclick="calDate=new Date(${y},${m},1);setCalZoom('month')" style="cursor:pointer;border:1.5px solid ${isCurrentMonth?'var(--accent)':'var(--border)'};border-radius:var(--r-sm);padding:12px;background:color-mix(in srgb, var(--accent) ${Math.round(intensity*22)}%, var(--surface2))">
+    const firstRow = weekRows[0], lastRow = weekRows[weekRows.length-1];
+    const topAccent = firstRow && firstRow.continuesFrom ? colorForCycleName(firstRow.continuesFrom[0]) : null;
+    const bottomAccent = lastRow && lastRow.continuesInto ? colorForCycleName(lastRow.continuesInto[0]) : null;
+    return `<div onclick="calDate=new Date(${y},${m},1);setCalZoom('month')" style="cursor:pointer;border:1.5px solid ${isCurrentMonth?'var(--accent)':'var(--border)'};${topAccent?`border-top:3px solid ${topAccent};`:''}${bottomAccent?`border-bottom:3px solid ${bottomAccent};`:''}border-radius:var(--r-sm);padding:12px;background:color-mix(in srgb, var(--accent) ${Math.round(intensity*22)}%, var(--surface2))">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
         <div style="font-weight:600;font-size:13px;text-transform:capitalize">${monthName}</div>
         ${isCurrentMonth?`<span class="tag" style="border-color:var(--accent);color:var(--accent);font-size:9px">en cours</span>`:''}
