@@ -896,6 +896,21 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   </div>
 </div>
 
+<!-- Choisir une séance de la banque à planifier pour un jour donné (mode Coach) -->
+<div class="modal-backdrop" id="plan-picker-modal">
+  <div class="modal" style="width:min(440px,100%)">
+    <div class="modal-header">
+      <span class="modal-title">Planifier une séance — <span id="plan-picker-date"></span></span>
+      <button class="btn sm" onclick="closeModal('plan-picker-modal')">Fermer</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--muted);margin-bottom:10px">Choisis une fiche dans la banque de séances à programmer pour l'athlète.</p>
+      <input class="form-control" style="margin-bottom:10px" id="plan-picker-search" placeholder="Rechercher…" oninput="renderPlanPickerList()">
+      <div id="plan-picker-list" style="display:flex;flex-direction:column;gap:6px;max-height:340px;overflow-y:auto"></div>
+    </div>
+  </div>
+</div>
+
 <!-- ═══════════════ NEW SESSION ═══════════════ -->
 <div class="page" id="page-new-session">
   <div class="page-header">
@@ -6023,9 +6038,56 @@ function openDayModal(dateStr){
       ${l.planned&&l.bankRef&&getBank().find(b=>b.id===l.bankRef)?`<button class="btn sm" style="margin-top:8px" onclick="event.stopPropagation();closeModal('day-modal');switchPage('session-bank');sbEditCard('${l.bankRef}')">📋 Voir la fiche complète</button>`:''}
     </div>`;
   }).join(''):'<p style="color:var(--muted);text-align:center;padding:20px">Aucune séance ce jour</p>';
-  document.getElementById('day-modal-add').onclick=()=>{closeModal('day-modal');newSession(dateStr);switchPage('new-session');};
+  const addBtn = document.getElementById('day-modal-add');
+  if (appMode === 'coach') {
+    addBtn.textContent = '📅 Planifier une séance ce jour';
+    addBtn.onclick = () => { closeModal('day-modal'); openPlanPicker(dateStr); };
+  } else {
+    addBtn.textContent = '+ Ajouter une séance ce jour';
+    addBtn.onclick = () => { closeModal('day-modal'); newSession(dateStr); switchPage('new-session'); };
+  }
   document.getElementById('day-modal').classList.add('open');
 }
+let planPickerDate = null;
+function openPlanPicker(dateStr) {
+  planPickerDate = dateStr;
+  const d = new Date(dateStr+'T00:00:00');
+  document.getElementById('plan-picker-date').textContent = d.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
+  const search = document.getElementById('plan-picker-search');
+  if (search) search.value = '';
+  renderPlanPickerList();
+  document.getElementById('plan-picker-modal').classList.add('open');
+}
+window.openPlanPicker = openPlanPicker;
+function renderPlanPickerList() {
+  const el = document.getElementById('plan-picker-list');
+  if (!el) return;
+  const search = (document.getElementById('plan-picker-search')?.value || '').toLowerCase();
+  let items = getBank().slice().sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  if (search) items = items.filter(s =>
+    s.name.toLowerCase().includes(search) ||
+    (s.tags||[]).some(t=>t.toLowerCase().includes(search))
+  );
+  if (!items.length) { el.innerHTML = `<p style="font-size:12px;color:var(--muted)">Aucune séance dans la banque — crée-en une dans "Banque de séances".</p>`; return; }
+  el.innerHTML = items.map(s => {
+    const t = SESSION_TYPES[s.type] || SESSION_TYPES.autre;
+    return `<div class="cal-bank-mini-card" style="cursor:pointer" onclick="choosePlanPickerBank('${s.id}')">
+      <span class="sess-dot" style="background:${t.color};flex-shrink:0"></span>
+      <div style="min-width:0">
+        <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(s.name)}</div>
+        <div style="font-size:11px;color:var(--muted)">${s.duration||90} min · int. ${s.intensity||3}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+window.renderPlanPickerList = renderPlanPickerList;
+function choosePlanPickerBank(bankId) {
+  if (!planPickerDate) return;
+  closeModal('plan-picker-modal');
+  draggedBankItemId = bankId;
+  onBankDropOnDate(planPickerDate);
+}
+window.choosePlanPickerBank = choosePlanPickerBank;
 function deletePlannedSession(id, dateStr) {
   if (!confirm('Retirer cette séance prévue ?')) return;
   getActive().logs = (getActive().logs||[]).filter(l=>l.id!==id);
