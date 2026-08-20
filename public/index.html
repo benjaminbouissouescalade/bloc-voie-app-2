@@ -193,13 +193,13 @@ body.preview-mode #sidebar-user { color: #6fa82c !important; font-weight: 700; }
 .stat-grid-4 { grid-template-columns: repeat(4, 1fr); }
 .stat-grid-3 { grid-template-columns: repeat(3, 1fr); }
 .stat-grid-2 { grid-template-columns: repeat(2, 1fr); }
-.stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; }
+.stat-card { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--dg-black); border-radius: var(--radius); padding: 16px 18px; }
 .stat-label { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
 .stat-value { font-family: var(--serif); font-size: 34px; color: var(--text); line-height: 1; }
 .stat-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
-.stat-card.accent { background: var(--accent2); border-color: rgba(45,90,61,.15); }
+.stat-card.accent { background: var(--accent2); border-color: rgba(45,90,61,.15); border-left-color: var(--dg-green); }
 .stat-card.accent .stat-value { color: var(--accent); }
-.stat-card.warm { background: var(--warm2); border-color: rgba(196,80,26,.15); }
+.stat-card.warm { background: var(--warm2); border-color: rgba(196,80,26,.15); border-left-color: var(--warm); }
 .stat-card.warm .stat-value { color: var(--warm); }
 
 /* Panels */
@@ -215,7 +215,7 @@ body.preview-mode #sidebar-user { color: #6fa82c !important; font-weight: 700; }
 /* Buttons */
 .btn { border: 1px solid var(--border2); background: var(--surface); color: var(--text); border-radius: var(--r-sm); padding: 9px 14px; cursor: pointer; font-size: 13px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; transition: all .12s; white-space: nowrap; }
 .btn:hover { background: var(--surface2); }
-.btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 700; }
 .btn.primary:hover { background: #5a8a22; }
 .btn.sm { padding: 6px 10px; font-size: 12px; border-radius: var(--r-xs); }
 .btn.danger { color: var(--warm); }
@@ -244,7 +244,7 @@ body.preview-mode #sidebar-user { color: #6fa82c !important; font-weight: 700; }
 .c1 { background: #e8f5ed; color: #6fa82c; border-color: #b8dcc5; }
 .c2 { background: #fdf6e3; color: #b07a10; border-color: #e8d08a; }
 .c3 { background: #fef3ec; color: #c4501a; border-color: #f4b896; }
-.c4 { background: #f3edf8; color: #5a2d82; border-color: #d4aff0; }
+.c4 { background: var(--dg-black); color: #fff; border-color: var(--dg-black); }
 
 /* Session log item */
 .log-item { border: 1px solid var(--border); border-radius: var(--r-sm); padding: 14px; background: var(--surface2); margin-bottom: 8px; cursor: pointer; transition: all .12s; }
@@ -523,15 +523,19 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 .fp-confidence-badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 99px; }
 .fp-quality-warn { font-size: 11px; color: var(--warm); margin: 4px 0; }
 .game-hidden { display: none !important; }
-.badge-card { border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; text-align: center; background: var(--surface2); }
-.badge-card.unlocked { border-color: var(--accent); background: var(--accent2); }
-.badge-card.locked { opacity: 0.6; }
-.badge-icon { font-size: 26px; margin-bottom: 6px; }
-.badge-label { font-size: 12px; font-weight: 600; margin-bottom: 8px; min-height: 30px; }
+.badge-card { border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 12px; text-align: center; background: var(--surface); transition: transform .12s; }
+.badge-card.unlocked { border-color: var(--dg-black); background: var(--dg-black); }
+.badge-card.locked { opacity: 0.55; }
+.badge-icon { width: 52px; height: 52px; margin: 0 auto 10px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; background: var(--surface2); border: 2px solid var(--border2); }
+.badge-card.unlocked .badge-icon { background: var(--dg-green); border-color: var(--dg-green); box-shadow: 0 0 0 4px rgba(111,168,44,.25); }
+.badge-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .02em; margin-bottom: 8px; min-height: 30px; }
+.badge-card.unlocked .badge-label { color: #fff; }
 .badge-bar { height: 5px; border-radius: 99px; background: var(--border); overflow: hidden; margin-bottom: 6px; }
+.badge-card.unlocked .badge-bar { background: rgba(255,255,255,.2); }
 .badge-bar-fill { height: 100%; background: var(--accent); border-radius: 99px; }
+.badge-card.unlocked .badge-bar-fill { background: var(--dg-green); }
 .badge-progress-text { font-size: 11px; color: var(--muted); }
-.badge-card.unlocked .badge-progress-text { color: var(--accent); font-weight: 600; }
+.badge-card.unlocked .badge-progress-text { color: var(--dg-green); font-weight: 700; }
 .crew-card { border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; background: var(--surface2); margin-bottom: 14px; }
 .crew-member-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
 .crew-member-row:last-child { border-bottom: none; }
@@ -724,9 +728,9 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <div class="panel-header">
         <span class="panel-title">Charge hebdomadaire</span>
         <div class="legend">
-          <span class="legend-item"><span class="legend-swatch" style="background:#4da872"></span>C1–C2</span>
+          <span class="legend-item"><span class="legend-swatch" style="background:#6fa82c"></span>C1–C2</span>
           <span class="legend-item"><span class="legend-swatch" style="background:#c4501a"></span>C3</span>
-          <span class="legend-item"><span class="legend-swatch" style="background:#5a2d82"></span>C4</span>
+          <span class="legend-item"><span class="legend-swatch" style="background:#0e0e0e"></span>C4</span>
         </div>
       </div>
       <div class="chart-wrap" style="height:180px"><canvas id="weeklyChart" aria-label="Charge hebdomadaire sur 12 semaines">Données charge hebdomadaire</canvas></div>
@@ -3742,7 +3746,7 @@ function renderDashboard() {
         data:wData.map(w=>w.load),
         backgroundColor:wData.map(w=>{
           const c=cLevel(w.load);
-          return c.cls==='c1'?'rgba(45,122,78,.7)':c.cls==='c2'?'rgba(176,122,16,.7)':c.cls==='c3'?'rgba(196,80,26,.7)':'rgba(90,45,130,.7)';
+          return c.cls==='c1'?'rgba(111,168,44,.85)':c.cls==='c2'?'rgba(176,122,16,.85)':c.cls==='c3'?'rgba(196,80,26,.85)':'rgba(14,14,14,.9)';
         }),
         borderRadius:6,borderSkipped:false
       }]
@@ -4557,7 +4561,7 @@ function renderWorkload() {
       labels:wData.map(w=>w.label),
       datasets:[{
         label:'Charge',data:wData.map(w=>w.load),
-        backgroundColor:wData.map(w=>{const c=cLevel(w.load);return c.cls==='c1'?'rgba(45,122,78,.7)':c.cls==='c2'?'rgba(176,122,16,.7)':c.cls==='c3'?'rgba(196,80,26,.7)':'rgba(90,45,130,.7)';}),
+        backgroundColor:wData.map(w=>{const c=cLevel(w.load);return c.cls==='c1'?'rgba(111,168,44,.85)':c.cls==='c2'?'rgba(176,122,16,.85)':c.cls==='c3'?'rgba(196,80,26,.85)':'rgba(14,14,14,.9)';}),
         borderRadius:5,borderSkipped:false
       }]
     },
@@ -6231,9 +6235,9 @@ function renderPlanAnalysis(ref, l7, l28, avgWeekLoad, stats) {
   const sparkHtml = `<div style="display:flex;align-items:flex-end;gap:4px;height:48px;margin-bottom:8px">` +
     wData.map(w => {
       const h = Math.max(4, Math.round((w.load/maxLoad)*48));
-      const col = cLevel(w.load).cls === 'c1' ? '#4da872'
+      const col = cLevel(w.load).cls === 'c1' ? '#6fa82c'
                 : cLevel(w.load).cls === 'c2' ? '#b07a10'
-                : cLevel(w.load).cls === 'c3' ? '#c4501a' : '#5a2d82';
+                : cLevel(w.load).cls === 'c3' ? '#c4501a' : '#0e0e0e';
       return `<div style="flex:1;height:${h}px;background:${col};border-radius:3px 3px 0 0" title="${w.label}: ${w.load}"></div>`;
     }).join('') + `</div>
     <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-bottom:12px">
