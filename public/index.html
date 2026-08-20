@@ -1703,10 +1703,10 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   <div class="panel">
     <div class="panel-header"><span class="panel-title">Séances du mois</span></div>
     <div class="stat-grid stat-grid-4" style="margin-bottom:0">
-      <div class="stat-card"><div class="stat-label">Séances</div><div class="stat-value" id="cal-count">0</div></div>
-      <div class="stat-card"><div class="stat-label">Minutes</div><div class="stat-value" id="cal-minutes">0</div></div>
-      <div class="stat-card"><div class="stat-label">Charge totale</div><div class="stat-value" id="cal-load">0</div></div>
-      <div class="stat-card"><div class="stat-label">Ascensions cotées</div><div class="stat-value" id="cal-ascents">0</div></div>
+      <div class="stat-card"><div class="stat-label">🧗 Séances</div><div class="stat-value" id="cal-count">0</div></div>
+      <div class="stat-card"><div class="stat-label">⏱ Minutes</div><div class="stat-value" id="cal-minutes">0</div></div>
+      <div class="stat-card"><div class="stat-label">⚡ Charge totale</div><div class="stat-value" id="cal-load">0</div></div>
+      <div class="stat-card"><div class="stat-label">🏅 Ascensions cotées</div><div class="stat-value" id="cal-ascents">0</div></div>
     </div>
   </div>
 
@@ -3859,7 +3859,12 @@ function buildCalCell(ds, dayNum, isOther, todayStr) {
   const plannedLogsForCell = dayLogs.filter(l => l.planned);
   const hasHard = doneLogsForCell.some(l => l.intensity >= 4);
   cell.className = 'cal-cell' + (isOther?' other-month':'') + (ds===todayStr?' today':'') + (doneLogsForCell.length&&!hasHard?' has-session':doneLogsForCell.length&&hasHard?' has-hard':'') + (plannedLogsForCell.length?' has-planned':'');
-  cell.innerHTML = `${plannedLogsForCell.length?`<div class="cal-planned-badge" title="${plannedLogsForCell.length} séance${plannedLogsForCell.length>1?'s':''} prévue${plannedLogsForCell.length>1?'s':''}">📌</div>`:''}<div class="cal-num">${dayNum}</div><div class="cal-dots">${dayLogs.map(l=>`<div class="cal-dot${l.planned?' cal-dot-planned':''}" style="${l.planned?`border-color:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`:`background:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`}" title="${l.planned?'Prévue':''}"></div>`).join('')}</div>${load?`<div style="font-size:10px;color:var(--muted);margin-top:3px">${load}</div>`:''}`;
+  const typeLabelHtml = dayLogs.length === 1
+    ? `<div style="font-size:9px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc((SESSION_TYPES[dayLogs[0].type]||SESSION_TYPES.autre).label)}</div>`
+    : dayLogs.length > 1
+      ? `<div style="font-size:9px;color:var(--muted);margin-top:2px">🧗 ${dayLogs.length} séances</div>`
+      : '';
+  cell.innerHTML = `${plannedLogsForCell.length?`<div class="cal-planned-badge" title="${plannedLogsForCell.length} séance${plannedLogsForCell.length>1?'s':''} prévue${plannedLogsForCell.length>1?'s':''}">📌</div>`:''}<div class="cal-num">${dayNum}</div><div class="cal-dots">${dayLogs.map(l=>`<div class="cal-dot${l.planned?' cal-dot-planned':''}" style="${l.planned?`border-color:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`:`background:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`}" title="${esc((SESSION_TYPES[l.type]||SESSION_TYPES.autre).label)}${l.planned?' (prévue)':''}"></div>`).join('')}</div>${typeLabelHtml}${load?`<div style="font-size:10px;color:var(--muted);margin-top:3px">⚡ ${load}</div>`:''}`;
   cell.onclick = () => openDayModal(ds);
   cell.ondragover = (e) => { e.preventDefault(); cell.classList.add('drag-over'); };
   cell.ondragleave = () => cell.classList.remove('drag-over');
