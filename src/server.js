@@ -7,7 +7,15 @@ const app  = express();
 const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json({ limit: '5mb' }));
-app.use(express.static(path.join(__dirname, '../public')));
+// no-store sur le HTML/JS servi : évite qu'un proxy/CDN devant l'app (ou le navigateur)
+// continue de servir une ancienne version après un déploiement.
+app.use(express.static(path.join(__dirname, '../public'), {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    }
+  }
+}));
 app.use('/api/auth',     require('./routes/auth'));
 app.use('/api/climbers', require('./routes/climbers'));
 app.use('/api/logs',     require('./routes/logs'));
@@ -20,7 +28,10 @@ app.use('/api/finger-profile', fingerProfileRoutes);
 app.use('/api/finger-profile-expected', fingerProfileRoutes.expectedRouter);
 app.use('/api/crews', require('./routes/crews'));
 app.get('/api/health', (req, res) => { res.json({ status: 'ok' }); });
-app.get('*', (req, res) => { res.sendFile(path.join(__dirname, '../public/index.html')); });
+app.get('*', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.sendFile(path.join(__dirname, '../public/index.html'));
+});
 async function start() {
   try {
     await initDB();
