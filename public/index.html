@@ -1,4 +1,4 @@
-<div id="auth-screen" style="position:fixed;inset:0;background:#f4f2ee;display:flex;align-items:center;justify-content:center;z-index:200;font-family:system-ui,sans-serif">
+<div id="auth-screen" style="position:fixed;inset:0;background:#eeeeec;display:flex;align-items:center;justify-content:center;z-index:200;font-family:system-ui,sans-serif">
 <div style="background:#fff;border-radius:16px;padding:40px;width:min(400px,90%);box-shadow:0 4px 24px rgba(0,0,0,.12)">
 <div style="font-family:'Anton',sans-serif;text-transform:uppercase;font-size:26px;font-weight:400;color:#0e0e0e;margin-bottom:4px">Digger<span style="color:#6fa82c">.</span></div>
 <div style="font-size:13px;color:#7a7566;margin-bottom:24px">Carnet escalade</div>
@@ -10,7 +10,7 @@
 <button id="lb" style="width:100%;background:#6fa82c;color:#fff;border:none;padding:12px;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer">Se connecter</button>
 </div></div>
 
-<div id="onboarding-screen" style="position:fixed;inset:0;background:#f4f2ee;display:none;align-items:center;justify-content:center;z-index:200;font-family:system-ui,sans-serif;padding:20px;box-sizing:border-box">
+<div id="onboarding-screen" style="position:fixed;inset:0;background:#eeeeec;display:none;align-items:center;justify-content:center;z-index:200;font-family:system-ui,sans-serif;padding:20px;box-sizing:border-box">
 <div style="background:#fff;border-radius:16px;padding:36px;width:min(640px,100%);max-height:92vh;overflow-y:auto;box-shadow:0 4px 24px rgba(0,0,0,.12);box-sizing:border-box">
   <div style="font-size:24px;font-weight:700;color:#0e0e0e;margin-bottom:4px">Bienvenue sur Digger<span style="color:#6fa82c">.</span></div>
   <div style="font-size:13px;color:#7a7566;margin-bottom:24px">Invité(e) par <strong id="ob-coach-name">ton coach</strong> — quelques infos pour démarrer.</div>
@@ -96,7 +96,7 @@
   <div style="display:flex;gap:8px;margin-bottom:24px">
     <input id="ob-goal-text" type="text" placeholder="Ex. Enchaîner un 7c" style="flex:2;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box">
     <input id="ob-goal-date" type="date" style="flex:1;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box">
-    <button onclick="obAddGoal()" style="background:#f4f2ee;border:1px solid #ddd;border-radius:8px;padding:0 14px;font-size:13px;font-weight:600;cursor:pointer">+ Ajouter</button>
+    <button onclick="obAddGoal()" style="background:#eeeeec;border:1px solid #ddd;border-radius:8px;padding:0 14px;font-size:13px;font-weight:600;cursor:pointer">+ Ajouter</button>
   </div>
 
   <button id="ob-submit" onclick="submitOnboarding()" style="width:100%;background:#6fa82c;color:#fff;border:none;padding:13px;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer">Créer mon compte</button>
@@ -119,12 +119,13 @@
   --dg-black: #0e0e0e;
   --dg-charcoal: #2a2a2a;
   --dg-cream: #e8e6dc;
+  --dg-offwhite: #f7f7f5;
   --dg-green: #6fa82c;
   --dg-green-dark: #2e7032;
 
-  --bg: var(--dg-cream);
+  --bg: var(--dg-offwhite);
   --surface: #ffffff;
-  --surface2: #f4f2e9;
+  --surface2: #eeeeec;
   --border: rgba(14,14,14,.1);
   --border2: rgba(14,14,14,.2);
   --text: var(--dg-black);
@@ -178,8 +179,8 @@ button, input, select, textarea { font-family: inherit; }
 .page.active { display: block; }
 
 /* Mode aperçu athlète : teinte visuelle pour qu'on sente qu'on est "dans" un autre compte */
-body.preview-mode .main { background: #f7f4ec; box-shadow: inset 0 0 0 3px rgba(45,90,61,.25); border-radius: 10px; }
-body.preview-mode .sidebar { background: #f7f4ec; border-right-color: #6fa82c; }
+body.preview-mode .main { background: #eeeeec; box-shadow: inset 0 0 0 3px rgba(45,90,61,.25); border-radius: 10px; }
+body.preview-mode .sidebar { background: var(--dg-charcoal); border-right-color: #6fa82c; }
 body.preview-mode #sidebar-user { color: #6fa82c !important; font-weight: 700; }
 
 /* Headers */
@@ -1762,12 +1763,12 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   </div>
 
   <!-- Bibliothèque : dossiers / sous-dossiers -->
-  <div style="background:var(--surface2,#f4f2ee);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:10px">
+  <div style="background:var(--surface2,#eeeeec);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:10px">
     <div class="sb-quick-label" style="display:block;margin-bottom:6px">📁 Dossiers</div>
     <div class="sb-quick-row" id="sb-category-row"></div>
     <div class="sb-quick-row" id="sb-subcategory-row" style="margin-bottom:0;margin-top:4px"></div>
   </div>
-  <div style="background:var(--surface2,#f4f2ee);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:14px">
+  <div style="background:var(--surface2,#eeeeec);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:14px">
     <div class="sb-quick-label" style="display:block;margin-bottom:6px">🏷️ Filtres transversaux</div>
     <div class="sb-quick-row" id="sb-crosstag-row" style="margin-bottom:0"></div>
   </div>
@@ -7506,7 +7507,7 @@ function renderPdGoals() {
   if (!list) return;
   if (!pdGoals.length) { list.innerHTML = '<div style="font-size:12px;color:var(--muted);margin-bottom:8px">Aucun objectif pour l\'instant.</div>'; return; }
   list.innerHTML = pdGoals.map((g,i) => `
-    <div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg2,#f4f2ee);border-radius:8px;padding:8px 12px;margin-bottom:6px;font-size:13px">
+    <div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg2,#eeeeec);border-radius:8px;padding:8px 12px;margin-bottom:6px;font-size:13px">
       <span>${esc(g.text)}${g.date?` <span style="color:var(--muted)">— ${g.date}</span>`:''}</span>
       <button onclick="pdRemoveGoal(${i})" style="background:none;border:none;color:var(--warm);cursor:pointer;font-size:16px;line-height:1;padding:0 4px">×</button>
     </div>`).join('');
@@ -8393,7 +8394,7 @@ function renderObGoals(){
   if(!list)return;
   if(!obGoals.length){ list.innerHTML='<div style="font-size:12px;color:#a8a296;margin-bottom:8px">Aucun objectif ajouté pour l\'instant.</div>'; return; }
   list.innerHTML=obGoals.map(function(g,i){
-    return '<div style="display:flex;align-items:center;justify-content:space-between;background:#f4f2ee;border-radius:8px;padding:8px 12px;margin-bottom:6px;font-size:13px">'
+    return '<div style="display:flex;align-items:center;justify-content:space-between;background:#eeeeec;border-radius:8px;padding:8px 12px;margin-bottom:6px;font-size:13px">'
       +'<span>'+g.text+(g.date?' <span style="color:#7a7566">— '+g.date+'</span>':'')+'</span>'
       +'<button onclick="obRemoveGoal('+i+')" style="background:none;border:none;color:#c4501a;cursor:pointer;font-size:16px;line-height:1;padding:0 4px">×</button>'
       +'</div>';
