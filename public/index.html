@@ -1141,15 +1141,6 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     <button class="btn sm" onclick="document.getElementById('wl-info-modal').classList.add('open')">ℹ️ Comment la charge est calculée ?</button>
   </div>
 
-  <div class="time-filters">
-    <button class="time-filter-btn" data-wl-range="week">Cette semaine</button>
-    <button class="time-filter-btn" data-wl-range="month">Ce mois</button>
-    <button class="time-filter-btn" data-wl-range="3m">3M</button>
-    <button class="time-filter-btn active" data-wl-range="6m">6M</button>
-    <button class="time-filter-btn" data-wl-range="1y">1 an</button>
-    <button class="time-filter-btn" data-wl-range="all">Tout</button>
-  </div>
-
   <div class="stat-grid stat-grid-4">
     <div class="stat-card accent">
       <div class="stat-label">Charge 7 jours</div>
@@ -1202,16 +1193,13 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     </p>
   </div>
 
-  <div class="panel">
-    <div class="panel-header">
-      <span class="panel-title">Seuils C-Level</span>
-    </div>
-    <div style="display:flex;gap:10px;flex-wrap:wrap">
-      <div class="clevel c1">C1 &nbsp;<span style="font-weight:400;font-size:12px">0 – 30</span></div>
-      <div class="clevel c2">C2 &nbsp;<span style="font-weight:400;font-size:12px">31 – 65</span></div>
-      <div class="clevel c3">C3 &nbsp;<span style="font-weight:400;font-size:12px">66 – 100</span></div>
-      <div class="clevel c4">C4 &nbsp;<span style="font-weight:400;font-size:12px">&gt; 100</span></div>
-    </div>
+  <div class="time-filters" style="margin-bottom:16px">
+    <button class="time-filter-btn" data-wl-range="week">Cette semaine</button>
+    <button class="time-filter-btn" data-wl-range="month">Ce mois</button>
+    <button class="time-filter-btn" data-wl-range="3m">3M</button>
+    <button class="time-filter-btn active" data-wl-range="6m">6M</button>
+    <button class="time-filter-btn" data-wl-range="1y">1 an</button>
+    <button class="time-filter-btn" data-wl-range="all">Tout</button>
   </div>
 
   <div class="two-col">
