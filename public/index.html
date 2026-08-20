@@ -1303,7 +1303,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       La charge d'une séance = la somme de toutes tes ascensions et blocs de cette séance. Les indicateurs "7 jours", "28 jours", etc. additionnent simplement la charge de toutes les séances sur cette période.</p>
 
       <p style="margin-bottom:0"><strong>6. Les niveaux C1 à C4</strong><br>
-      Ils classent ta charge sur une période donnée : <strong>C1</strong> (0–30) charge légère, <strong>C2</strong> (31–65) modérée, <strong>C3</strong> (66–100) soutenue, <strong>C4</strong> (&gt;100) très élevée. Ça t'aide à repérer en un coup d'œil si tu es en sous-charge ou en surcharge par rapport à ton niveau récent.</p>
+      Ils classent ta charge <strong>par rapport à ta propre moyenne</strong> hebdomadaire des 12 dernières semaines — pas une échelle universelle. <strong>C1</strong> (moins de 50% de ta moyenne) charge légère, <strong>C2</strong> (50–100%) modérée, <strong>C3</strong> (100–150%) soutenue, <strong>C4</strong> (plus de 150%) très élevée. Ça t'aide à repérer en un coup d'œil si tu es en sous-charge ou en surcharge par rapport à ton propre rythme habituel.</p>
     </div>
   </div>
 </div>
@@ -2595,7 +2595,9 @@ const SUPPORTS = {
   // ── Autre ──
   autre_support:  { label: 'Autre',                   group: 'Autre', icon: '•' },
 };
-const C_LEVELS = [{max:30,cls:'c1',label:'C1'},{max:65,cls:'c2',label:'C2'},{max:100,cls:'c3',label:'C3'},{max:Infinity,cls:'c4',label:'C4'}];
+// Seuils exprimés en ratio par rapport à la charge hebdo moyenne du grimpeur (12 dernières semaines),
+// pas en valeur absolue : chaque grimpeur a sa propre échelle de volume.
+const C_LEVELS = [{max:0.5,cls:'c1',label:'C1'},{max:1.0,cls:'c2',label:'C2'},{max:1.5,cls:'c3',label:'C3'},{max:Infinity,cls:'c4',label:'C4'}];
 const KAYA_BASE = 100, KAYA_GROWTH = 1.18;
 
 const STORAGE_KEY = 'bloc_voie_v2';
@@ -3619,8 +3621,18 @@ function getLoadRange(daysBack) {
   return Math.round(getLogs().filter(l=>new Date(l.date)>=cutoff).reduce((s,l)=>s+sessionLoad(l),0));
 }
 
-function cLevel(load) {
-  for (const c of C_LEVELS) if (load<=c.max) return c;
+// Charge hebdo "normale" du grimpeur : moyenne des semaines des ~12 dernières semaines (semaines à 0 exclues).
+function getPersonalBaseline() {
+  const w = weeklyData(12).map(x=>x.load).filter(v=>v>0);
+  if (w.length < 3) return 0;
+  return w.reduce((a,b)=>a+b,0)/w.length;
+}
+// load doit être une charge hebdomadaire (pas un total sur 28j ou sur un trip — normaliser avant l'appel).
+function cLevel(load, baseline) {
+  if (baseline===undefined) baseline = getPersonalBaseline();
+  if (!baseline) return { max:1, cls:'c2', label:'C2' };
+  const ratio = load/baseline;
+  for (const c of C_LEVELS) if (ratio<=c.max) return c;
   return C_LEVELS[3];
 }
 
@@ -3698,7 +3710,7 @@ function renderDashboard() {
   document.getElementById('dash-load7').textContent=l7;
   document.getElementById('dash-clevel7').innerHTML=`<span class="clevel ${cLevel(l7).cls}" style="padding:2px 8px;font-size:11px">${cLevel(l7).label}</span>`;
   document.getElementById('dash-load28').textContent=l28;
-  document.getElementById('dash-clevel28').innerHTML=`<span class="clevel ${cLevel(l28).cls}" style="padding:2px 8px;font-size:11px">${cLevel(l28).label}</span>`;
+  document.getElementById('dash-clevel28').innerHTML=`<span class="clevel ${cLevel(l28/4).cls}" style="padding:2px 8px;font-size:11px">${cLevel(l28/4).label}</span>`;
   const sparkEl = document.getElementById('dash-load7-spark');
   if (sparkEl) sparkEl.innerHTML = miniSparkSvg(weeklyData(8).map(w=>w.load), '#c4501a');
   const now=new Date(), monthStr=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
@@ -4547,7 +4559,7 @@ function renderWorkload() {
   document.getElementById('wl-load7').textContent=l7;
   document.getElementById('wl-c7').innerHTML=`<span class="clevel ${cLevel(l7).cls}" style="padding:2px 8px;font-size:11px">${cLevel(l7).label}</span>`;
   document.getElementById('wl-load28').textContent=l28;
-  document.getElementById('wl-c28').innerHTML=`<span class="clevel ${cLevel(l28).cls}" style="padding:2px 8px;font-size:11px">${cLevel(l28).label}</span>`;
+  document.getElementById('wl-c28').innerHTML=`<span class="clevel ${cLevel(l28/4).cls}" style="padding:2px 8px;font-size:11px">${cLevel(l28/4).label}</span>`;
   document.getElementById('wl-load-year').textContent=l365;
   document.getElementById('wl-ref-grade').textContent=getRefGrade();
 
@@ -4639,7 +4651,7 @@ function tripStats(trip) {
     loadPerDay: Math.round((load/days)*10)/10,
     topGrade: hardestSent,
     hardestTried, hardestSent, avgGrade,
-    clevel: cLevel(Math.round(load))
+    clevel: cLevel(Math.round(load/days*7))
   };
 }
 
@@ -7736,7 +7748,7 @@ PROFIL DU GRIMPEUR : ${c.name}
 - Grade de référence calculé (percentile 70%, toutes séances) : ${ref}
 - Total séances enregistrées : ${logs.length}
 - Charge 7 jours : ${l7} | Charge 28 jours : ${l28}
-- C-Level 7j : ${cLevel(l7).label} | C-Level 28j : ${cLevel(l28).label}
+- C-Level 7j : ${cLevel(l7).label} | C-Level 28j : ${cLevel(l28/4).label}
 - Répartition des types : ${typeBreakdown||'aucune donnée'}
 
 PYRAMIDE DES COTATIONS (3 derniers mois) :
