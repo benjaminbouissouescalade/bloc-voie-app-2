@@ -3782,7 +3782,6 @@ function renderDashboard() {
         </div>
         <div style="display:flex;align-items:center;gap:6px">
           ${top?`<span class="grade ${gradeClass(top)}">${top}</span>`:''}
-          <span class="clevel ${cLevel(load).cls}" style="padding:3px 8px;font-size:11px">${cLevel(load).label}</span>
         </div>
       </div>
     </div>`;
@@ -5620,7 +5619,6 @@ function renderHistory() {
         </div>
         <div style="display:flex;align-items:center;gap:6px">
           ${topGrades.map(g=>`<span class="grade ${gradeClass(g)}">${g}</span>`).join('')}
-          <span class="clevel ${cLevel(load).cls}" style="padding:3px 8px;font-size:11px">${cLevel(load).label}</span>
         </div>
       </div>
       ${l.notes?`<div class="log-tags"><span style="font-size:12px;color:var(--muted)">${l.notes.slice(0,100)}${l.notes.length>100?'…':''}</span></div>`:''}
@@ -6063,7 +6061,7 @@ function openDayModal(dateStr){
           <div class="log-date" style="display:flex;align-items:center;gap:8px"><span class="sess-dot" style="background:${t.color}"></span>${t.label}${l.planned?' <span class="tag" style="border-color:var(--accent);color:var(--accent)">📌 Prévue</span>':''}</div>
           <div class="log-meta">${l.minutes||0} min · intensité ${l.intensity||'—'}${l.planned?'':` · charge ${load}`}${l.location?` · ${l.location}`:''}${l.support&&SUPPORTS[l.support]?` · <span style="font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:3px;padding:1px 7px">${SUPPORTS[l.support].icon} ${SUPPORTS[l.support].label}</span>`:''}</div>
         </div>
-        ${l.planned?`<button class="btn sm danger" onclick="event.stopPropagation();deletePlannedSession('${l.id}','${dateStr}')" title="Retirer cette séance prévue">✕</button>`:`<span class="clevel ${cLevel(load).cls}" style="padding:3px 8px;font-size:11px">${cLevel(load).label}</span>`}
+        ${l.planned?`<button class="btn sm danger" onclick="event.stopPropagation();deletePlannedSession('${l.id}','${dateStr}')" title="Retirer cette séance prévue">✕</button>`:''}
       </div>
       ${(l.ascents||[]).length?`<div class="log-tags" style="margin-top:8px">${(l.ascents||[]).map(a=>`<span class="chip">${a.grade} · ${statusLabel(a.status)}</span>`).join('')}</div>`:''}
       ${l.planned&&l.notes?`<div style="font-size:12px;color:var(--muted);margin-top:6px">${esc(l.notes.length>140?l.notes.slice(0,140)+'…':l.notes)}</div>`:''}
