@@ -6028,16 +6028,17 @@ function renderPlanAnalysis(ref, l7, l28, avgWeekLoad, stats) {
   const wData = weeklyData(8);
   const last4avg = Math.round(wData.slice(-4).reduce((s,w)=>s+w.load,0)/4);
   const trend = wData.slice(-3).map(w=>w.load);
-  const isFatigue = l7 > 100;
+  const ratio = avgWeekLoad > 0 ? l7 / avgWeekLoad : null;
+  const isFatigue = ratio !== null && ratio > 1.5;
   const isUnder = avgWeekLoad < 30;
 
   document.getElementById('plan-analysis-sub').textContent =
     `Charge 7j : ${l7} · Charge 28j : ${l28} · Moyenne/sem : ${avgWeekLoad}`;
 
   let reco = '';
-  if (isFatigue) reco = '⚠️ Charge élevée cette semaine — une semaine de décharge est recommandée avant de reprendre.';
+  if (isFatigue) reco = '⚠️ Charge élevée par rapport à ton rythme habituel — une semaine de décharge est recommandée avant de reprendre.';
   else if (isUnder) reco = '📈 Volume encore faible — tu peux augmenter progressivement.';
-  else if (l7 > avgWeekLoad * 1.3) reco = '⚡ Semaine chargée récente — considère un maintien ou une légère décharge.';
+  else if (ratio !== null && ratio > 1.3) reco = '⚡ Semaine plus chargée que d\'habitude — considère un maintien ou une légère décharge.';
   else reco = '✓ Charge cohérente avec ton historique — tu peux continuer à construire.';
 
   // Mini sparkline HTML bars for last 8 weeks
