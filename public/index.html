@@ -1,4 +1,4 @@
-<div id="auth-screen" style="position:fixed;inset:0;background:#eeeeec;display:flex;align-items:center;justify-content:center;z-index:200;font-family:system-ui,sans-serif">
+<div id="auth-screen" style="position:fixed;inset:0;background-color:#e6e6e3;background-image:radial-gradient(#c9c9c4 1px,transparent 1px);background-size:22px 22px;display:flex;align-items:center;justify-content:center;z-index:200;font-family:system-ui,sans-serif">
 <div style="background:#fff;border-radius:16px;padding:40px;width:min(400px,90%);box-shadow:0 4px 24px rgba(0,0,0,.12)">
 <div style="font-family:'Anton',sans-serif;text-transform:uppercase;font-size:26px;font-weight:400;color:#0e0e0e;margin-bottom:4px">Digger<span style="color:#1f4f3a">.</span></div>
 <div style="font-size:13px;color:#7a7566;margin-bottom:24px">Carnet escalade</div>
@@ -10,7 +10,7 @@
 <button id="lb" style="width:100%;background:#1f4f3a;color:#fff;border:none;padding:12px;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer">Se connecter</button>
 </div></div>
 
-<div id="onboarding-screen" style="position:fixed;inset:0;background:#eeeeec;display:none;align-items:center;justify-content:center;z-index:200;font-family:system-ui,sans-serif;padding:20px;box-sizing:border-box">
+<div id="onboarding-screen" style="position:fixed;inset:0;background:#e6e6e3;display:none;align-items:center;justify-content:center;z-index:200;font-family:system-ui,sans-serif;padding:20px;box-sizing:border-box">
 <div style="background:#fff;border-radius:16px;padding:36px;width:min(640px,100%);max-height:92vh;overflow-y:auto;box-shadow:0 4px 24px rgba(0,0,0,.12);box-sizing:border-box">
   <div style="font-size:24px;font-weight:700;color:#0e0e0e;margin-bottom:4px">Bienvenue sur Digger<span style="color:#1f4f3a">.</span></div>
   <div style="font-size:13px;color:#7a7566;margin-bottom:24px">Invité(e) par <strong id="ob-coach-name">ton coach</strong> — quelques infos pour démarrer.</div>
@@ -96,7 +96,7 @@
   <div style="display:flex;gap:8px;margin-bottom:24px">
     <input id="ob-goal-text" type="text" placeholder="Ex. Enchaîner un 7c" style="flex:2;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box">
     <input id="ob-goal-date" type="date" style="flex:1;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box">
-    <button onclick="obAddGoal()" style="background:#eeeeec;border:1px solid #ddd;border-radius:8px;padding:0 14px;font-size:13px;font-weight:600;cursor:pointer">+ Ajouter</button>
+    <button onclick="obAddGoal()" style="background:#e6e6e3;border:1px solid #ddd;border-radius:8px;padding:0 14px;font-size:13px;font-weight:600;cursor:pointer">+ Ajouter</button>
   </div>
 
   <button id="ob-submit" onclick="submitOnboarding()" style="width:100%;background:#1f4f3a;color:#fff;border:none;padding:13px;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer">Créer mon compte</button>
@@ -178,7 +178,7 @@ button, input, select, textarea { font-family: inherit; }
 .page.active { display: block; }
 
 /* Mode aperçu athlète : teinte visuelle pour qu'on sente qu'on est "dans" un autre compte */
-body.preview-mode .main { background: #eeeeec; box-shadow: inset 0 0 0 3px rgba(31,79,58,.25); border-radius: 10px; }
+body.preview-mode .main { background: #e6e6e3; box-shadow: inset 0 0 0 3px rgba(31,79,58,.25); border-radius: 10px; }
 body.preview-mode .sidebar { background: var(--dg-charcoal); border-right-color: #1f4f3a; }
 body.preview-mode #sidebar-user { color: #1f4f3a !important; font-weight: 700; }
 
@@ -221,14 +221,14 @@ body.preview-mode #sidebar-user { color: #1f4f3a !important; font-weight: 700; }
 .btn.danger:hover { background: var(--warm2); }
 
 /* Grade badge */
-.grade { display: inline-flex; align-items: center; justify-content: center; height: 28px; min-width: 44px; border-radius: 99px; font-size: 13px; font-weight: 600; padding: 0 10px; }
+.grade { display: inline-flex; align-items: center; justify-content: center; height: 28px; min-width: 44px; border-radius: 3px; font-size: 13px; font-weight: 600; padding: 0 10px; }
 .g-easy { background: #e5eae7; color: #1f4f3a; }
 .g-mid { background: #fdf6e3; color: #b07a10; }
 .g-hard { background: #fef3ec; color: #c4501a; }
 .g-elite { background: #f3edf8; color: #5a2d82; }
 
 /* Tag */
-.tag { display: inline-flex; align-items: center; height: 22px; border-radius: 99px; padding: 0 8px; font-size: 11px; font-weight: 500; background: var(--surface2); border: 1px solid var(--border); color: var(--muted); }
+.tag { display: inline-flex; align-items: center; height: 22px; border-radius: 3px; padding: 0 8px; font-size: 11px; font-weight: 500; background: var(--surface2); border: 1px solid var(--border); color: var(--muted); }
 
 /* Pyramid chart */
 .pyramid { display: flex; flex-direction: column; gap: 3px; margin-top: 8px; }
@@ -282,8 +282,8 @@ body.preview-mode #sidebar-user { color: #1f4f3a !important; font-weight: 700; }
 .heatmap { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
 .heat-cell { aspect-ratio: 1; border-radius: 4px; background: var(--surface2); position: relative; cursor: pointer; }
 .heat-cell:hover::after { content: attr(title); position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); background: var(--text); color: #fff; font-size: 11px; padding: 4px 8px; border-radius: 6px; white-space: nowrap; pointer-events: none; z-index: 10; }
-.wl-acwr-pill { display: inline-block; padding: 3px 10px; border-radius: 99px; font-size: 12px; font-weight: 600; }
-.wl-acwr-gauge { position: relative; display: flex; height: 14px; border-radius: 99px; overflow: hidden; background: var(--surface2); }
+.wl-acwr-pill { display: inline-block; padding: 3px 10px; border-radius: 3px; font-size: 12px; font-weight: 600; }
+.wl-acwr-gauge { position: relative; display: flex; height: 14px; border-radius: 3px; overflow: hidden; background: var(--surface2); }
 .wl-acwr-zone { height: 100%; }
 .wl-acwr-marker { position: absolute; top: -5px; left: 0; width: 4px; height: 24px; background: var(--text); border-radius: 2px; box-shadow: 0 0 0 2px var(--surface); transform: translateX(-50%); transition: left .3s; }
 .wl-acwr-scale { position: relative; height: 14px; margin-top: 5px; font-size: 10px; color: var(--muted); }
@@ -351,9 +351,9 @@ select.form-control { appearance: auto; }
 
 /* Time filter */
 .time-filters { display: flex; gap: 4px; margin-bottom: 20px; flex-wrap: wrap; }
-.time-filter-btn { padding: 5px 12px; border-radius: 99px; border: 1px solid var(--border2); background: var(--surface); color: var(--muted); font-size: 12px; font-weight: 500; cursor: pointer; transition: all .12s; }
-.time-filter-btn:hover { background: var(--surface2); }
-.time-filter-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.time-filter-btn { padding: 5px 12px; border-radius: 2px; border: 1px solid var(--border2); background: transparent; color: var(--muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; cursor: pointer; transition: all .12s; }
+.time-filter-btn:hover { border-color: var(--dg-black); color: var(--text); }
+.time-filter-btn.active { background: var(--dg-black); color: #fff; border-color: var(--dg-black); }
 
 /* Slider */
 .slider-row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px; margin-bottom: 10px; }
@@ -391,8 +391,8 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 /* Progress bar */
 .prog-row { display: grid; grid-template-columns: 110px 1fr 52px; gap: 8px; align-items: center; margin-bottom: 7px; }
 .prog-label { font-size: 13px; }
-.prog-bar-bg { background: var(--surface2); border-radius: 99px; height: 8px; overflow: hidden; }
-.prog-bar-fill { height: 100%; border-radius: 99px; background: var(--accent); transition: width .4s ease; }
+.prog-bar-bg { background: var(--surface2); border-radius: 3px; height: 8px; overflow: hidden; }
+.prog-bar-fill { height: 100%; border-radius: 3px; background: var(--accent); transition: width .4s ease; }
 .prog-val { font-size: 12px; font-weight: 600; text-align: right; color: var(--muted); }
 
 /* Week nav */
@@ -401,7 +401,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 
 /* Tooltips/chips in history */
 .chips { display: flex; gap: 6px; flex-wrap: wrap; }
-.chip { padding: 3px 9px; border-radius: 99px; background: var(--surface2); border: 1px solid var(--border); font-size: 12px; color: var(--muted); }
+.chip { padding: 3px 9px; border-radius: 3px; background: var(--surface2); border: 1px solid var(--border); font-size: 12px; color: var(--muted); }
 
 /* Climber switcher */
 .climber-switcher { padding: 12px 16px; border-bottom: 1px solid var(--border); margin-bottom: 8px; }
@@ -446,7 +446,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 .sb-card { border:1px solid var(--border); border-radius:var(--radius); padding:16px; background:var(--surface); transition:all .12s; cursor:pointer; }
 .sb-card:hover { border-color:var(--border2); box-shadow:var(--shadow); }
 .sb-card.active { border-color:var(--accent); background:var(--accent2); }
-.sb-tag { display:inline-flex; align-items:center; height:20px; padding:0 7px; border-radius:99px; font-size:11px; font-weight:600; background:var(--surface2); border:1px solid var(--border); color:var(--muted); }
+.sb-tag { display:inline-flex; align-items:center; height:20px; padding:0 7px; border-radius:3px; font-size:11px; font-weight:600; background:var(--surface2); border:1px solid var(--border); color:var(--muted); }
 .sb-tag.type-bloc { background:#f3edf8; color:#5a2d82; border-color:#d4aff0; }
 .sb-tag.type-voies { background:#e8f0fa; color:#1a4a7a; border-color:#b5d4f4; }
 .sb-tag.type-falaise { background:#fdf6e3; color:#b07a10; border-color:#e8d08a; }
@@ -459,7 +459,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 .sb-empty { text-align:center; padding:48px 24px; color:var(--muted); border:2px dashed var(--border); border-radius:var(--radius); }
 .sb-quick-row { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-bottom:8px; }
 .sb-quick-label { font-size:11px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.03em; margin-right:2px; }
-.sb-quick-pill { border-radius:99px !important; font-size:12.5px !important; padding:6px 14px !important; }
+.sb-quick-pill { border-radius:3px !important; font-size:12.5px !important; padding:6px 14px !important; }
 .sb-quick-pill.active { background:var(--accent); color:#fff; border-color:var(--accent); font-weight:600; }
 .ai-gen-box { background:linear-gradient(135deg,#eef2ff 0%,#f3edf8 100%); border:1px solid #c7d2fe; border-radius:var(--radius); padding:16px; margin-bottom:16px; }
 
@@ -482,7 +482,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 .ai-send-btn:hover { background: #163b2a; }
 .ai-send-btn:disabled { background: var(--border2); cursor: not-allowed; }
 .ai-shortcuts { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
-.ai-shortcut { padding: 6px 12px; border-radius: 99px; border: 1px solid var(--border2); background: var(--surface); color: var(--text); font-size: 12px; cursor: pointer; transition: all .12s; }
+.ai-shortcut { padding: 6px 12px; border-radius: 3px; border: 1px solid var(--border2); background: var(--surface); color: var(--text); font-size: 12px; cursor: pointer; transition: all .12s; }
 .ai-shortcut:hover { background: var(--accent2); border-color: rgba(31,79,58,.3); color: var(--accent); }
 .ai-ctx-bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 10px 12px; background: var(--accent2); border-radius: var(--r-sm); margin-bottom: 14px; font-size: 12px; }
 .sb-ai-chat { display: flex; flex-direction: column; }
@@ -502,7 +502,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 .perf-rate-row:last-child { border-bottom: none; }
 .perf-rate-label { font-size: 12.5px; flex: 1; min-width: 140px; }
 .perf-rate-toggle { display: flex; gap: 4px; flex-shrink: 0; }
-.perf-rate-btn { padding: 4px 9px; border-radius: 99px; border: 1px solid var(--border2); background: var(--surface); color: var(--muted); font-size: 11px; font-weight: 500; cursor: pointer; transition: all .12s; }
+.perf-rate-btn { padding: 4px 9px; border-radius: 3px; border: 1px solid var(--border2); background: var(--surface); color: var(--muted); font-size: 11px; font-weight: 500; cursor: pointer; transition: all .12s; }
 .perf-rate-btn:hover:not(:disabled) { background: var(--surface2); }
 .perf-rate-btn:disabled { cursor: not-allowed; }
 .perf-radar-mini { height: 220px; }
@@ -514,12 +514,12 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 .fp-result-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; gap: 10px; flex-wrap: wrap; }
 .fp-result-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
 .fp-result-value { font-family: var(--serif); font-size: 22px; font-weight: 700; }
-.fp-bar-track { position: relative; height: 8px; background: var(--border); border-radius: 99px; margin: 12px 0 6px; }
+.fp-bar-track { position: relative; height: 8px; background: var(--border); border-radius: 3px; margin: 12px 0 6px; }
 .fp-bar-marker { position: absolute; top: -4px; width: 16px; height: 16px; border-radius: 50%; border: 3px solid var(--surface2); box-shadow: 0 0 0 1px var(--border2); transform: translateX(-50%); }
 .fp-bar-ticks { display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); margin-bottom: 8px; }
 .fp-result-percentile { font-size: 13px; font-weight: 700; margin-bottom: 6px; }
 .fp-result-interpretation { font-size: 12px; color: var(--text); line-height: 1.5; }
-.fp-confidence-badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 99px; }
+.fp-confidence-badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 3px; }
 .fp-quality-warn { font-size: 11px; color: var(--warm); margin: 4px 0; }
 .game-hidden { display: none !important; }
 /* Catégories de badges — en-tête éditorial numéroté */
@@ -562,17 +562,17 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 .crew-member-avatar { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #fff; flex-shrink: 0; }
 .crew-member-name { font-weight: 600; font-size: 14px; }
 .crew-member-stats { font-size: 12px; color: var(--muted); margin-top: 2px; }
-.crew-type-chip { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 99px; background: var(--accent2); color: var(--accent); margin-right: 4px; margin-top: 4px; }
-.crew-adherence-pill { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 99px; flex-shrink: 0; }
-.crew-kudos-btn { background: none; border: 1px solid var(--border2); border-radius: 99px; padding: 4px 10px; font-size: 13px; cursor: pointer; flex-shrink: 0; }
+.crew-type-chip { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 3px; background: var(--accent2); color: var(--accent); margin-right: 4px; margin-top: 4px; }
+.crew-adherence-pill { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 3px; flex-shrink: 0; }
+.crew-kudos-btn { background: none; border: 1px solid var(--border2); border-radius: 3px; padding: 4px 10px; font-size: 13px; cursor: pointer; flex-shrink: 0; }
 .crew-kudos-btn:hover { background: var(--surface2); }
 .crew-kudos-btn.given { background: var(--accent2); border-color: var(--accent); }
 .crew-activity-item { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
 .crew-activity-item:last-child { border-bottom: none; }
 .crew-activity-icon { font-size: 18px; flex-shrink: 0; }
 .crew-activity-time { font-size: 11px; color: var(--muted); margin-top: 2px; }
-.ai-ctx-pill { background: rgba(31,79,58,.15); color: var(--accent); padding: 3px 8px; border-radius: 99px; font-weight: 600; }
-.nav-btn .ai-badge { font-size: 10px; background: linear-gradient(135deg,#6366f1,#8b5cf6); color:#fff; padding:1px 5px; border-radius:99px; margin-left:2px; }
+.ai-ctx-pill { background: rgba(31,79,58,.15); color: var(--accent); padding: 3px 8px; border-radius: 3px; font-weight: 600; }
+.nav-btn .ai-badge { font-size: 10px; background: linear-gradient(135deg,#6366f1,#8b5cf6); color:#fff; padding:1px 5px; border-radius:3px; margin-left:2px; }
 
 /* Responsive tweaks */
 @media (max-width: 1100px) {
@@ -1787,12 +1787,12 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   </div>
 
   <!-- Bibliothèque : dossiers / sous-dossiers -->
-  <div style="background:var(--surface2,#eeeeec);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:10px">
+  <div style="background:var(--surface2,#e6e6e3);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:10px">
     <div class="sb-quick-label" style="display:block;margin-bottom:6px">📁 Dossiers</div>
     <div class="sb-quick-row" id="sb-category-row"></div>
     <div class="sb-quick-row" id="sb-subcategory-row" style="margin-bottom:0;margin-top:4px"></div>
   </div>
-  <div style="background:var(--surface2,#eeeeec);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:14px">
+  <div style="background:var(--surface2,#e6e6e3);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:14px">
     <div class="sb-quick-label" style="display:block;margin-bottom:6px">🏷️ Filtres transversaux</div>
     <div class="sb-quick-row" id="sb-crosstag-row" style="margin-bottom:0"></div>
   </div>
@@ -3814,7 +3814,7 @@ function renderDashboard() {
             <span class="sess-dot" style="background:${t.color}"></span>
             ${t.label} — ${fmtDate(l.date)}
           </div>
-          <div class="log-meta">${l.minutes||0} min · intensité ${l.intensity||'—'} · charge ${load}${l.location?` · ${l.location}`:''}${l.support&&SUPPORTS[l.support]?` · <span style="font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:99px;padding:1px 7px">${SUPPORTS[l.support].icon} ${SUPPORTS[l.support].label}</span>`:''}</div>
+          <div class="log-meta">${l.minutes||0} min · intensité ${l.intensity||'—'} · charge ${load}${l.location?` · ${l.location}`:''}${l.support&&SUPPORTS[l.support]?` · <span style="font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:3px;padding:1px 7px">${SUPPORTS[l.support].icon} ${SUPPORTS[l.support].label}</span>`:''}</div>
         </div>
         <div style="display:flex;align-items:center;gap:6px">
           ${top?`<span class="grade ${gradeClass(top)}">${top}</span>`:''}
@@ -3867,7 +3867,7 @@ function renderPlanObjective() {
       </div>
     </div>
     <div style="display:flex;align-items:center;gap:10px">
-      ${chosen.date?`<span style="background:var(--accent2);color:var(--accent);font-size:12px;padding:4px 12px;border-radius:99px">${fmtDate(chosen.date)}</span>`:''}
+      ${chosen.date?`<span style="background:var(--accent2);color:var(--accent);font-size:12px;padding:4px 12px;border-radius:3px">${fmtDate(chosen.date)}</span>`:''}
       <button class="btn sm coach-only-btn" onclick="openProfileDetailModal('${c.id}')">Modifier</button>
     </div>
   </div>`;
@@ -4013,7 +4013,7 @@ function renderCalendarYear() {
     const weekRowsHtml = weekRows.map(w => {
       if (!w.cycleNames.length) return `<div style="height:16px;border-radius:3px;background:var(--border);opacity:.35;margin-bottom:3px"></div>`;
       return `<div onclick="event.stopPropagation();calDate=new Date(${y},${m},${w.start});setCalZoom('week')" style="display:flex;gap:3px;align-items:center;height:16px;margin-bottom:3px;cursor:pointer">
-        ${w.cycleNames.map(n => `<span style="display:flex;align-items:center;gap:3px;background:${colorForCycleName(n)};color:#fff;font-size:9px;padding:1px 6px;border-radius:99px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:${Math.floor(100/w.cycleNames.length)}%">${esc(n)}</span>`).join('')}
+        ${w.cycleNames.map(n => `<span style="display:flex;align-items:center;gap:3px;background:${colorForCycleName(n)};color:#fff;font-size:9px;padding:1px 6px;border-radius:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:${Math.floor(100/w.cycleNames.length)}%">${esc(n)}</span>`).join('')}
       </div>`;
     }).join('');
     return `<div onclick="calDate=new Date(${y},${m},1);setCalZoom('month')" style="cursor:pointer;border:1px solid var(--border);border-radius:var(--r-sm);padding:12px;background:color-mix(in srgb, var(--accent) ${Math.round(intensity*22)}%, var(--surface2))">
@@ -4238,7 +4238,7 @@ function openCycleModal() {
   // Jours fixes (mode détaillé — rien coché par défaut, à choisir par séance)
   const detDaysEl = document.getElementById('cycle-detailed-days');
   detDaysEl.innerHTML = CYCLE_DAY_LABELS.map(([v,label]) =>
-    `<label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;padding:5px 10px;border:1px solid var(--border);border-radius:99px">
+    `<label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;padding:5px 10px;border:1px solid var(--border);border-radius:3px">
       <input type="checkbox" class="cycle-detailed-day-cb" value="${v}" style="width:14px;height:14px"> ${label}
     </label>`
   ).join('');
@@ -6051,7 +6051,7 @@ function openDayModal(dateStr){
       <div class="log-item-header">
         <div>
           <div class="log-date" style="display:flex;align-items:center;gap:8px"><span class="sess-dot" style="background:${t.color}"></span>${t.label}${l.planned?' <span class="tag" style="border-color:var(--accent);color:var(--accent)">📌 Prévue</span>':''}</div>
-          <div class="log-meta">${l.minutes||0} min · intensité ${l.intensity||'—'}${l.planned?'':` · charge ${load}`}${l.location?` · ${l.location}`:''}${l.support&&SUPPORTS[l.support]?` · <span style="font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:99px;padding:1px 7px">${SUPPORTS[l.support].icon} ${SUPPORTS[l.support].label}</span>`:''}</div>
+          <div class="log-meta">${l.minutes||0} min · intensité ${l.intensity||'—'}${l.planned?'':` · charge ${load}`}${l.location?` · ${l.location}`:''}${l.support&&SUPPORTS[l.support]?` · <span style="font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:3px;padding:1px 7px">${SUPPORTS[l.support].icon} ${SUPPORTS[l.support].label}</span>`:''}</div>
         </div>
         ${l.planned?`<button class="btn sm danger" onclick="event.stopPropagation();deletePlannedSession('${l.id}','${dateStr}')" title="Retirer cette séance prévue">✕</button>`:`<span class="clevel ${cLevel(load).cls}" style="padding:3px 8px;font-size:11px">${cLevel(load).label}</span>`}
       </div>
@@ -6860,7 +6860,7 @@ function sbRenderGrid() {
     STYLES.forEach(tag => {
       const btn = document.createElement('button');
       btn.className = 'btn sm'; btn.dataset.tag = tag;
-      btn.style.cssText = 'font-size:11px;padding:3px 9px;border-radius:99px';
+      btn.style.cssText = 'font-size:11px;padding:3px 9px;border-radius:3px';
       btn.textContent = tag;
       btn.onclick = () => {
         const cur = tagChips.dataset.activeTag;
@@ -6930,7 +6930,7 @@ function sbRenderGrid() {
     const intDots = Array.from({length:5},(_,i) =>
       `<span class="${i < (s.intensity||3) ? 'on' : ''}"></span>`).join('');
     const srcBadge = s.source === 'ai'
-      ? `<span style="font-size:10px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;padding:2px 6px;border-radius:99px;font-weight:600">✦ IA</span>`
+      ? `<span style="font-size:10px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;padding:2px 6px;border-radius:3px;font-weight:600">✦ IA</span>`
       : '';
     const catBadge = s.category
       ? `<span class="sb-tag" style="background:${colorForCycleName(s.category)}22;border-color:${colorForCycleName(s.category)}55;color:${colorForCycleName(s.category)}">📁 ${esc(s.category)}${s.subcategory?' › '+esc(s.subcategory):''}</span>`
@@ -7499,7 +7499,7 @@ function renderClimberCards() {
 
     const photo = c.profile?.photo;
     return `<div class="climber-card ${isActive?'active-card':''}">
-      ${isActive?`<div style="position:absolute;top:8px;right:8px;font-size:10px;font-weight:700;color:var(--accent);background:var(--accent2);padding:2px 7px;border-radius:99px">Actif</div>`:''}
+      ${isActive?`<div style="position:absolute;top:8px;right:8px;font-size:10px;font-weight:700;color:var(--accent);background:var(--accent2);padding:2px 7px;border-radius:3px">Actif</div>`:''}
       <div class="cc-avatar" style="${avatarPhotoStyle(photo, c.color)}">${photo?'':initials}</div>
       <div class="cc-name">${esc(c.name)}</div>
       <div class="cc-stats">${stats.sessionCount} séance${stats.sessionCount!==1?'s':''}</div>
@@ -7553,7 +7553,7 @@ function renderPdGoals() {
   if (!list) return;
   if (!pdGoals.length) { list.innerHTML = '<div style="font-size:12px;color:var(--muted);margin-bottom:8px">Aucun objectif pour l\'instant.</div>'; return; }
   list.innerHTML = pdGoals.map((g,i) => `
-    <div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg2,#eeeeec);border-radius:8px;padding:8px 12px;margin-bottom:6px;font-size:13px">
+    <div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg2,#e6e6e3);border-radius:8px;padding:8px 12px;margin-bottom:6px;font-size:13px">
       <span>${esc(g.text)}${g.date?` <span style="color:var(--muted)">— ${g.date}</span>`:''}</span>
       <button onclick="pdRemoveGoal(${i})" style="background:none;border:none;color:var(--warm);cursor:pointer;font-size:16px;line-height:1;padding:0 4px">×</button>
     </div>`).join('');
@@ -8440,7 +8440,7 @@ function renderObGoals(){
   if(!list)return;
   if(!obGoals.length){ list.innerHTML='<div style="font-size:12px;color:#a8a296;margin-bottom:8px">Aucun objectif ajouté pour l\'instant.</div>'; return; }
   list.innerHTML=obGoals.map(function(g,i){
-    return '<div style="display:flex;align-items:center;justify-content:space-between;background:#eeeeec;border-radius:8px;padding:8px 12px;margin-bottom:6px;font-size:13px">'
+    return '<div style="display:flex;align-items:center;justify-content:space-between;background:#e6e6e3;border-radius:8px;padding:8px 12px;margin-bottom:6px;font-size:13px">'
       +'<span>'+g.text+(g.date?' <span style="color:#7a7566">— '+g.date+'</span>':'')+'</span>'
       +'<button onclick="obRemoveGoal('+i+')" style="background:none;border:none;color:#c4501a;cursor:pointer;font-size:16px;line-height:1;padding:0 4px">×</button>'
       +'</div>';
