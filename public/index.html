@@ -1233,7 +1233,10 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     <div class="panel">
       <div class="panel-header">
         <span class="panel-title">Volume d'entraînement hebdo</span>
-        <span class="panel-sub" id="wl-vol-sub">16 dernières semaines</span>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="panel-sub" id="wl-vol-sub">16 dernières semaines</span>
+          <button class="time-filter-btn" id="wl-vol-overlay-btn" style="padding:3px 10px;font-size:11px" onclick="toggleWlIntensityOverlay()">+ Intensité</button>
+        </div>
       </div>
       <div class="chart-wrap" style="height:200px"><canvas id="volChart" aria-label="Volume hebdomadaire">Volume hebdomadaire</canvas></div>
     </div>
@@ -4580,6 +4583,14 @@ function renderAcwrGauge(l7, l28) {
   detailEl.textContent = `Cette semaine : ${Math.round(l7)} · Ton rythme habituel : ${Math.round(chronic)}`;
   markerEl.style.left = Math.max(0, Math.min(100, (ratio/2)*100)) + '%';
 }
+let wlShowIntensityOverlay = false;
+function toggleWlIntensityOverlay() {
+  wlShowIntensityOverlay = !wlShowIntensityOverlay;
+  const btn = document.getElementById('wl-vol-overlay-btn');
+  if (btn) { btn.classList.toggle('active', wlShowIntensityOverlay); btn.textContent = wlShowIntensityOverlay ? '✓ Intensité' : '+ Intensité'; }
+  renderWorkload();
+}
+window.toggleWlIntensityOverlay = toggleWlIntensityOverlay;
 function renderWorkload() {
   const l7=getLoadRange(7),l28=getLoadRange(28),l365=getLoadRange(365);
   document.getElementById('wl-load7').textContent=l7;
@@ -4594,17 +4605,34 @@ function renderWorkload() {
   const wData=weeklyData(perfWeeksForRange(wlRange));
   const wlSub=document.getElementById('wl-vol-sub');
   if (wlSub) wlSub.textContent = WL_RANGE_LABELS[wlRange] || '';
+  const overlayBtn=document.getElementById('wl-vol-overlay-btn');
+  if (overlayBtn) { overlayBtn.classList.toggle('active', wlShowIntensityOverlay); overlayBtn.textContent = wlShowIntensityOverlay ? '✓ Intensité' : '+ Intensité'; }
+  const volDatasets=[{
+    label:'Charge',data:wData.map(w=>w.load),
+    backgroundColor:wData.map(w=>{const c=cLevel(w.load);return c.cls==='c1'?'rgba(45,90,61,.85)':c.cls==='c2'?'rgba(176,122,16,.8)':c.cls==='c3'?'rgba(196,80,26,.85)':'rgba(90,45,130,.9)';}),
+    borderRadius:5,borderSkipped:false,order:2,yAxisID:'y'
+  }];
+  if (wlShowIntensityOverlay) {
+    volDatasets.push({
+      type:'line',label:'Intensité moy.',data:wData.map(w=>w.avgInt||null),
+      borderColor:'#1a4a7a',backgroundColor:'rgba(26,74,122,.08)',tension:.4,fill:false,
+      pointRadius:3,pointBackgroundColor:'#1a4a7a',spanGaps:true,order:1,yAxisID:'y1'
+    });
+  }
   makeChart('volChart',{
     type:'bar',
     data:{
       labels:wData.map(w=>w.label),
-      datasets:[{
-        label:'Charge',data:wData.map(w=>w.load),
-        backgroundColor:wData.map(w=>{const c=cLevel(w.load);return c.cls==='c1'?'rgba(45,90,61,.85)':c.cls==='c2'?'rgba(176,122,16,.8)':c.cls==='c3'?'rgba(196,80,26,.85)':'rgba(90,45,130,.9)';}),
-        borderRadius:5,borderSkipped:false
-      }]
+      datasets:volDatasets
     },
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{font:{size:9},maxTicksLimit:8}},y:{grid:{color:'rgba(0,0,0,.05)'},ticks:{font:{size:10}}}}}
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:wlShowIntensityOverlay,position:'top',labels:{boxWidth:10,font:{size:10}}}},
+      scales:{
+        x:{grid:{display:false},ticks:{font:{size:9},maxTicksLimit:8}},
+        y:{grid:{color:'rgba(0,0,0,.05)'},ticks:{font:{size:10}}},
+        y1:{display:wlShowIntensityOverlay,position:'right',min:0,max:5,grid:{display:false},ticks:{stepSize:1,font:{size:10}}}
+      }
+    }
   });
 
   makeChart('intensChart2',{
