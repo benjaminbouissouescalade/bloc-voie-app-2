@@ -127,6 +127,7 @@
   --dg-terra: #c96b42;
   --dg-mineral: #557a82;
   --dg-sable: #d8cdb8;
+  --dg-cream: #f3f2ed;
 
   --bg: var(--dg-offwhite);
   --surface: #ffffff;
@@ -550,41 +551,57 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 .fp-confidence-badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 3px; }
 .fp-quality-warn { font-size: 11px; color: var(--warm); margin: 4px 0; }
 .game-hidden { display: none !important; }
-/* Catégories de badges — en-tête éditorial numéroté */
-.badge-cat-block { margin-bottom: 34px; }
-.badge-cat-header { display: flex; align-items: baseline; gap: 10px; margin-bottom: 16px; }
-.badge-cat-num { font-family: var(--serif); font-size: 13px; color: var(--dg-green); letter-spacing: .02em; }
-.badge-cat-title { font-family: var(--serif); font-size: 16px; font-weight: 400; text-transform: uppercase; letter-spacing: .02em; color: var(--text); }
+/* Catégories de badges — en-tête éditorial numéroté, allégé */
+.badge-cat-block { margin-bottom: 30px; }
+.badge-cat-header { display: flex; align-items: baseline; gap: 8px; margin-bottom: 15px; }
+.badge-cat-num { font-family: var(--font); font-size: 11px; font-weight: 600; color: var(--dg-mineral); letter-spacing: .04em; }
+.badge-cat-title { font-family: var(--serif); font-size: 14px; font-weight: 400; text-transform: uppercase; letter-spacing: .03em; color: var(--text); }
 .badge-cat-line { flex: 1; height: 1px; background: var(--border); }
-.badge-grid { display: flex; flex-wrap: wrap; gap: 18px 16px; }
+.badge-grid { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 22px 20px; }
 
-/* Badges = objets graphiques posés sur le fond, pas de carte */
-.badge-item { width: 60px; text-align: center; }
+/* Chaque badge = objet indépendant, pas de carte, pas de lignes de liaison */
+.badge-item { text-align: center; }
 
-/* Forme du badge (SVG) : cercle / hexagone / écusson / rectangle / losange selon la famille */
-.badge-shape { position: relative; width: 60px; height: 60px; margin: 0 auto; }
+/* Niveau 1-2 (standard / achievement) : forme simple de la famille, sans décoration technique */
+.badge-shape { position: relative; width: 42px; height: 42px; margin: 0 auto; }
+.tier-achievement .badge-shape { width: 47px; height: 47px; }
 .badge-shape-svg { width: 100%; height: 100%; overflow: visible; }
-.badge-shape-svg > * { stroke-width: 1.5; vector-effect: non-scaling-stroke; }
-.badge-shape-svg .badge-inner-ring * { fill: none; }
+.badge-shape-svg > * { stroke-width: 1.3; vector-effect: non-scaling-stroke; }
 .locked .badge-shape-svg > * { fill: none; stroke: #d2d2cd; }
 .badge-shape-value { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: var(--serif); font-weight: 400; line-height: 1; color: #c4c4bf; }
-.badge-shape-value.sz-lg { font-size: 19px; }
-.badge-shape-value.sz-md { font-size: 15px; }
-.badge-shape-value.sz-sm { font-size: 11.5px; letter-spacing: -.02em; }
-.unlocked.max-tier .badge-shape-svg > * { stroke-width: 2.2; }
+.badge-shape-value.sz-lg { font-size: 15px; }
+.badge-shape-value.sz-md { font-size: 12px; }
+.badge-shape-value.sz-sm { font-size: 9.5px; letter-spacing: -.02em; }
+.unlocked.tier-standard .badge-shape-svg > * { fill: var(--dg-cream); stroke: var(--dg-green); }
+.unlocked.tier-standard .badge-shape-value { color: var(--dg-green); }
+.unlocked.tier-achievement .badge-shape-svg > * { fill: var(--dg-green); stroke: var(--dg-green); }
+.unlocked.tier-achievement .badge-shape-value { color: var(--dg-cream); }
+.tier-achievement.unlocked .badge-shape::after { content:''; position:absolute; bottom:-2px; left:50%; transform:translateX(-50%); width:4px; height:4px; border-radius:50%; background:var(--dg-mineral); }
 
-/* Débloqué : la couleur progresse avec la difficulté du palier, pas avec la famille */
-.unlocked.stage-0 .badge-shape-svg > * { fill: var(--dg-offwhite); stroke: var(--dg-green); }
-.unlocked.stage-0 .badge-shape-value { color: var(--dg-green); }
-.unlocked.stage-1 .badge-shape-svg > * { fill: var(--dg-green); stroke: var(--dg-green); }
-.unlocked.stage-1 .badge-shape-value { color: var(--dg-offwhite); }
-.unlocked.stage-2 .badge-shape-svg > * { fill: var(--dg-anthracite); stroke: var(--dg-terra); }
-.unlocked.stage-2 .badge-shape-value { color: var(--dg-offwhite); }
-.unlocked.stage-3 .badge-shape-svg > * { fill: var(--dg-black); stroke: var(--dg-sable); }
-.unlocked.stage-3 .badge-shape-value { color: var(--dg-offwhite); }
+/* Niveau 3-4 (milestone / hero) : véritable plaque éditoriale, forme moins parfaite */
+.badge-plate { position: relative; width: 64px; height: 64px; margin: 0 auto; padding: 8px 4px 7px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; background: var(--surface2); border: 1px solid var(--border2); clip-path: polygon(16% 0,100% 0,100% 84%,84% 100%,0 100%,0 16%); }
+.tier-hero .badge-plate { width: 82px; height: 56px; clip-path: none; border-radius: 999px; }
+.badge-plate-serial { font-family: var(--font); font-size: 6.5px; font-weight: 600; letter-spacing: .06em; color: var(--muted); }
+.badge-plate-value { font-family: var(--serif); font-weight: 400; line-height: 1; }
+.badge-plate-value.sz-lg { font-size: 19px; }
+.badge-plate-value.sz-md { font-size: 15px; }
+.badge-plate-value.sz-sm { font-size: 11px; letter-spacing: -.02em; }
+.badge-plate-tag { font-family: var(--font); font-size: 6.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+.locked .badge-plate { background: var(--surface); border-color: var(--border); box-shadow: none; }
+.locked .badge-plate-serial, .locked .badge-plate-tag { color: #c4c4bf; }
+.locked .badge-plate-value { color: #c4c4bf; }
+.unlocked.tier-milestone .badge-plate { background: var(--dg-anthracite); border-color: var(--dg-terra); box-shadow: 0 2px 6px rgba(32,34,31,.18), inset 0 1px 0 rgba(255,255,255,.06); }
+.unlocked.tier-milestone .badge-plate-serial, .unlocked.tier-milestone .badge-plate-tag { color: var(--dg-terra); }
+.unlocked.tier-milestone .badge-plate-value { color: var(--dg-cream); }
+.unlocked.tier-hero .badge-plate { background: var(--dg-black); border: 1.5px solid var(--dg-sable); box-shadow: 0 3px 10px rgba(32,34,31,.25), inset 0 1px 0 rgba(255,255,255,.08); }
+.unlocked.tier-hero .badge-plate-serial, .unlocked.tier-hero .badge-plate-tag { color: var(--dg-sable); }
+.unlocked.tier-hero .badge-plate-value { color: var(--dg-cream); }
 
-/* Seul le prochain objectif de chaque catégorie affiche un repère de progression */
-.badge-next-pct { margin-top: 6px; font-size: 10px; font-weight: 600; color: var(--dg-green); letter-spacing: .02em; }
+/* Repère "Next" — seul le prochain objectif de chaque catégorie l'affiche, intégré au badge */
+.badge-next-label { margin-top: 7px; font-family: var(--font); font-size: 8.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--dg-green); }
+.badge-segbar-svg { width: 52px; height: 7px; margin-top: 3px; }
+.seg-on { fill: var(--dg-green); }
+.seg-off { fill: #dedcd3; }
 .crew-card { border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; background: var(--surface2); margin-bottom: 14px; }
 .crew-member-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
 .crew-member-row:last-child { border-bottom: none; }
@@ -3685,25 +3702,17 @@ const BADGE_SHAPE_SVG = {
   rect:     '<rect x="6" y="6" width="52" height="52" rx="3"/>',
   diamond:  '<polygon points="32,3 61,32 32,61 3,32"/>'
 };
-const BADGE_TICK_POS = [
-  {x1:32,y1:0,x2:32,y2:-5},
-  {x1:64,y1:32,x2:69,y2:32},
-  {x1:32,y1:64,x2:32,y2:69},
-  {x1:0,y1:32,x2:-5,y2:32}
-];
-function badgeDetailSvg(shape, tierIdx, isMaxTier, stage) {
-  const n = Math.min(tierIdx, 4);
-  let svg = BADGE_TICK_POS.slice(0, n).map(p=>`<line x1="${p.x1}" y1="${p.y1}" x2="${p.x2}" y2="${p.y2}"/>`).join('');
-  if (stage >= 2) {
-    svg += `<g class="badge-inner-ring" transform="translate(32,32) scale(0.72) translate(-32,-32)" stroke-dasharray="8 6">${BADGE_SHAPE_SVG[shape]}</g>`;
-  }
-  if (isMaxTier) svg += `<circle cx="32" cy="-8" r="2.5"/><line x1="27" y1="70" x2="37" y2="70"/>`;
-  return svg;
+function segBarSvg(pct) {
+  const total = 10, filled = Math.round(pct/100*total), w = total*6-2;
+  let bars = '';
+  for (let i=0;i<total;i++) bars += `<rect x="${i*6}" y="0" width="4" height="7" rx="1" class="${i<filled?'seg-on':'seg-off'}"/>`;
+  return `<svg viewBox="0 0 ${w} 7" class="badge-segbar-svg">${bars}</svg>`;
 }
 function computeBadgeState(climber) {
   const logs = climber?.logs || [];
   const bestIdx = bestSentGradeIdx(logs);
   const result = [];
+  let serial = 0;
   BADGE_CATEGORIES.forEach(cat => {
     const current = cat.type==='grade' ? bestIdx : cat.statFn(logs);
     let nextObjectiveSet = false;
@@ -3715,9 +3724,10 @@ function computeBadgeState(climber) {
       const isMaxTier = tierIdx === cat.tiers.length-1;
       const ratio = cat.tiers.length>1 ? tierIdx/(cat.tiers.length-1) : 1;
       const stage = isMaxTier ? 3 : ratio < 0.34 ? 0 : ratio < 0.67 ? 1 : 2;
+      serial++;
       result.push({
         catId: cat.id, catLabel: cat.label, icon: cat.icon, shape: cat.shape, tag: cat.tag,
-        tierIdx, isMaxTier, stage,
+        tierIdx, isMaxTier, stage, serialDisp: 'DGR·'+String(serial).padStart(3,'0'),
         label: cat.type==='grade' ? `Premier ${tier}` : `${tier} ${cat.unitLabel}`,
         unlocked, isNextObjective,
         headline: String(tier).toUpperCase(),
@@ -5418,13 +5428,27 @@ function renderBadges() {
       <div class="badge-grid">
         ${items.map(b => {
           const sizeCls = b.headline.length<=2?'sz-lg':b.headline.length===3?'sz-md':'sz-sm';
-          return `
-          <div class="badge-item shape-${b.shape} stage-${b.stage} ${b.unlocked?'unlocked':'locked'} ${b.isMaxTier?'max-tier':''}">
+          const tierCls = b.stage===0?'tier-standard':b.stage===1?'tier-achievement':b.stage===2?'tier-milestone':'tier-hero';
+          const cls = `badge-item ${tierCls} shape-${b.shape} ${b.unlocked?'unlocked':'locked'} ${b.isNextObjective?'is-next':''}`;
+          const nextExtra = b.isNextObjective ? `<div class="badge-next-label">Next</div>${segBarSvg(b.progressPct)}` : '';
+          if (b.stage <= 1) {
+            return `
+          <div class="${cls}">
             <div class="badge-shape">
-              <svg class="badge-shape-svg" viewBox="0 0 64 64">${BADGE_SHAPE_SVG[b.shape]}${badgeDetailSvg(b.shape,b.tierIdx,b.isMaxTier,b.stage)}</svg>
+              <svg class="badge-shape-svg" viewBox="0 0 64 64">${BADGE_SHAPE_SVG[b.shape]}</svg>
               <div class="badge-shape-value ${sizeCls}">${esc(b.headline)}</div>
             </div>
-            ${b.isNextObjective ? `<div class="badge-next-pct">${b.progressPct}%</div>` : ''}
+            ${nextExtra}
+          </div>`;
+          }
+          return `
+          <div class="${cls}">
+            <div class="badge-plate">
+              <div class="badge-plate-serial">${esc(b.serialDisp)}</div>
+              <div class="badge-plate-value ${sizeCls}">${esc(b.headline)}</div>
+              <div class="badge-plate-tag">${esc(b.tag)}</div>
+            </div>
+            ${nextExtra}
           </div>`;
         }).join('')}
       </div>
