@@ -3952,7 +3952,7 @@ function monthWeekRows(y, m, logs) {
       return dt.getFullYear() === y && dt.getMonth() === m && dt.getDate() >= d && dt.getDate() <= rowEnd;
     });
     const cycleNames = [...new Set(rowLogs.map(l => l.cycleName).filter(Boolean))];
-    rows.push({ start: d, end: rowEnd, cycleNames });
+    rows.push({ start: d, end: rowEnd, cycleNames, rowLogs });
     d = rowEnd + 1;
   }
   return rows;
@@ -3975,14 +3975,36 @@ function renderCalendarYear() {
     const monthName = new Date(y,m,1).toLocaleDateString('fr-FR',{month:'long'});
     const weekRows = monthWeekRows(y, m, monthLogs);
     const weekRowsHtml = weekRows.map(w => {
-      if (!w.cycleNames.length) return `<div style="height:16px;border-radius:3px;background:var(--border);opacity:.35;margin-bottom:3px"></div>`;
-      return `<div onclick="event.stopPropagation();calDate=new Date(${y},${m},${w.start});setCalZoom('week')" style="display:flex;gap:3px;align-items:center;height:16px;margin-bottom:3px;cursor:pointer">
-        ${w.cycleNames.map(n => `<span style="display:flex;align-items:center;gap:3px;background:${colorForCycleName(n)};color:#fff;font-size:9px;padding:1px 6px;border-radius:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:${Math.floor(100/w.cycleNames.length)}%">${esc(n)}</span>`).join('')}
-      </div>`;
+      if (w.cycleNames.length) {
+        return `<div onclick="event.stopPropagation();calDate=new Date(${y},${m},${w.start});setCalZoom('week')" style="display:flex;gap:3px;align-items:center;height:16px;margin-bottom:3px;cursor:pointer">
+          ${w.cycleNames.map(n => `<span style="display:flex;align-items:center;gap:3px;background:${colorForCycleName(n)};color:#fff;font-size:9px;padding:1px 6px;border-radius:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:${Math.floor(100/w.cycleNames.length)}%">${esc(n)}</span>`).join('')}
+        </div>`;
+      }
+      if (w.rowLogs.length) {
+        const doneCount = w.rowLogs.filter(l=>!l.planned).length;
+        const plannedCount = w.rowLogs.filter(l=>l.planned).length;
+        const dots = w.rowLogs.slice(0,8).map(l => {
+          const t = SESSION_TYPES[l.type] || SESSION_TYPES.autre;
+          return `<span title="${esc(t.label)}" style="width:7px;height:7px;border-radius:50%;flex-shrink:0;background:${l.planned?'transparent':t.color};border:1.5px solid ${t.color}"></span>`;
+        }).join('');
+        return `<div onclick="event.stopPropagation();calDate=new Date(${y},${m},${w.start});setCalZoom('week')" style="display:flex;gap:3px;align-items:center;height:16px;margin-bottom:3px;cursor:pointer">
+          ${dots}<span style="font-size:9px;color:var(--muted);margin-left:2px">${doneCount}${plannedCount?` +${plannedCount}📌`:''}</span>
+        </div>`;
+      }
+      return `<div style="height:16px;border-radius:3px;background:var(--border);opacity:.35;margin-bottom:3px"></div>`;
     }).join('');
-    return `<div onclick="calDate=new Date(${y},${m},1);setCalZoom('month')" style="cursor:pointer;border:1px solid var(--border);border-radius:var(--r-sm);padding:12px;background:color-mix(in srgb, var(--accent) ${Math.round(intensity*22)}%, var(--surface2))">
-      <div style="font-weight:600;font-size:13px;text-transform:capitalize;margin-bottom:6px">${monthName}</div>
-      <div style="font-size:11px;color:var(--muted);margin-bottom:8px">${doneLogs.length} séance${doneLogs.length!==1?'s':''} · charge ${load}${plannedLogs.length?` · 📌 ${plannedLogs.length}`:''}</div>
+    const isCurrentMonth = (m === new Date().getMonth() && y === new Date().getFullYear());
+    return `<div onclick="calDate=new Date(${y},${m},1);setCalZoom('month')" style="cursor:pointer;border:1.5px solid ${isCurrentMonth?'var(--accent)':'var(--border)'};border-radius:var(--r-sm);padding:12px;background:color-mix(in srgb, var(--accent) ${Math.round(intensity*22)}%, var(--surface2))">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <div style="font-weight:600;font-size:13px;text-transform:capitalize">${monthName}</div>
+        ${isCurrentMonth?`<span class="tag" style="border-color:var(--accent);color:var(--accent);font-size:9px">en cours</span>`:''}
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);margin-bottom:8px">
+        <span>🧗 ${doneLogs.length} séance${doneLogs.length!==1?'s':''}</span>
+        <span>·</span>
+        <span>⚡ ${load}</span>
+        ${plannedLogs.length?`<span>· 📌 ${plannedLogs.length}</span>`:''}
+      </div>
       <div>${weekRowsHtml}</div>
     </div>`;
   }).join('');
