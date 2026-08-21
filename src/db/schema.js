@@ -232,6 +232,9 @@ async function initDB() {
         climber_id    TEXT NOT NULL REFERENCES climbers(id) ON DELETE CASCADE,
         PRIMARY KEY (challenge_id, climber_id)
       );
+      -- Défi ciblant une séance précise de la banque (ex. "Voie rose, Salle X") plutôt
+      -- qu'une métrique chiffrée générique. NULL pour les défis chiffrés classiques.
+      ALTER TABLE challenges ADD COLUMN IF NOT EXISTS bank_id TEXT;
     `);
     console.log('✅ Base de données initialisée');
   } catch (err) {
