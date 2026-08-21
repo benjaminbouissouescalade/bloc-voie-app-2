@@ -586,6 +586,43 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 .fp-result-interpretation { font-size: 12px; color: var(--text); line-height: 1.5; }
 .fp-confidence-badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 3px; }
 .fp-quality-warn { font-size: 11px; color: var(--warm); margin: 4px 0; }
+
+/* Refonte UX — étapes de test numérotées */
+.fp-step { display: flex; gap: 14px; border-top: 1px solid var(--border); padding-top: 18px; margin-top: 18px; }
+.fp-step:first-of-type { border-top: none; margin-top: 0; padding-top: 0; }
+.fp-step-num { flex: 0 0 auto; width: 30px; height: 30px; border-radius: 50%; background: var(--accent2); color: var(--accent); font-weight: 700; font-size: 13px; display: flex; align-items: center; justify-content: center; }
+.fp-step-body { flex: 1; min-width: 0; }
+.fp-step-title { font-weight: 700; font-size: 14px; text-transform: uppercase; letter-spacing: .03em; margin-bottom: 2px; }
+.fp-step-sub { font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+.fp-step-hint { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+/* Refonte UX — paramètres avancés repliés */
+.fp-advanced summary { cursor: pointer; font-size: 12.5px; font-weight: 600; color: var(--muted); padding: 8px 0; list-style: none; }
+.fp-advanced summary::-webkit-details-marker { display: none; }
+.fp-advanced summary::before { content: "⚙️ "; }
+.fp-advanced[open] summary { color: var(--text); margin-bottom: 8px; }
+
+/* Refonte UX — Mon Profil : dimensions simplifiées */
+.fp-dim-row { margin-bottom: 18px; }
+.fp-dim-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+.fp-dim-label { font-size: 14px; font-weight: 700; }
+.fp-dim-qual { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; }
+.fp-dim-bar-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+.fp-dim-bar-fill { height: 100%; border-radius: 5px; transition: width .3s ease; }
+.fp-dim-foot { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-top: 5px; }
+.fp-synthesis { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border); }
+.fp-synthesis-row { display: flex; align-items: center; gap: 10px; font-size: 13px; padding: 5px 0; }
+.fp-synthesis-tag { font-size: 10.5px; font-weight: 700; letter-spacing: .04em; min-width: 74px; }
+.fp-sci-summary { cursor: pointer; font-size: 12.5px; font-weight: 600; color: var(--muted); padding: 8px 0; list-style: none; }
+.fp-sci-summary::-webkit-details-marker { display: none; }
+.fp-sci-summary::before { content: "🔬 "; }
+
+/* Refonte UX — Évolution */
+.fp-delta-row { display: flex; justify-content: space-between; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+.fp-delta-row:last-child { border-bottom: none; }
+.fp-history-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 4px; border-bottom: 1px solid var(--border); cursor: pointer; }
+.fp-history-row:hover { background: var(--surface2); }
+.fp-history-row:last-child { border-bottom: none; }
 .appmode-hidden { display: none !important; }
 .app-mode-switch { display: flex; gap: 2px; margin: 0 10px 16px; padding: 3px; background: var(--surface2); border-radius: 99px; }
 .app-mode-btn { flex: 1; border: none; background: none; cursor: pointer; padding: 7px 4px; font-size: 12px; font-weight: 600; color: var(--muted); border-radius: 99px; transition: all .15s; }
@@ -1728,142 +1765,168 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   <div class="page-header">
     <div>
       <h2>Finger Profile</h2>
-      <p>Force et endurance des doigts, comparées à une population normative — <span id="fp-athlete-name"></span></p>
+      <p>Ton profil doigts, en un coup d'œil — <span id="fp-athlete-name"></span></p>
     </div>
   </div>
 
   <div class="time-filters">
-    <button class="time-filter-btn active" data-fp-tab="new">Nouveau test</button>
-    <button class="time-filter-btn" data-fp-tab="history">Historique</button>
-    <button class="time-filter-btn" data-fp-tab="expected">Profil attendu par niveau</button>
+    <button class="time-filter-btn" data-fp-tab="test">Test</button>
+    <button class="time-filter-btn active" data-fp-tab="profile">Mon profil</button>
+    <button class="time-filter-btn" data-fp-tab="evolution">Évolution</button>
   </div>
 
-  <!-- Onglet : nouveau test -->
-  <div id="fp-tab-new" class="fp-tab-panel">
+  <!-- Onglet : TEST -->
+  <div id="fp-tab-test" class="fp-tab-panel" style="display:none">
     <div class="panel">
       <div class="panel-header">
-        <span class="panel-title">Nouvelle campagne de test</span>
-        <span class="panel-sub">Source : Berta et al. 2024 — 307 grimpeurs, protocole finger flexors</span>
+        <span class="panel-title">Nouveau test doigts</span>
+        <span class="panel-sub">Berta et al. 2024 — 307 grimpeurs</span>
       </div>
 
       <div class="form-row form-row-3">
         <div class="form-group">
-          <label class="form-label">Date du test</label>
+          <label class="form-label">Date</label>
           <input class="form-control" type="date" id="fp-test-date">
         </div>
         <div class="form-group">
-          <label class="form-label">Poids au moment du test (kg)</label>
+          <label class="form-label">Poids (kg)</label>
           <input class="form-control" type="number" step="0.1" id="fp-body-mass" oninput="fpComputeMvcRelative()">
         </div>
         <div class="form-group">
-          <label class="form-label">Niveau redpoint récent</label>
+          <label class="form-label">Niveau actuel</label>
           <select class="form-control" id="fp-rp-grade" onchange="fpUpdateIrcraFromGrade()"></select>
         </div>
       </div>
-      <div class="form-row form-row-2">
-        <div class="form-group">
-          <label class="form-label">Niveau IRCRA (auto, modifiable)</label>
-          <input class="form-control" type="number" id="fp-rp-ircra" min="0" max="35">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Mode de comparaison</label>
-          <select class="form-control" id="fp-comparison-mode">
-            <option value="same_sex">Même sexe (défaut, comme dans l'étude)</option>
-            <option value="global">Tous grimpeurs (global)</option>
-          </select>
-        </div>
-      </div>
-      <div id="fp-gender-warning" style="display:none;background:var(--warm2);color:var(--warm);border-radius:8px;padding:10px;font-size:13px;margin-bottom:12px"></div>
 
-      <div class="fp-test-block">
-        <div class="fp-test-block-title">A. Max Finger Strength / MVC</div>
+      <details class="fp-advanced" id="fp-advanced-params">
+        <summary>Paramètres avancés</summary>
         <div class="form-row form-row-2">
           <div class="form-group">
-            <label class="form-label">MVC absolue (kg)</label>
-            <input class="form-control" type="number" step="0.1" id="fp-mvc-kg" oninput="fpComputeMvcRelative()">
+            <label class="form-label">Niveau IRCRA (auto, modifiable)</label>
+            <input class="form-control" type="number" id="fp-rp-ircra" min="0" max="35">
           </div>
           <div class="form-group">
-            <label class="form-label">MVC relative (kg/kg, auto)</label>
-            <input class="form-control" type="number" step="0.001" id="fp-mvc-kg-kg" readonly>
+            <label class="form-label">Mode de comparaison</label>
+            <select class="form-control" id="fp-comparison-mode">
+              <option value="same_sex">Même sexe (défaut, comme dans l'étude)</option>
+              <option value="global">Tous grimpeurs (global)</option>
+            </select>
           </div>
         </div>
-        <label class="fp-quality-flag"><input type="checkbox" id="fp-flag-mvc" checked> Protocole exact respecté (même réglette / position / appareil que l'étude)</label>
-      </div>
+        <div id="fp-gender-warning" style="display:none;background:var(--warm2);color:var(--warm);border-radius:8px;padding:10px;font-size:13px;margin-bottom:4px"></div>
+      </details>
 
-      <div class="fp-test-block">
-        <div class="fp-test-block-title">B. Intermittent Endurance Test (60% MVC)</div>
-        <div class="form-group">
-          <label class="form-label">Résultat (kg.s/kg)</label>
-          <input class="form-control" type="number" step="0.01" id="fp-intermittent">
+      <div class="fp-step">
+        <div class="fp-step-num">01</div>
+        <div class="fp-step-body">
+          <div class="fp-step-title">Force maximale</div>
+          <div class="fp-step-sub">MVC — meilleur résultat valide</div>
+          <div class="form-row form-row-2">
+            <div class="form-group">
+              <label class="form-label">Résultat (kg)</label>
+              <input class="form-control" type="number" step="0.1" id="fp-mvc-kg" oninput="fpComputeMvcRelative()" placeholder="ex. 42.5">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Relatif au poids (kg/kg, auto)</label>
+              <input class="form-control" type="number" step="0.001" id="fp-mvc-kg-kg" readonly>
+            </div>
+          </div>
+          <label class="fp-quality-flag"><input type="checkbox" id="fp-flag-mvc" checked> Protocole exact respecté</label>
         </div>
-        <label class="fp-quality-flag"><input type="checkbox" id="fp-flag-intermittent" checked> Protocole exact respecté</label>
       </div>
 
-      <div class="fp-test-block">
-        <div class="fp-test-block-title">C. Continuous Endurance Test (60% MVC)</div>
-        <div class="form-group">
-          <label class="form-label">Résultat (kg.s/kg)</label>
-          <input class="form-control" type="number" step="0.01" id="fp-continuous">
+      <div class="fp-step">
+        <div class="fp-step-num">02</div>
+        <div class="fp-step-body">
+          <div class="fp-step-title">Endurance intermittente</div>
+          <div class="fp-step-sub">60% MVC</div>
+          <div class="form-group">
+            <label class="form-label">Résultat (kg.s/kg)</label>
+            <input class="form-control" type="number" step="0.01" id="fp-intermittent" placeholder="ex. 12.4">
+          </div>
+          <label class="fp-quality-flag"><input type="checkbox" id="fp-flag-intermittent" checked> Protocole exact respecté</label>
         </div>
-        <label class="fp-quality-flag"><input type="checkbox" id="fp-flag-continuous" checked> Protocole exact respecté</label>
       </div>
 
-      <div class="fp-test-block">
-        <div class="fp-test-block-title">D. Finger Hang Capacity</div>
-        <div class="form-group">
-          <label class="form-label">Résultat (secondes)</label>
-          <input class="form-control" type="number" step="0.1" id="fp-finger-hang">
+      <div class="fp-step">
+        <div class="fp-step-num">03</div>
+        <div class="fp-step-body">
+          <div class="fp-step-title">Endurance continue</div>
+          <div class="fp-step-sub">60% MVC</div>
+          <div class="form-group">
+            <label class="form-label">Résultat (kg.s/kg)</label>
+            <input class="form-control" type="number" step="0.01" id="fp-continuous" placeholder="ex. 8.2">
+          </div>
+          <label class="fp-quality-flag"><input type="checkbox" id="fp-flag-continuous" checked> Protocole exact respecté</label>
         </div>
-        <label class="fp-quality-flag"><input type="checkbox" id="fp-flag-finger-hang" checked> Protocole exact respecté</label>
-        <p style="font-size:11px;color:var(--muted);margin-top:4px">La performance à ce test dépend fortement de la force maximale (~61-62% de la variance selon l'étude) — à lire comme une capacité globale, pas une mesure pure d'endurance.</p>
       </div>
 
-      <div class="form-group" style="margin-top:14px">
+      <div class="fp-step">
+        <div class="fp-step-num">04</div>
+        <div class="fp-step-body">
+          <div class="fp-step-title">Finger hang</div>
+          <div class="fp-step-sub">Capacité de suspension</div>
+          <div class="form-group">
+            <label class="form-label">Résultat (secondes)</label>
+            <input class="form-control" type="number" step="0.1" id="fp-finger-hang" placeholder="ex. 24.0">
+          </div>
+          <label class="fp-quality-flag"><input type="checkbox" id="fp-flag-finger-hang" checked> Protocole exact respecté</label>
+          <p class="fp-step-hint">Dépend fortement de la force maximale — à lire comme une capacité globale.</p>
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-top:18px">
         <label class="form-label">Notes (optionnel)</label>
         <textarea class="form-control" id="fp-notes" rows="2"></textarea>
       </div>
 
       <div id="fp-save-error" style="display:none;background:var(--warm2);color:var(--warm);border-radius:8px;padding:10px;font-size:13px;margin-bottom:12px"></div>
-      <button class="btn primary" style="width:100%" onclick="fpSaveTest()">Enregistrer et voir le profil</button>
+      <button class="btn primary" style="width:100%" onclick="fpSaveTest()">Analyser mon profil</button>
     </div>
-
-    <div id="fp-report-container"></div>
   </div>
 
-  <!-- Onglet : historique -->
-  <div id="fp-tab-history" class="fp-tab-panel" style="display:none">
-    <div class="panel">
-      <div class="panel-header"><span class="panel-title">Historique des campagnes</span></div>
-      <div id="fp-history-list"></div>
-    </div>
-    <div id="fp-history-report"></div>
-    <div id="fp-history-progression"></div>
+  <!-- Onglet : MON PROFIL -->
+  <div id="fp-tab-profile" class="fp-tab-panel">
+    <div id="fp-profile-container"></div>
   </div>
 
-  <!-- Onglet : profil attendu par niveau -->
-  <div id="fp-tab-expected" class="fp-tab-panel" style="display:none">
+  <!-- Onglet : ÉVOLUTION -->
+  <div id="fp-tab-evolution" class="fp-tab-panel" style="display:none">
+    <div id="fp-evolution-deltas"></div>
+
     <div class="panel">
-      <div class="panel-header"><span class="panel-title">Expected profile for climbing level</span><span class="panel-sub">Distributions observées dans la base, sans avoir besoin de tester un athlète</span></div>
-      <div class="form-row form-row-3">
-        <div class="form-group">
-          <label class="form-label">Cotation</label>
-          <select class="form-control" id="fp-exp-grade" onchange="fpUpdateExpectedIrcra()"></select>
-        </div>
-        <div class="form-group">
-          <label class="form-label">IRCRA (modifiable)</label>
-          <input class="form-control" type="number" id="fp-exp-ircra">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Population</label>
-          <select class="form-control" id="fp-exp-mode">
-            <option value="global">Tous grimpeurs</option>
-            <option value="male">Hommes seulement</option>
-            <option value="female">Femmes seulement</option>
-          </select>
-        </div>
+      <div class="panel-header"><span class="panel-title">Courbes</span></div>
+      <div class="time-filters" id="fp-evolution-period-tabs" style="margin-bottom:14px">
+        <button class="time-filter-btn" data-fp-period="3m" onclick="fpSetEvolutionPeriod('3m')">3 mois</button>
+        <button class="time-filter-btn" data-fp-period="6m" onclick="fpSetEvolutionPeriod('6m')">6 mois</button>
+        <button class="time-filter-btn" data-fp-period="1y" onclick="fpSetEvolutionPeriod('1y')">1 an</button>
+        <button class="time-filter-btn active" data-fp-period="all" onclick="fpSetEvolutionPeriod('all')">Tout</button>
       </div>
-      <button class="btn" onclick="fpLoadExpectedProfile()">Afficher</button>
-      <div id="fp-expected-container" style="margin-top:16px"></div>
+      <div id="fp-evolution-charts-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:20px"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header"><span class="panel-title">Historique des tests</span></div>
+      <div id="fp-evolution-history-list"></div>
+    </div>
+    <div id="fp-evolution-report"></div>
+  </div>
+</div>
+
+<!-- Modal : comparer à un autre niveau -->
+<div class="modal-backdrop" id="fp-compare-level-modal">
+  <div class="modal" style="width:min(480px,100%)">
+    <div class="modal-header">
+      <span class="modal-title">Comparer à un autre niveau</span>
+      <button class="btn sm" onclick="closeModal('fp-compare-level-modal')">Fermer</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Niveau actuel : <strong id="fp-compare-current-level" style="color:var(--text)"></strong></p>
+      <div class="form-group">
+        <label class="form-label">Comparer avec</label>
+        <select class="form-control" id="fp-compare-grade" onchange="fpLoadCompareLevel()"></select>
+      </div>
+      <div id="fp-compare-result" style="margin-top:10px"></div>
     </div>
   </div>
 </div>
@@ -5497,23 +5560,27 @@ function fpTestFieldJsKey(fieldKey) {
 }
 
 function fpSwitchTab(tab) {
-  ['new', 'history', 'expected'].forEach(t => {
+  ['test', 'profile', 'evolution'].forEach(t => {
     const el = document.getElementById('fp-tab-' + t);
     if (el) el.style.display = (t === tab) ? '' : 'none';
   });
   document.querySelectorAll('[data-fp-tab]').forEach(b => b.classList.toggle('active', b.dataset.fpTab === tab));
-  if (tab === 'history') fpLoadHistory();
-  if (tab === 'expected') {
-    const gradeSel = document.getElementById('fp-exp-grade');
-    if (gradeSel && !gradeSel.dataset.filled) {
-      gradeSel.innerHTML = GRADES.map(g => `<option value="${g}">${g}</option>`).join('');
-      gradeSel.value = '8a';
-      gradeSel.dataset.filled = '1';
-      fpUpdateExpectedIrcra();
-    }
-  }
+  if (tab === 'profile') fpLoadProfileTab();
+  if (tab === 'evolution') fpLoadEvolutionTab();
 }
 document.querySelectorAll('[data-fp-tab]').forEach(b => { b.addEventListener('click', () => fpSwitchTab(b.dataset.fpTab)); });
+
+// Charge (avec cache) l'historique des campagnes de test du grimpeur actif.
+// Réutilisé par l'onglet MON PROFIL (dernier test) et ÉVOLUTION (courbes + liste).
+async function fpFetchHistory(force) {
+  if (fpHistoryCache.length && !force) return fpHistoryCache;
+  const climber = getActive();
+  try {
+    const r = await fetch('/api/finger-profile/' + climber.id, { headers: authHeaders() });
+    fpHistoryCache = r.ok ? await r.json() : []; // déjà trié du plus récent au plus ancien par le backend
+  } catch (e) { fpHistoryCache = []; }
+  return fpHistoryCache;
+}
 
 function renderFingerProfile() {
   const climber = getActive();
@@ -5530,17 +5597,20 @@ function renderFingerProfile() {
   const gender = climber.profile?.gender;
   const modeSel = document.getElementById('fp-comparison-mode');
   const warnEl = document.getElementById('fp-gender-warning');
+  const advEl = document.getElementById('fp-advanced-params');
   if (!gender) {
     modeSel.value = 'global';
     warnEl.textContent = "Le sexe de l'athlète n'est pas renseigné dans son profil (bouton Profil) — la comparaison \"même sexe\" (par défaut dans l'étude) n'est pas disponible tant qu'il n'est pas renseigné. Mode \"Tous grimpeurs\" utilisé pour l'instant.";
     warnEl.style.display = '';
+    if (advEl) advEl.open = true; // signale le point qui a besoin d'attention plutôt que de le cacher
   } else {
     modeSel.value = 'same_sex';
     warnEl.style.display = 'none';
   }
-  document.getElementById('fp-report-container').innerHTML = '';
-  document.getElementById('fp-history-report').innerHTML = '';
-  fpSwitchTab('new');
+  document.getElementById('fp-profile-container').innerHTML = '';
+  document.getElementById('fp-evolution-report').innerHTML = '';
+  fpHistoryCache = [];
+  fpFetchHistory().then(list => fpSwitchTab(list.length ? 'profile' : 'test'));
 }
 
 async function fpSaveTest() {
@@ -5595,7 +5665,8 @@ async function fpSaveTest() {
     const r = await fetch('/api/finger-profile/' + climber.id, { method: 'POST', headers: authHeaders(), body: JSON.stringify(payload) });
     const d = await r.json();
     if (!r.ok) { errEl.textContent = d.error || 'Erreur lors de l\'enregistrement'; errEl.style.display = ''; return; }
-    await fpLoadReportForTest(climber.id, payload.id, gender, mode, 'fp-report-container');
+    await fpFetchHistory(true);
+    fpSwitchTab('profile'); // "Mon profil" affiche toujours le test le plus récent par date
   } catch (e) {
     errEl.textContent = 'Erreur réseau';
     errEl.style.display = '';
@@ -5611,7 +5682,7 @@ async function fpLoadReportForTest(climberId, testId, gender, mode, containerId)
     const r = await fetch('/api/finger-profile/' + climberId + '/' + testId + '/report?' + params.toString(), { headers: authHeaders() });
     const d = await r.json();
     if (!r.ok) { container.innerHTML = `<div class="panel" style="margin-top:16px"><p style="color:var(--warm);font-size:13px">${esc(d.error || 'Erreur de calcul du rapport')}</p></div>`; return; }
-    fpRenderReport(d.report, d.test, containerId);
+    fpRenderFullProfile(d.report, d.test, containerId);
   } catch (e) {
     container.innerHTML = `<div class="panel" style="margin-top:16px"><p style="color:var(--warm);font-size:13px">Erreur réseau</p></div>`;
   }
@@ -5658,149 +5729,278 @@ function fpRenderReport(report, test, containerId) {
   }).join('');
 }
 
-async function fpLoadHistory() {
+// ─────────────────────────── MON PROFIL ───────────────────────────
+let fpCurrentTest = null;
+let fpCurrentReport = null;
+
+async function fpLoadProfileTab() {
   const climber = getActive();
-  try {
-    const r = await fetch('/api/finger-profile/' + climber.id, { headers: authHeaders() });
-    const list = await r.json();
-    if (!r.ok) { document.getElementById('fp-history-list').innerHTML = `<p style="color:var(--warm);font-size:13px">Erreur de chargement</p>`; return; }
-    fpHistoryCache = list;
-    const listEl = document.getElementById('fp-history-list');
-    document.getElementById('fp-history-report').innerHTML = '';
-    if (!list.length) {
-      listEl.innerHTML = `<p style="font-size:13px;color:var(--muted)">Aucune campagne de test enregistrée pour l'instant.</p>`;
-      document.getElementById('fp-history-progression').innerHTML = '';
-      return;
-    }
-    listEl.innerHTML = list.map(t => `
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:8px">
-        <div style="font-size:13px">
-          <strong>${fmtDate(t.testDate)}</strong> — IRCRA ${t.rpIrcra}${t.rpGrade ? ' (' + esc(t.rpGrade) + ')' : ''}
-        </div>
-        <div style="display:flex;gap:8px">
-          <button class="btn sm" onclick="fpViewHistoryTest('${t.id}')">Voir le profil</button>
-          <button class="btn sm danger" onclick="fpDeleteTest('${t.id}')">✕</button>
-        </div>
-      </div>`).join('');
-    fpRenderProgression(list);
-  } catch (e) {
-    document.getElementById('fp-history-list').innerHTML = `<p style="color:var(--warm);font-size:13px">Erreur réseau</p>`;
+  const container = document.getElementById('fp-profile-container');
+  await fpFetchHistory();
+  if (!fpHistoryCache.length) {
+    container.innerHTML = `<div class="panel" style="text-align:center;padding:40px 20px">
+      <p style="font-size:14px;color:var(--muted);margin-bottom:14px">Fais ton premier test doigts pour découvrir ton profil.</p>
+      <button class="btn primary" onclick="fpSwitchTab('test')">Faire mon premier test</button>
+    </div>`;
+    return;
   }
+  const latest = fpHistoryCache[0]; // le backend trie déjà du plus récent au plus ancien
+  const gender = climber.profile?.gender || null;
+  await fpLoadReportForTest(climber.id, latest.id, gender, latest.comparisonMode || 'same_sex', 'fp-profile-container');
 }
 
-function fpViewHistoryTest(testId) {
+// Mot qualitatif court associé à un percentile — mêmes seuils que fpBucketColor, pour rester cohérent.
+function fpQualLabel(p) {
+  if (p === null || p === undefined) return '—';
+  if (p >= 80) return 'Très bon';
+  if (p >= 60) return 'Bon';
+  if (p >= 40) return 'Moyen';
+  if (p >= 20) return 'À travailler';
+  return 'Prioritaire';
+}
+
+// Équilibre force / endurance — dérivé directement des percentiles déjà calculés par le moteur
+// (aucune nouvelle statistique inventée, juste une lecture comparative des résultats existants).
+function fpProfileBalance(fields) {
+  const forceF = fields.find(f => f.field.key === 'mvc_kg_kg');
+  const others = fields.filter(f => f.field.key !== 'mvc_kg_kg' && f.percentile !== null);
+  if (!forceF || forceF.percentile === null || !others.length) return null;
+  const avgOthers = others.reduce((s, f) => s + f.percentile, 0) / others.length;
+  const diff = forceF.percentile - avgOthers;
+  if (diff >= 15) return 'Profil orienté force';
+  if (diff <= -15) return 'Profil orienté endurance';
+  return 'Profil équilibré';
+}
+
+// Vue simple : 4 dimensions max, gros chiffres, synthèse courte. C'est l'écran principal.
+function fpRenderSimpleProfile(report, test, containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const withP = report.fields.filter(f => f.percentile !== null && f.percentile !== undefined);
+  const sorted = [...withP].sort((a, b) => b.percentile - a.percentile);
+  const strong = sorted[0];
+  const weak = sorted.length > 1 ? sorted[sorted.length - 1] : null;
+  const balance = fpProfileBalance(report.fields);
+
+  const dims = report.fields.map(f => {
+    const p = f.percentile;
+    const color = fpBucketColor(p);
+    return `
+      <div class="fp-dim-row">
+        <div class="fp-dim-head">
+          <span class="fp-dim-label">${esc(f.field.frLabel)}</span>
+          <span class="fp-dim-qual" style="color:${color}">${esc(fpQualLabel(p))}</span>
+        </div>
+        <div class="fp-dim-bar-track"><div class="fp-dim-bar-fill" style="width:${p ?? 0}%;background:${color}"></div></div>
+        <div class="fp-dim-foot">
+          <span>${p !== null ? p + 'e percentile' : 'Non testé'}</span>
+          <span>${f.value !== null ? f.value + ' ' + f.field.unit : ''}</span>
+        </div>
+      </div>`;
+  }).join('');
+
+  container.innerHTML = `
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">TON PROFIL DOIGTS</span>
+        <span class="panel-sub">Niveau ${esc(test.rpGrade || ('IRCRA ' + report.ircraTarget))} · ${fmtDate(test.testDate)}</span>
+      </div>
+      ${dims}
+      ${(strong || weak || balance) ? `
+      <div class="fp-synthesis">
+        ${strong ? `<div class="fp-synthesis-row"><span class="fp-synthesis-tag" style="color:#2d7a4e">POINT FORT</span><span>${esc(strong.field.frLabel)}</span></div>` : ''}
+        ${weak && (!strong || weak.field.key !== strong.field.key) ? `<div class="fp-synthesis-row"><span class="fp-synthesis-tag" style="color:#c4501a">PRIORITÉ</span><span>${esc(weak.field.frLabel)}</span></div>` : ''}
+        ${balance ? `<div class="fp-synthesis-row"><span class="fp-synthesis-tag" style="color:var(--muted)">ÉQUILIBRE</span><span>${esc(balance)}</span></div>` : ''}
+        ${report.synthesis ? `<p style="font-size:13px;line-height:1.6;margin-top:10px">${esc(report.synthesis)}</p>` : ''}
+      </div>` : ''}
+      <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;align-items:center">
+        <button class="btn" onclick="fpOpenCompareLevelModal()">📊 Comparer à un autre niveau</button>
+        <button class="btn sm danger" style="margin-left:auto" onclick="fpDeleteTest('${test.id}')">Supprimer ce test</button>
+      </div>
+    </div>`;
+}
+
+// Vue complète : la synthèse simple ci-dessus, puis un bloc repliable (details) qui réutilise
+// tel quel fpRenderReport() — la vue dense d'origine (IRCRA, n, P10/P50/P90, quality flags,
+// mode de comparaison, etc.) — pour ne rien perdre du moteur, juste le pousser hors du regard.
+function fpRenderFullProfile(report, test, containerId) {
+  fpCurrentTest = test;
+  fpCurrentReport = report;
+  fpRenderSimpleProfile(report, test, containerId);
+  const container = document.getElementById(containerId);
+  const detailsBodyId = containerId + '-sci-body';
+  container.insertAdjacentHTML('beforeend', `
+    <details style="margin-top:12px">
+      <summary class="fp-sci-summary">Voir les détails scientifiques</summary>
+      <div id="${detailsBodyId}"></div>
+    </details>`);
+  fpRenderReport(report, test, detailsBodyId);
+}
+
+// ─────────────────────────── Comparer à un autre niveau ───────────────────────────
+// Réutilise entièrement /api/finger-profile-expected (inchangé) — reformulé en "Toi vs
+// Référence" au lieu de la distribution brute, comme demandé.
+function fpOpenCompareLevelModal() {
+  if (!fpCurrentTest || !fpCurrentReport) return;
+  const sel = document.getElementById('fp-compare-grade');
+  if (sel && !sel.dataset.filled) {
+    sel.innerHTML = GRADES.map(g => `<option value="${g}">${g}</option>`).join('');
+    sel.dataset.filled = '1';
+  }
+  document.getElementById('fp-compare-current-level').textContent = fpCurrentTest.rpGrade || ('IRCRA ' + fpCurrentReport.ircraTarget);
+  const curIdx = GRADES.indexOf(fpCurrentTest.rpGrade);
+  sel.value = (curIdx >= 0 && curIdx + 2 < GRADES.length) ? GRADES[curIdx + 2] : GRADES[GRADES.length - 1];
+  document.getElementById('fp-compare-result').innerHTML = '';
+  document.getElementById('fp-compare-level-modal').classList.add('open');
+  fpLoadCompareLevel();
+}
+window.fpOpenCompareLevelModal = fpOpenCompareLevelModal;
+
+async function fpLoadCompareLevel() {
+  const grade = document.getElementById('fp-compare-grade').value;
+  const ircra = fpIrcraFromGrade(grade);
+  const resultEl = document.getElementById('fp-compare-result');
+  if (ircra === null) { resultEl.innerHTML = '<p style="font-size:13px;color:var(--warm)">Niveau invalide</p>'; return; }
+  const climber = getActive();
+  const gender = climber.profile?.gender || null;
+  const mode = (fpCurrentReport.mode === 'same_sex' && gender) ? 'same_sex' : 'global';
+  const params = new URLSearchParams();
+  params.set('ircra', ircra);
+  params.set('mode', mode);
+  if (mode === 'same_sex') params.set('gender', gender);
+  resultEl.innerHTML = '<p style="font-size:13px;color:var(--muted)">Chargement…</p>';
+  try {
+    const r = await fetch('/api/finger-profile-expected?' + params.toString(), { headers: authHeaders() });
+    const profile = await r.json();
+    if (!r.ok) { resultEl.innerHTML = `<p style="color:var(--warm);font-size:13px">${esc(profile.error || 'Erreur')}</p>`; return; }
+    fpRenderLevelComparison(profile, grade);
+  } catch (e) {
+    resultEl.innerHTML = '<p style="color:var(--warm);font-size:13px">Erreur réseau</p>';
+  }
+}
+window.fpLoadCompareLevel = fpLoadCompareLevel;
+
+function fpRenderLevelComparison(profile, grade) {
+  const resultEl = document.getElementById('fp-compare-result');
+  const test = fpCurrentTest;
+  resultEl.innerHTML = profile.fields.map(f => {
+    const myValue = test[fpTestFieldJsKey(f.field.key)];
+    const refP50 = f.stats ? f.stats.p50 : null;
+    return `<div style="padding:12px 0;border-bottom:1px solid var(--border)">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);margin-bottom:6px">${esc(f.field.frLabel)}</div>
+      <div style="display:flex;justify-content:space-between;font-size:14px"><span>Toi</span><strong>${myValue !== null && myValue !== undefined ? fpRound(myValue) + ' ' + f.field.unit : '—'}</strong></div>
+      <div style="display:flex;justify-content:space-between;font-size:14px;color:var(--muted)"><span>Référence ${esc(grade)}</span><span>${refP50 !== null ? fpRound(refP50) + ' ' + f.field.unit : 'Données insuffisantes'}</span></div>
+    </div>`;
+  }).join('') + `<p style="font-size:11px;color:var(--muted);margin-top:10px">Référence : médiane de la population ${esc(profile.referenceLabel)}, IRCRA ${profile.ircraTarget}±${profile.window} (n=${profile.n}).</p>`;
+}
+window.fpRenderLevelComparison = fpRenderLevelComparison;
+
+// ─────────────────────────── ÉVOLUTION ───────────────────────────
+const FP_CHART_FIELDS = [
+  { key: 'mvcKgKg', label: 'Force max', unit: 'kg/kg', color: '#2d7a4e' },
+  { key: 'intermittentKgSKg', label: 'Intermittent', unit: 'kg.s/kg', color: '#1a4a7a' },
+  { key: 'continuousKgSKg', label: 'Continu', unit: 'kg.s/kg', color: '#b07a10' },
+  { key: 'fingerHangS', label: 'Finger hang', unit: 's', color: '#8b1a5a' },
+];
+let fpEvolutionPeriod = 'all';
+
+async function fpLoadEvolutionTab() {
+  await fpFetchHistory();
+  fpRenderEvolutionDeltas(fpHistoryCache);
+  fpRenderEvolutionCharts(fpHistoryCache, fpEvolutionPeriod);
+  fpRenderEvolutionHistoryList(fpHistoryCache);
+  document.getElementById('fp-evolution-report').innerHTML = '';
+}
+
+function fpRenderEvolutionDeltas(list) {
+  const el = document.getElementById('fp-evolution-deltas');
+  if (!el) return;
+  if (list.length < 2) { el.innerHTML = ''; return; }
+  const latest = list[0], prev = list[1]; // trié du plus récent au plus ancien
+  const rows = FP_CHART_FIELDS.map(f => {
+    const a = latest[f.key], b = prev[f.key];
+    if (a === null || a === undefined || !b) return '';
+    const pct = ((a - b) / b) * 100;
+    const sign = pct >= 0 ? '+' : '';
+    const color = pct >= 0 ? '#2d7a4e' : '#c4501a';
+    return `<div class="fp-delta-row"><span>${esc(f.label)}</span><span style="font-weight:700;color:${color}">${sign}${fpRound(pct)}%</span></div>`;
+  }).join('');
+  if (!rows) { el.innerHTML = ''; return; }
+  el.innerHTML = `<div class="panel">
+    <div class="panel-header"><span class="panel-title">Depuis le dernier test</span><span class="panel-sub">${fmtDate(prev.testDate)} → ${fmtDate(latest.testDate)}</span></div>
+    ${rows}
+  </div>`;
+}
+
+function fpSetEvolutionPeriod(period) {
+  fpEvolutionPeriod = period;
+  document.querySelectorAll('#fp-evolution-period-tabs button').forEach(b => b.classList.toggle('active', b.dataset.fpPeriod === period));
+  fpRenderEvolutionCharts(fpHistoryCache, period);
+}
+window.fpSetEvolutionPeriod = fpSetEvolutionPeriod;
+
+function fpFilterByPeriod(list, period) {
+  if (period === 'all') return list;
+  const days = { '3m': 90, '6m': 180, '1y': 365 }[period] || 999999;
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - days);
+  return list.filter(t => new Date(t.testDate) >= cutoff);
+}
+
+function fpRenderEvolutionCharts(list, period) {
+  const grid = document.getElementById('fp-evolution-charts-grid');
+  if (!grid) return;
+  const filtered = fpFilterByPeriod(list, period).slice().sort((a, b) => a.testDate.localeCompare(b.testDate)); // ancien → récent
+  grid.innerHTML = FP_CHART_FIELDS.map(f => {
+    const pts = filtered.filter(t => t[f.key] !== null && t[f.key] !== undefined);
+    if (pts.length < 2) {
+      return `<div><div style="font-size:12px;font-weight:600;color:${f.color};margin-bottom:6px">${esc(f.label)}</div><p style="font-size:11px;color:var(--muted)">Pas assez de tests sur cette période.</p></div>`;
+    }
+    return `<div><div style="font-size:12px;font-weight:600;color:${f.color};margin-bottom:6px">${esc(f.label)}</div><div class="chart-wrap" style="height:120px"><canvas id="fp-evo-chart-${f.key}"></canvas></div></div>`;
+  }).join('');
+  FP_CHART_FIELDS.forEach(f => {
+    const pts = filtered.filter(t => t[f.key] !== null && t[f.key] !== undefined);
+    if (pts.length < 2) return;
+    makeChart('fp-evo-chart-' + f.key, {
+      type: 'line',
+      data: { labels: pts.map(t => fmtDate(t.testDate)), datasets: [{ data: pts.map(t => t[f.key]), borderColor: f.color, backgroundColor: f.color + '22', tension: .3, pointRadius: 3, fill: true }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { font: { size: 9 } } }, y: { ticks: { font: { size: 9 } } } } }
+    });
+  });
+}
+
+function fpRenderEvolutionHistoryList(list) {
+  const el = document.getElementById('fp-evolution-history-list');
+  if (!el) return;
+  if (!list.length) { el.innerHTML = `<p style="font-size:13px;color:var(--muted)">Aucun test enregistré pour l'instant.</p>`; return; }
+  el.innerHTML = list.map(t => `
+    <div class="fp-history-row" onclick="fpOpenEvolutionTest('${t.id}')">
+      <div style="font-size:14px;font-weight:600">${fmtDate(t.testDate)}</div>
+      <div style="font-size:12px;color:var(--muted)">IRCRA ${t.rpIrcra}${t.rpGrade ? ' · ' + esc(t.rpGrade) : ''} ›</div>
+    </div>`).join('');
+}
+
+function fpOpenEvolutionTest(testId) {
   const t = fpHistoryCache.find(x => x.id === testId);
   if (!t) return;
   const climber = getActive();
   const gender = climber.profile?.gender || null;
-  fpLoadReportForTest(climber.id, testId, gender, t.comparisonMode || 'same_sex', 'fp-history-report');
+  fpLoadReportForTest(climber.id, testId, gender, t.comparisonMode || 'same_sex', 'fp-evolution-report');
+  document.getElementById('fp-evolution-report').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
+window.fpOpenEvolutionTest = fpOpenEvolutionTest;
 
 async function fpDeleteTest(testId) {
   if (!confirm('Supprimer cette campagne de test ?')) return;
   const climber = getActive();
   try {
     await fetch('/api/finger-profile/' + climber.id + '/' + testId, { method: 'DELETE', headers: authHeaders() });
-    fpLoadHistory();
   } catch (e) { /* silencieux */ }
+  await fpFetchHistory(true);
+  const activeTab = document.querySelector('[data-fp-tab].active')?.dataset.fpTab;
+  if (activeTab === 'evolution') fpLoadEvolutionTab();
+  else fpLoadProfileTab();
 }
-
-async function fpRenderProgression(list) {
-  const progEl = document.getElementById('fp-history-progression');
-  if (!progEl) return;
-  if (list.length < 1) { progEl.innerHTML = ''; return; }
-  const climber = getActive();
-  const gender = climber.profile?.gender || null;
-  const sorted = [...list].sort((a, b) => a.testDate.localeCompare(b.testDate)); // ancien → récent
-
-  let reports = [];
-  try {
-    reports = await Promise.all(sorted.map(async t => {
-      const params = new URLSearchParams();
-      if (gender) params.set('gender', gender);
-      params.set('mode', t.comparisonMode || 'same_sex');
-      try {
-        const r = await fetch('/api/finger-profile/' + climber.id + '/' + t.id + '/report?' + params.toString(), { headers: authHeaders() });
-        if (!r.ok) return null;
-        const d = await r.json();
-        return d.report;
-      } catch (e) { return null; }
-    }));
-  } catch (e) { reports = sorted.map(() => null); }
-
-  const fieldKeys = ['mvc_kg_kg', 'intermittent_kg_s_kg', 'continuous_kg_s_kg', 'finger_hang_s'];
-  const fieldLabels = { mvc_kg_kg: 'Max Strength (kg/kg)', intermittent_kg_s_kg: 'Intermittent Endurance (kg.s/kg)', continuous_kg_s_kg: 'Continuous Endurance (kg.s/kg)', finger_hang_s: 'Finger Hang (s)' };
-
-  let html = `<div class="panel"><div class="panel-header"><span class="panel-title">Progression</span><span class="panel-sub">Valeur brute et position dans la population — deux choses différentes</span></div>`;
-  fieldKeys.forEach(fk => {
-    const jsKey = fpTestFieldJsKey(fk);
-    const rows = sorted.map((t, i) => ({
-      date: t.testDate,
-      value: t[jsKey],
-      percentile: reports[i] ? (reports[i].fields.find(f => f.field.key === fk)?.percentile ?? null) : null
-    })).filter(r => r.value !== null && r.value !== undefined);
-    if (!rows.length) return;
-    html += `<div style="margin-bottom:18px"><div style="font-weight:600;font-size:13px;margin-bottom:6px">${fieldLabels[fk]}</div>
-      <table style="width:100%;border-collapse:collapse;font-size:13px">
-        <tr style="color:var(--muted);text-align:left"><th style="padding:4px 8px;font-weight:600">Date</th><th style="padding:4px 8px;font-weight:600">Valeur</th><th style="padding:4px 8px;font-weight:600">Variation</th><th style="padding:4px 8px;font-weight:600">Percentile</th></tr>`;
-    rows.forEach((r, i) => {
-      const prev = rows[i - 1];
-      let delta = '—';
-      if (prev && prev.value) {
-        const abs = r.value - prev.value;
-        const pct = (abs / prev.value) * 100;
-        delta = `${abs >= 0 ? '+' : ''}${fpRound(abs)} (${pct >= 0 ? '+' : ''}${fpRound(pct)}%)`;
-      }
-      html += `<tr style="border-top:1px solid var(--border)"><td style="padding:4px 8px">${fmtDate(r.date)}</td><td style="padding:4px 8px">${fpRound(r.value)}</td><td style="padding:4px 8px">${esc(delta)}</td><td style="padding:4px 8px">${r.percentile !== null ? 'P' + r.percentile : '—'}</td></tr>`;
-    });
-    html += '</table></div>';
-  });
-  html += '</div>';
-  progEl.innerHTML = html;
-}
-
-function fpUpdateExpectedIrcra() {
-  const grade = document.getElementById('fp-exp-grade').value;
-  const ircra = fpIrcraFromGrade(grade);
-  if (ircra !== null) document.getElementById('fp-exp-ircra').value = ircra;
-}
-
-async function fpLoadExpectedProfile() {
-  const ircra = parseInt(document.getElementById('fp-exp-ircra').value, 10);
-  const modeSel = document.getElementById('fp-exp-mode').value; // 'global' | 'male' | 'female'
-  const container = document.getElementById('fp-expected-container');
-  if (!Number.isFinite(ircra)) { container.innerHTML = `<p style="color:var(--warm);font-size:13px">IRCRA invalide</p>`; return; }
-  const params = new URLSearchParams();
-  params.set('ircra', ircra);
-  if (modeSel === 'global') { params.set('mode', 'global'); }
-  else { params.set('mode', 'same_sex'); params.set('gender', modeSel); }
-  container.innerHTML = '<p style="font-size:13px;color:var(--muted)">Chargement…</p>';
-  try {
-    const r = await fetch('/api/finger-profile-expected?' + params.toString(), { headers: authHeaders() });
-    const profile = await r.json();
-    if (!r.ok) { container.innerHTML = `<p style="color:var(--warm);font-size:13px">${esc(profile.error || 'Erreur')}</p>`; return; }
-    fpRenderExpectedProfile(profile, container);
-  } catch (e) {
-    container.innerHTML = '<p style="color:var(--warm);font-size:13px">Erreur réseau</p>';
-  }
-}
-
-function fpRenderExpectedProfile(profile, container) {
-  const confColor = fpConfidenceColor(profile.confidence.tier);
-  let html = `<div style="font-size:13px;color:var(--muted);margin-bottom:12px">
-    IRCRA ${profile.ircraTarget}±${profile.window} — n = ${profile.n} — <span class="fp-confidence-badge" style="background:${confColor}22;color:${confColor}">${esc(profile.confidence.label)}</span>
-  </div>`;
-  html += profile.fields.map(f => {
-    const s = f.stats;
-    if (!s) return `<div class="fp-result-card"><div class="fp-result-label">${esc(f.field.label)}</div><p style="font-size:12px;color:var(--muted);margin-top:8px">Pas assez de données à ce niveau.</p></div>`;
-    return `<div class="fp-result-card">
-      <div class="fp-result-label">${esc(f.field.label)}</div>
-      <div style="font-size:15px;margin-top:6px">Médiane : <strong>${fpRound(s.p50)} ${f.field.unit}</strong></div>
-      <div class="fp-bar-ticks" style="margin-top:10px"><span>P10 : ${fpRound(s.p10)}</span><span>P25 : ${fpRound(s.p25)}</span><span>P50 : ${fpRound(s.p50)}</span><span>P75 : ${fpRound(s.p75)}</span><span>P90 : ${fpRound(s.p90)}</span></div>
-    </div>`;
-  }).join('');
-  container.innerHTML = html;
-}
+window.fpDeleteTest = fpDeleteTest;
 
 // ═══════════════ COMMUNAUTÉ / CREWS (mode jeu) ═══════════════
 // Choix d'emoji pour les kudos entre coéquipiers — même liste côté backend (crews.js KUDOS_EMOJIS).
