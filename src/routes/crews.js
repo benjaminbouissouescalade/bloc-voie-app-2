@@ -529,6 +529,30 @@ router.post('/:crewId/activity', requireCrewMembership(), async (req, res) => {
   }
 });
 
+// GET /api/crews/:crewId/heatmap — activité du crew des 53 dernières semaines, façon GitHub
+// (nombre de séances loguées par n'importe quel membre, par jour). Aucune donnée nouvelle
+// stockée — agrégé à la volée depuis les vraies séances.
+router.get('/:crewId/heatmap', requireCrewMembership(), async (req, res) => {
+  try {
+    const { rows: members } = await pool.query('SELECT climber_id FROM crew_members WHERE crew_id=$1', [req.params.crewId]);
+    const memberIds = members.map(m => m.climber_id);
+    const since = new Date(); since.setDate(since.getDate() - 370);
+    let counts = [];
+    if (memberIds.length) {
+      const { rows } = await pool.query(
+        `SELECT date, COUNT(*)::int AS n FROM logs
+         WHERE climber_id = ANY($1) AND planned=false AND date >= $2
+         GROUP BY date`,
+        [memberIds, since.toISOString().slice(0, 10)]
+      );
+      counts = rows.map(r => ({ date: r.date.toISOString().slice(0, 10), count: r.n }));
+    }
+    res.json({ since: since.toISOString().slice(0, 10), days: counts });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Choix d'emoji pour les kudos — même liste côté frontend (public/index.html KUDOS_EMOJIS).
 const KUDOS_EMOJIS = ['👏', '💪', '🔥', '🧗', '🚀'];
 
