@@ -95,4 +95,85 @@ router.delete('/:partnerId', async (req, res) => {
   }
 });
 
+// GET /api/partners/feed — séances récentes réellement loguées par mes partenaires
+// (respecte leur réglage de confidentialité "séances" — pas de post créé à la main,
+// c'est toujours la vraie séance Digger).
+router.get('/feed', async (req, res) => {
+  const climberId = req.user?.climberId;
+  if (!climberId) return res.json([]);
+  try {
+    const { rows: partners } = await pool.query(
+      `SELECT cl.id, cl.name, cl.color, cl.profile
+       FROM partnerships p
+       JOIN climbers cl ON cl.id = (CASE WHEN p.climber_a = $1 THEN p.climber_b ELSE p.climber_a END)
+       WHERE p.climber_a = $1 OR p.climber_b = $1`,
+      [climberId]
+    );
+    const visible = partners.filter(p => (p.profile?.sharing?.seances || 'partenaires') !== 'prive');
+    const partnerIds = visible.map(p => p.id);
+    if (!partnerIds.length) return res.json([]);
+    const { rows: logs } = await pool.query(
+      `SELECT * FROM logs WHERE climber_id = ANY($1) AND planned = false ORDER BY date DESC, created_at DESC LIMIT 40`,
+      [partnerIds]
+    );
+    const logIds = logs.map(l => l.id);
+    let reactionRows = [];
+    if (logIds.length) {
+      const { rows } = await pool.query(
+        `SELECT log_id, climber_id, reaction FROM session_reactions WHERE log_id = ANY($1)`,
+        [logIds]
+      );
+      reactionRows = rows;
+    }
+    const partnerById = Object.fromEntries(visible.map(p => [p.id, p]));
+    const feed = logs.map(l => {
+      const reactions = reactionRows.filter(r => r.log_id === l.id);
+      const reactionCounts = {};
+      reactions.forEach(r => { reactionCounts[r.reaction] = (reactionCounts[r.reaction] || 0) + 1; });
+      const myReaction = reactions.find(r => r.climber_id === climberId)?.reaction || null;
+      const p = partnerById[l.climber_id];
+      return {
+        log: {
+          id: l.id, date: l.date.toISOString().slice(0, 10), type: l.type, support: l.support,
+          minutes: l.minutes, intensity: l.intensity, shape: l.shape, location: l.location,
+          notes: l.notes, ascents: l.ascents || [], bNoGrade: l.b_no_grade || {}
+        },
+        climberId: l.climber_id,
+        climberName: p?.name || '—',
+        climberColor: p?.color || '#999',
+        sharing: p?.profile?.sharing || {},
+        reactionCounts, myReaction
+      };
+    });
+    res.json(feed);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Les 5 réactions Digger (pas de like classique) — une seule active par utilisateur, modifiable.
+const REACTION_TYPES = ['fort', 'propre', 'allez', 'jaloux', 'jepars'];
+
+// POST /api/partners/feed/:logId/react — body {reaction} ('' ou absent pour retirer sa réaction
+router.post('/feed/:logId/react', async (req, res) => {
+  const climberId = req.user?.climberId;
+  if (!climberId) return res.status(400).json({ error: 'Aucun profil grimpeur associé à ce compte' });
+  const { reaction } = req.body;
+  try {
+    if (!reaction) {
+      await pool.query('DELETE FROM session_reactions WHERE log_id=$1 AND climber_id=$2', [req.params.logId, climberId]);
+      return res.json({ ok: true, reaction: null });
+    }
+    if (!REACTION_TYPES.includes(reaction)) return res.status(400).json({ error: 'Réaction invalide' });
+    await pool.query(
+      `INSERT INTO session_reactions (log_id, climber_id, reaction) VALUES ($1,$2,$3)
+       ON CONFLICT (log_id, climber_id) DO UPDATE SET reaction=$3, created_at=NOW()`,
+      [req.params.logId, climberId, reaction]
+    );
+    res.json({ ok: true, reaction });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
