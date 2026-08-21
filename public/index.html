@@ -594,6 +594,8 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 .fp-step-num { flex: 0 0 auto; width: 30px; height: 30px; border-radius: 50%; background: var(--accent2); color: var(--accent); font-weight: 700; font-size: 13px; display: flex; align-items: center; justify-content: center; }
 .fp-step-body { flex: 1; min-width: 0; }
 .fp-step-title { font-weight: 700; font-size: 14px; text-transform: uppercase; letter-spacing: .03em; margin-bottom: 2px; }
+.fp-step-title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer; flex-wrap: wrap; }
+.fp-step-protocol-link { font-size: 11.5px; font-weight: 600; color: var(--accent); white-space: nowrap; }
 .fp-step-sub { font-size: 12px; color: var(--muted); margin-bottom: 10px; }
 .fp-step-hint { font-size: 11px; color: var(--muted); margin-top: 4px; }
 
@@ -1820,7 +1822,10 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <div class="fp-step">
         <div class="fp-step-num">01</div>
         <div class="fp-step-body">
-          <div class="fp-step-title">Force maximale</div>
+          <div class="fp-step-title-row" onclick="fpOpenProtocol('mvc_kg_kg')">
+            <div class="fp-step-title">Force maximale</div>
+            <span class="fp-step-protocol-link">ℹ️ Voir le protocole</span>
+          </div>
           <div class="fp-step-sub">MVC — meilleur résultat valide</div>
           <div class="form-row form-row-2">
             <div class="form-group">
@@ -1839,7 +1844,10 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <div class="fp-step">
         <div class="fp-step-num">02</div>
         <div class="fp-step-body">
-          <div class="fp-step-title">Endurance intermittente</div>
+          <div class="fp-step-title-row" onclick="fpOpenProtocol('intermittent_kg_s_kg')">
+            <div class="fp-step-title">Endurance intermittente</div>
+            <span class="fp-step-protocol-link">ℹ️ Voir le protocole</span>
+          </div>
           <div class="fp-step-sub">60% MVC</div>
           <div class="form-group">
             <label class="form-label">Résultat (kg.s/kg)</label>
@@ -1852,7 +1860,10 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <div class="fp-step">
         <div class="fp-step-num">03</div>
         <div class="fp-step-body">
-          <div class="fp-step-title">Endurance continue</div>
+          <div class="fp-step-title-row" onclick="fpOpenProtocol('continuous_kg_s_kg')">
+            <div class="fp-step-title">Endurance continue</div>
+            <span class="fp-step-protocol-link">ℹ️ Voir le protocole</span>
+          </div>
           <div class="fp-step-sub">60% MVC</div>
           <div class="form-group">
             <label class="form-label">Résultat (kg.s/kg)</label>
@@ -1865,7 +1876,10 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <div class="fp-step">
         <div class="fp-step-num">04</div>
         <div class="fp-step-body">
-          <div class="fp-step-title">Finger hang</div>
+          <div class="fp-step-title-row" onclick="fpOpenProtocol('finger_hang_s')">
+            <div class="fp-step-title">Finger hang</div>
+            <span class="fp-step-protocol-link">ℹ️ Voir le protocole</span>
+          </div>
           <div class="fp-step-sub">Capacité de suspension</div>
           <div class="form-group">
             <label class="form-label">Résultat (secondes)</label>
@@ -1929,6 +1943,17 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       </div>
       <div id="fp-compare-result" style="margin-top:10px"></div>
     </div>
+  </div>
+</div>
+
+<!-- Modal : protocole d'un test -->
+<div class="modal-backdrop" id="fp-protocol-modal">
+  <div class="modal" style="width:min(520px,100%)">
+    <div class="modal-header">
+      <span class="modal-title" id="fp-protocol-title">Protocole</span>
+      <button class="btn sm" onclick="closeModal('fp-protocol-modal')">Fermer</button>
+    </div>
+    <div class="modal-body" id="fp-protocol-body"></div>
   </div>
 </div>
 
@@ -5521,6 +5546,65 @@ function openTripDetail(id) {
 // confirmée par l'utilisateur : IRCRA = index(cotation dans GRADES) - 1 (valable 6a→9a+,
 // couvre toute la plage réelle du dataset — voir GRADES plus haut dans ce fichier).
 let fpHistoryCache = [];
+
+// Détail du protocole de chaque test — pour que le grimpeur sache comment le réaliser
+// correctement (matériel, prise, exécution, critère d'arrêt). Basé sur la méthodologie
+// standard de ce champ de recherche (réglette ~20-23mm, prise demi-arquée, %MVC) telle que
+// documentée par l'équipe à l'origine du protocole Berta et al. 2024 (labo Baláš/Michailov).
+const FP_PROTOCOLS = {
+  mvc_kg_kg: {
+    title: 'Force maximale (MVC)',
+    steps: [
+      'Réglette de 20-23mm de profondeur, bord légèrement arrondi. Prise demi-arquée, une main à la fois.',
+      'Échauffe-toi avec 2-3 tractions submaximales avant de tester.',
+      'Tire au maximum pendant 5 secondes, sans t\'élancer ni sauter dans la traction.',
+      'Repos ~10s puis teste l\'autre main. Fais 3 essais par main avec ~3min de repos entre chaque essai.',
+      'Note le meilleur résultat (le plus élevé) des 3 essais — c\'est la valeur "meilleur résultat valide" demandée dans le formulaire.'
+    ]
+  },
+  intermittent_kg_s_kg: {
+    title: 'Endurance intermittente',
+    steps: [
+      'Même réglette et même prise demi-arquée que pour le test de force maximale.',
+      'Détermine d\'abord ta cible : 60% de ta force maximale (MVC) mesurée juste avant.',
+      'Maintiens cette charge par cycles de 8 secondes de traction / 2 secondes de repos, en continu.',
+      'Arrête le test dès que tu n\'arrives plus à tenir la charge cible (chute nette de force sur 2 cycles consécutifs) ou à l\'épuisement volontaire.',
+      'Chronomètre le temps total écoulé jusqu\'à l\'arrêt — c\'est ce résultat (en secondes, ramené à ton poids) qui est demandé.'
+    ]
+  },
+  continuous_kg_s_kg: {
+    title: 'Endurance continue',
+    steps: [
+      'Même réglette et même prise demi-arquée.',
+      'Toujours à 60% de ta force maximale (MVC), mais cette fois en traction continue, SANS phase de repos.',
+      'Tiens jusqu\'à l\'échec (chute nette de force) ou l\'épuisement volontaire.',
+      'Ce test dure normalement beaucoup moins longtemps que le test intermittent (souvent moins d\'une minute) — c\'est normal, ne compare pas les deux durées.',
+      'Chronomètre le temps jusqu\'à l\'échec.'
+    ]
+  },
+  finger_hang_s: {
+    title: 'Finger hang (suspension)',
+    steps: [
+      'Suspension à une réglette d\'environ 20-25mm, prise demi-arquée, à DEUX mains.',
+      'Poids de corps complet, sans charge ajoutée ni assistance.',
+      'Bras tendus, épaules engagées — pas de tirage ni de balancement (kipping).',
+      'Tiens le plus longtemps possible jusqu\'à lâcher.',
+      'Chronomètre la durée totale en secondes. C\'est un bon indicateur global du niveau, mais qui dépend beaucoup de la force max — pas une mesure d\'endurance pure.'
+    ]
+  }
+};
+function fpOpenProtocol(fieldKey) {
+  const p = FP_PROTOCOLS[fieldKey];
+  if (!p) return;
+  document.getElementById('fp-protocol-title').textContent = p.title;
+  document.getElementById('fp-protocol-body').innerHTML =
+    `<ol style="padding-left:20px;margin:0;display:flex;flex-direction:column;gap:10px;font-size:13.5px;line-height:1.5">
+      ${p.steps.map(s => `<li>${esc(s)}</li>`).join('')}
+    </ol>
+    <p style="font-size:11px;color:var(--muted);margin-top:16px">Matériel et prise identiques pour les 4 tests — la constance du protocole compte plus que le matériel exact pour que la comparaison aux percentiles reste valable.</p>`;
+  document.getElementById('fp-protocol-modal').classList.add('open');
+}
+window.fpOpenProtocol = fpOpenProtocol;
 
 function fpIrcraFromGrade(grade) {
   const idx = GRADES.indexOf(grade);
