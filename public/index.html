@@ -1440,6 +1440,57 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   </div>
 </div>
 
+<!-- Modal challenge -->
+<div class="modal-backdrop" id="challenge-modal">
+  <div class="modal" style="width:min(480px,100%)">
+    <div class="modal-header">
+      <span class="modal-title">Créer un défi</span>
+      <button class="btn sm" onclick="closeModal('challenge-modal')">Fermer</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Nom</label>
+        <input class="form-control" type="text" id="ch-name" placeholder="Ex. 10 séances en septembre">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Description (optionnel)</label>
+        <input class="form-control" type="text" id="ch-desc" placeholder="Ex. On se motive avant le trip">
+      </div>
+      <div class="form-row form-row-2">
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Métrique</label>
+          <select class="form-control" id="ch-metric">
+            <option value="seances">Nombre de séances</option>
+            <option value="jours">Jours de grimpe</option>
+            <option value="charge">Points de charge</option>
+            <option value="blocs">Blocs / voies</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Objectif</label>
+          <input class="form-control" type="number" id="ch-target" min="1" placeholder="Ex. 10">
+        </div>
+      </div>
+      <div class="form-row form-row-2">
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Début</label>
+          <input class="form-control" type="date" id="ch-start">
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Fin</label>
+          <input class="form-control" type="date" id="ch-end">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Participants</label>
+        <div id="ch-participants-list" style="max-height:160px;overflow-y:auto;display:flex;flex-direction:column;gap:4px"></div>
+      </div>
+      <div id="challenge-error" style="display:none;background:var(--warm2);color:var(--warm);border-radius:8px;padding:10px;font-size:13px;margin-bottom:12px"></div>
+      <button class="btn primary" style="width:100%" onclick="saveChallenge()">Créer le défi</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal cycle -->
 <div class="modal-backdrop" id="cycle-modal">
   <div class="modal" style="width:min(680px,100%)">
@@ -1760,7 +1811,11 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   <!-- ─── CHALLENGES ─── -->
   <div class="community-subpage" id="community-tab-challenges" style="display:none">
     <div class="panel">
-      <p style="font-size:13px;color:var(--muted)">Les challenges privés arrivent bientôt — connecte des partenaires ou crée un crew en attendant.</p>
+      <div class="panel-header">
+        <span class="panel-title">Défis privés</span>
+        <button class="btn primary sm" onclick="openChallengeModal()">+ Créer un défi</button>
+      </div>
+      <div id="challenges-list"><p style="font-size:13px;color:var(--muted)">Chargement…</p></div>
     </div>
   </div>
 </div>
@@ -5705,6 +5760,7 @@ function setCommunityTab(tab) {
   if (el) el.style.display = '';
   if (tab === 'feed') renderPartnersPanel();
   if (tab === 'crew') renderCommunity();
+  if (tab === 'challenges') renderChallengesTab();
 }
 window.setCommunityTab = setCommunityTab;
 function renderCommunityPage() {
@@ -6080,6 +6136,135 @@ function renderCrewLeaderboard(data, crewId) {
     </div>`;
   }).join('');
 }
+
+// ─── Challenges privés (Communauté v2 — brique 6) ───
+const CHALLENGE_METRIC_LABELS = { seances: 'Nombre de séances', jours: 'Jours de grimpe', charge: 'Points de charge', blocs: 'Blocs / voies' };
+
+async function openChallengeModal() {
+  document.getElementById('ch-name').value = '';
+  document.getElementById('ch-desc').value = '';
+  document.getElementById('ch-target').value = '';
+  document.getElementById('ch-metric').selectedIndex = 0;
+  const today = new Date();
+  const end = new Date(); end.setDate(end.getDate() + 30);
+  document.getElementById('ch-start').value = today.toISOString().slice(0, 10);
+  document.getElementById('ch-end').value = end.toISOString().slice(0, 10);
+  document.getElementById('challenge-error').style.display = 'none';
+
+  if (!partnerCache.length) {
+    try {
+      const r = await fetch('/api/partners', { headers: authHeaders() });
+      if (r.ok) partnerCache = await r.json();
+    } catch (e) { /* best-effort */ }
+  }
+  if (!crewCache.length) {
+    try {
+      const r = await fetch('/api/crews', { headers: authHeaders() });
+      if (r.ok) crewCache = await r.json();
+    } catch (e) { /* best-effort */ }
+  }
+
+  const me = getActive();
+  const peopleById = {};
+  partnerCache.forEach(p => { if (p.id !== me?.id) peopleById[p.id] = p; });
+  crewCache.forEach(c => (c.members || []).forEach(m => { if (m.id !== me?.id) peopleById[m.id] = m; }));
+  const people = Object.values(peopleById).sort((a, b) => a.name.localeCompare(b.name));
+
+  const list = document.getElementById('ch-participants-list');
+  if (!people.length) {
+    list.innerHTML = '<p style="font-size:12px;color:var(--muted)">Aucun partenaire ou coéquipier — connecte-toi d\'abord avec quelqu\'un dans l\'onglet Feed ou Crew.</p>';
+  } else {
+    list.innerHTML = people.map(p => `
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;padding:4px 0">
+        <input type="checkbox" class="ch-participant-cb" value="${p.id}">
+        <span>${esc(p.name)}</span>
+      </label>`).join('');
+  }
+  document.getElementById('challenge-modal').classList.add('open');
+}
+window.openChallengeModal = openChallengeModal;
+
+async function saveChallenge() {
+  const name = document.getElementById('ch-name').value.trim();
+  const description = document.getElementById('ch-desc').value.trim();
+  const metric = document.getElementById('ch-metric').value;
+  const target = document.getElementById('ch-target').value;
+  const startDate = document.getElementById('ch-start').value;
+  const endDate = document.getElementById('ch-end').value;
+  const participantIds = Array.from(document.querySelectorAll('.ch-participant-cb:checked')).map(cb => cb.value);
+  const errEl = document.getElementById('challenge-error');
+  errEl.style.display = 'none';
+  if (!name) { errEl.textContent = 'Nom requis.'; errEl.style.display = 'block'; return; }
+  if (!target || Number(target) <= 0) { errEl.textContent = 'Objectif requis.'; errEl.style.display = 'block'; return; }
+  if (!startDate || !endDate || startDate > endDate) { errEl.textContent = 'Dates invalides.'; errEl.style.display = 'block'; return; }
+  try {
+    const r = await fetch('/api/challenges', {
+      method: 'POST', headers: authHeaders(),
+      body: JSON.stringify({ name, description, metric, target, startDate, endDate, participantIds })
+    });
+    const d = await r.json();
+    if (!r.ok) { errEl.textContent = d.error || 'Erreur lors de la création.'; errEl.style.display = 'block'; return; }
+    closeModal('challenge-modal');
+    renderChallengesTab();
+  } catch (e) { errEl.textContent = 'Erreur réseau.'; errEl.style.display = 'block'; }
+}
+window.saveChallenge = saveChallenge;
+
+async function renderChallengesTab() {
+  const el = document.getElementById('challenges-list');
+  if (!el) return;
+  el.innerHTML = '<p style="font-size:13px;color:var(--muted)">Chargement…</p>';
+  try {
+    const r = await fetch('/api/challenges', { headers: authHeaders() });
+    const challenges = await r.json();
+    if (!r.ok) { el.innerHTML = `<p style="color:var(--warm);font-size:13px">${esc(challenges.error || 'Erreur de chargement')}</p>`; return; }
+    if (!challenges.length) {
+      el.innerHTML = '<p style="font-size:13px;color:var(--muted)">Aucun défi pour l\'instant — crée-en un avec un ou plusieurs partenaires/coéquipiers.</p>';
+      return;
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    el.innerHTML = challenges.map(ch => {
+      const daysLeft = Math.ceil((new Date(ch.endDate) - new Date(today)) / 86400000);
+      const statusText = daysLeft > 0 ? `${daysLeft} jour${daysLeft !== 1 ? 's' : ''} restant${daysLeft !== 1 ? 's' : ''}` : 'Terminé';
+      const rows = ch.participants.map(p => {
+        const pct = Math.min(100, Math.round((p.progress / ch.target) * 100));
+        const initials = p.name.trim().split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 2);
+        return `<div style="margin-bottom:8px">
+          <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px">
+            <span style="display:flex;align-items:center;gap:6px"><span class="crew-member-avatar" style="width:20px;height:20px;font-size:10px;background:${p.color}">${initials}</span>${esc(p.name)}</span>
+            <span style="color:var(--muted)">${p.progress} / ${ch.target}</span>
+          </div>
+          <div style="background:var(--border);border-radius:99px;height:6px;overflow:hidden">
+            <div style="background:var(--accent);width:${pct}%;height:100%"></div>
+          </div>
+        </div>`;
+      }).join('');
+      return `<div class="panel" style="margin-bottom:12px">
+        <div class="panel-header">
+          <div>
+            <span class="panel-title">${esc(ch.name)}</span>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px">${esc(CHALLENGE_METRIC_LABELS[ch.metric] || ch.metric)} · ${ch.startDate} → ${ch.endDate} · ${statusText}</div>
+          </div>
+          ${ch.isMine ? `<button class="btn sm" onclick="deleteChallenge('${ch.id}')">Supprimer</button>` : ''}
+        </div>
+        ${ch.description ? `<p style="font-size:13px;color:var(--muted);margin-bottom:12px">${esc(ch.description)}</p>` : ''}
+        ${rows}
+      </div>`;
+    }).join('');
+  } catch (e) {
+    el.innerHTML = '<p style="color:var(--warm);font-size:13px">Erreur réseau</p>';
+  }
+}
+window.renderChallengesTab = renderChallengesTab;
+
+async function deleteChallenge(id) {
+  if (!confirm('Supprimer ce défi ?')) return;
+  try {
+    await fetch('/api/challenges/' + id, { method: 'DELETE', headers: authHeaders() });
+    renderChallengesTab();
+  } catch (e) { /* best-effort */ }
+}
+window.deleteChallenge = deleteChallenge;
 
 function renderCrewBoard(data, crewId) {
   const el = document.getElementById('crew-board-' + crewId);
