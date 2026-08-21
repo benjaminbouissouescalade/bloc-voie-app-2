@@ -1100,6 +1100,14 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
         <span id="s-load-boulder-label" style="display:none"></span>
       </div>
 
+      <div class="panel" id="s-together-panel" style="display:none">
+        <div class="panel-header"><span class="panel-title">🤝 On grimpe ensemble</span></div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:8px">Tague les partenaires qui étaient avec toi. Si iels ont aussi loggé une vraie séance ce jour-là, les deux séances seront reliées.</p>
+        <div id="s-together-list" style="display:flex;flex-direction:column;gap:4px;margin-bottom:10px"></div>
+        <button class="btn sm" onclick="saveSessionTogether()">Lier</button>
+        <div id="s-together-status" style="margin-top:10px;font-size:12px"></div>
+      </div>
+
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button class="btn danger" id="delete-session-btn" style="display:none">Supprimer</button>
         <button class="btn" onclick="switchPage('history')">Annuler</button>
@@ -5927,6 +5935,7 @@ async function renderPartnerFeed() {
           ${best ? `<span class="tag" style="border-color:var(--accent);color:var(--accent);font-weight:700">${esc(best)}</span>` : ''}
         </div>
         <div style="font-size:12px;color:var(--muted);margin-bottom:10px">${item.log.minutes || 0} min${ascentCount ? ` · ${ascentCount} ascension${ascentCount !== 1 ? 's' : ''}` : ''}${load !== null ? ` · Charge ${load}` : ''}</div>
+        ${item.withPartners?.length ? `<div style="font-size:11px;color:var(--accent);margin-bottom:8px">🤝 Avec ${item.withPartners.map(p => esc(p.name)).join(', ')}</div>` : ''}
         <div style="display:flex;gap:6px;margin-bottom:6px">${reactRow}</div>
         ${countsText ? `<div style="font-size:11px;color:var(--muted);margin-bottom:10px">${countsText}</div>` : ''}
         <div style="display:flex;gap:8px">
@@ -6057,6 +6066,63 @@ function openPartnerProfile(id) {
   alert(`Profil de ${p.name} — à venir (niveau, séances récentes, progression, objectifs partagés selon sa confidentialité).`);
 }
 window.openPartnerProfile = openPartnerProfile;
+
+// ─── "On grimpe ensemble" (Communauté v2 — brique 7) ───
+async function renderTogetherPanel(logId) {
+  const panel = document.getElementById('s-together-panel');
+  if (!panel) return;
+  panel.style.display = '';
+  const listEl = document.getElementById('s-together-list');
+  const statusEl = document.getElementById('s-together-status');
+  statusEl.textContent = '';
+  listEl.innerHTML = '<p style="font-size:12px;color:var(--muted)">Chargement…</p>';
+
+  if (!partnerCache.length) {
+    try {
+      const r = await fetch('/api/partners', { headers: authHeaders() });
+      if (r.ok) partnerCache = await r.json();
+    } catch (e) { /* best-effort */ }
+  }
+  if (!partnerCache.length) {
+    listEl.innerHTML = '<p style="font-size:12px;color:var(--muted)">Aucun partenaire connecté — retrouve-les dans Communauté → Feed.</p>';
+    return;
+  }
+
+  let linked = [];
+  try {
+    const r = await fetch('/api/session-links/' + logId, { headers: authHeaders() });
+    if (r.ok) linked = await r.json();
+  } catch (e) { /* best-effort */ }
+  const linkedIds = new Set(linked.map(p => p.id));
+
+  listEl.innerHTML = partnerCache.map(p => `
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;padding:4px 0">
+      <input type="checkbox" class="s-together-cb" value="${p.id}" ${linkedIds.has(p.id) ? 'checked' : ''}>
+      <span>${esc(p.name)}</span>
+    </label>`).join('');
+  statusEl.textContent = linked.length ? `Actuellement avec : ${linked.map(p => p.name).join(', ')}` : '';
+}
+window.renderTogetherPanel = renderTogetherPanel;
+
+async function saveSessionTogether() {
+  if (!editingId) return;
+  const partnerIds = Array.from(document.querySelectorAll('.s-together-cb:checked')).map(cb => cb.value);
+  const statusEl = document.getElementById('s-together-status');
+  statusEl.textContent = 'Enregistrement…';
+  try {
+    const r = await fetch('/api/session-links', {
+      method: 'POST', headers: authHeaders(),
+      body: JSON.stringify({ logId: editingId, partnerIds })
+    });
+    const d = await r.json();
+    if (!r.ok) { statusEl.textContent = d.error || 'Erreur.'; return; }
+    let msg = '';
+    if (d.linkedNames?.length) msg += `Relié avec : ${d.linkedNames.join(', ')}. `;
+    if (d.notLinkedNames?.length) msg += `Pas encore de séance loguée ce jour-là pour : ${d.notLinkedNames.join(', ')}.`;
+    statusEl.textContent = msg || 'Aucun partenaire sélectionné.';
+  } catch (e) { statusEl.textContent = 'Erreur réseau.'; }
+}
+window.saveSessionTogether = saveSessionTogether;
 
 async function renderCommunity() {
   const container = document.getElementById('crew-list-container');
@@ -6751,6 +6817,7 @@ function newSession(date=null){
   document.getElementById('s-support').value='';
   document.getElementById('s-notes').value='';
   document.getElementById('delete-session-btn').style.display='none';
+  document.getElementById('s-together-panel').style.display='none';
   updateSessionTypeUI({});
   renderAscentsEditor();
   if (date) sNewSessionDateLocked = true;
@@ -6772,6 +6839,7 @@ function editSession(id){
   switchPage('new-session');
   updateSessionTypeUI(log.bNoGrade||{});
   renderAscentsEditor();
+  if (!log.planned) { renderTogetherPanel(id); } else { document.getElementById('s-together-panel').style.display='none'; }
 }
 function renderNewSession(){
   if(!editingId&&!sessionAscents.length&&!sNewSessionDateLocked) newSession();
