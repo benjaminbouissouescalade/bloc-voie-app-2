@@ -6426,6 +6426,10 @@ async function renderCommunity() {
           <div style="font-weight:600;font-size:13px;margin-bottom:8px">Activité récente</div>
           <div id="crew-activity-${c.id}"><p style="font-size:12px;color:var(--muted)">Chargement…</p></div>
         </div>
+        <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px">
+          <div style="font-weight:600;font-size:13px;margin-bottom:8px">🗓️ Activité de l'année</div>
+          <div id="crew-heatmap-${c.id}" style="overflow-x:auto"><p style="font-size:12px;color:var(--muted)">Chargement…</p></div>
+        </div>
       </div>`).join('');
     crews.forEach(c => crewLoadDetails(c.id));
   } catch (e) {
@@ -6444,6 +6448,77 @@ async function crewLoadDetails(crewId) {
   } catch (e) { /* silencieux — le reste de la page reste utilisable */ }
   loadCrewLeaderboard(crewId);
   loadCrewMonthlyChallenge(crewId);
+  loadCrewHeatmap(crewId);
+}
+
+// — Heatmap d'activité façon GitHub —
+async function loadCrewHeatmap(crewId) {
+  const el = document.getElementById('crew-heatmap-' + crewId);
+  if (!el) return;
+  try {
+    const r = await fetch('/api/crews/' + crewId + '/heatmap', { headers: authHeaders() });
+    if (!r.ok) { el.innerHTML = '<p style="font-size:12px;color:var(--muted)">Erreur de chargement</p>'; return; }
+    renderCrewHeatmap(await r.json(), crewId);
+  } catch (e) {
+    el.innerHTML = '<p style="font-size:12px;color:var(--muted)">Erreur réseau</p>';
+  }
+}
+function renderCrewHeatmap(data, crewId) {
+  const el = document.getElementById('crew-heatmap-' + crewId);
+  if (!el) return;
+  const countByDate = {};
+  (data.days || []).forEach(d => { countByDate[d.date] = d.count; });
+  const maxCount = Math.max(1, ...(data.days || []).map(d => d.count));
+
+  // Aligne le premier jour affiché sur un dimanche, comme GitHub.
+  const start = new Date(data.since);
+  start.setDate(start.getDate() - start.getDay());
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const weeks = [];
+  let cursor = new Date(start);
+  while (cursor <= today) {
+    const week = [];
+    for (let i = 0; i < 7; i++) {
+      const dateStr = cursor.toISOString().slice(0, 10);
+      week.push(cursor > today ? null : { date: dateStr, count: countByDate[dateStr] || 0 });
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    weeks.push(week);
+  }
+
+  function levelColor(count) {
+    if (!count) return 'var(--border)';
+    const ratio = count / maxCount;
+    if (ratio > 0.75) return 'var(--accent)';
+    if (ratio > 0.5) return 'color-mix(in srgb, var(--accent) 75%, var(--border))';
+    if (ratio > 0.25) return 'color-mix(in srgb, var(--accent) 50%, var(--border))';
+    return 'color-mix(in srgb, var(--accent) 25%, var(--border))';
+  }
+
+  // Étiquettes de mois — une par semaine où le mois change.
+  let lastMonth = null;
+  const monthLabels = weeks.map(week => {
+    const first = week.find(d => d);
+    if (!first) return '';
+    const m = new Date(first.date + 'T00:00:00').toLocaleDateString('fr-FR', { month: 'short' });
+    if (m !== lastMonth) { lastMonth = m; return m; }
+    return '';
+  });
+
+  const totalSessions = (data.days || []).reduce((s, d) => s + d.count, 0);
+  el.innerHTML = `
+    <div style="display:flex;gap:2px;margin-bottom:2px">
+      ${monthLabels.map(m => `<div style="width:11px;font-size:9px;color:var(--muted);flex-shrink:0">${esc(m)}</div>`).join('')}
+    </div>
+    <div style="display:flex;gap:2px">
+      ${weeks.map(week => `<div style="display:flex;flex-direction:column;gap:2px">
+        ${week.map(d => d
+          ? `<div title="${d.date} — ${d.count} séance${d.count !== 1 ? 's' : ''}" style="width:9px;height:9px;border-radius:2px;background:${levelColor(d.count)}"></div>`
+          : `<div style="width:9px;height:9px"></div>`
+        ).join('')}
+      </div>`).join('')}
+    </div>
+    <p style="font-size:11px;color:var(--muted);margin-top:6px">${totalSessions} séance${totalSessions !== 1 ? 's' : ''} loguée${totalSessions !== 1 ? 's' : ''} par le crew sur les 12 derniers mois</p>`;
 }
 
 // — Défi collectif mensuel (barre de progression d'équipe) —
@@ -6812,7 +6887,7 @@ function renderCrewActivity(items, crewId) {
   if (!el) return;
   if (!items || !items.length) { el.innerHTML = `<p style="font-size:12px;color:var(--muted)">Rien pour l'instant.</p>`; return; }
   el.innerHTML = items.map(a => {
-    let icon = '🔔', text;
+    let icon = '🔔', text, actionHtml = '';
     if (a.kind === 'cycle_started') {
       icon = '🔥';
       text = `<strong>${esc(a.climberName)}</strong> ${crewCycleFlavor(a.payload?.type)}${a.payload?.cycleName ? ' — ' + esc(a.payload.cycleName) : ''}`;
@@ -6826,11 +6901,15 @@ function renderCrewActivity(items, crewId) {
     } else if (a.kind === 'badge_unlocked') {
       icon = a.payload?.icon || '🎖️';
       text = `<strong>${esc(a.climberName)}</strong> a débloqué le badge <strong>${esc(a.payload?.label || '')}</strong>`;
+    } else if (a.kind === 'bank_shared') {
+      icon = '📋';
+      text = `<strong>${esc(a.climberName)}</strong> a partagé la fiche <strong>${esc(a.payload?.bankName || '')}</strong> avec le crew`;
+      if (a.payload?.bankId) actionHtml = `<button class="btn sm" style="margin-top:4px" onclick="switchPage('session-bank');sbEditCard('${a.payload.bankId}')">📋 Voir la fiche</button>`;
     } else {
       text = `<strong>${esc(a.climberName)}</strong> — ${esc(a.kind)}`;
     }
     const dateStr = new Date(a.createdAt).toISOString().slice(0, 10);
-    return `<div class="crew-activity-item"><span class="crew-activity-icon">${icon}</span><div><div>${text}</div><div class="crew-activity-time">${fmtDate(dateStr)}</div></div></div>`;
+    return `<div class="crew-activity-item"><span class="crew-activity-icon">${icon}</span><div><div>${text}</div><div class="crew-activity-time">${fmtDate(dateStr)}</div>${actionHtml}</div></div>`;
   }).join('');
 }
 
@@ -7974,6 +8053,7 @@ function sbRenderGrid() {
         <span class="sb-tag">${SB_GOAL_LABELS[s.goal]||s.goal}</span>
         ${srcBadge}
         <span style="margin-left:auto;font-size:11px;color:var(--muted)">${s.duration||90} min</span>
+        <button class="btn sm" style="font-size:10px;padding:2px 8px" onclick="event.stopPropagation();shareBankToCrew('${s.id}')" title="Partager cette fiche avec ton/tes crew(s)">🔗 Partager</button>
       </div>
       <div style="font-weight:600;font-size:14px;margin-bottom:4px">${esc(s.name)}${s.support&&SUPPORTS[s.support]?` <span style="font-size:11px;font-weight:400;color:var(--muted)">${SUPPORTS[s.support].icon} ${SUPPORTS[s.support].label}</span>`:''}</div>
       <div style="font-size:12px;color:var(--muted);line-height:1.4;margin-bottom:10px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">
@@ -7989,6 +8069,25 @@ function sbRenderGrid() {
     </div>`;
   }).join('');
 }
+
+async function shareBankToCrew(bankId) {
+  const item = getBank().find(b => b.id === bankId);
+  if (!item) return;
+  let crews = [];
+  try {
+    const r = await fetch('/api/crews', { headers: authHeaders() });
+    if (r.ok) crews = await r.json();
+  } catch (e) { /* best-effort */ }
+  if (!crews.length) { alert('Rejoins ou crée un crew (dans Communauté → Crew) avant de partager une fiche.'); return; }
+  try {
+    await Promise.all(crews.map(c => fetch('/api/crews/' + c.id + '/activity', {
+      method: 'POST', headers: authHeaders(),
+      body: JSON.stringify({ kind: 'bank_shared', payload: { bankId: item.id, bankName: item.name } })
+    })));
+    alert(`Fiche "${item.name}" partagée avec ${crews.length > 1 ? 'tes crews' : 'ton crew'} (${crews.map(c => c.name).join(', ')}).`);
+  } catch (e) { alert('Erreur réseau lors du partage.'); }
+}
+window.shareBankToCrew = shareBankToCrew;
 
 function sbEditCard(id) {
   const s = getBank().find(x => x.id === id);
