@@ -5980,6 +5980,16 @@ async function renderCommunity() {
         </div>
         <div id="crew-board-${c.id}"><p style="font-size:13px;color:var(--muted)">Chargement…</p></div>
         <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px">
+          <div style="font-weight:600;font-size:13px;margin-bottom:8px">Classement</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px" id="crew-lb-metric-${c.id}">
+            ${CREW_LB_METRICS.map(m => `<button class="time-filter-btn${m.key === 'niveau' ? ' active' : ''}" style="padding:4px 10px;font-size:11px" onclick="setCrewLbMetric('${c.id}','${m.key}')">${esc(m.label)}</button>`).join('')}
+          </div>
+          <div style="display:flex;gap:6px;margin-bottom:10px" id="crew-lb-period-${c.id}">
+            ${CREW_LB_PERIODS.map(p => `<button class="time-filter-btn${p.key === '7j' ? ' active' : ''}" style="padding:4px 10px;font-size:11px" onclick="setCrewLbPeriod('${c.id}','${p.key}')">${esc(p.label)}</button>`).join('')}
+          </div>
+          <div id="crew-leaderboard-${c.id}"><p style="font-size:13px;color:var(--muted)">Chargement…</p></div>
+        </div>
+        <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px">
           <div style="font-weight:600;font-size:13px;margin-bottom:8px">Activité récente</div>
           <div id="crew-activity-${c.id}"><p style="font-size:12px;color:var(--muted)">Chargement…</p></div>
         </div>
@@ -5999,6 +6009,76 @@ async function crewLoadDetails(crewId) {
     if (boardR.ok) renderCrewBoard(await boardR.json(), crewId);
     if (activityR.ok) renderCrewActivity(await activityR.json(), crewId);
   } catch (e) { /* silencieux — le reste de la page reste utilisable */ }
+  loadCrewLeaderboard(crewId);
+}
+
+// — Leaderboard de crew (Niveau / Régularité / Charge / Progression / Séances × 7j/30j/année) —
+const CREW_LB_METRICS = [
+  { key: 'niveau', label: 'Niveau' },
+  { key: 'regularite', label: 'Régularité' },
+  { key: 'charge', label: 'Charge' },
+  { key: 'progression', label: 'Progression' },
+  { key: 'seances', label: 'Séances' },
+];
+const CREW_LB_PERIODS = [
+  { key: '7j', label: '7 jours' },
+  { key: '30j', label: '30 jours' },
+  { key: 'annee', label: 'Année' },
+];
+let crewLbState = {}; // { [crewId]: {metric, period} }
+function crewLbGetState(crewId) {
+  if (!crewLbState[crewId]) crewLbState[crewId] = { metric: 'niveau', period: '7j' };
+  return crewLbState[crewId];
+}
+function setCrewLbMetric(crewId, metric) {
+  crewLbGetState(crewId).metric = metric;
+  const wrap = document.getElementById('crew-lb-metric-' + crewId);
+  if (wrap) wrap.querySelectorAll('button').forEach((b, i) => b.classList.toggle('active', CREW_LB_METRICS[i].key === metric));
+  loadCrewLeaderboard(crewId);
+}
+window.setCrewLbMetric = setCrewLbMetric;
+function setCrewLbPeriod(crewId, period) {
+  crewLbGetState(crewId).period = period;
+  const wrap = document.getElementById('crew-lb-period-' + crewId);
+  if (wrap) wrap.querySelectorAll('button').forEach((b, i) => b.classList.toggle('active', CREW_LB_PERIODS[i].key === period));
+  loadCrewLeaderboard(crewId);
+}
+window.setCrewLbPeriod = setCrewLbPeriod;
+async function loadCrewLeaderboard(crewId) {
+  const el = document.getElementById('crew-leaderboard-' + crewId);
+  if (!el) return;
+  const { metric, period } = crewLbGetState(crewId);
+  el.innerHTML = '<p style="font-size:13px;color:var(--muted)">Chargement…</p>';
+  try {
+    const r = await fetch(`/api/crews/${crewId}/leaderboard?metric=${metric}&period=${period}`, { headers: authHeaders() });
+    const data = await r.json();
+    if (!r.ok) { el.innerHTML = `<p style="color:var(--warm);font-size:13px">${esc(data.error || 'Erreur de chargement')}</p>`; return; }
+    renderCrewLeaderboard(data, crewId);
+  } catch (e) {
+    el.innerHTML = '<p style="color:var(--warm);font-size:13px">Erreur réseau</p>';
+  }
+}
+function renderCrewLeaderboard(data, crewId) {
+  const el = document.getElementById('crew-leaderboard-' + crewId);
+  if (!el) return;
+  const ranking = data.ranking || [];
+  if (!ranking.length) { el.innerHTML = '<p style="font-size:13px;color:var(--muted)">Pas encore assez de données.</p>'; return; }
+  const medals = ['🥇', '🥈', '🥉'];
+  el.innerHTML = ranking.map((r, i) => {
+    const initials = r.name.trim().split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 2);
+    let valueText = '';
+    if (data.metric === 'niveau') valueText = `${r.sub?.grade || '—'}${r.sub?.sends ? ` <span style="color:var(--muted);font-weight:400">· ${r.sub.sends} croix</span>` : ''}`;
+    else if (data.metric === 'regularite') valueText = `${r.value}% <span style="color:var(--muted);font-weight:400">· ${r.sub?.trainDays || 0}/${r.sub?.totalDays || 0} j</span>`;
+    else if (data.metric === 'charge') valueText = `${r.value} pts`;
+    else if (data.metric === 'progression') valueText = `${r.value > 0 ? '+' : ''}${r.value}%`;
+    else if (data.metric === 'seances') valueText = `${r.value} séance${r.value !== 1 ? 's' : ''}`;
+    return `<div class="crew-member-row">
+      <div style="width:22px;text-align:center;font-size:13px;flex-shrink:0">${medals[i] || (i + 1)}</div>
+      <div class="crew-member-avatar" style="background:${r.color}">${initials}</div>
+      <div style="flex:1"><div class="crew-member-name">${esc(r.name)}</div></div>
+      <div style="font-weight:700;font-size:13px;white-space:nowrap">${valueText}</div>
+    </div>`;
+  }).join('');
 }
 
 function renderCrewBoard(data, crewId) {
