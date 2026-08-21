@@ -252,6 +252,140 @@ router.get('/:crewId/balance', requireCrewMembership(), async (req, res) => {
   }
 });
 
+// ═══ Charge — même formule que le frontend (public/index.html: ascentLoad/boulderLoad/
+// sessionLoad/getRefGrade), dupliquée ici pour pouvoir classer plusieurs grimpeurs côté
+// serveur. Garder synchronisé si la formule change côté frontend. ═══
+const GRADES = ["4a","4a+","4b","4b+","4c","4c+","5a","5a+","5b","5b+","5c","5c+","6a","6a+","6b","6b+","6c","6c+","7a","7a+","7b","7b+","7c","7c+","8a","8a+","8b","8b+","8c","8c+","9a","9a+"];
+const GRADE_IDX = Object.fromEntries(GRADES.map((g, i) => [g, i]));
+const KAYA_BASE = 100, KAYA_GROWTH = 1.18;
+const BOULDER_DIFF_OFFSET = {
+  echauffement: -11.25, easy: -9.25, facile: -9.25,
+  moyen: -7.75, easy_plus: -7.75,
+  travail: -6.75, classic: -6.75,
+  dur: -1.75, hard: -1.75
+};
+function ascentLoad(a, refGrade) {
+  const gi = GRADE_IDX[a.grade], ri = GRADE_IDX[refGrade];
+  if (gi === undefined || ri === undefined) return 0;
+  const base = KAYA_BASE * Math.pow(KAYA_GROWTH, gi - ri);
+  if (a.status === 'try') {
+    const tries = Math.max(1, Number(a.tries || 1));
+    const pct = Math.max(0.01, Math.min(1, (a.progress || 100) / 100));
+    return Math.round(base * 0.8 * Math.sqrt(tries * pct));
+  }
+  const statusMul = { tete: 1.0, av: 1.10, flash: 1.10, moulinette: 0.85 }[a.status] || 1.0;
+  return Math.round(base * statusMul);
+}
+function boulderLoad(b, refGrade) {
+  if (!b) return 0;
+  if (b.facileSent !== undefined || b.moyenSent !== undefined || b.travailSent !== undefined || b.travailTries !== undefined) {
+    const facileSent = b.facileSent || 0, moyenSent = b.moyenSent || 0, travailSent = b.travailSent || 0, travailTries = b.travailTries || 0;
+    if (!facileSent && !moyenSent && !travailSent && !travailTries) return 0;
+    const baseFacile = KAYA_BASE * Math.pow(KAYA_GROWTH, BOULDER_DIFF_OFFSET.facile);
+    const baseMoyen = KAYA_BASE * Math.pow(KAYA_GROWTH, BOULDER_DIFF_OFFSET.moyen);
+    const travailOffset = travailTries > 6 ? BOULDER_DIFF_OFFSET.dur : BOULDER_DIFF_OFFSET.travail;
+    const baseTravail = KAYA_BASE * Math.pow(KAYA_GROWTH, travailOffset);
+    const volTravail = travailSent + 0.6 * travailTries;
+    return Math.round((baseFacile * facileSent + baseMoyen * moyenSent + baseTravail * volTravail) * 0.5);
+  }
+  if (!b.sent && !b.tries) return 0;
+  const offset = BOULDER_DIFF_OFFSET[b.diff] ?? BOULDER_DIFF_OFFSET.travail;
+  const base = KAYA_BASE * Math.pow(KAYA_GROWTH, offset);
+  const vol = (b.sent || 0) + 0.6 * (b.tries || 0) * ((b.progress || 60) / 100);
+  return Math.round(base * vol * 0.5);
+}
+function logLoad(log, ref) {
+  return (log.ascents || []).reduce((s, a) => s + ascentLoad(a, ref), 0) + boulderLoad(log.b_no_grade || {}, ref);
+}
+// Grade de référence (percentile 70%, ascensions enchaînées des 90 derniers jours) — même logique que getRefGrade() côté frontend.
+function refGradeFromLogs(logs) {
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 90);
+  const sent = logs
+    .filter(l => new Date(l.date) >= cutoff)
+    .flatMap(l => (l.ascents || []).filter(a => ['tete', 'moulinette', 'av', 'flash'].includes(a.status) && GRADE_IDX[a.grade] !== undefined))
+    .map(a => GRADE_IDX[a.grade]).sort((a, b) => a - b);
+  if (!sent.length) return '6b';
+  return GRADES[sent[Math.min(Math.floor(sent.length * 0.7), sent.length - 1)]];
+}
+
+const LB_PERIOD_DAYS = { '7j': 7, '30j': 30, annee: 365 };
+const LB_METRIC_SHARE_KEY = { niveau: 'niveau', regularite: 'seances', charge: 'charge', progression: 'statistiques', seances: 'seances' };
+
+// GET /api/crews/:crewId/leaderboard?metric=niveau|regularite|charge|progression|seances&period=7j|30j|annee
+router.get('/:crewId/leaderboard', requireCrewMembership(), async (req, res) => {
+  const metric = ['niveau', 'regularite', 'charge', 'progression', 'seances'].includes(req.query.metric) ? req.query.metric : 'niveau';
+  const period = LB_PERIOD_DAYS[req.query.period] ? req.query.period : '7j';
+  const days = LB_PERIOD_DAYS[period];
+  try {
+    const { rows: members } = await pool.query(
+      `SELECT cl.id, cl.name, cl.color, cl.profile FROM crew_members cm
+       JOIN climbers cl ON cl.id = cm.climber_id
+       WHERE cm.crew_id=$1 ORDER BY cm.joined_at ASC`,
+      [req.params.crewId]
+    );
+    const shareKey = LB_METRIC_SHARE_KEY[metric];
+    const visible = members.filter(m => (m.profile?.sharing?.[shareKey] || 'partenaires') !== 'prive');
+    const memberIds = visible.map(m => m.id);
+    if (!memberIds.length) return res.json({ metric, period, ranking: [] });
+
+    const end = new Date(); end.setHours(0, 0, 0, 0);
+    const start = new Date(end); start.setDate(start.getDate() - days + 1);
+    const startStr = start.toISOString().slice(0, 10);
+    const endStr = end.toISOString().slice(0, 10);
+    const refCutoff = new Date(end); refCutoff.setDate(refCutoff.getDate() - 90);
+    let prevStartStr = null, prevEndStr = null, fetchFromStr = refCutoff.toISOString().slice(0, 10);
+    if (metric === 'progression') {
+      const prevEnd = new Date(start); prevEnd.setDate(prevEnd.getDate() - 1);
+      const prevStart = new Date(prevEnd); prevStart.setDate(prevStart.getDate() - days + 1);
+      prevStartStr = prevStart.toISOString().slice(0, 10);
+      prevEndStr = prevEnd.toISOString().slice(0, 10);
+      if (prevStartStr < fetchFromStr) fetchFromStr = prevStartStr;
+    }
+    if (startStr < fetchFromStr) fetchFromStr = startStr;
+
+    const { rows: logs } = await pool.query(
+      `SELECT * FROM logs WHERE climber_id = ANY($1) AND planned=false AND date >= $2 AND date <= $3`,
+      [memberIds, fetchFromStr, endStr]
+    );
+    const logsNorm = logs.map(l => ({ climberId: l.climber_id, date: l.date.toISOString().slice(0, 10), ascents: l.ascents || [], bNoGrade: l.b_no_grade || {} }));
+
+    const ranking = visible.map(m => {
+      const memberLogs = logsNorm.filter(l => l.climberId === m.id);
+      const periodLogs = memberLogs.filter(l => l.date >= startStr && l.date <= endStr);
+      let value = 0, sub = null;
+      if (metric === 'niveau') {
+        const sends = periodLogs.flatMap(l => (l.ascents || []).filter(a => ['tete', 'moulinette', 'av', 'flash'].includes(a.status) && GRADE_IDX[a.grade] !== undefined));
+        const bestIdx = sends.length ? Math.max(...sends.map(a => GRADE_IDX[a.grade])) : -1;
+        value = bestIdx;
+        sub = { grade: bestIdx >= 0 ? GRADES[bestIdx] : '—', sends: sends.length };
+      } else if (metric === 'regularite') {
+        const trainDays = new Set(periodLogs.map(l => l.date)).size;
+        value = Math.round((trainDays / days) * 1000) / 10;
+        sub = { trainDays, totalDays: days };
+      } else if (metric === 'charge') {
+        const ref = refGradeFromLogs(memberLogs);
+        value = Math.round(periodLogs.reduce((s, l) => s + logLoad({ ascents: l.ascents, b_no_grade: l.bNoGrade }, ref), 0));
+        sub = { ref };
+      } else if (metric === 'seances') {
+        value = periodLogs.length;
+      } else if (metric === 'progression') {
+        const ref = refGradeFromLogs(memberLogs);
+        const curLogs = periodLogs;
+        const prevLogs = memberLogs.filter(l => l.date >= prevStartStr && l.date <= prevEndStr);
+        const curLoad = curLogs.reduce((s, l) => s + logLoad({ ascents: l.ascents, b_no_grade: l.bNoGrade }, ref), 0);
+        const prevLoad = prevLogs.reduce((s, l) => s + logLoad({ ascents: l.ascents, b_no_grade: l.bNoGrade }, ref), 0);
+        value = prevLoad > 0 ? Math.round(((curLoad - prevLoad) / prevLoad) * 1000) / 10 : (curLoad > 0 ? 100 : 0);
+        sub = { curLoad: Math.round(curLoad), prevLoad: Math.round(prevLoad) };
+      }
+      return { climberId: m.id, name: m.name, color: m.color, value, sub };
+    }).sort((a, b) => b.value - a.value);
+
+    res.json({ metric, period, ranking });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/crews/:crewId/activity — fil d'activité récent (démarrages de cycle, etc.)
 router.get('/:crewId/activity', requireCrewMembership(), async (req, res) => {
   try {
