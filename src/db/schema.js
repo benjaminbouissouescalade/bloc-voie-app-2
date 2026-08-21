@@ -85,8 +85,18 @@ async function initDB() {
       -- et climber_id peut théoriquement changer via /api/auth/set-primary-climber alors que
       -- users.id est l'ancre stable de l'identité du compte.
       ALTER TABLE session_bank_favorites ADD COLUMN IF NOT EXISTS user_id TEXT;
-      UPDATE session_bank_favorites f SET user_id = u.id
-        FROM users u WHERE u.climber_id = f.climber_id AND f.user_id IS NULL;
+      -- Backfill gardé par une vérification d'existence de climber_id : au premier boot la
+      -- colonne existe encore (backfill exécuté) ; aux boots suivants elle a déjà été
+      -- supprimée plus bas, donc on saute cette étape au lieu de planter au redémarrage.
+      DO $$ BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'session_bank_favorites' AND column_name = 'climber_id'
+        ) THEN
+          UPDATE session_bank_favorites f SET user_id = u.id
+            FROM users u WHERE u.climber_id = f.climber_id AND f.user_id IS NULL;
+        END IF;
+      END $$;
       DELETE FROM session_bank_favorites WHERE user_id IS NULL;
       DO $$ BEGIN
         IF EXISTS (
