@@ -1,6 +1,6 @@
 <div id="auth-screen" style="position:fixed;inset:0;background-color:#f4f2ee;background-image:radial-gradient(#c9c9c4 1px,transparent 1px);background-size:22px 22px;display:flex;align-items:center;justify-content:center;z-index:200;font-family:system-ui,sans-serif">
 <div style="background:#fff;border-radius:16px;padding:40px;width:min(400px,90%);box-shadow:0 4px 24px rgba(0,0,0,.12)">
-<div style="font-family:'DM Serif Display',Georgia,serif;font-size:26px;font-weight:400;color:#2d5a3d;margin-bottom:4px">Bloc & Voie</div>
+<div style="font-family:'DM Serif Display',Georgia,serif;font-size:26px;font-weight:400;color:#2d5a3d;margin-bottom:4px">Digger</div>
 <div style="font-size:13px;color:#7a7566;margin-bottom:24px">Carnet escalade</div>
 <div id="ae" style="background:#fef3ec;color:#c4501a;border-radius:8px;padding:10px;font-size:13px;margin-bottom:12px;display:none"></div>
 <label style="font-size:11px;font-weight:600;color:#7a7566;display:block;margin-bottom:4px">EMAIL</label>
@@ -12,7 +12,7 @@
 
 <div id="onboarding-screen" style="position:fixed;inset:0;background:#f4f2ee;display:none;align-items:center;justify-content:center;z-index:200;font-family:system-ui,sans-serif;padding:20px;box-sizing:border-box">
 <div style="background:#fff;border-radius:16px;padding:36px;width:min(640px,100%);max-height:92vh;overflow-y:auto;box-shadow:0 4px 24px rgba(0,0,0,.12);box-sizing:border-box">
-  <div style="font-size:24px;font-weight:700;color:#1e1c14;margin-bottom:4px">Bienvenue sur Bloc & Voie</div>
+  <div style="font-size:24px;font-weight:700;color:#1e1c14;margin-bottom:4px">Bienvenue sur Digger</div>
   <div style="font-size:13px;color:#7a7566;margin-bottom:24px">Invité(e) par <strong id="ob-coach-name">ton coach</strong> — quelques infos pour démarrer.</div>
   <div id="ob-error" style="background:#fef3ec;color:#c4501a;border-radius:8px;padding:10px;font-size:13px;margin-bottom:16px;display:none"></div>
 
@@ -108,7 +108,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Bloc & Voie — Carnet d'entraînement</title>
+<title>Digger — Carnet d'entraînement</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
@@ -671,7 +671,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 <!-- Sidebar -->
 <aside class="sidebar">
   <div class="logo">
-    <h1>Bloc & Voie</h1>
+    <h1>Digger</h1>
     <p>Carnet d'entraînement</p>
   </div>
 
@@ -746,7 +746,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     <div class="nav-label">Communauté</div>
     <button class="nav-btn" data-page="community">
       <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="9" r="3"/><circle cx="16" cy="9" r="3"/><path d="M2 20c0-3.5 2.7-6 6-6s6 2.5 6 6M10 20c0-3.5 2.7-6 6-6s6 2.5 6 6"/></svg>
-      Communauté 🎮
+      Communauté
     </button>
   </div>
   <div class="nav-group mode-coach appmode-hidden">
@@ -1674,34 +1674,88 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 <div class="page" id="page-community">
   <div class="page-header">
     <div>
-      <h2>Communauté 🎮</h2>
-      <p>Entraîne-toi avec tes potes — activité de la semaine, encouragements, et petit coup de pression sympa</p>
+      <h2>Communauté</h2>
+      <p>Ton espace privé — partenaires, crews et défis. Pas de réseau social public.</p>
     </div>
   </div>
 
-  <div class="panel">
-    <div class="panel-header"><span class="panel-title">Rejoindre ou créer un crew</span></div>
-    <div class="form-row form-row-2">
-      <div class="form-group">
-        <label class="form-label">Créer un nouveau crew</label>
-        <div style="display:flex;gap:8px">
-          <input class="form-control" type="text" id="crew-new-name" placeholder="Ex. Les Grimpeurs du Mardi">
-          <button class="btn primary" onclick="crewCreate()">Créer</button>
-        </div>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Rejoindre avec un code</label>
-        <div style="display:flex;gap:8px">
-          <input class="form-control" type="text" id="crew-join-code" placeholder="Ex. AB3D9K" style="text-transform:uppercase">
-          <button class="btn primary" onclick="crewJoin()">Rejoindre</button>
-        </div>
-      </div>
-    </div>
-    <div id="crew-action-error" style="display:none;background:var(--warm2);color:var(--warm);border-radius:8px;padding:10px;font-size:13px"></div>
-    <div id="crew-action-success" style="display:none;background:var(--accent2);color:var(--accent);border-radius:8px;padding:10px;font-size:13px"></div>
+  <div style="display:flex;gap:8px;margin-bottom:16px" id="community-tabs">
+    <button class="time-filter-btn active" data-communitytab="feed" onclick="setCommunityTab('feed')">Feed</button>
+    <button class="time-filter-btn" data-communitytab="crew" onclick="setCommunityTab('crew')">Crew</button>
+    <button class="time-filter-btn" data-communitytab="challenges" onclick="setCommunityTab('challenges')">Challenges</button>
   </div>
 
-  <div id="crew-list-container"></div>
+  <!-- ─── FEED ─── -->
+  <div class="community-subpage" id="community-tab-feed">
+    <div class="panel">
+      <div class="panel-header"><span class="panel-title">Mes partenaires</span></div>
+      <div class="form-row form-row-2">
+        <div class="form-group">
+          <label class="form-label">Inviter un partenaire</label>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn primary" onclick="partnerGenerateInvite()">Générer un code</button>
+            <span id="partner-invite-code-display" style="font-weight:700;letter-spacing:.06em;font-size:15px;display:none"></span>
+          </div>
+          <p style="font-size:12px;color:var(--muted);margin-top:6px">Partage ce code à un partenaire pour qu'il te rejoigne.</p>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Rejoindre avec un code reçu</label>
+          <div style="display:flex;gap:8px">
+            <input class="form-control" type="text" id="partner-accept-code" placeholder="Ex. AB3D9K" style="text-transform:uppercase">
+            <button class="btn primary" onclick="partnerAccept()">Se connecter</button>
+          </div>
+        </div>
+      </div>
+      <div id="partner-action-error" style="display:none;background:var(--warm2);color:var(--warm);border-radius:8px;padding:10px;font-size:13px;margin-top:8px"></div>
+      <div id="partner-action-success" style="display:none;background:var(--accent2);color:var(--accent);border-radius:8px;padding:10px;font-size:13px;margin-top:8px"></div>
+      <div id="partner-list" style="margin-top:14px"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header"><span class="panel-title">Confidentialité</span></div>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:10px">Pour chaque type de donnée, choisis qui peut la voir dans le feed et sur ton profil partenaire.</p>
+      <div id="privacy-settings-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header"><span class="panel-title">Activité de mes partenaires</span></div>
+      <div id="partner-feed-list"><p style="font-size:13px;color:var(--muted)">Le feed arrive bientôt — connecte-toi d'abord à des partenaires ci-dessus.</p></div>
+    </div>
+  </div>
+
+  <!-- ─── CREW ─── -->
+  <div class="community-subpage" id="community-tab-crew" style="display:none">
+    <div class="panel">
+      <div class="panel-header"><span class="panel-title">Rejoindre ou créer un crew</span></div>
+      <div class="form-row form-row-2">
+        <div class="form-group">
+          <label class="form-label">Créer un nouveau crew</label>
+          <div style="display:flex;gap:8px">
+            <input class="form-control" type="text" id="crew-new-name" placeholder="Ex. Les Grimpeurs du Mardi">
+            <button class="btn primary" onclick="crewCreate()">Créer</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Rejoindre avec un code</label>
+          <div style="display:flex;gap:8px">
+            <input class="form-control" type="text" id="crew-join-code" placeholder="Ex. AB3D9K" style="text-transform:uppercase">
+            <button class="btn primary" onclick="crewJoin()">Rejoindre</button>
+          </div>
+        </div>
+      </div>
+      <div id="crew-action-error" style="display:none;background:var(--warm2);color:var(--warm);border-radius:8px;padding:10px;font-size:13px"></div>
+      <div id="crew-action-success" style="display:none;background:var(--accent2);color:var(--accent);border-radius:8px;padding:10px;font-size:13px"></div>
+    </div>
+
+    <div id="crew-list-container"></div>
+  </div>
+
+  <!-- ─── CHALLENGES ─── -->
+  <div class="community-subpage" id="community-tab-challenges" style="display:none">
+    <div class="panel">
+      <p style="font-size:13px;color:var(--muted)">Les challenges privés arrivent bientôt — connecte des partenaires ou crée un crew en attendant.</p>
+    </div>
+  </div>
 </div>
 
 <!-- ═══════════════ PLANNING (COACH) ═══════════════ -->
@@ -3776,7 +3830,7 @@ function renderPage(name) {
   if(name==='workload') renderWorkload();
   if(name==='finger-profile') renderFingerProfile();
   if(name==='badges') renderBadges();
-  if(name==='community') renderCommunity();
+  if(name==='community') renderCommunityPage();
   if(name==='history') renderHistory();
   if(name==='new-session') renderNewSession();
   if(name==='planning') renderPlanning();
@@ -5666,6 +5720,149 @@ function renderBadges() {
     </div>`;
   }).join('');
 }
+
+// — Communauté v2 : sous-onglets Feed / Crew / Challenges —
+let communitySubTab = 'feed';
+function setCommunityTab(tab) {
+  communitySubTab = tab;
+  document.querySelectorAll('#community-tabs [data-communitytab]').forEach(b => b.classList.toggle('active', b.dataset.communitytab === tab));
+  document.querySelectorAll('.community-subpage').forEach(p => p.style.display = 'none');
+  const el = document.getElementById('community-tab-' + tab);
+  if (el) el.style.display = '';
+  if (tab === 'feed') renderPartnersPanel();
+  if (tab === 'crew') renderCommunity();
+}
+window.setCommunityTab = setCommunityTab;
+function renderCommunityPage() {
+  setCommunityTab(communitySubTab);
+}
+window.renderCommunityPage = renderCommunityPage;
+
+// Réglages de confidentialité par catégorie de donnée (partenaires / crew / privé).
+const SHARING_CATEGORIES = [
+  { key: 'niveau', label: 'Niveau' },
+  { key: 'seances', label: 'Séances' },
+  { key: 'statistiques', label: 'Statistiques' },
+  { key: 'charge', label: 'Charge' },
+  { key: 'tests', label: 'Tests doigts' },
+  { key: 'objectifs', label: 'Objectifs' },
+  { key: 'projets', label: 'Projets' },
+];
+const SHARING_LEVELS = [
+  { value: 'partenaires', label: 'Partenaires' },
+  { value: 'crew', label: 'Crew' },
+  { value: 'prive', label: 'Privé' },
+];
+function getSharingPrefs() {
+  const c = getActive();
+  return (c && c.profile && c.profile.sharing) || {};
+}
+function renderPrivacyPanel() {
+  const el = document.getElementById('privacy-settings-grid');
+  if (!el) return;
+  const prefs = getSharingPrefs();
+  el.innerHTML = SHARING_CATEGORIES.map(cat => {
+    const val = prefs[cat.key] || 'partenaires';
+    return `<div class="form-group" style="margin-bottom:0">
+      <label class="form-label">${esc(cat.label)}</label>
+      <select class="form-control" onchange="setSharingPref('${cat.key}', this.value)">
+        ${SHARING_LEVELS.map(l => `<option value="${l.value}" ${l.value === val ? 'selected' : ''}>${esc(l.label)}</option>`).join('')}
+      </select>
+    </div>`;
+  }).join('');
+}
+function setSharingPref(key, value) {
+  const c = getActive();
+  if (!c) return;
+  c.profile = c.profile || {};
+  c.profile.sharing = c.profile.sharing || {};
+  c.profile.sharing[key] = value;
+  saveDB();
+}
+window.setSharingPref = setSharingPref;
+
+function partnerShowError(msg) {
+  const el = document.getElementById('partner-action-error'); if (!el) return;
+  el.textContent = msg; el.style.display = 'block';
+  const okEl = document.getElementById('partner-action-success'); if (okEl) okEl.style.display = 'none';
+}
+function partnerShowSuccess(html) {
+  const el = document.getElementById('partner-action-success'); if (!el) return;
+  el.innerHTML = html; el.style.display = 'block';
+  const errEl = document.getElementById('partner-action-error'); if (errEl) errEl.style.display = 'none';
+}
+let partnerCache = [];
+async function renderPartnersPanel() {
+  renderPrivacyPanel();
+  const el = document.getElementById('partner-list');
+  if (!el) return;
+  el.innerHTML = '<p style="font-size:13px;color:var(--muted)">Chargement…</p>';
+  try {
+    const r = await fetch('/api/partners', { headers: authHeaders() });
+    const partners = await r.json();
+    if (!r.ok) { el.innerHTML = `<p style="color:var(--warm);font-size:13px">${esc(partners.error || 'Erreur de chargement')}</p>`; return; }
+    partnerCache = partners;
+    if (!partners.length) {
+      el.innerHTML = `<p style="font-size:13px;color:var(--muted)">Aucun partenaire pour l'instant — génère un code ou entre celui d'un partenaire ci-dessus.</p>`;
+      return;
+    }
+    el.innerHTML = `<div style="display:flex;flex-direction:column;gap:6px">${partners.map(p => {
+      const initials = p.name.trim().split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 2);
+      return `<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;background:var(--surface2);cursor:pointer" onclick="openPartnerProfile('${p.id}')">
+        <div class="crew-member-avatar" style="background:${p.color}">${initials}</div>
+        <div style="flex:1"><div style="font-weight:600;font-size:13px">${esc(p.name)}</div><div style="font-size:12px;color:var(--muted)">Niveau ${esc(p.level || '—')}</div></div>
+        <button class="btn sm danger" onclick="event.stopPropagation();partnerRemove('${p.id}')">Retirer</button>
+      </div>`;
+    }).join('')}</div>`;
+  } catch (e) {
+    el.innerHTML = '<p style="color:var(--warm);font-size:13px">Erreur réseau</p>';
+  }
+}
+window.renderPartnersPanel = renderPartnersPanel;
+
+async function partnerGenerateInvite() {
+  try {
+    const r = await fetch('/api/partners/invite', { method: 'POST', headers: authHeaders() });
+    const d = await r.json();
+    if (!r.ok) { partnerShowError(d.error || 'Erreur'); return; }
+    const disp = document.getElementById('partner-invite-code-display');
+    disp.textContent = d.code;
+    disp.style.display = 'inline';
+    partnerShowSuccess('Code généré — valable 30 jours, partage-le à ton partenaire.');
+  } catch (e) { partnerShowError('Erreur réseau'); }
+}
+window.partnerGenerateInvite = partnerGenerateInvite;
+
+async function partnerAccept() {
+  const codeEl = document.getElementById('partner-accept-code');
+  const code = codeEl.value.trim();
+  if (!code) { partnerShowError('Entre un code'); return; }
+  try {
+    const r = await fetch('/api/partners/accept', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ code }) });
+    const d = await r.json();
+    if (!r.ok) { partnerShowError(d.error || 'Erreur'); return; }
+    codeEl.value = '';
+    partnerShowSuccess(`Tu es maintenant connecté avec ${esc(d.partner?.name || 'ce partenaire')} !`);
+    renderPartnersPanel();
+  } catch (e) { partnerShowError('Erreur réseau'); }
+}
+window.partnerAccept = partnerAccept;
+
+async function partnerRemove(id) {
+  if (!confirm('Retirer ce partenaire ?')) return;
+  try {
+    await fetch('/api/partners/' + id, { method: 'DELETE', headers: authHeaders() });
+    renderPartnersPanel();
+  } catch (e) { /* best-effort */ }
+}
+window.partnerRemove = partnerRemove;
+
+function openPartnerProfile(id) {
+  const p = partnerCache.find(x => x.id === id);
+  if (!p) return;
+  alert(`Profil de ${p.name} — à venir (niveau, séances récentes, progression, objectifs partagés selon sa confidentialité).`);
+}
+window.openPartnerProfile = openPartnerProfile;
 
 async function renderCommunity() {
   const container = document.getElementById('crew-list-container');
