@@ -637,6 +637,8 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 .crew-kudos-btn { background: none; border: 1px solid var(--border2); border-radius: 3px; padding: 4px 10px; font-size: 13px; cursor: pointer; flex-shrink: 0; }
 .crew-kudos-btn:hover { background: var(--surface2); }
 .crew-kudos-btn.given { background: var(--accent2); border-color: var(--accent); }
+.crew-kudos-emoji-btn { background: none; border: 1px solid var(--border2); border-radius: 3px; padding: 3px 6px; font-size: 14px; cursor: pointer; line-height: 1; }
+.crew-kudos-emoji-btn:hover { background: var(--accent2); border-color: var(--accent); transform: scale(1.15); }
 .crew-activity-item { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
 .crew-activity-item:last-child { border-bottom: none; }
 .crew-activity-icon { font-size: 18px; flex-shrink: 0; }
@@ -5741,6 +5743,14 @@ function fpRenderExpectedProfile(profile, container) {
 }
 
 // ═══════════════ COMMUNAUTÉ / CREWS (mode jeu) ═══════════════
+// Choix d'emoji pour les kudos entre coéquipiers — même liste côté backend (crews.js KUDOS_EMOJIS).
+const KUDOS_EMOJIS = [
+  { emoji: '👏', label: 'Bravo' },
+  { emoji: '💪', label: 'Force' },
+  { emoji: '🔥', label: 'Chaud' },
+  { emoji: '🧗', label: 'Style' },
+  { emoji: '🚀', label: 'Envolé' },
+];
 let crewCache = [];
 
 const CREW_ACTIVITY_FLAVOR = {
@@ -6399,6 +6409,10 @@ async function renderCommunity() {
         </div>
         <div id="crew-board-${c.id}"><p style="font-size:13px;color:var(--muted)">Chargement…</p></div>
         <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px">
+          <div style="font-weight:600;font-size:13px;margin-bottom:8px">🏆 Défi collectif du mois</div>
+          <div id="crew-monthly-${c.id}"><p style="font-size:13px;color:var(--muted)">Chargement…</p></div>
+        </div>
+        <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px">
           <div style="font-weight:600;font-size:13px;margin-bottom:8px">Classement</div>
           <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px" id="crew-lb-metric-${c.id}">
             ${CREW_LB_METRICS.map(m => `<button class="time-filter-btn${m.key === 'niveau' ? ' active' : ''}" style="padding:4px 10px;font-size:11px" onclick="setCrewLbMetric('${c.id}','${m.key}')">${esc(m.label)}</button>`).join('')}
@@ -6429,7 +6443,81 @@ async function crewLoadDetails(crewId) {
     if (activityR.ok) renderCrewActivity(await activityR.json(), crewId);
   } catch (e) { /* silencieux — le reste de la page reste utilisable */ }
   loadCrewLeaderboard(crewId);
+  loadCrewMonthlyChallenge(crewId);
 }
+
+// — Défi collectif mensuel (barre de progression d'équipe) —
+const MONTHLY_CHALLENGE_METRICS = [
+  { key: 'seances', label: 'Nombre de séances' },
+  { key: 'jours', label: 'Jours de grimpe' },
+  { key: 'charge', label: 'Points de charge' },
+  { key: 'blocs', label: 'Blocs / voies' },
+];
+async function loadCrewMonthlyChallenge(crewId) {
+  const el = document.getElementById('crew-monthly-' + crewId);
+  if (!el) return;
+  try {
+    const r = await fetch('/api/crews/' + crewId + '/monthly-challenge', { headers: authHeaders() });
+    const data = r.ok ? await r.json() : null;
+    renderCrewMonthlyChallenge(data, crewId);
+  } catch (e) {
+    el.innerHTML = '<p style="font-size:12px;color:var(--muted)">Erreur réseau</p>';
+  }
+}
+function renderCrewMonthlyChallenge(data, crewId) {
+  const el = document.getElementById('crew-monthly-' + crewId);
+  if (!el) return;
+  if (!data) {
+    el.innerHTML = `<p style="font-size:13px;color:var(--muted);margin-bottom:8px">Aucun défi ce mois-ci — motivez toute l'équipe avec un objectif commun.</p>
+      <button class="btn sm primary" onclick="openMonthlyChallengeForm('${crewId}')">Lancer un défi collectif</button>
+      <div id="crew-monthly-form-${crewId}"></div>`;
+    return;
+  }
+  const pct = Math.min(100, Math.round((data.teamProgress / data.target) * 100));
+  const topContributors = data.contributions.filter(c => c.progress > 0).slice(0, 5)
+    .map(c => `${esc(c.name)} (${c.progress})`).join(' · ');
+  el.innerHTML = `
+    <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px">
+      <span><strong>${data.teamProgress}</strong> / ${data.target} ${esc(data.metricLabel)}</span>
+      <span style="color:var(--muted)">${data.daysLeft} jour${data.daysLeft !== 1 ? 's' : ''} restant${data.daysLeft !== 1 ? 's' : ''}</span>
+    </div>
+    <div style="background:var(--border);border-radius:99px;height:10px;overflow:hidden;margin-bottom:8px">
+      <div style="background:${pct >= 100 ? 'var(--accent)' : 'var(--accent)'};width:${pct}%;height:100%"></div>
+    </div>
+    ${topContributors ? `<p style="font-size:12px;color:var(--muted);margin-bottom:8px">${topContributors}</p>` : ''}
+    <button class="btn sm" onclick="openMonthlyChallengeForm('${crewId}')">Relancer / modifier</button>
+    <div id="crew-monthly-form-${crewId}"></div>`;
+}
+function openMonthlyChallengeForm(crewId) {
+  const el = document.getElementById('crew-monthly-form-' + crewId);
+  if (!el) return;
+  el.innerHTML = `
+    <div style="margin-top:10px;padding:10px;background:var(--surface2);border-radius:8px">
+      <div class="form-row form-row-2">
+        <select class="form-control" id="cmc-metric-${crewId}">
+          ${MONTHLY_CHALLENGE_METRICS.map(m => `<option value="${m.key}">${esc(m.label)}</option>`).join('')}
+        </select>
+        <input class="form-control" type="number" id="cmc-target-${crewId}" min="1" placeholder="Objectif d'équipe, ex. 40">
+      </div>
+      <div id="cmc-error-${crewId}" style="display:none;color:var(--warm);font-size:12px;margin-bottom:8px"></div>
+      <button class="btn sm primary" onclick="saveCrewMonthlyChallenge('${crewId}')">Lancer</button>
+    </div>`;
+}
+window.openMonthlyChallengeForm = openMonthlyChallengeForm;
+async function saveCrewMonthlyChallenge(crewId) {
+  const metric = document.getElementById('cmc-metric-' + crewId).value;
+  const target = document.getElementById('cmc-target-' + crewId).value;
+  const errEl = document.getElementById('cmc-error-' + crewId);
+  if (!target || Number(target) <= 0) { errEl.textContent = 'Objectif requis.'; errEl.style.display = 'block'; return; }
+  try {
+    const r = await fetch('/api/crews/' + crewId + '/monthly-challenge', {
+      method: 'POST', headers: authHeaders(), body: JSON.stringify({ metric, target })
+    });
+    if (!r.ok) { const d = await r.json(); errEl.textContent = d.error || 'Erreur.'; errEl.style.display = 'block'; return; }
+    loadCrewMonthlyChallenge(crewId);
+  } catch (e) { errEl.textContent = 'Erreur réseau.'; errEl.style.display = 'block'; }
+}
+window.saveCrewMonthlyChallenge = saveCrewMonthlyChallenge;
 
 // — Leaderboard de crew (Niveau / Régularité / Charge / Progression / Séances × 7j/30j/année) —
 const CREW_LB_METRICS = [
@@ -6701,8 +6789,10 @@ function renderCrewBoard(data, crewId) {
       ? `<span class="crew-adherence-pill" style="background:${m.adherence >= 80 ? 'var(--accent2)' : 'var(--warm2)'};color:${m.adherence >= 80 ? 'var(--accent)' : 'var(--warm)'}">${m.adherence}% du programme</span>`
       : '';
     const isMe = m.climberId === me?.id;
-    const kudosGiven = (data.myKudosGivenTo || []).includes(m.climberId);
+    const kudosGivenEmoji = (data.myKudosGivenTo || {})[m.climberId];
     const emptyNote = m.completedTotal === 0 ? " — pas encore de séance cette semaine" : '';
+    const kudosBreakdown = Object.entries(m.kudosByEmoji || {}).map(([e, n]) => `${e}×${n}`).join(' ');
+    const kudosPicker = KUDOS_EMOJIS.map(k => `<button class="crew-kudos-emoji-btn" onclick="crewGiveKudos('${crewId}','${m.climberId}','${k.emoji}')" title="${esc(k.label)}">${k.emoji}</button>`).join('');
     return `
       <div class="crew-member-row">
         <div class="crew-member-avatar" style="background:${m.color}">${initials}</div>
@@ -6711,8 +6801,8 @@ function renderCrewBoard(data, crewId) {
           <div class="crew-member-stats">${m.completedTotal} séance${m.completedTotal !== 1 ? 's' : ''} cette semaine${emptyNote}${typeChips ? '<br>' + typeChips : ''}</div>
         </div>
         ${adherenceHtml}
-        ${m.kudosReceived ? `<span title="Encouragements reçus cette semaine" style="font-size:12px;color:var(--muted)">👏×${m.kudosReceived}</span>` : ''}
-        ${!isMe ? `<button class="crew-kudos-btn ${kudosGiven ? 'given' : ''}" onclick="crewGiveKudos('${crewId}','${m.climberId}')" title="Encourager">${kudosGiven ? '👏 Envoyé' : '👏 Encourager'}</button>` : ''}
+        ${kudosBreakdown ? `<span title="Encouragements reçus cette semaine" style="font-size:12px;color:var(--muted)">${kudosBreakdown}</span>` : ''}
+        ${!isMe ? (kudosGivenEmoji ? `<span class="crew-kudos-btn given" title="Tu as encouragé cette personne cette semaine">${kudosGivenEmoji} Envoyé</span>` : `<span style="display:flex;gap:2px">${kudosPicker}</span>`) : ''}
       </div>`;
   }).join('');
 }
@@ -6793,9 +6883,9 @@ async function crewLeave(crewId) {
   } catch (e) { /* silencieux */ }
 }
 
-async function crewGiveKudos(crewId, toClimberId) {
+async function crewGiveKudos(crewId, toClimberId, emoji) {
   try {
-    await fetch('/api/crews/' + crewId + '/kudos', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ toClimberId, emoji: '👏' }) });
+    await fetch('/api/crews/' + crewId + '/kudos', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ toClimberId, emoji: emoji || '👏' }) });
     crewLoadDetails(crewId);
   } catch (e) { /* silencieux */ }
 }
