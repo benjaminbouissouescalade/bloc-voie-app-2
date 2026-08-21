@@ -571,7 +571,6 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 .fp-result-interpretation { font-size: 12px; color: var(--text); line-height: 1.5; }
 .fp-confidence-badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 3px; }
 .fp-quality-warn { font-size: 11px; color: var(--warm); margin: 4px 0; }
-.game-hidden { display: none !important; }
 .appmode-hidden { display: none !important; }
 .app-mode-switch { display: flex; gap: 2px; margin: 0 10px 16px; padding: 3px; background: var(--surface2); border-radius: 99px; }
 .app-mode-btn { flex: 1; border: none; background: none; cursor: pointer; padding: 7px 4px; font-size: 12px; font-weight: 600; color: var(--muted); border-radius: 99px; transition: all .15s; }
@@ -742,7 +741,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       Historique
     </button>
   </div>
-  <div class="nav-group mode-mine game-hidden" id="nav-group-community">
+  <div class="nav-group mode-mine" id="nav-group-community">
     <div class="nav-label">Communauté</div>
     <button class="nav-btn" data-page="community">
       <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="9" r="3"/><circle cx="16" cy="9" r="3"/><path d="M2 20c0-3.5 2.7-6 6-6s6 2.5 6 6M10 20c0-3.5 2.7-6 6-6s6 2.5 6 6"/></svg>
@@ -762,9 +761,6 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   </div>
  <div class="sidebar-footer">
     <div id="sidebar-user" style="font-size:12px;color:var(--muted);margin-bottom:8px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
-    <button class="btn sm" id="game-mode-toggle-btn" style="width:100%;justify-content:center;margin-bottom:6px" onclick="toggleGameMode()">
-      🎮 Mode jeu : <span id="game-mode-status">Off</span>
-    </button>
     <button class="btn sm coach-only-btn" style="width:100%;justify-content:center;margin-bottom:6px" onclick="openClimberModal()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:14px;height:14px"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/><path d="M19 8h2m-1-1v2"/></svg>
       Gérer les grimpeurs
@@ -3473,7 +3469,6 @@ function applyRoleUI() {
   document.querySelectorAll('.coach-only-btn').forEach(el => { el.style.display = admin ? '' : 'none'; });
   sbApplyEditorAccess();
   updateSidebarIdentity();
-  applyGameModeUI();
 }
 
 // ═══════════════ MODE MES DONNÉES / MON COACH ═══════════════
@@ -3488,43 +3483,11 @@ function setAppMode(mode) {
   document.querySelectorAll('.mode-mine').forEach(el => el.classList.toggle('appmode-hidden', appMode !== 'mine'));
   document.querySelectorAll('.mode-coach').forEach(el => el.classList.toggle('appmode-hidden', appMode !== 'coach'));
   document.querySelectorAll('.app-mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === appMode));
-  applyGameModeUI();
   const activePage = document.querySelector('.nav-btn.active[data-page]')?.dataset.page;
   if (appMode === 'mine' && APPMODE_COACH_PAGES.includes(activePage)) switchPage('dashboard');
   if (appMode === 'coach' && APPMODE_MINE_PAGES.includes(activePage)) switchPage('planning');
 }
 window.setAppMode = setAppMode;
-
-function applyGameModeUI() {
-  const c = getActive();
-  const on = !!(c && c.profile && c.profile.gameMode);
-  const group = document.getElementById('nav-group-community');
-  if (group) group.classList.toggle('game-hidden', !on || appMode !== 'mine');
-  const status = document.getElementById('game-mode-status');
-  if (status) status.textContent = on ? 'On' : 'Off';
-  const btn = document.getElementById('game-mode-toggle-btn');
-  if (btn) btn.classList.toggle('primary', on);
-  // Si la page Communauté était affichée et qu'on désactive le mode jeu, retour au tableau de bord
-  if (!on && document.getElementById('page-community')?.classList.contains('active')) {
-    switchPage('dashboard');
-  }
-}
-
-async function toggleGameMode() {
-  const c = getActive();
-  if (!c) return;
-  c.profile = c.profile || {};
-  c.profile.gameMode = !c.profile.gameMode;
-  applyGameModeUI();
-  try {
-    await fetch('/api/climbers', {
-      method: 'POST',
-      headers: authHeaders(),
-      body: JSON.stringify({ id: c.id, name: c.name, color: c.color, level: c.level, trips: c.trips || [], profile: c.profile, objectives: c.objectives || [] })
-    });
-    saveDB();
-  } catch (e) { /* best-effort, l'état local reste correct */ }
-}
 
 function sbApplyEditorAccess() {
   const panel = document.getElementById('sb-editor-panel');
@@ -7896,7 +7859,6 @@ function switchClimber(id) {
   saveDB();
   closeModal('climber-modal');
   renderSidebarStats();
-  applyGameModeUI();
   renderPage(document.querySelector('.nav-btn.active')?.dataset.page||'dashboard');
 }
 
