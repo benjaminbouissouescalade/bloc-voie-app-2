@@ -158,6 +158,20 @@ async function initDB() {
       CREATE INDEX IF NOT EXISTS idx_crew_activity_crew ON crew_activity(crew_id, created_at DESC);
       CREATE INDEX IF NOT EXISTS idx_crew_kudos_lookup ON crew_kudos(crew_id, to_climber_id, week_start);
 
+      -- Défi collectif mensuel : un objectif chiffré par crew et par mois, la progression
+      -- d'équipe est la somme des progressions individuelles (mêmes métriques que les
+      -- challenges privés) — pas de duplication, calculée à la volée depuis les vrais logs.
+      CREATE TABLE IF NOT EXISTS crew_monthly_challenges (
+        id          TEXT PRIMARY KEY,
+        crew_id     TEXT NOT NULL REFERENCES crews(id) ON DELETE CASCADE,
+        month       DATE NOT NULL,
+        metric      TEXT NOT NULL,
+        target      NUMERIC NOT NULL,
+        created_by  TEXT NOT NULL REFERENCES climbers(id) ON DELETE CASCADE,
+        created_at  TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE (crew_id, month)
+      );
+
       -- Communauté v2 : connexions 1:1 "partenaires", indépendantes des crews.
       -- Sert de base au Feed, aux profils partenaires, aux séances communes, etc.
       CREATE TABLE IF NOT EXISTS partner_invites (
