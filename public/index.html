@@ -800,10 +800,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   <div class="panel" id="dash-objectives-panel" style="margin-bottom:16px">
     <div class="panel-header">
       <span class="panel-title">🎯 Objectifs</span>
-      <div style="display:flex;align-items:center;gap:10px">
-        <span id="dash-rhythm-pill" style="display:none;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:4px 10px;border-radius:99px" title=""></span>
-        <button class="btn sm" onclick="openObjectiveModal()">+ Objectif</button>
-      </div>
+      <button class="btn sm" onclick="openObjectiveModal()">+ Objectif</button>
     </div>
     <div class="objectives-row" id="dash-objectives-list"></div>
   </div>
@@ -824,7 +821,10 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     <div class="stat-card warm">
       <div class="stat-label">Charge 7 jours</div>
       <div class="stat-value" id="dash-load7">0</div>
-      <div class="stat-sub" id="dash-clevel7">C1</div>
+      <div class="stat-sub" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+        <span id="dash-clevel7">C1</span>
+        <span id="dash-rhythm-pill" style="display:none;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px" title=""></span>
+      </div>
       <div class="mini-spark" id="dash-load7-spark"></div>
     </div>
     <div class="stat-card tint-mineral">
