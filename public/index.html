@@ -1547,6 +1547,63 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   </div>
 </div>
 
+<!-- Modal proposer une séance à venir -->
+<div class="modal-backdrop" id="propose-session-modal">
+  <div class="modal" style="width:min(480px,100%)">
+    <div class="modal-header">
+      <span class="modal-title">Proposer une séance</span>
+      <button class="btn sm" onclick="closeModal('propose-session-modal')">Fermer</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row form-row-2">
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Type de séance</label>
+          <select class="form-control" id="ps-type">
+            <optgroup label="── Escalade ──">
+              <option value="bloc">Bloc salle</option>
+              <option value="voies">Voies salle</option>
+              <option value="falaise">Falaise / Outdoor</option>
+              <option value="pan">Pan / Woody / Board</option>
+              <option value="competition">Compétition</option>
+              <option value="via_ferrata">Via ferrata</option>
+            </optgroup>
+            <optgroup label="── Force & Physique ──">
+              <option value="ppg">PPG générale</option>
+              <option value="doigts">Force doigts (dead-hangs)</option>
+              <option value="prehension">Préhension / systémique</option>
+              <option value="musculation">Musculation</option>
+              <option value="cardio">Cardio / aérobie</option>
+            </optgroup>
+            <optgroup label="── Autre ──">
+              <option value="autre">Autre</option>
+            </optgroup>
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Date</label>
+          <input class="form-control" type="date" id="ps-date">
+        </div>
+      </div>
+      <div class="form-row form-row-2">
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Heure (optionnel)</label>
+          <input class="form-control" type="text" id="ps-time" placeholder="Ex. 18h30">
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Lieu (optionnel)</label>
+          <input class="form-control" type="text" id="ps-location" placeholder="Ex. Salle Escalade Time">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Inviter des partenaires</label>
+        <div id="ps-invitees-list" style="max-height:160px;overflow-y:auto;display:flex;flex-direction:column;gap:4px"></div>
+      </div>
+      <div id="propose-session-error" style="display:none;background:var(--warm2);color:var(--warm);border-radius:8px;padding:10px;font-size:13px;margin-bottom:12px"></div>
+      <button class="btn primary" style="width:100%" onclick="saveProposedSession()">Proposer la séance</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal cycle -->
 <div class="modal-backdrop" id="cycle-modal">
   <div class="modal" style="width:min(680px,100%)">
@@ -1823,6 +1880,14 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <div id="partner-action-error" style="display:none;background:var(--warm2);color:var(--warm);border-radius:8px;padding:10px;font-size:13px;margin-top:8px"></div>
       <div id="partner-action-success" style="display:none;background:var(--accent2);color:var(--accent);border-radius:8px;padding:10px;font-size:13px;margin-top:8px"></div>
       <div id="partner-list" style="margin-top:14px"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">📅 Séances à venir</span>
+        <button class="btn primary sm" onclick="openProposeSessionModal()">+ Proposer une séance</button>
+      </div>
+      <div id="upcoming-sessions-list"><p style="font-size:13px;color:var(--muted)">Chargement…</p></div>
     </div>
 
     <div class="panel">
@@ -6020,6 +6085,7 @@ async function renderPartnersPanel() {
     el.innerHTML = '<p style="color:var(--warm);font-size:13px">Erreur réseau</p>';
   }
   renderPartnerFeed();
+  renderUpcomingSessionsPanel();
 }
 window.renderPartnersPanel = renderPartnersPanel;
 
@@ -6123,6 +6189,121 @@ async function saveSessionTogether() {
   } catch (e) { statusEl.textContent = 'Erreur réseau.'; }
 }
 window.saveSessionTogether = saveSessionTogether;
+
+// ─── Séances à venir / Je participe (Communauté v2 — brique 8) ───
+async function openProposeSessionModal() {
+  document.getElementById('ps-type').selectedIndex = 0;
+  document.getElementById('ps-date').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('ps-time').value = '';
+  document.getElementById('ps-location').value = '';
+  document.getElementById('propose-session-error').style.display = 'none';
+
+  if (!partnerCache.length) {
+    try {
+      const r = await fetch('/api/partners', { headers: authHeaders() });
+      if (r.ok) partnerCache = await r.json();
+    } catch (e) { /* best-effort */ }
+  }
+  const list = document.getElementById('ps-invitees-list');
+  if (!partnerCache.length) {
+    list.innerHTML = '<p style="font-size:12px;color:var(--muted)">Aucun partenaire connecté — connecte-toi d\'abord dans l\'onglet Feed.</p>';
+  } else {
+    list.innerHTML = partnerCache.map(p => `
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;padding:4px 0">
+        <input type="checkbox" class="ps-invitee-cb" value="${p.id}">
+        <span>${esc(p.name)}</span>
+      </label>`).join('');
+  }
+  document.getElementById('propose-session-modal').classList.add('open');
+}
+window.openProposeSessionModal = openProposeSessionModal;
+
+async function saveProposedSession() {
+  const type = document.getElementById('ps-type').value;
+  const date = document.getElementById('ps-date').value;
+  const timeLabel = document.getElementById('ps-time').value.trim();
+  const location = document.getElementById('ps-location').value.trim();
+  const inviteeIds = Array.from(document.querySelectorAll('.ps-invitee-cb:checked')).map(cb => cb.value);
+  const errEl = document.getElementById('propose-session-error');
+  errEl.style.display = 'none';
+  if (!date) { errEl.textContent = 'Date requise.'; errEl.style.display = 'block'; return; }
+  try {
+    const r = await fetch('/api/proposed-sessions', {
+      method: 'POST', headers: authHeaders(),
+      body: JSON.stringify({ type, date, timeLabel, location, inviteeIds })
+    });
+    const d = await r.json();
+    if (!r.ok) { errEl.textContent = d.error || 'Erreur lors de la création.'; errEl.style.display = 'block'; return; }
+    closeModal('propose-session-modal');
+    renderUpcomingSessionsPanel();
+  } catch (e) { errEl.textContent = 'Erreur réseau.'; errEl.style.display = 'block'; }
+}
+window.saveProposedSession = saveProposedSession;
+
+async function renderUpcomingSessionsPanel() {
+  const el = document.getElementById('upcoming-sessions-list');
+  if (!el) return;
+  el.innerHTML = '<p style="font-size:13px;color:var(--muted)">Chargement…</p>';
+  try {
+    const r = await fetch('/api/proposed-sessions', { headers: authHeaders() });
+    const proposals = await r.json();
+    if (!r.ok) { el.innerHTML = `<p style="color:var(--warm);font-size:13px">${esc(proposals.error || 'Erreur de chargement')}</p>`; return; }
+    if (!proposals.length) {
+      el.innerHTML = '<p style="font-size:13px;color:var(--muted)">Aucune séance à venir — propose-en une à tes partenaires.</p>';
+      return;
+    }
+    el.innerHTML = proposals.map(p => {
+      const t = SESSION_TYPES[p.type] || SESSION_TYPES.autre;
+      const when = `${fmtDate(p.date)}${p.timeLabel ? ' · ' + esc(p.timeLabel) : ''}${p.location ? ' · ' + esc(p.location) : ''}`;
+      const participantNames = p.participants.map(pt => esc(pt.name)).join(', ') || 'Personne pour l\'instant';
+      const notYetJoined = p.invitees.filter(inv => !p.participants.some(pt => pt.id === inv.id));
+      return `<div class="panel" style="margin-bottom:10px;background:var(--surface2)">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+          <div>
+            <div style="font-weight:700;font-size:13px;display:flex;align-items:center;gap:6px"><span class="sess-dot" style="background:${t.color}"></span>${esc(t.label)}</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px">${when}</div>
+          </div>
+          ${p.isMine ? `<button class="btn sm danger" onclick="deleteProposedSession('${p.id}')">Annuler</button>` : ''}
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin-top:8px">✅ Participent : ${participantNames}</div>
+        ${notYetJoined.length ? `<div style="font-size:12px;color:var(--muted);margin-top:2px">En attente : ${notYetJoined.map(x => esc(x.name)).join(', ')}</div>` : ''}
+        <div style="margin-top:8px">
+          ${p.imParticipating
+            ? `<button class="btn sm" onclick="leaveProposedSession('${p.id}')">Je ne viens plus</button>`
+            : `<button class="btn sm primary" onclick="joinProposedSession('${p.id}')">Je participe</button>`}
+        </div>
+      </div>`;
+    }).join('');
+  } catch (e) {
+    el.innerHTML = '<p style="color:var(--warm);font-size:13px">Erreur réseau</p>';
+  }
+}
+window.renderUpcomingSessionsPanel = renderUpcomingSessionsPanel;
+
+async function joinProposedSession(id) {
+  try {
+    await fetch('/api/proposed-sessions/' + id + '/join', { method: 'POST', headers: authHeaders() });
+    renderUpcomingSessionsPanel();
+  } catch (e) { /* best-effort */ }
+}
+window.joinProposedSession = joinProposedSession;
+
+async function leaveProposedSession(id) {
+  try {
+    await fetch('/api/proposed-sessions/' + id + '/join', { method: 'DELETE', headers: authHeaders() });
+    renderUpcomingSessionsPanel();
+  } catch (e) { /* best-effort */ }
+}
+window.leaveProposedSession = leaveProposedSession;
+
+async function deleteProposedSession(id) {
+  if (!confirm('Annuler cette proposition de séance ?')) return;
+  try {
+    await fetch('/api/proposed-sessions/' + id, { method: 'DELETE', headers: authHeaders() });
+    renderUpcomingSessionsPanel();
+  } catch (e) { /* best-effort */ }
+}
+window.deleteProposedSession = deleteProposedSession;
 
 async function renderCommunity() {
   const container = document.getElementById('crew-list-container');
