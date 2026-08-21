@@ -6,6 +6,13 @@ const { requireAuth } = require('../middleware/auth');
 
 router.use(requireAuth);
 
+// ─────────────────────────────────────────────────────────────────────────
+// Routes spécifiques déclarées AVANT la route générique DELETE /:id, pour
+// éviter tout conflit de matching Express (ex. /favorites/:id vs /:id).
+// Ordre : GET / , POST / , POST /sync , GET+POST+DELETE /favorites... ,
+// GET /recent , puis DELETE /:id en dernier.
+// ─────────────────────────────────────────────────────────────────────────
+
 // GET /api/bank — toutes les séances de la banque
 router.get('/', async (req, res) => {
   try {
@@ -49,19 +56,14 @@ router.post('/', async (req, res) => {
   }
 });
 
-// DELETE /api/bank/:id
-router.delete('/:id', async (req, res) => {
-  try {
-    await pool.query('DELETE FROM session_bank WHERE id=$1', [req.params.id]);
-    await pool.query('DELETE FROM session_bank_favorites WHERE bank_id=$1', [req.params.id]);
-    res.json({ ok: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// POST /api/bank/sync — sync complète de la banque
+// POST /api/bank/sync — sync complète de la banque (destructive : vide puis reconstruit
+// toute la table). La banque est globale/partagée entre tous les comptes : on réserve donc
+// cette route aux coachs (role=admin) pour éviter qu'un compte athlète ne puisse effacer/
+// reconstruire la bibliothèque commune.
 router.post('/sync', async (req, res) => {
+  if (req.user?.role !== 'admin') {
+    return res.status(403).json({ error: 'Seul un coach peut resynchroniser la banque de séances' });
+  }
   const { items } = req.body;
   if (!Array.isArray(items)) return res.status(400).json({ error: 'items[] requis' });
   const client = await pool.connect();
@@ -90,11 +92,13 @@ router.post('/sync', async (req, res) => {
 });
 
 // GET /api/bank/favorites — mes fiches favorites (liste d'ids)
+// Rattaché au COMPTE connecté (users.id), pas à l'athlète actuellement affiché dans
+// l'interface : un coach garde ses favoris quel que soit le profil qu'il consulte.
 router.get('/favorites', async (req, res) => {
-  const climberId = req.user?.climberId;
-  if (!climberId) return res.json([]);
+  const userId = req.user?.id;
+  if (!userId) return res.json([]);
   try {
-    const { rows } = await pool.query('SELECT bank_id FROM session_bank_favorites WHERE climber_id=$1', [climberId]);
+    const { rows } = await pool.query('SELECT bank_id FROM session_bank_favorites WHERE user_id=$1', [userId]);
     res.json(rows.map(r => r.bank_id));
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -103,12 +107,12 @@ router.get('/favorites', async (req, res) => {
 
 // POST /api/bank/favorites/:id — marquer une fiche comme favorite
 router.post('/favorites/:id', async (req, res) => {
-  const climberId = req.user?.climberId;
-  if (!climberId) return res.status(400).json({ error: 'Aucun profil grimpeur associé à ce compte' });
+  const userId = req.user?.id;
+  if (!userId) return res.status(400).json({ error: 'Compte non authentifié' });
   try {
     await pool.query(
-      'INSERT INTO session_bank_favorites (climber_id, bank_id) VALUES ($1,$2) ON CONFLICT DO NOTHING',
-      [climberId, req.params.id]
+      'INSERT INTO session_bank_favorites (user_id, bank_id) VALUES ($1,$2) ON CONFLICT DO NOTHING',
+      [userId, req.params.id]
     );
     res.json({ ok: true });
   } catch (err) {
@@ -118,28 +122,48 @@ router.post('/favorites/:id', async (req, res) => {
 
 // DELETE /api/bank/favorites/:id — retirer une fiche des favoris
 router.delete('/favorites/:id', async (req, res) => {
-  const climberId = req.user?.climberId;
-  if (!climberId) return res.status(400).json({ error: 'Aucun profil grimpeur associé à ce compte' });
+  const userId = req.user?.id;
+  if (!userId) return res.status(400).json({ error: 'Compte non authentifié' });
   try {
-    await pool.query('DELETE FROM session_bank_favorites WHERE climber_id=$1 AND bank_id=$2', [climberId, req.params.id]);
+    await pool.query('DELETE FROM session_bank_favorites WHERE user_id=$1 AND bank_id=$2', [userId, req.params.id]);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// GET /api/bank/recent — fiches récemment utilisées (loguées ou programmées) par le grimpeur actif
+// GET /api/bank/recent — fiches récemment utilisées (loguées ou programmées) par le
+// grimpeur du compte connecté (même logique que /favorites : ancre = compte connecté).
 router.get('/recent', async (req, res) => {
   const climberId = req.user?.climberId;
   if (!climberId) return res.json([]);
   try {
+    // DISTINCT ON (bank_ref) + ORDER BY bank_ref, date DESC : garde, pour chaque fiche, la
+    // ligne la plus récente (qu'elle soit passée/réalisée ou future/planifiée) — permet au
+    // frontend d'afficher "Utilisée il y a Xj" ou "Programmée le ..." selon le cas.
     const { rows } = await pool.query(
-      `SELECT bank_ref, MAX(date) AS last_date FROM logs
+      `SELECT DISTINCT ON (bank_ref) bank_ref, date, planned FROM logs
        WHERE climber_id=$1 AND bank_ref IS NOT NULL AND bank_ref <> ''
-       GROUP BY bank_ref ORDER BY last_date DESC LIMIT 20`,
+       ORDER BY bank_ref, date DESC`,
       [climberId]
     );
-    res.json(rows.map(r => r.bank_ref));
+    const items = rows
+      .map(r => ({ bankId: r.bank_ref, date: r.date, planned: !!r.planned }))
+      .sort((a, b) => new Date(b.date) - new Date(a.date))
+      .slice(0, 20);
+    res.json(items);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/bank/:id — route générique à un seul segment : déclarée en dernier pour ne
+// jamais intercepter par erreur une route plus spécifique (favorites/:id, sync, recent).
+router.delete('/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM session_bank WHERE id=$1', [req.params.id]);
+    await pool.query('DELETE FROM session_bank_favorites WHERE bank_id=$1', [req.params.id]);
+    res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
