@@ -1456,21 +1456,69 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
         <label class="form-label">Description (optionnel)</label>
         <input class="form-control" type="text" id="ch-desc" placeholder="Ex. On se motive avant le trip">
       </div>
-      <div class="form-row form-row-2">
-        <div class="form-group" style="margin-bottom:0">
-          <label class="form-label">Métrique</label>
-          <select class="form-control" id="ch-metric">
-            <option value="seances">Nombre de séances</option>
-            <option value="jours">Jours de grimpe</option>
-            <option value="charge">Points de charge</option>
-            <option value="blocs">Blocs / voies</option>
-          </select>
-        </div>
-        <div class="form-group" style="margin-bottom:0">
-          <label class="form-label">Objectif</label>
-          <input class="form-control" type="number" id="ch-target" min="1" placeholder="Ex. 10">
+
+      <div class="form-group">
+        <label class="form-label">Type de défi</label>
+        <div style="display:flex;gap:8px">
+          <button type="button" class="time-filter-btn active" id="ch-type-metric-btn" onclick="setChallengeType('metric')" style="flex:1">🔢 Objectif chiffré</button>
+          <button type="button" class="time-filter-btn" id="ch-type-session-btn" onclick="setChallengeType('session')" style="flex:1">🎯 Séance précise</button>
         </div>
       </div>
+
+      <div id="ch-type-metric-group">
+        <div class="form-row form-row-2">
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label">Métrique</label>
+            <select class="form-control" id="ch-metric">
+              <option value="seances">Nombre de séances</option>
+              <option value="jours">Jours de grimpe</option>
+              <option value="charge">Points de charge</option>
+              <option value="blocs">Blocs / voies</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label">Objectif</label>
+            <input class="form-control" type="number" id="ch-target" min="1" placeholder="Ex. 10">
+          </div>
+        </div>
+      </div>
+
+      <div id="ch-type-session-group" style="display:none">
+        <p style="font-size:12px;color:var(--muted);margin-bottom:8px">Choisis une fiche existante de la banque de séances, ou crée-en une nouvelle — ex. « Voie rose » à la salle X. Le défi est validé quand un participant logue vraiment cette séance.</p>
+        <div class="form-group">
+          <label class="form-label">Séance ciblée</label>
+          <select class="form-control" id="ch-bank-select" onchange="onChallengeBankSelectChange()">
+            <option value="">— Créer une nouvelle fiche —</option>
+          </select>
+        </div>
+        <div id="ch-newbank-fields">
+          <div class="form-row form-row-2">
+            <div class="form-group" style="margin-bottom:0">
+              <label class="form-label">Nom</label>
+              <input class="form-control" type="text" id="ch-newbank-name" placeholder="Ex. Voie rose">
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+              <label class="form-label">Type</label>
+              <select class="form-control" id="ch-newbank-type">
+                <option value="voies">Voies salle</option>
+                <option value="bloc">Bloc salle</option>
+                <option value="falaise">Falaise / Outdoor</option>
+                <option value="pan">Pan / Woody / Board</option>
+                <option value="autre">Autre</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Lieu / détail (optionnel)</label>
+            <input class="form-control" type="text" id="ch-newbank-location" placeholder="Ex. Salle Escalade Time">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Nombre de fois à réaliser</label>
+          <input class="form-control" type="number" id="ch-session-target" min="1" value="1">
+        </div>
+      </div>
+
       <div class="form-row form-row-2">
         <div class="form-group" style="margin-bottom:0">
           <label class="form-label">Début</label>
@@ -6140,16 +6188,41 @@ function renderCrewLeaderboard(data, crewId) {
 // ─── Challenges privés (Communauté v2 — brique 6) ───
 const CHALLENGE_METRIC_LABELS = { seances: 'Nombre de séances', jours: 'Jours de grimpe', charge: 'Points de charge', blocs: 'Blocs / voies' };
 
+function setChallengeType(type) {
+  document.getElementById('ch-type-metric-group').style.display = type === 'metric' ? '' : 'none';
+  document.getElementById('ch-type-session-group').style.display = type === 'session' ? '' : 'none';
+  document.getElementById('ch-type-metric-btn').classList.toggle('active', type === 'metric');
+  document.getElementById('ch-type-session-btn').classList.toggle('active', type === 'session');
+}
+window.setChallengeType = setChallengeType;
+
+function onChallengeBankSelectChange() {
+  const hasExisting = !!document.getElementById('ch-bank-select').value;
+  document.getElementById('ch-newbank-fields').style.display = hasExisting ? 'none' : '';
+}
+window.onChallengeBankSelectChange = onChallengeBankSelectChange;
+
 async function openChallengeModal() {
   document.getElementById('ch-name').value = '';
   document.getElementById('ch-desc').value = '';
   document.getElementById('ch-target').value = '';
   document.getElementById('ch-metric').selectedIndex = 0;
+  document.getElementById('ch-newbank-name').value = '';
+  document.getElementById('ch-newbank-type').selectedIndex = 0;
+  document.getElementById('ch-newbank-location').value = '';
+  document.getElementById('ch-session-target').value = 1;
+  setChallengeType('metric');
   const today = new Date();
   const end = new Date(); end.setDate(end.getDate() + 30);
   document.getElementById('ch-start').value = today.toISOString().slice(0, 10);
   document.getElementById('ch-end').value = end.toISOString().slice(0, 10);
   document.getElementById('challenge-error').style.display = 'none';
+
+  const bankSel = document.getElementById('ch-bank-select');
+  const bankItems = getBank().slice().sort((a, b) => a.name.localeCompare(b.name));
+  bankSel.innerHTML = '<option value="">— Créer une nouvelle fiche —</option>' +
+    bankItems.map(b => `<option value="${esc(b.id)}">${esc(b.name)}${b.category ? ' · ' + esc(b.category) : ''}</option>`).join('');
+  onChallengeBankSelectChange();
 
   if (!partnerCache.length) {
     try {
@@ -6187,20 +6260,47 @@ window.openChallengeModal = openChallengeModal;
 async function saveChallenge() {
   const name = document.getElementById('ch-name').value.trim();
   const description = document.getElementById('ch-desc').value.trim();
-  const metric = document.getElementById('ch-metric').value;
-  const target = document.getElementById('ch-target').value;
+  const isSession = document.getElementById('ch-type-session-group').style.display !== 'none';
   const startDate = document.getElementById('ch-start').value;
   const endDate = document.getElementById('ch-end').value;
   const participantIds = Array.from(document.querySelectorAll('.ch-participant-cb:checked')).map(cb => cb.value);
   const errEl = document.getElementById('challenge-error');
   errEl.style.display = 'none';
   if (!name) { errEl.textContent = 'Nom requis.'; errEl.style.display = 'block'; return; }
-  if (!target || Number(target) <= 0) { errEl.textContent = 'Objectif requis.'; errEl.style.display = 'block'; return; }
   if (!startDate || !endDate || startDate > endDate) { errEl.textContent = 'Dates invalides.'; errEl.style.display = 'block'; return; }
+
+  let metric, target, bankId = null;
+
+  if (isSession) {
+    metric = 'session';
+    target = Number(document.getElementById('ch-session-target').value) || 1;
+    bankId = document.getElementById('ch-bank-select').value || null;
+    if (!bankId) {
+      const newName = document.getElementById('ch-newbank-name').value.trim();
+      if (!newName) { errEl.textContent = 'Choisis une séance existante ou donne un nom à la nouvelle fiche.'; errEl.style.display = 'block'; return; }
+      const newType = document.getElementById('ch-newbank-type').value;
+      const newLocation = document.getElementById('ch-newbank-location').value.trim();
+      const newId = 'bank_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+      try {
+        const rb = await fetch('/api/bank', {
+          method: 'POST', headers: authHeaders(),
+          body: JSON.stringify({ id: newId, name: newName, type: newType, description: newLocation, source: 'challenge' })
+        });
+        if (!rb.ok) { errEl.textContent = 'Erreur lors de la création de la fiche.'; errEl.style.display = 'block'; return; }
+        getBank().push({ id: newId, name: newName, type: newType, description: newLocation, source: 'challenge', tags: [], crossTags: [], category: '', subcategory: '' });
+        bankId = newId;
+      } catch (e) { errEl.textContent = 'Erreur réseau lors de la création de la fiche.'; errEl.style.display = 'block'; return; }
+    }
+  } else {
+    metric = document.getElementById('ch-metric').value;
+    target = document.getElementById('ch-target').value;
+    if (!target || Number(target) <= 0) { errEl.textContent = 'Objectif requis.'; errEl.style.display = 'block'; return; }
+  }
+
   try {
     const r = await fetch('/api/challenges', {
       method: 'POST', headers: authHeaders(),
-      body: JSON.stringify({ name, description, metric, target, startDate, endDate, participantIds })
+      body: JSON.stringify({ name, description, metric, target, startDate, endDate, participantIds, bankId })
     });
     const d = await r.json();
     if (!r.ok) { errEl.textContent = d.error || 'Erreur lors de la création.'; errEl.style.display = 'block'; return; }
@@ -6239,11 +6339,14 @@ async function renderChallengesTab() {
           </div>
         </div>`;
       }).join('');
+      const targetLabel = ch.metric === 'session'
+        ? `🎯 ${esc(ch.bankSession?.name || 'Séance ciblée')}${ch.bankSession?.description ? ' — ' + esc(ch.bankSession.description) : ''}${ch.target > 1 ? ` (×${ch.target})` : ''}`
+        : esc(CHALLENGE_METRIC_LABELS[ch.metric] || ch.metric);
       return `<div class="panel" style="margin-bottom:12px">
         <div class="panel-header">
           <div>
             <span class="panel-title">${esc(ch.name)}</span>
-            <div style="font-size:12px;color:var(--muted);margin-top:2px">${esc(CHALLENGE_METRIC_LABELS[ch.metric] || ch.metric)} · ${ch.startDate} → ${ch.endDate} · ${statusText}</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px">${targetLabel} · ${ch.startDate} → ${ch.endDate} · ${statusText}</div>
           </div>
           ${ch.isMine ? `<button class="btn sm" onclick="deleteChallenge('${ch.id}')">Supprimer</button>` : ''}
         </div>
