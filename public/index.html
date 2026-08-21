@@ -1448,6 +1448,17 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   </div>
 </div>
 
+<!-- Modal profil partenaire -->
+<div class="modal-backdrop" id="partner-profile-modal">
+  <div class="modal" style="width:min(480px,100%)">
+    <div class="modal-header">
+      <span class="modal-title" id="partner-profile-title">Profil</span>
+      <button class="btn sm" onclick="closeModal('partner-profile-modal')">Fermer</button>
+    </div>
+    <div class="modal-body" id="partner-profile-body"></div>
+  </div>
+</div>
+
 <!-- Modal challenge -->
 <div class="modal-backdrop" id="challenge-modal">
   <div class="modal" style="width:min(480px,100%)">
@@ -6126,10 +6137,67 @@ async function partnerRemove(id) {
 }
 window.partnerRemove = partnerRemove;
 
-function openPartnerProfile(id) {
-  const p = partnerCache.find(x => x.id === id);
-  if (!p) return;
-  alert(`Profil de ${p.name} — à venir (niveau, séances récentes, progression, objectifs partagés selon sa confidentialité).`);
+async function openPartnerProfile(id) {
+  const cached = partnerCache.find(x => x.id === id);
+  document.getElementById('partner-profile-title').textContent = cached ? cached.name : 'Profil';
+  const body = document.getElementById('partner-profile-body');
+  body.innerHTML = '<p style="font-size:13px;color:var(--muted)">Chargement…</p>';
+  document.getElementById('partner-profile-modal').classList.add('open');
+  try {
+    const r = await fetch(`/api/partners/${id}/profile`, { headers: authHeaders() });
+    const p = await r.json();
+    if (!r.ok) { body.innerHTML = `<p style="color:var(--warm);font-size:13px">${esc(p.error || 'Erreur de chargement')}</p>`; return; }
+    document.getElementById('partner-profile-title').textContent = p.name;
+    const initials = p.name.trim().split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 2);
+    let html = `<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+      <div class="crew-member-avatar" style="background:${p.color};width:44px;height:44px;font-size:16px">${initials}</div>
+      <div><div style="font-weight:700;font-size:15px">${esc(p.name)}</div><div style="font-size:12px;color:var(--muted)">Niveau déclaré : ${esc(p.level || '—')}</div></div>
+    </div>`;
+
+    if (p.niveau) {
+      html += `<div class="panel" style="margin-bottom:10px"><div class="panel-header"><span class="panel-title">Niveau</span></div>
+        <p style="font-size:13px">Meilleure voie/bloc enchaîné (90j) : <strong>${esc(p.niveau.grade || '—')}</strong> · ${p.niveau.sends90d} envoi${p.niveau.sends90d !== 1 ? 's' : ''}</p></div>`;
+    }
+    if (p.charge) {
+      html += `<div class="panel" style="margin-bottom:10px"><div class="panel-header"><span class="panel-title">Charge</span></div>
+        <p style="font-size:13px">Charge des 7 derniers jours : <strong>${p.charge.weeklyLoad}</strong> pts</p></div>`;
+    }
+    if (p.statistiques) {
+      html += `<div class="panel" style="margin-bottom:10px"><div class="panel-header"><span class="panel-title">Statistiques</span></div>
+        <p style="font-size:13px">${p.statistiques.totalSessions90d} séance${p.statistiques.totalSessions90d !== 1 ? 's' : ''} sur 90 jours · ${p.statistiques.avgPerWeek}/semaine en moyenne</p></div>`;
+    }
+    if (p.seances) {
+      html += `<div class="panel" style="margin-bottom:10px"><div class="panel-header"><span class="panel-title">Séances récentes</span></div>
+        ${p.seances.length ? p.seances.map(s => {
+          const t = SESSION_TYPES[s.type] || SESSION_TYPES.autre;
+          return `<div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 0"><span><span class="sess-dot" style="background:${t.color}"></span> ${esc(t.label)} · ${fmtDate(s.date)}</span><span style="color:var(--muted)">${s.minutes} min${s.ascentCount ? ` · ${s.ascentCount} ascensions` : ''}</span></div>`;
+        }).join('') : '<p style="font-size:12px;color:var(--muted)">Rien récemment.</p>'}</div>`;
+    }
+    if (p.objectifs) {
+      html += `<div class="panel" style="margin-bottom:10px"><div class="panel-header"><span class="panel-title">Objectifs</span></div>
+        ${p.objectifs.length ? p.objectifs.map(o => {
+          const t = OBJECTIVE_TYPES[o.type] || OBJECTIVE_TYPES.other;
+          return `<div style="font-size:13px;padding:3px 0">${t.icon} ${esc(o.title)}${o.date ? ` · ${fmtDate(o.date)}` : ''}</div>`;
+        }).join('') : '<p style="font-size:12px;color:var(--muted)">Aucun objectif actif.</p>'}</div>`;
+    }
+    if (p.projets) {
+      html += `<div class="panel" style="margin-bottom:10px"><div class="panel-header"><span class="panel-title">Projets en cours</span></div>
+        ${p.projets.length ? p.projets.map(pr => `<div style="font-size:13px;padding:3px 0">${esc(pr.grade)} · ${pr.tries} essai${pr.tries !== 1 ? 's' : ''}</div>`).join('') : '<p style="font-size:12px;color:var(--muted)">Aucun projet en cours (90j).</p>'}</div>`;
+    }
+    if (p.tests) {
+      html += `<div class="panel" style="margin-bottom:10px"><div class="panel-header"><span class="panel-title">Tests doigts</span></div>
+        <p style="font-size:13px">Dernier test le ${fmtDate(p.tests.date)}${p.tests.rpGrade ? ` · RP ${esc(p.tests.rpGrade)}` : ''}${p.tests.mvcKgKg ? ` · MVC ${p.tests.mvcKgKg} kg/kg` : ''}</p></div>`;
+    } else if ('tests' in p && !p.tests) {
+      html += `<div class="panel" style="margin-bottom:10px"><div class="panel-header"><span class="panel-title">Tests doigts</span></div><p style="font-size:12px;color:var(--muted)">Aucun test enregistré.</p></div>`;
+    }
+
+    const hiddenCount = SHARING_CATEGORIES.filter(c => !(c.key in p)).length;
+    if (hiddenCount) html += `<p style="font-size:12px;color:var(--muted);text-align:center">${hiddenCount} rubrique${hiddenCount !== 1 ? 's' : ''} masquée${hiddenCount !== 1 ? 's' : ''} par ${esc(p.name)}.</p>`;
+
+    body.innerHTML = html;
+  } catch (e) {
+    body.innerHTML = '<p style="color:var(--warm);font-size:13px">Erreur réseau</p>';
+  }
 }
 window.openPartnerProfile = openPartnerProfile;
 
