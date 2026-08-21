@@ -28,6 +28,7 @@ app.use('/api/finger-profile', fingerProfileRoutes);
 app.use('/api/finger-profile-expected', fingerProfileRoutes.expectedRouter);
 app.use('/api/crews', require('./routes/crews'));
 app.use('/api/partners', require('./routes/partners'));
+app.use('/api/challenges', require('./routes/challenges'));
 app.get('/api/health', (req, res) => { res.json({ status: 'ok' }); });
 app.get('*', (req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
