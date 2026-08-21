@@ -187,14 +187,19 @@ router.get('/:crewId/board', requireCrewMembership(), async (req, res) => {
         }
       });
       const adherence = plannedTotal > 0 ? Math.round((Math.min(completedTotal, plannedTotal) / plannedTotal) * 100) : null;
+      const kudosForMe = kudos.filter(k => k.to_climber_id === m.id);
+      const kudosByEmoji = {};
+      kudosForMe.forEach(k => { kudosByEmoji[k.emoji || '👏'] = (kudosByEmoji[k.emoji || '👏'] || 0) + 1; });
       return {
         climberId: m.id, name: m.name, color: m.color,
         completedTotal, plannedTotal, adherence, byType,
-        kudosReceived: kudos.filter(k => k.to_climber_id === m.id).length
+        kudosReceived: kudosForMe.length, kudosByEmoji
       };
     });
 
-    res.json({ weekStart: start, weekEnd: end, board, myKudosGivenTo: kudos.filter(k => k.from_climber_id === req.user.climberId).map(k => k.to_climber_id) });
+    const myKudosGivenTo = {};
+    kudos.filter(k => k.from_climber_id === req.user.climberId).forEach(k => { myKudosGivenTo[k.to_climber_id] = k.emoji || '👏'; });
+    res.json({ weekStart: start, weekEnd: end, board, myKudosGivenTo });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -308,6 +313,110 @@ function refGradeFromLogs(logs) {
   return GRADES[sent[Math.min(Math.floor(sent.length * 0.7), sent.length - 1)]];
 }
 
+// Progression individuelle pour le défi collectif mensuel — mêmes 4 métriques que les
+// challenges privés (src/routes/challenges.js computeProgress), dupliquée ici pour pouvoir
+// sommer facilement sur tout un crew.
+async function computeMemberProgress(climberId, metric, startDate, endDate) {
+  const { rows: logs } = await pool.query(
+    `SELECT * FROM logs WHERE climber_id=$1 AND planned=false AND date>=$2 AND date<=$3`,
+    [climberId, startDate, endDate]
+  );
+  if (metric === 'seances') return logs.length;
+  if (metric === 'jours') return new Set(logs.map(l => l.date.toISOString().slice(0, 10))).size;
+  if (metric === 'blocs') {
+    return logs.filter(l => l.type === 'bloc').reduce((s, l) => {
+      const b = l.b_no_grade || {};
+      const bng = (b.facileSent || 0) + (b.moyenSent || 0) + (b.travailSent || 0) + (b.sent || 0);
+      return s + bng + (l.ascents || []).length;
+    }, 0);
+  }
+  if (metric === 'charge') {
+    const cutoff = new Date(startDate); cutoff.setDate(cutoff.getDate() - 90);
+    const { rows: widerLogs } = await pool.query(
+      `SELECT * FROM logs WHERE climber_id=$1 AND planned=false AND date>=$2 AND date<=$3`,
+      [climberId, cutoff.toISOString().slice(0, 10), endDate]
+    );
+    const norm = widerLogs.map(l => ({ date: l.date.toISOString().slice(0, 10), ascents: l.ascents || [] }));
+    const ref = refGradeFromLogs(norm);
+    return Math.round(logs.reduce((s, l) => s + logLoad({ ascents: l.ascents || [], b_no_grade: l.b_no_grade || {} }, ref), 0));
+  }
+  return 0;
+}
+const MONTHLY_CHALLENGE_METRICS = ['seances', 'jours', 'charge', 'blocs'];
+const MONTHLY_CHALLENGE_METRIC_LABELS = { seances: 'séances', jours: 'jours de grimpe', charge: 'points de charge', blocs: 'blocs/voies' };
+function currentMonthBounds() {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), 1);
+  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  return { monthKey: start.toISOString().slice(0, 10), start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10) };
+}
+
+// GET /api/crews/:crewId/monthly-challenge — défi collectif du mois en cours (s'il existe), avec progression d'équipe
+router.get('/:crewId/monthly-challenge', requireCrewMembership(), async (req, res) => {
+  try {
+    const { monthKey, start, end } = currentMonthBounds();
+    const { rows } = await pool.query(
+      'SELECT * FROM crew_monthly_challenges WHERE crew_id=$1 AND month=$2',
+      [req.params.crewId, monthKey]
+    );
+    if (!rows.length) return res.json(null);
+    const ch = rows[0];
+    const { rows: members } = await pool.query(
+      `SELECT cl.id, cl.name, cl.color FROM crew_members cm
+       JOIN climbers cl ON cl.id = cm.climber_id
+       WHERE cm.crew_id = $1 ORDER BY cm.joined_at ASC`,
+      [req.params.crewId]
+    );
+    const contributions = await Promise.all(members.map(async m => ({
+      climberId: m.id, name: m.name, color: m.color,
+      progress: await computeMemberProgress(m.id, ch.metric, start, end)
+    })));
+    const teamProgress = contributions.reduce((s, c) => s + c.progress, 0);
+    const { rows: creatorRows } = await pool.query('SELECT name FROM climbers WHERE id=$1', [ch.created_by]);
+    const daysLeft = Math.max(0, Math.ceil((new Date(end) - new Date()) / 86400000));
+    res.json({
+      id: ch.id, metric: ch.metric, metricLabel: MONTHLY_CHALLENGE_METRIC_LABELS[ch.metric] || ch.metric,
+      target: Number(ch.target), monthStart: start, monthEnd: end, daysLeft,
+      createdBy: ch.created_by, createdByName: creatorRows[0]?.name || '—',
+      teamProgress, contributions: contributions.sort((a, b) => b.progress - a.progress)
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/crews/:crewId/monthly-challenge — lancer (ou remplacer) le défi collectif du mois en cours
+router.post('/:crewId/monthly-challenge', requireCrewMembership(), async (req, res) => {
+  const { metric, target } = req.body;
+  if (!MONTHLY_CHALLENGE_METRICS.includes(metric)) return res.status(400).json({ error: 'Métrique invalide' });
+  const targetNum = Number(target);
+  if (!targetNum || targetNum <= 0) return res.status(400).json({ error: 'Objectif requis (> 0)' });
+  try {
+    const { monthKey } = currentMonthBounds();
+    const id = 'cmc_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+    await pool.query(
+      `INSERT INTO crew_monthly_challenges (id, crew_id, month, metric, target, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6)
+       ON CONFLICT (crew_id, month) DO UPDATE SET metric=$4, target=$5, created_by=$6`,
+      [id, req.params.crewId, monthKey, metric, targetNum, req.user.climberId]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/crews/:crewId/monthly-challenge — annuler le défi collectif du mois en cours
+router.delete('/:crewId/monthly-challenge', requireCrewMembership(), async (req, res) => {
+  try {
+    const { monthKey } = currentMonthBounds();
+    await pool.query('DELETE FROM crew_monthly_challenges WHERE crew_id=$1 AND month=$2', [req.params.crewId, monthKey]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 const LB_PERIOD_DAYS = { '7j': 7, '30j': 30, annee: 365 };
 const LB_METRIC_SHARE_KEY = { niveau: 'niveau', regularite: 'seances', charge: 'charge', progression: 'statistiques', seances: 'seances' };
 
@@ -420,19 +529,23 @@ router.post('/:crewId/activity', requireCrewMembership(), async (req, res) => {
   }
 });
 
+// Choix d'emoji pour les kudos — même liste côté frontend (public/index.html KUDOS_EMOJIS).
+const KUDOS_EMOJIS = ['👏', '💪', '🔥', '🧗', '🚀'];
+
 // POST /api/crews/:crewId/kudos — envoyer un encouragement à un coéquipier pour la semaine en cours
 router.post('/:crewId/kudos', requireCrewMembership(), async (req, res) => {
   const { toClimberId, emoji } = req.body;
   if (!toClimberId) return res.status(400).json({ error: 'toClimberId requis' });
+  const chosenEmoji = KUDOS_EMOJIS.includes(emoji) ? emoji : '👏';
   try {
     const targetOk = await isCrewMember(toClimberId, req.params.crewId);
     if (!targetOk) return res.status(400).json({ error: 'Ce grimpeur ne fait pas partie du crew' });
     const { start } = currentWeekBounds();
     await pool.query(
       `INSERT INTO crew_kudos (id, crew_id, from_climber_id, to_climber_id, week_start, emoji) VALUES ($1,$2,$3,$4,$5,$6)`,
-      [kudosId(), req.params.crewId, req.user.climberId, toClimberId, start, emoji || '👏']
+      [kudosId(), req.params.crewId, req.user.climberId, toClimberId, start, chosenEmoji]
     );
-    res.json({ ok: true });
+    res.json({ ok: true, emoji: chosenEmoji });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
