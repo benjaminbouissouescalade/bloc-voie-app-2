@@ -341,6 +341,18 @@ body.preview-mode #sidebar-user { color: var(--accent) !important; font-weight: 
 .trip-card-stats { display: flex; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
 .trip-card-stats b { color: var(--text); font-weight: 600; }
 .trip-card-actions { position: absolute; top: 10px; right: 10px; display: flex; gap: 4px; }
+
+/* Objectifs (dashboard) */
+.objectives-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.objective-card { border: 1.5px solid var(--border); border-left-width: 4px; border-radius: var(--r-sm); padding: 10px 12px; background: var(--surface2); cursor: pointer; transition: all .12s; position: relative; min-width: 190px; max-width: 260px; }
+.objective-card:hover { border-color: var(--border2); background: var(--surface); }
+.objective-card.done { opacity: .55; }
+.objective-card.done .objective-card-title { text-decoration: line-through; }
+.objective-card-title { font-size: 13px; font-weight: 600; padding-right: 20px; margin-bottom: 2px; }
+.objective-card-meta { font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 4px; }
+.objective-card-check { position: absolute; top: 8px; right: 8px; border: none; background: transparent; color: var(--muted); cursor: pointer; font-size: 14px; padding: 2px; border-radius: 4px; line-height: 1; }
+.objective-card-check:hover { color: var(--accent); }
+.objectives-empty { font-size: 13px; color: var(--muted); padding: 6px 2px; }
 .trip-card-actions button { border: none; background: transparent; color: var(--muted); cursor: pointer; font-size: 13px; padding: 2px 4px; border-radius: 4px; }
 .trip-card-actions button:hover { background: var(--surface); color: var(--text); }
 .trip-empty { color: var(--muted); font-size: 13px; padding: 8px 0; }
@@ -777,6 +789,15 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     <h2>Tableau de bord</h2>
     <p id="dashDate">—</p>
   </div>
+
+  <div class="panel" id="dash-objectives-panel" style="margin-bottom:16px">
+    <div class="panel-header">
+      <span class="panel-title">🎯 Objectifs</span>
+      <button class="btn sm" onclick="openObjectiveModal()">+ Objectif</button>
+    </div>
+    <div class="objectives-row" id="dash-objectives-list"></div>
+  </div>
+
   <div class="stat-grid stat-grid-4" id="dash-top-stats">
     <div class="stat-card hero">
       <div class="stat-label">Grade de référence</div>
@@ -1352,6 +1373,46 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <button class="btn sm" onclick="closeModal('trip-detail-modal')">Fermer</button>
     </div>
     <div class="modal-body" id="trip-detail-body"></div>
+  </div>
+</div>
+
+<!-- Modal objectif -->
+<div class="modal-backdrop" id="objective-modal">
+  <div class="modal" style="width:min(420px,100%)">
+    <div class="modal-header">
+      <span class="modal-title" id="objective-modal-title">Nouvel objectif</span>
+      <button class="btn sm" onclick="closeModal('objective-modal')">Fermer</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="objective-edit-id">
+      <div class="form-group">
+        <label class="form-label">Titre</label>
+        <input class="form-control" type="text" id="objective-title" placeholder="Ex. Enchaîner un 8a, Prépa compétition régionale…">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Type</label>
+        <select class="form-control" id="objective-type">
+          <option value="grade">🎯 Projet de grade</option>
+          <option value="competition">🏆 Compétition</option>
+          <option value="finger">💪 Force doigts</option>
+          <option value="bigwall">⛰️ Grande voie</option>
+          <option value="other">📌 Autre</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Échéance (optionnel)</label>
+        <input class="form-control" type="date" id="objective-date">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Notes (optionnel)</label>
+        <textarea class="form-control" id="objective-notes" rows="2" placeholder="Détails, pourquoi cet objectif…"></textarea>
+      </div>
+      <div id="objective-error" style="background:var(--warm2);color:var(--warm);border-radius:8px;padding:10px;font-size:13px;margin-bottom:12px;display:none"></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn primary" style="flex:1" onclick="saveObjective()">Enregistrer</button>
+        <button class="btn" id="objective-delete-btn" style="display:none;color:var(--warm)" onclick="deleteObjective()">Supprimer</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -3260,7 +3321,7 @@ function loadDB() {
       }
       if (d && d.climbers && d.climbers.length) {
         if (!d.sessionBank) d.sessionBank = mkSampleBank();
-        d.climbers.forEach(c => { if (!c.trips) c.trips = []; });
+        d.climbers.forEach(c => { if (!c.trips) c.trips = []; if (!c.objectives) c.objectives = []; });
         return d;
       }
     }
@@ -3388,7 +3449,7 @@ async function toggleGameMode() {
     await fetch('/api/climbers', {
       method: 'POST',
       headers: authHeaders(),
-      body: JSON.stringify({ id: c.id, name: c.name, color: c.color, level: c.level, trips: c.trips || [], profile: c.profile })
+      body: JSON.stringify({ id: c.id, name: c.name, color: c.color, level: c.level, trips: c.trips || [], profile: c.profile, objectives: c.objectives || [] })
     });
     saveDB();
   } catch (e) { /* best-effort, l'état local reste correct */ }
@@ -3411,7 +3472,7 @@ async function syncToBackend() {
     await fetch('/api/climbers', {
       method: 'POST',
       headers: authHeaders(),
-      body: JSON.stringify({id:c.id, name:c.name, color:c.color, level:c.level, trips:c.trips||[], profile:c.profile||{}})
+      body: JSON.stringify({id:c.id, name:c.name, color:c.color, level:c.level, trips:c.trips||[], profile:c.profile||{}, objectives:c.objectives||[]})
     }).catch(()=>{});
     // Sync ses logs
     await fetch(`/api/logs/${c.id}/sync`, {
@@ -3446,7 +3507,7 @@ async function loadFromBackend() {
     const climbersWithLogs = await Promise.all(climbers.map(async c => {
       const logsRes = await fetch(`/api/logs/${c.id}`, {headers: authHeaders()});
       const logs = logsRes.ok ? await logsRes.json() : [];
-      return {...c, logs, trips: c.trips || [], profile: c.profile || {}};
+      return {...c, logs, trips: c.trips || [], profile: c.profile || {}, objectives: c.objectives || []};
     }));
 
     db.climbers = climbersWithLogs;
@@ -3707,6 +3768,7 @@ function renderPage(name) {
 // — Dashboard —
 function renderDashboard() {
   document.getElementById('dashDate').textContent = new Date().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  renderObjectivesPanel();
   const ref = getRefGrade();
   document.getElementById('dash-ref-grade').textContent = ref;
   const l7=getLoadRange(7), l28=getLoadRange(28);
@@ -4793,6 +4855,102 @@ function renderTripsCompare() {
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,position:'top',labels:{boxWidth:12,font:{size:11}}}},scales:{x:{grid:{display:false},ticks:{font:{size:10}}},y:{grid:{color:'rgba(0,0,0,.05)'},ticks:{font:{size:10}}}}}
   });
 }
+
+// — Objectifs (visibles en haut du tableau de bord) —
+const OBJECTIVE_TYPES = {
+  grade:       { label: 'Projet de grade', icon: '🎯', color: '#2d5a3d' },
+  competition: { label: 'Compétition',      icon: '🏆', color: '#c4501a' },
+  finger:      { label: 'Force doigts',     icon: '💪', color: '#5a2d82' },
+  bigwall:     { label: 'Grande voie',      icon: '⛰️', color: '#1a4a7a' },
+  other:       { label: 'Autre',            icon: '📌', color: '#7a1a3d' },
+};
+function objectiveDueLabel(dateStr) {
+  if (!dateStr) return '';
+  const today = new Date(); today.setHours(0,0,0,0);
+  const due = new Date(dateStr+'T00:00:00');
+  const days = Math.round((due-today)/86400000);
+  if (days < 0) return `Échéance dépassée (${fmtDate(dateStr)})`;
+  if (days === 0) return "Aujourd'hui";
+  if (days === 1) return 'Demain';
+  if (days < 14) return `Dans ${days} j`;
+  if (days < 60) return `Dans ${Math.round(days/7)} sem.`;
+  return `Échéance : ${fmtDate(dateStr)}`;
+}
+function renderObjectivesPanel() {
+  const el = document.getElementById('dash-objectives-list');
+  if (!el) return;
+  const c = getActive();
+  const objectives = (c?.objectives || []).slice().sort((a,b)=>{
+    if (!!a.status !== !!b.status) return (a.status==='done'?1:0)-(b.status==='done'?1:0);
+    return (a.date||'9999').localeCompare(b.date||'9999');
+  });
+  if (!objectives.length) {
+    el.innerHTML = `<div class="objectives-empty">Pas encore d'objectif — un projet de grade, une compétition, un travail spécifique… ajoute-en un pour donner une direction à tes séances.</div>`;
+    return;
+  }
+  el.innerHTML = objectives.map(o => {
+    const t = OBJECTIVE_TYPES[o.type] || OBJECTIVE_TYPES.other;
+    const done = o.status === 'done';
+    return `<div class="objective-card${done?' done':''}" style="border-left-color:${t.color}" onclick="openObjectiveModal('${o.id}')">
+      <button class="objective-card-check" title="${done?'Marquer comme actif':'Marquer comme atteint'}" onclick="event.stopPropagation();toggleObjectiveDone('${o.id}')">${done?'↺':'✓'}</button>
+      <div class="objective-card-title">${t.icon} ${esc(o.title)}</div>
+      <div class="objective-card-meta">${esc(t.label)}${o.date?` · ${esc(objectiveDueLabel(o.date))}`:''}</div>
+    </div>`;
+  }).join('');
+}
+function openObjectiveModal(id) {
+  document.getElementById('objective-error').style.display='none';
+  document.getElementById('objective-edit-id').value = id || '';
+  const o = id ? (getActive()?.objectives||[]).find(x=>x.id===id) : null;
+  document.getElementById('objective-modal-title').textContent = id ? "Modifier l'objectif" : 'Nouvel objectif';
+  document.getElementById('objective-title').value = o?.title || '';
+  document.getElementById('objective-type').value = o?.type || 'grade';
+  document.getElementById('objective-date').value = o?.date || '';
+  document.getElementById('objective-notes').value = o?.notes || '';
+  document.getElementById('objective-delete-btn').style.display = id ? '' : 'none';
+  document.getElementById('objective-modal').classList.add('open');
+}
+window.openObjectiveModal = openObjectiveModal;
+function saveObjective() {
+  const id = document.getElementById('objective-edit-id').value;
+  const title = document.getElementById('objective-title').value.trim();
+  const type = document.getElementById('objective-type').value;
+  const date = document.getElementById('objective-date').value;
+  const notes = document.getElementById('objective-notes').value.trim();
+  const errEl = document.getElementById('objective-error');
+  if (!title) { errEl.textContent = 'Le titre est requis.'; errEl.style.display = 'block'; return; }
+  const climber = getActive();
+  if (!climber.objectives) climber.objectives = [];
+  if (id) {
+    const o = climber.objectives.find(x=>x.id===id);
+    if (o) { o.title=title; o.type=type; o.date=date; o.notes=notes; }
+  } else {
+    climber.objectives.push({id:'obj_'+Date.now(), title, type, date, notes, status:'active', createdAt: new Date().toISOString()});
+  }
+  saveDB();
+  closeModal('objective-modal');
+  renderObjectivesPanel();
+}
+window.saveObjective = saveObjective;
+function deleteObjective() {
+  const id = document.getElementById('objective-edit-id').value;
+  if (!id || !confirm('Supprimer cet objectif ?')) return;
+  const climber = getActive();
+  climber.objectives = (climber.objectives||[]).filter(o=>o.id!==id);
+  saveDB();
+  closeModal('objective-modal');
+  renderObjectivesPanel();
+}
+window.deleteObjective = deleteObjective;
+function toggleObjectiveDone(id) {
+  const climber = getActive();
+  const o = (climber.objectives||[]).find(x=>x.id===id);
+  if (!o) return;
+  o.status = o.status === 'done' ? 'active' : 'done';
+  saveDB();
+  renderObjectivesPanel();
+}
+window.toggleObjectiveDone = toggleObjectiveDone;
 
 function openTripModal(id) {
   document.getElementById('trip-error').style.display='none';
@@ -7421,7 +7579,7 @@ async function saveProfileDetail() {
     const r = await fetch('/api/climbers', {
       method: 'POST',
       headers: authHeaders(),
-      body: JSON.stringify({ id: c.id, name: c.name, color: c.color, level: c.level, trips: c.trips||[], profile: c.profile })
+      body: JSON.stringify({ id: c.id, name: c.name, color: c.color, level: c.level, trips: c.trips||[], profile: c.profile, objectives: c.objectives||[] })
     });
     if (!r.ok) { const d = await r.json(); errEl.textContent = d.error || 'Erreur lors de l\'enregistrement'; errEl.style.display = ''; return; }
     saveDB();
