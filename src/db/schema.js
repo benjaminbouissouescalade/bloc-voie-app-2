@@ -72,13 +72,41 @@ async function initDB() {
       -- de ne pas mélanger une séance de 90min et un exercice de 10min dans la même vue.
       ALTER TABLE session_bank ADD COLUMN IF NOT EXISTS content_type TEXT DEFAULT 'seance';
       -- Favoris par utilisateur — la banque de séances reste globale/partagée, mais le statut
-      -- favori est personnel à chaque grimpeur (pas de duplication de la fiche elle-même).
+      -- favori est personnel au COMPTE connecté (pas à l'athlète actuellement affiché dans
+      -- l'interface coach) : voir migration user_id ci-dessous.
       CREATE TABLE IF NOT EXISTS session_bank_favorites (
         climber_id  TEXT NOT NULL REFERENCES climbers(id) ON DELETE CASCADE,
         bank_id     TEXT NOT NULL,
         created_at  TIMESTAMPTZ DEFAULT NOW(),
         PRIMARY KEY (climber_id, bank_id)
       );
+      -- Migration : les favoris doivent être rattachés au compte (users.id), pas au profil
+      -- grimpeur actif, car un coach garde ses favoris même en changeant d'athlète affiché,
+      -- et climber_id peut théoriquement changer via /api/auth/set-primary-climber alors que
+      -- users.id est l'ancre stable de l'identité du compte.
+      ALTER TABLE session_bank_favorites ADD COLUMN IF NOT EXISTS user_id TEXT;
+      UPDATE session_bank_favorites f SET user_id = u.id
+        FROM users u WHERE u.climber_id = f.climber_id AND f.user_id IS NULL;
+      DELETE FROM session_bank_favorites WHERE user_id IS NULL;
+      DO $$ BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.table_constraints
+          WHERE table_name = 'session_bank_favorites' AND constraint_type = 'PRIMARY KEY'
+            AND constraint_name = 'session_bank_favorites_pkey'
+        ) THEN
+          ALTER TABLE session_bank_favorites DROP CONSTRAINT session_bank_favorites_pkey;
+        END IF;
+      END $$;
+      ALTER TABLE session_bank_favorites ALTER COLUMN user_id SET NOT NULL;
+      ALTER TABLE session_bank_favorites DROP COLUMN IF EXISTS climber_id;
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.table_constraints
+          WHERE table_name = 'session_bank_favorites' AND constraint_type = 'PRIMARY KEY'
+        ) THEN
+          ALTER TABLE session_bank_favorites ADD CONSTRAINT session_bank_favorites_pkey PRIMARY KEY (user_id, bank_id);
+        END IF;
+      END $$;
       CREATE TABLE IF NOT EXISTS goals (
         id            TEXT PRIMARY KEY,
         climber_id    TEXT NOT NULL REFERENCES climbers(id) ON DELETE CASCADE,
