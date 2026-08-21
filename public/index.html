@@ -353,6 +353,13 @@ body.preview-mode #sidebar-user { color: var(--accent) !important; font-weight: 
 .objective-card-check { position: absolute; top: 8px; right: 8px; border: none; background: transparent; color: var(--muted); cursor: pointer; font-size: 14px; padding: 2px; border-radius: 4px; line-height: 1; }
 .objective-card-check:hover { color: var(--accent); }
 .objectives-empty { font-size: 13px; color: var(--muted); padding: 6px 2px; }
+
+/* Prochaines séances (dashboard) */
+.upcoming-list { display: flex; flex-direction: column; gap: 6px; }
+.upcoming-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--r-xs); background: var(--surface2); cursor: pointer; transition: background .12s; }
+.upcoming-item:hover { background: var(--border); }
+.upcoming-item-day { font-size: 13px; font-weight: 600; text-transform: capitalize; }
+.upcoming-item-meta { font-size: 12px; color: var(--muted); }
 .trip-card-actions button { border: none; background: transparent; color: var(--muted); cursor: pointer; font-size: 13px; padding: 2px 4px; border-radius: 4px; }
 .trip-card-actions button:hover { background: var(--surface); color: var(--text); }
 .trip-empty { color: var(--muted); font-size: 13px; padding: 8px 0; }
@@ -793,9 +800,19 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   <div class="panel" id="dash-objectives-panel" style="margin-bottom:16px">
     <div class="panel-header">
       <span class="panel-title">🎯 Objectifs</span>
-      <button class="btn sm" onclick="openObjectiveModal()">+ Objectif</button>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span id="dash-rhythm-pill" style="display:none;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:4px 10px;border-radius:99px" title=""></span>
+        <button class="btn sm" onclick="openObjectiveModal()">+ Objectif</button>
+      </div>
     </div>
     <div class="objectives-row" id="dash-objectives-list"></div>
+  </div>
+
+  <div class="panel" id="dash-upcoming-panel" style="margin-bottom:16px">
+    <div class="panel-header">
+      <span class="panel-title">📅 Prochaines séances</span>
+    </div>
+    <div id="dash-upcoming-list"></div>
   </div>
 
   <div class="stat-grid stat-grid-4" id="dash-top-stats">
@@ -3768,12 +3785,50 @@ function renderPage(name) {
 }
 
 // — Dashboard —
+// Petit indicateur couleur "où j'en suis" (réutilise le même système que le gauge de la page Charge).
+function renderDashRhythm(l7, l28) {
+  const pill = document.getElementById('dash-rhythm-pill');
+  if (!pill) return;
+  const chronic = l28/4;
+  const ratio = chronic>0 ? l7/chronic : null;
+  const zone = acwrZone(ratio);
+  pill.style.display = 'inline-flex';
+  pill.style.background = zone.bg;
+  pill.style.color = zone.color;
+  pill.innerHTML = `${zone.emoji} ${esc(zone.label)}`;
+  pill.title = ratio!==null ? `Cette semaine : ${Math.round(l7)} · Ton rythme habituel : ${Math.round(chronic)}` : 'Pas encore assez de données sur les 4 dernières semaines';
+}
+// Les 6 prochaines séances planifiées (bancs de séances / cycles posés dans le calendrier).
+function renderUpcomingSessions() {
+  const el = document.getElementById('dash-upcoming-list');
+  if (!el) return;
+  const today = new Date().toISOString().slice(0,10);
+  const upcoming = getLogs().filter(l => l.planned && l.date >= today).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,6);
+  if (!upcoming.length) {
+    el.innerHTML = `<div class="objectives-empty">Aucune séance programmée pour les prochaines semaines.</div>`;
+    return;
+  }
+  el.innerHTML = `<div class="upcoming-list">${upcoming.map(l => {
+    const t = SESSION_TYPES[l.type] || SESSION_TYPES.autre;
+    const d = new Date(l.date+'T00:00:00');
+    const dayLabel = d.toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short'});
+    return `<div class="upcoming-item" onclick="openDayModal('${l.date}')">
+      <span style="width:8px;height:8px;border-radius:50%;flex-shrink:0;background:${t.color};border:1.5px solid ${t.color}"></span>
+      <div style="flex:1;min-width:0">
+        <div class="upcoming-item-day">${esc(dayLabel)}</div>
+        <div class="upcoming-item-meta">${esc(t.label)}${l.cycleName?` · ${esc(l.cycleName)}`:''}</div>
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
 function renderDashboard() {
   document.getElementById('dashDate').textContent = new Date().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
   renderObjectivesPanel();
+  renderUpcomingSessions();
   const ref = getRefGrade();
   document.getElementById('dash-ref-grade').textContent = ref;
   const l7=getLoadRange(7), l28=getLoadRange(28);
+  renderDashRhythm(l7, l28);
   document.getElementById('dash-load7').textContent=l7;
   document.getElementById('dash-clevel7').innerHTML=`<span class="clevel ${cLevel(l7).cls}" style="padding:2px 8px;font-size:11px">${cLevel(l7).label}</span>`;
   document.getElementById('dash-load28').textContent=l28;
