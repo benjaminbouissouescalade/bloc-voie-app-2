@@ -30,6 +30,7 @@ app.use('/api/crews', require('./routes/crews'));
 app.use('/api/partners', require('./routes/partners'));
 app.use('/api/challenges', require('./routes/challenges'));
 app.use('/api/session-links', require('./routes/sessionLinks'));
+app.use('/api/proposed-sessions', require('./routes/proposedSessions'));
 app.get('/api/health', (req, res) => { res.json({ status: 'ok' }); });
 app.get('*', (req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
