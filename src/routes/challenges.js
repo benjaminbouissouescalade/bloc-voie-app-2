@@ -11,8 +11,8 @@ router.use(requireAuth);
 
 function challengeId() { return 'ch_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8); }
 
-const METRICS = ['seances', 'jours', 'charge', 'blocs'];
-const METRIC_LABELS = { seances: 'séances', jours: 'jours de grimpe', charge: 'points de charge', blocs: 'blocs/voies' };
+const METRICS = ['seances', 'jours', 'charge', 'blocs', 'session'];
+const METRIC_LABELS = { seances: 'séances', jours: 'jours de grimpe', charge: 'points de charge', blocs: 'blocs/voies', session: 'séance ciblée' };
 
 // ═══ Charge — même formule que public/index.html et crews.js (dupliquée, garder synchro) ═══
 const GRADES = ["4a","4a+","4b","4b+","4c","4c+","5a","5a+","5b","5b+","5c","5c+","6a","6a+","6b","6b+","6c","6c+","7a","7a+","7b","7b+","7c","7c+","8a","8a+","8b","8b+","8c","8c+","9a","9a+"];
@@ -67,7 +67,15 @@ function refGradeFromLogs(logs) {
   return GRADES[sent[Math.min(Math.floor(sent.length * 0.7), sent.length - 1)]];
 }
 
-async function computeProgress(climberId, metric, startDate, endDate) {
+async function computeProgress(climberId, metric, startDate, endDate, bankId) {
+  if (metric === 'session') {
+    if (!bankId) return 0;
+    const { rows } = await pool.query(
+      `SELECT COUNT(*)::int AS n FROM logs WHERE climber_id=$1 AND planned=false AND bank_ref=$2 AND date>=$3 AND date<=$4`,
+      [climberId, bankId, startDate, endDate]
+    );
+    return rows[0].n;
+  }
   const { rows: logs } = await pool.query(
     `SELECT * FROM logs WHERE climber_id=$1 AND planned=false AND date>=$2 AND date<=$3`,
     [climberId, startDate, endDate]
@@ -98,9 +106,10 @@ async function computeProgress(climberId, metric, startDate, endDate) {
 router.post('/', async (req, res) => {
   const climberId = req.user?.climberId;
   if (!climberId) return res.status(400).json({ error: 'Aucun profil grimpeur associé à ce compte' });
-  const { name, description, metric, target, startDate, endDate, participantIds } = req.body;
+  const { name, description, metric, target, startDate, endDate, participantIds, bankId } = req.body;
   if (!name || !name.trim()) return res.status(400).json({ error: 'Nom requis' });
   if (!METRICS.includes(metric)) return res.status(400).json({ error: 'Métrique invalide' });
+  if (metric === 'session' && !bankId) return res.status(400).json({ error: 'Séance ciblée requise' });
   const targetNum = Number(target);
   if (!targetNum || targetNum <= 0) return res.status(400).json({ error: 'Objectif requis (> 0)' });
   if (!startDate || !endDate || startDate > endDate) return res.status(400).json({ error: 'Dates invalides' });
@@ -110,9 +119,9 @@ router.post('/', async (req, res) => {
   try {
     await client.query('BEGIN');
     await client.query(
-      `INSERT INTO challenges (id, created_by, name, description, metric, target, start_date, end_date)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-      [id, climberId, name.trim(), (description || '').trim(), metric, targetNum, startDate, endDate]
+      `INSERT INTO challenges (id, created_by, name, description, metric, target, start_date, end_date, bank_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+      [id, climberId, name.trim(), (description || '').trim(), metric, targetNum, startDate, endDate, metric === 'session' ? bankId : null]
     );
     for (const pid of participants) {
       await client.query(
@@ -150,11 +159,16 @@ router.get('/', async (req, res) => {
          WHERE cp.challenge_id = $1`,
         [ch.id]
       );
+      let bankSession = null;
+      if (ch.bank_id) {
+        const { rows: bankRows } = await pool.query('SELECT id, name, type, description, category FROM session_bank WHERE id=$1', [ch.bank_id]);
+        if (bankRows.length) bankSession = bankRows[0];
+      }
       const startStr = ch.start_date.toISOString().slice(0, 10);
       const endStr = ch.end_date.toISOString().slice(0, 10);
       const withProgress = await Promise.all(participants.map(async p => ({
         climberId: p.id, name: p.name, color: p.color,
-        progress: await computeProgress(p.id, ch.metric, startStr, endStr)
+        progress: await computeProgress(p.id, ch.metric, startStr, endStr, ch.bank_id)
       })));
       withProgress.sort((a, b) => b.progress - a.progress);
       result.push({
@@ -162,7 +176,7 @@ router.get('/', async (req, res) => {
         metricLabel: METRIC_LABELS[ch.metric] || ch.metric,
         target: Number(ch.target), startDate: startStr, endDate: endStr,
         createdBy: ch.created_by, isMine: ch.created_by === climberId,
-        participants: withProgress
+        bankSession, participants: withProgress
       });
     }
     res.json(result);
