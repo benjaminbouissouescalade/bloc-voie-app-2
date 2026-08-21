@@ -493,7 +493,9 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 .color-swatch.selected { border-color: var(--text); transform: scale(1.2); }
 
 /* Session Bank */
-.sb-card { border:1px solid var(--border); border-radius:var(--radius); padding:16px; background:var(--surface); transition:all .12s; cursor:pointer; }
+.sb-card { border:1px solid var(--border); border-radius:var(--radius); padding:16px; background:var(--surface); transition:all .12s; cursor:pointer; position:relative; }
+.sb-fav-btn { position:absolute; top:12px; right:12px; background:none; border:none; cursor:pointer; font-size:18px; line-height:1; color:var(--muted); padding:2px; }
+.sb-fav-btn:hover { color:var(--accent); transform:scale(1.15); }
 .sb-card:hover { border-color:var(--border2); box-shadow:var(--shadow); }
 .sb-card.active { border-color:var(--accent); background:var(--accent2); }
 .sb-tag { display:inline-flex; align-items:center; height:20px; padding:0 7px; border-radius:3px; font-size:11px; font-weight:600; background:var(--surface2); border:1px solid var(--border); color:var(--muted); }
@@ -1450,6 +1452,17 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   </div>
 </div>
 
+<!-- Modal détail fiche banque de séances -->
+<div class="modal-backdrop" id="sb-detail-modal">
+  <div class="modal" style="width:min(560px,100%)">
+    <div class="modal-header">
+      <span class="modal-title" id="sb-detail-title">Séance</span>
+      <button class="btn sm" onclick="closeModal('sb-detail-modal')">Fermer</button>
+    </div>
+    <div class="modal-body" id="sb-detail-body"></div>
+  </div>
+</div>
+
 <!-- Modal profil partenaire -->
 <div class="modal-backdrop" id="partner-profile-modal">
   <div class="modal" style="width:min(480px,100%)">
@@ -2039,19 +2052,46 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     </div>
   </div>
 
+  <!-- Recherche principale -->
+  <input class="form-control" type="text" id="sb-search-main" placeholder="🔍 Rechercher une séance, un objectif, un support…" style="font-size:15px;padding:14px 16px;margin-bottom:12px">
+
+  <!-- Favoris / Récentes / Toutes -->
+  <div style="display:flex;gap:8px;margin-bottom:12px" id="sb-view-tabs">
+    <button class="time-filter-btn" data-sbview="favoris" onclick="sbSetViewMode('favoris')">☆ Favoris</button>
+    <button class="time-filter-btn" data-sbview="recentes" onclick="sbSetViewMode('recentes')">🕓 Récentes</button>
+    <button class="time-filter-btn active" data-sbview="toutes" onclick="sbSetViewMode('toutes')">Toutes</button>
+  </div>
+
+  <!-- Pour quoi ? — grandes familles -->
+  <div class="sb-quick-row" id="sb-family-row" style="margin-bottom:6px"></div>
+  <!-- Contexte (dossiers de la famille active) -->
+  <div class="sb-quick-row" id="sb-family-context-row" style="margin-bottom:10px"></div>
+
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+    <div style="display:flex;gap:6px" id="sb-contenttype-row">
+      <button class="btn sm sb-quick-pill active" onclick="sbSetContentType('')">Tout contenu</button>
+      <button class="btn sm sb-quick-pill" onclick="sbSetContentType('seance')">Séances</button>
+      <button class="btn sm sb-quick-pill" onclick="sbSetContentType('exercice')">Exercices</button>
+    </div>
+    <button class="btn sm" id="sb-filters-toggle" onclick="sbToggleFiltersPanel()">⚙️ Filtres +</button>
+    <span id="sb-count" style="margin-left:auto;font-size:13px;color:var(--muted)"></span>
+  </div>
+  <div id="sb-active-chips" style="display:none;gap:6px;flex-wrap:wrap;margin-bottom:12px"></div>
+
+  <div id="sb-filters-panel" style="display:none;background:var(--surface2,#f4f2ee);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:16px">
   <!-- Bibliothèque : dossiers / sous-dossiers -->
-  <div style="background:var(--surface2,#f4f2ee);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:10px">
+  <div style="margin-bottom:10px">
     <div class="sb-quick-label" style="display:block;margin-bottom:6px">📁 Dossiers</div>
     <div class="sb-quick-row" id="sb-category-row"></div>
     <div class="sb-quick-row" id="sb-subcategory-row" style="margin-bottom:0;margin-top:4px"></div>
   </div>
-  <div style="background:var(--surface2,#f4f2ee);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:14px">
+  <div style="margin-bottom:14px">
     <div class="sb-quick-label" style="display:block;margin-bottom:6px">🏷️ Filtres transversaux</div>
     <div class="sb-quick-row" id="sb-crosstag-row" style="margin-bottom:0"></div>
   </div>
 
   <!-- Filtre / recherche -->
-  <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">
+  <div style="display:flex;flex-direction:column;gap:8px">
     <!-- Ligne 1 : recherche texte + tri + compteur -->
     <div class="filter-bar" style="margin-bottom:0">
       <input class="form-control" type="text" id="sb-search" placeholder="🔍 Rechercher par nom, tag, support…" style="max-width:260px">
@@ -2064,7 +2104,6 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
         <option value="duration_asc">Durée ↑</option>
       </select>
       <button class="btn sm" id="sb-reset-filters" title="Réinitialiser les filtres" style="display:none">✕ Réinitialiser</button>
-      <span id="sb-count" style="margin-left:auto;font-size:13px;color:var(--muted)"></span>
     </div>
     <!-- Ligne 2 : filtres catégoriels -->
     <div class="filter-bar" style="margin-bottom:0;flex-wrap:wrap;gap:6px">
@@ -2173,6 +2212,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     </div>
     <!-- Tags rapides -->
     <div id="sb-tag-chips" style="display:flex;gap:5px;flex-wrap:wrap"></div>
+  </div>
   </div>
 
   <!-- IA generator box -->
@@ -2330,6 +2370,13 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
         <label class="form-label">Sous-dossier</label>
         <select class="form-control" id="sb-subcategory"></select>
       </div>
+    </div>
+    <div class="form-group" style="margin:0 0 14px">
+      <label class="form-label">Contenu</label>
+      <select class="form-control" id="sb-content-type" style="max-width:220px">
+        <option value="seance">Séance complète</option>
+        <option value="exercice">Exercice court</option>
+      </select>
     </div>
     <div class="form-row form-row-3">
       <div class="form-group" style="margin:0">
@@ -7821,11 +7868,157 @@ const BANK_CATEGORY_TO_TYPE = {
 
 function getBank() { return db.sessionBank || (db.sessionBank = []); }
 
+// — Grandes familles ("Pour quoi ?") — regroupement PRÉSENTATIONNEL des dossiers/types
+// existants, ne modifie aucune donnée. Navigation simplifiée : famille → contexte → fiche.
+const BANK_FAMILIES = [
+  { key:'grimpe',               label:'Grimpe',                icon:'🧗', categories:['Bloc','Voie','Spray Wall','Kilter / Moon / Tension'] },
+  { key:'doigts_force',         label:'Doigts / Force',        icon:'💪', categories:['Campus','Hangboard','No Hang','Force'] },
+  { key:'endurance',            label:'Endurance',             icon:'🔥', categories:['Cardio'] },
+  { key:'technique_mental',     label:'Technique / Mental',    icon:'🧠', categories:['Technique','Mental'] },
+  { key:'mobilite_prevention',  label:'Mobilité / Prévention', icon:'🧘', categories:['Échauffement','Mobilité','Prévention','Rééducation','Récupération'] },
+  { key:'tests_jeux',           label:'Tests / Jeux',          icon:'🎯', categories:['Tests','Jeux','Enfants'] },
+];
+const BANK_TYPE_TO_FAMILY = {
+  bloc:'grimpe', voies:'grimpe', falaise:'grimpe', pan:'grimpe', competition:'grimpe', via_ferrata:'grimpe',
+  doigts:'doigts_force', prehension:'doigts_force', musculation:'doigts_force', ppg:'doigts_force',
+  cardio:'endurance',
+  video:'technique_mental', mentale:'technique_mental',
+  mobilite:'mobilite_prevention', yoga:'mobilite_prevention', recup_active:'mobilite_prevention', 'kiné':'mobilite_prevention',
+  autre:'tests_jeux'
+};
+const BANK_CATEGORY_TO_FAMILY = {};
+BANK_FAMILIES.forEach(f => f.categories.forEach(c => { BANK_CATEGORY_TO_FAMILY[c] = f.key; }));
+function sbFamilyOf(s) {
+  if (s.category && BANK_CATEGORY_TO_FAMILY[s.category]) return BANK_CATEGORY_TO_FAMILY[s.category];
+  return BANK_TYPE_TO_FAMILY[s.type] || 'tests_jeux';
+}
+
 // — Navigation bibliothèque : dossier (catégorie) → sous-dossier, + filtres transversaux —
 let sbActiveCategory = '';
 let sbActiveSubcategory = '';
 let sbActiveCrossTags = new Set();
+// — Simplification UX : familles, favoris, récentes, type de contenu —
+let sbActiveFamily = '';
+let sbViewMode = 'toutes'; // 'favoris' | 'recentes' | 'toutes'
+let sbContentTypeFilter = ''; // '' | 'seance' | 'exercice'
+let sbFavoriteIds = new Set();
+let sbRecentIds = [];
+let sbFiltersPanelOpen = false;
+let sbDetailId = null;
 function jsAttr(s) { return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+
+async function sbLoadFavoritesAndRecent() {
+  try {
+    const [favR, recR] = await Promise.all([
+      fetch('/api/bank/favorites', { headers: authHeaders() }),
+      fetch('/api/bank/recent', { headers: authHeaders() })
+    ]);
+    if (favR.ok) sbFavoriteIds = new Set(await favR.json());
+    if (recR.ok) sbRecentIds = await recR.json();
+  } catch (e) { /* best-effort */ }
+  sbRenderGrid();
+}
+async function sbToggleFavorite(id, ev) {
+  if (ev) ev.stopPropagation();
+  const isFav = sbFavoriteIds.has(id);
+  if (isFav) sbFavoriteIds.delete(id); else sbFavoriteIds.add(id);
+  sbRenderGrid();
+  try {
+    await fetch('/api/bank/favorites/' + id, { method: isFav ? 'DELETE' : 'POST', headers: authHeaders() });
+  } catch (e) { /* best-effort */ }
+}
+window.sbToggleFavorite = sbToggleFavorite;
+
+function sbSetViewMode(mode) {
+  sbViewMode = mode;
+  document.querySelectorAll('#sb-view-tabs button').forEach(b => b.classList.toggle('active', b.dataset.sbview === mode));
+  sbRenderGrid();
+}
+window.sbSetViewMode = sbSetViewMode;
+
+function sbSetFamily(key) {
+  sbActiveFamily = sbActiveFamily === key ? '' : key;
+  sbActiveCategory = '';
+  sbActiveSubcategory = '';
+  sbRenderGrid();
+}
+window.sbSetFamily = sbSetFamily;
+
+function sbSetContentType(ct) {
+  sbContentTypeFilter = ct;
+  document.querySelectorAll('#sb-contenttype-row button').forEach((b, i) => {
+    b.classList.toggle('active', (ct === '' && i === 0) || (ct === 'seance' && i === 1) || (ct === 'exercice' && i === 2));
+  });
+  sbRenderGrid();
+}
+window.sbSetContentType = sbSetContentType;
+
+function sbToggleFiltersPanel() {
+  sbFiltersPanelOpen = !sbFiltersPanelOpen;
+  const el = document.getElementById('sb-filters-panel');
+  if (el) el.style.display = sbFiltersPanelOpen ? '' : 'none';
+  const btn = document.getElementById('sb-filters-toggle');
+  if (btn) {
+    btn.style.background = sbFiltersPanelOpen ? 'var(--accent)' : '';
+    btn.style.color = sbFiltersPanelOpen ? '#fff' : '';
+    btn.style.borderColor = sbFiltersPanelOpen ? 'var(--accent)' : '';
+  }
+}
+window.sbToggleFiltersPanel = sbToggleFiltersPanel;
+
+function sbRenderFamilyNav() {
+  const row = document.getElementById('sb-family-row');
+  const ctxRow = document.getElementById('sb-family-context-row');
+  if (!row || !ctxRow) return;
+  row.innerHTML = BANK_FAMILIES.map(f =>
+    `<button class="btn sm sb-quick-pill${sbActiveFamily===f.key?' active':''}" onclick="sbSetFamily('${f.key}')">${f.icon} ${esc(f.label)}</button>`
+  ).join('');
+  if (sbActiveFamily) {
+    const fam = BANK_FAMILIES.find(f => f.key === sbActiveFamily);
+    ctxRow.style.display = '';
+    ctxRow.innerHTML = `<button class="btn sm sb-quick-pill${!sbActiveCategory?' active':''}" onclick="sbSetCategory('')">Tout « ${esc(fam.label)} »</button>`
+      + fam.categories.map(c => `<button class="btn sm sb-quick-pill${sbActiveCategory===c?' active':''}" onclick="sbSetCategory('${jsAttr(c)}')">${esc(c)}</button>`).join('');
+  } else {
+    ctxRow.style.display = 'none';
+    ctxRow.innerHTML = '';
+  }
+}
+
+function sbClearSelect(id) { const el = document.getElementById(id); if (el) el.value = ''; sbRenderGrid(); }
+window.sbClearSelect = sbClearSelect;
+function sbClearStyleTag() {
+  const tagChips = document.getElementById('sb-tag-chips');
+  if (tagChips) {
+    tagChips.dataset.activeTag = '';
+    tagChips.querySelectorAll('button').forEach(b => { b.style.background=''; b.style.color=''; b.style.borderColor=''; });
+  }
+  sbRenderGrid();
+}
+window.sbClearStyleTag = sbClearStyleTag;
+
+function sbRenderActiveChips() {
+  const el = document.getElementById('sb-active-chips');
+  if (!el) return;
+  const chips = [];
+  if (sbActiveFamily) { const f = BANK_FAMILIES.find(x=>x.key===sbActiveFamily); chips.push({label:`${f.icon} ${f.label}`, onClear:"sbSetFamily('')"}); }
+  if (sbActiveCategory) chips.push({label:'📁 '+sbActiveCategory, onClear:"sbSetCategory('')"});
+  if (sbActiveSubcategory) chips.push({label:sbActiveSubcategory, onClear:"sbSetSubcategory('')"});
+  const typeF = document.getElementById('sb-type-filter')?.value;
+  if (typeF) chips.push({label: document.getElementById('sb-type-filter').selectedOptions[0]?.textContent || typeF, onClear:"sbClearSelect('sb-type-filter')"});
+  const goalF = document.getElementById('sb-goal-filter')?.value;
+  if (goalF) chips.push({label: SB_GOAL_LABELS[goalF]||goalF, onClear:"sbClearSelect('sb-goal-filter')"});
+  const supportF = document.getElementById('sb-support-filter')?.value;
+  if (supportF) chips.push({label: SUPPORTS[supportF]?.label||supportF, onClear:"sbClearSelect('sb-support-filter')"});
+  const levelF = document.getElementById('sb-level-filter')?.value;
+  if (levelF) chips.push({label: SB_LEVEL_LABELS[levelF]||levelF, onClear:"sbClearSelect('sb-level-filter')"});
+  const sourceF = document.getElementById('sb-source-filter')?.value;
+  if (sourceF) chips.push({label: sourceF==='ai'?'✦ Générées IA':'✏️ Manuelles', onClear:"sbClearSelect('sb-source-filter')"});
+  sbActiveCrossTags.forEach(t => chips.push({label:'🏷️ '+t, onClear:`sbToggleCrossTag('${jsAttr(t)}')`}));
+  const activeTag = document.getElementById('sb-tag-chips')?.dataset.activeTag;
+  if (activeTag) chips.push({label: activeTag, onClear:"sbClearStyleTag()"});
+  el.style.display = chips.length ? 'flex' : 'none';
+  el.innerHTML = chips.map(c => `<span class="sb-tag" style="cursor:pointer;display:inline-flex;align-items:center;gap:4px" onclick="${c.onClear}">${esc(c.label)} ✕</span>`).join('');
+}
 
 // ═══════════════ PHOTO PROFIL / ENVERGURE — helpers partagés ═══════════════
 function resizeImageToDataUrl(file, maxSize = 320, quality = 0.82) {
@@ -7934,6 +8127,16 @@ function renderSessionBank() {
     catSel.dataset.filled = '1';
     catSel.onchange = sbUpdateSubcategoryOptions;
   }
+  const searchMain = document.getElementById('sb-search-main');
+  if (searchMain && !searchMain.dataset.wired) {
+    searchMain.dataset.wired = '1';
+    searchMain.oninput = () => {
+      const s = document.getElementById('sb-search');
+      if (s) s.value = searchMain.value;
+      sbRenderGrid();
+    };
+  }
+  sbLoadFavoritesAndRecent();
   sbRenderGrid();
 }
 
@@ -7950,6 +8153,7 @@ function sbUpdateSubcategoryOptions(preselect) {
 function sbRenderGrid() {
   sbRenderCategoryNav();
   sbRenderCrossTagRow();
+  sbRenderFamilyNav();
   const search    = (document.getElementById('sb-search')?.value || '').toLowerCase();
   const typeF     = document.getElementById('sb-type-filter')?.value || '';
   const goalF     = document.getElementById('sb-goal-filter')?.value || '';
@@ -7960,7 +8164,7 @@ function sbRenderGrid() {
   const bank      = getBank();
 
   // Show/hide reset button
-  const hasFilters = typeF||goalF||supportF||levelF||sourceF||search||sbActiveCategory||sbActiveSubcategory||sbActiveCrossTags.size;
+  const hasFilters = typeF||goalF||supportF||levelF||sourceF||search||sbActiveCategory||sbActiveSubcategory||sbActiveCrossTags.size||sbActiveFamily||sbContentTypeFilter;
   const resetBtn = document.getElementById('sb-reset-filters');
   if (resetBtn) resetBtn.style.display = hasFilters ? '' : 'none';
 
@@ -8008,63 +8212,56 @@ function sbRenderGrid() {
   if (sbActiveCategory) items = items.filter(s => s.category === sbActiveCategory);
   if (sbActiveSubcategory) items = items.filter(s => s.subcategory === sbActiveSubcategory);
   if (sbActiveCrossTags.size) items = items.filter(s => (s.crossTags||[]).some(t => sbActiveCrossTags.has(t)));
+  if (sbActiveFamily) items = items.filter(s => sbFamilyOf(s) === sbActiveFamily);
+  if (sbContentTypeFilter) items = items.filter(s => (s.contentType||'seance') === sbContentTypeFilter);
+  if (sbViewMode === 'favoris') items = items.filter(s => sbFavoriteIds.has(s.id));
+  if (sbViewMode === 'recentes') items = items.filter(s => sbRecentIds.includes(s.id));
 
   // ── Sort ──
-  const sorters = {
-    recent:         (a,b) => (b.createdAt||0) - (a.createdAt||0),
-    alpha:          (a,b) => a.name.localeCompare(b.name),
-    intensity_desc: (a,b) => (b.intensity||3) - (a.intensity||3),
-    intensity_asc:  (a,b) => (a.intensity||3) - (b.intensity||3),
-    duration_desc:  (a,b) => (b.duration||90) - (a.duration||90),
-    duration_asc:   (a,b) => (a.duration||90) - (b.duration||90),
-  };
-  items.sort(sorters[sortF] || sorters.recent);
+  if (sbViewMode === 'recentes') {
+    items.sort((a,b) => sbRecentIds.indexOf(a.id) - sbRecentIds.indexOf(b.id));
+  } else {
+    const sorters = {
+      recent:         (a,b) => (b.createdAt||0) - (a.createdAt||0),
+      alpha:          (a,b) => a.name.localeCompare(b.name),
+      intensity_desc: (a,b) => (b.intensity||3) - (a.intensity||3),
+      intensity_asc:  (a,b) => (a.intensity||3) - (b.intensity||3),
+      duration_desc:  (a,b) => (b.duration||90) - (a.duration||90),
+      duration_asc:   (a,b) => (a.duration||90) - (b.duration||90),
+    };
+    items.sort(sorters[sortF] || sorters.recent);
+  }
 
+  sbRenderActiveChips();
   const grid = document.getElementById('sb-grid');
   const countEl = document.getElementById('sb-count');
   if (countEl) countEl.textContent = `${items.length} séance${items.length!==1?'s':''}`;
 
   if (!items.length) {
+    const emptyMsg = sbViewMode === 'favoris' ? "Aucun favori pour l'instant — clique sur l'étoile d'une fiche pour l'ajouter."
+      : sbViewMode === 'recentes' ? "Rien d'utilisé récemment — programme une séance depuis la banque pour la voir apparaître ici."
+      : "Crée une séance manuellement ou génère-en une avec l'IA.";
     grid.innerHTML = `<div class="sb-empty" style="grid-column:1/-1">
       <div style="font-size:32px;margin-bottom:12px">📋</div>
       <h3 style="font-family:var(--serif);font-size:20px;margin-bottom:6px">Aucune séance</h3>
-      <p style="font-size:13px">Crée une séance manuellement ou génère-en une avec l'IA.</p>
+      <p style="font-size:13px">${esc(emptyMsg)}</p>
     </div>`;
     return;
   }
 
-  const editId = document.getElementById('sb-edit-id')?.value;
-  const typeLabels = {bloc:'Bloc salle', voies:'Voies salle', falaise:'Falaise', ppg:'PPG / Force', mobilite:'Mobilité'};
-
   grid.innerHTML = items.map(s => {
-    const t = SESSION_TYPES[s.type] || SESSION_TYPES.autre;
-    const isActive = s.id === editId;
+    const isFav = sbFavoriteIds.has(s.id);
     const intDots = Array.from({length:5},(_,i) =>
       `<span class="${i < (s.intensity||3) ? 'on' : ''}"></span>`).join('');
-    const srcBadge = s.source === 'ai'
-      ? `<span style="font-size:10px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;padding:2px 6px;border-radius:3px;font-weight:600">✦ IA</span>`
-      : '';
-    const catBadge = s.category
-      ? `<span class="sb-tag" style="background:${colorForCycleName(s.category)}22;border-color:${colorForCycleName(s.category)}55;color:${colorForCycleName(s.category)}">📁 ${esc(s.category)}${s.subcategory?' › '+esc(s.subcategory):''}</span>`
-      : `<span class="sb-tag ${SB_TYPE_TAG_CLASS[s.type]||''}">${typeLabels[s.type]||s.type}</span>`;
-    return `<div class="sb-card ${isActive?'active':''}" draggable="true" ondragstart="onBankDragStart(event,'${s.id}')" ondragend="onBankDragEnd(event)" title="Glisse cette séance sur une case du calendrier pour la programmer" onclick="sbEditCard('${s.id}')">
-      <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;flex-wrap:wrap">
-        ${catBadge}
-        <span class="sb-tag">${SB_GOAL_LABELS[s.goal]||s.goal}</span>
-        ${srcBadge}
-        <span style="margin-left:auto;font-size:11px;color:var(--muted)">${s.duration||90} min</span>
-        <button class="btn sm" style="font-size:10px;padding:2px 8px" onclick="event.stopPropagation();shareBankToCrew('${s.id}')" title="Partager cette fiche avec ton/tes crew(s)">🔗 Partager</button>
-      </div>
-      <div style="font-weight:600;font-size:14px;margin-bottom:4px">${esc(s.name)}${s.support&&SUPPORTS[s.support]?` <span style="font-size:11px;font-weight:400;color:var(--muted)">${SUPPORTS[s.support].icon} ${SUPPORTS[s.support].label}</span>`:''}</div>
-      <div style="font-size:12px;color:var(--muted);line-height:1.4;margin-bottom:10px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">
-        ${esc(s.description||'Pas de description.')}
-      </div>
+    const contextLabel = s.subcategory || s.category || (SESSION_TYPES[s.type]?.label) || '';
+    return `<div class="sb-card" draggable="true" ondragstart="onBankDragStart(event,'${s.id}')" ondragend="onBankDragEnd(event)" title="Glisse cette séance sur une case du calendrier pour la programmer, ou clique pour voir le détail" onclick="sbOpenDetail('${s.id}')">
+      <button class="sb-fav-btn" onclick="sbToggleFavorite('${s.id}', event)" title="${isFav?'Retirer des favoris':'Ajouter aux favoris'}">${isFav?'★':'☆'}</button>
+      <div style="font-weight:700;font-size:15px;margin-bottom:2px;padding-right:24px">${esc(s.name)}</div>
+      ${contextLabel ? `<div style="font-size:12px;color:var(--muted);margin-bottom:10px">${esc(contextLabel)}${s.goal?' · '+esc(SB_GOAL_LABELS[s.goal]||s.goal):''}</div>` : '<div style="margin-bottom:10px"></div>'}
       <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:12px;color:var(--muted)">${s.duration||90} min</span>
         <span class="sb-intensity">${intDots}</span>
-        <span style="font-size:11px;color:var(--muted)">${SB_LEVEL_LABELS[s.level]||''}</span>
-        <div style="margin-left:auto;display:flex;gap:4px">
-          ${(s.tags||[]).slice(0,3).map(t => `<span class="sb-tag" style="font-size:10px">${esc(t)}</span>`).join('')}
-        </div>
+        <span style="margin-left:auto;font-size:11px;color:var(--muted)">${SB_LEVEL_LABELS[s.level]||''}</span>
       </div>
     </div>`;
   }).join('');
@@ -8089,12 +8286,50 @@ async function shareBankToCrew(bankId) {
 }
 window.shareBankToCrew = shareBankToCrew;
 
+// — Panneau de détail (vue "choisir") : toutes les infos, séparées de la carte simplifiée —
+function sbOpenDetail(id) {
+  const s = getBank().find(x => x.id === id);
+  if (!s) return;
+  sbDetailId = id;
+  document.getElementById('sb-detail-title').textContent = s.name;
+  const isFav = sbFavoriteIds.has(id);
+  const t = SESSION_TYPES[s.type] || SESSION_TYPES.autre;
+  const intDots = Array.from({length:5},(_,i) => `<span class="${i < (s.intensity||3) ? 'on' : ''}"></span>`).join('');
+  document.getElementById('sb-detail-body').innerHTML = `
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
+      <span class="sb-tag ${SB_TYPE_TAG_CLASS[s.type]||''}">${esc(t.label)}</span>
+      ${s.category ? `<span class="sb-tag">📁 ${esc(s.category)}${s.subcategory?' › '+esc(s.subcategory):''}</span>` : ''}
+      <span class="sb-tag">${esc(SB_GOAL_LABELS[s.goal]||s.goal)}</span>
+      <span class="sb-tag">${(s.contentType||'seance')==='exercice'?'Exercice':'Séance'}</span>
+      ${s.source==='ai' ? `<span class="sb-tag">✦ IA</span>` : ''}
+    </div>
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:14px;font-size:13px;flex-wrap:wrap">
+      <span>⏱️ ${s.duration||90} min</span>
+      <span class="sb-intensity">${intDots}</span>
+      <span>${SB_LEVEL_LABELS[s.level]||''}</span>
+      ${s.support && SUPPORTS[s.support] ? `<span>${SUPPORTS[s.support].icon} ${esc(SUPPORTS[s.support].label)}</span>` : ''}
+    </div>
+    <p style="font-size:13px;line-height:1.6;margin-bottom:14px;white-space:pre-wrap">${esc(s.description || 'Pas de description.')}</p>
+    ${(s.tags||[]).length ? `<div style="margin-bottom:10px"><span style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">Tags</span>${s.tags.map(x=>`<span class="sb-tag" style="margin-right:4px;margin-bottom:4px;display:inline-block">${esc(x)}</span>`).join('')}</div>` : ''}
+    ${(s.crossTags||[]).length ? `<div style="margin-bottom:10px"><span style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">Filtres transversaux</span>${s.crossTags.map(x=>`<span class="sb-tag" style="margin-right:4px;margin-bottom:4px;display:inline-block">🏷️ ${esc(x)}</span>`).join('')}</div>` : ''}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:18px;padding-top:14px;border-top:1px solid var(--border)">
+      <button class="btn" onclick="sbToggleFavorite('${id}');sbOpenDetail('${id}')">${isFav?'★ Retirer des favoris':'☆ Ajouter aux favoris'}</button>
+      <button class="btn" onclick="shareBankToCrew('${id}')">🔗 Partager avec le crew</button>
+      <button class="btn primary coach-only-btn" onclick="closeModal('sb-detail-modal');sbEditCard('${id}')">✏️ Modifier</button>
+    </div>`;
+  applyRoleUI();
+  document.getElementById('sb-detail-modal').classList.add('open');
+}
+window.sbOpenDetail = sbOpenDetail;
+
 function sbEditCard(id) {
   const s = getBank().find(x => x.id === id);
   if (!s) return;
   document.getElementById('sb-edit-id').value = id;
   document.getElementById('sb-editor-title').textContent = 'Modifier la séance';
   document.getElementById('sb-name').value = s.name;
+  const sbContentTypeEl = document.getElementById('sb-content-type');
+  if (sbContentTypeEl) sbContentTypeEl.value = s.contentType || 'seance';
   document.getElementById('sb-type').value = s.type;
   document.getElementById('sb-level').value = s.level || 'confirme';
   document.getElementById('sb-duration').value = s.duration || 90;
@@ -8135,6 +8370,8 @@ function sbNewCard() {
   document.getElementById('sb-edit-id').value = '';
   document.getElementById('sb-editor-title').textContent = 'Nouvelle séance type';
   document.getElementById('sb-name').value = '';
+  const sbContentTypeEl2 = document.getElementById('sb-content-type');
+  if (sbContentTypeEl2) sbContentTypeEl2.value = 'seance';
   document.getElementById('sb-type').value = 'voies';
   document.getElementById('sb-level').value = 'confirme';
   document.getElementById('sb-duration').value = 90;
@@ -8166,6 +8403,7 @@ function sbSave() {
   const payload = {
     id: editId || 'sb_' + Date.now(),
     name,
+    contentType: document.getElementById('sb-content-type')?.value || 'seance',
     type:        document.getElementById('sb-type').value,
     level:       document.getElementById('sb-level').value,
     duration:    +document.getElementById('sb-duration').value || 90,
@@ -8517,6 +8755,10 @@ document.getElementById('sb-reset-filters').onclick = () => {
   sbActiveCategory = '';
   sbActiveSubcategory = '';
   sbActiveCrossTags = new Set();
+  sbActiveFamily = '';
+  sbSetContentType('');
+  const searchMainEl = document.getElementById('sb-search-main');
+  if (searchMainEl) searchMainEl.value = '';
   sbRenderGrid();
 };
 
