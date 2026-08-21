@@ -3321,7 +3321,7 @@ function loadDB() {
       }
       if (d && d.climbers && d.climbers.length) {
         if (!d.sessionBank) d.sessionBank = mkSampleBank();
-        d.climbers.forEach(c => { if (!c.trips) c.trips = []; if (!c.objectives) c.objectives = []; });
+        d.climbers.forEach(c => { if (!c.trips) c.trips = []; migrateLegacyGoals(c); });
         return d;
       }
     }
@@ -3507,7 +3507,9 @@ async function loadFromBackend() {
     const climbersWithLogs = await Promise.all(climbers.map(async c => {
       const logsRes = await fetch(`/api/logs/${c.id}`, {headers: authHeaders()});
       const logs = logsRes.ok ? await logsRes.json() : [];
-      return {...c, logs, trips: c.trips || [], profile: c.profile || {}, objectives: c.objectives || []};
+      const merged = {...c, logs, trips: c.trips || [], profile: c.profile || {}, objectives: c.objectives || []};
+      migrateLegacyGoals(merged);
+      return merged;
     }));
 
     db.climbers = climbersWithLogs;
@@ -3860,12 +3862,13 @@ function renderPlanObjective() {
   const el = document.getElementById('plan-objective-banner');
   if (!el) return;
   const c = getActive();
-  const goals = (c?.profile?.goals) || [];
   if (!c) { el.innerHTML = ''; return; }
+  migrateLegacyGoals(c);
+  const goals = (c.objectives || []).filter(o => o.status !== 'done');
   if (!goals.length) {
     el.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
       <span style="font-size:13px;color:var(--muted)">🎯 Aucun objectif défini pour ${esc(c.name)}.</span>
-      <button class="btn sm" onclick="openProfileDetailModal('${c.id}')">Définir un objectif</button>
+      <button class="btn sm" onclick="openObjectiveModal()">Définir un objectif</button>
     </div>`;
     return;
   }
@@ -3874,17 +3877,18 @@ function renderPlanObjective() {
   const future = dated.filter(g => g.date >= today);
   const chosen = future[0] || dated[dated.length-1] || goals[goals.length-1];
   const daysLeft = chosen.date ? Math.ceil((new Date(chosen.date+'T00:00:00') - new Date(today+'T00:00:00')) / 86400000) : null;
+  const label = chosen.title || chosen.text || 'Objectif';
   el.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
     <div style="display:flex;align-items:center;gap:10px">
       <span style="font-size:18px">🎯</span>
       <div>
-        <div style="font-weight:600;font-size:14px">Objectif de ${esc(c.name)} : ${esc(chosen.text)}</div>
+        <div style="font-weight:600;font-size:14px">Objectif de ${esc(c.name)} : ${esc(label)}</div>
         <div style="font-size:12px;color:var(--muted)">${daysLeft===null?'Pas de date fixée':(daysLeft>=0?daysLeft+' jour'+(daysLeft>1?'s':'')+' restant'+(daysLeft>1?'s':''):'Date dépassée')}</div>
       </div>
     </div>
     <div style="display:flex;align-items:center;gap:10px">
       ${chosen.date?`<span style="background:var(--accent2);color:var(--accent);font-size:12px;padding:4px 12px;border-radius:3px">${fmtDate(chosen.date)}</span>`:''}
-      <button class="btn sm coach-only-btn" onclick="openProfileDetailModal('${c.id}')">Modifier</button>
+      <button class="btn sm coach-only-btn" onclick="openObjectiveModal('${chosen.id}')">Modifier</button>
     </div>
   </div>`;
 }
@@ -4857,6 +4861,24 @@ function renderTripsCompare() {
 }
 
 // — Objectifs (visibles en haut du tableau de bord) —
+// Migre les anciens "objectifs" texte+date du profil détaillé (c.profile.goals) vers la
+// nouvelle entité Objectif unifiée (c.objectives), si celle-ci n'a pas encore été alimentée.
+function migrateLegacyGoals(c) {
+  if (!c) return;
+  if (!c.objectives) c.objectives = [];
+  const legacy = c.profile?.goals;
+  if (c.objectives.length === 0 && Array.isArray(legacy) && legacy.length) {
+    c.objectives = legacy.map((g,i) => ({
+      id: 'obj_legacy_'+Date.now()+'_'+i,
+      title: g.text || g.title || 'Objectif',
+      type: 'other',
+      date: g.date || '',
+      notes: '',
+      status: 'active',
+      createdAt: new Date().toISOString()
+    }));
+  }
+}
 const OBJECTIVE_TYPES = {
   grade:       { label: 'Projet de grade', icon: '🎯', color: '#2d5a3d' },
   competition: { label: 'Compétition',      icon: '🏆', color: '#c4501a' },
@@ -4891,9 +4913,10 @@ function renderObjectivesPanel() {
   el.innerHTML = objectives.map(o => {
     const t = OBJECTIVE_TYPES[o.type] || OBJECTIVE_TYPES.other;
     const done = o.status === 'done';
+    const label = o.title || o.text || 'Objectif';
     return `<div class="objective-card${done?' done':''}" style="border-left-color:${t.color}" onclick="openObjectiveModal('${o.id}')">
       <button class="objective-card-check" title="${done?'Marquer comme actif':'Marquer comme atteint'}" onclick="event.stopPropagation();toggleObjectiveDone('${o.id}')">${done?'↺':'✓'}</button>
-      <div class="objective-card-title">${t.icon} ${esc(o.title)}</div>
+      <div class="objective-card-title">${t.icon} ${esc(label)}</div>
       <div class="objective-card-meta">${esc(t.label)}${o.date?` · ${esc(objectiveDueLabel(o.date))}`:''}</div>
     </div>`;
   }).join('');
@@ -4930,6 +4953,7 @@ function saveObjective() {
   saveDB();
   closeModal('objective-modal');
   renderObjectivesPanel();
+  renderPlanObjective();
 }
 window.saveObjective = saveObjective;
 function deleteObjective() {
@@ -4940,6 +4964,7 @@ function deleteObjective() {
   saveDB();
   closeModal('objective-modal');
   renderObjectivesPanel();
+  renderPlanObjective();
 }
 window.deleteObjective = deleteObjective;
 function toggleObjectiveDone(id) {
@@ -4949,6 +4974,7 @@ function toggleObjectiveDone(id) {
   o.status = o.status === 'done' ? 'active' : 'done';
   saveDB();
   renderObjectivesPanel();
+  renderPlanObjective();
 }
 window.toggleObjectiveDone = toggleObjectiveDone;
 
@@ -7442,18 +7468,21 @@ function renderPdGoals() {
   const list = document.getElementById('pd-goals-list');
   if (!list) return;
   if (!pdGoals.length) { list.innerHTML = '<div style="font-size:12px;color:var(--muted);margin-bottom:8px">Aucun objectif pour l\'instant.</div>'; return; }
-  list.innerHTML = pdGoals.map((g,i) => `
-    <div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg2,#f4f2ee);border-radius:8px;padding:8px 12px;margin-bottom:6px;font-size:13px">
-      <span>${esc(g.text)}${g.date?` <span style="color:var(--muted)">— ${g.date}</span>`:''}</span>
+  list.innerHTML = pdGoals.map((g,i) => {
+    const t = OBJECTIVE_TYPES[g.type] || OBJECTIVE_TYPES.other;
+    const label = g.title || g.text || 'Objectif';
+    return `<div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg2,#f4f2ee);border-radius:8px;padding:8px 12px;margin-bottom:6px;font-size:13px">
+      <span>${t.icon} ${esc(label)}${g.date?` <span style="color:var(--muted)">— ${g.date}</span>`:''}</span>
       <button onclick="pdRemoveGoal(${i})" style="background:none;border:none;color:var(--warm);cursor:pointer;font-size:16px;line-height:1;padding:0 4px">×</button>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 function pdAddGoal() {
   const t = document.getElementById('pd-goal-text');
   const d = document.getElementById('pd-goal-date');
   const text = t.value.trim();
   if (!text) return;
-  pdGoals.push({ text, date: d.value || '' });
+  pdGoals.push({ id:'obj_'+Date.now(), title: text, type:'other', date: d.value || '', notes:'', status:'active', createdAt: new Date().toISOString() });
   t.value = ''; d.value = '';
   renderPdGoals();
 }
@@ -7475,7 +7504,8 @@ function openProfileDetailModal(climberId) {
   document.getElementById('pd-armspan').value = p.armSpan || '';
   document.getElementById('pd-sessions-week').value = p.sessionsPerWeek || '';
   document.getElementById('pd-minutes-session').value = p.minutesPerSession || '';
-  pdGoals = Array.isArray(p.goals) ? p.goals.slice() : [];
+  migrateLegacyGoals(c);
+  pdGoals = Array.isArray(c.objectives) ? c.objectives.slice() : [];
   renderPdGoals();
   pdPhotoDataUrl = undefined;
   pdRenderPhotoPreview(p.photo || null, c.color);
@@ -7571,10 +7601,10 @@ async function saveProfileDetail() {
     sessionsPerWeek: parseInt(document.getElementById('pd-sessions-week').value, 10) || null,
     minutesPerSession: parseInt(document.getElementById('pd-minutes-session').value, 10) || null,
     equipment,
-    goals: pdGoals,
     selfRating: canEditSelf ? readPerfSide('pd-perf-sections', 'self') : (c.profile?.selfRating || undefined),
     coachRating: canEditCoach ? readPerfSide('pd-perf-sections', 'coach') : (c.profile?.coachRating || undefined)
   };
+  c.objectives = pdGoals;
   try {
     const r = await fetch('/api/climbers', {
       method: 'POST',
