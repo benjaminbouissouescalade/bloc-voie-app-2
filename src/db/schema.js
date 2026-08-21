@@ -157,6 +157,81 @@ async function initDB() {
       CREATE INDEX IF NOT EXISTS idx_crew_members_climber ON crew_members(climber_id);
       CREATE INDEX IF NOT EXISTS idx_crew_activity_crew ON crew_activity(crew_id, created_at DESC);
       CREATE INDEX IF NOT EXISTS idx_crew_kudos_lookup ON crew_kudos(crew_id, to_climber_id, week_start);
+
+      -- Communauté v2 : connexions 1:1 "partenaires", indépendantes des crews.
+      -- Sert de base au Feed, aux profils partenaires, aux séances communes, etc.
+      CREATE TABLE IF NOT EXISTS partner_invites (
+        code        TEXT PRIMARY KEY,
+        created_by  TEXT NOT NULL REFERENCES climbers(id) ON DELETE CASCADE,
+        created_at  TIMESTAMPTZ DEFAULT NOW(),
+        expires_at  TIMESTAMPTZ
+      );
+      CREATE TABLE IF NOT EXISTS partnerships (
+        id          TEXT PRIMARY KEY,
+        climber_a   TEXT NOT NULL REFERENCES climbers(id) ON DELETE CASCADE,
+        climber_b   TEXT NOT NULL REFERENCES climbers(id) ON DELETE CASCADE,
+        created_at  TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(climber_a, climber_b)
+      );
+      CREATE INDEX IF NOT EXISTS idx_partnerships_a ON partnerships(climber_a);
+      CREATE INDEX IF NOT EXISTS idx_partnerships_b ON partnerships(climber_b);
+
+      -- Réactions Digger (5 types fixes) sur une séance loguée — une réaction active par utilisateur.
+      CREATE TABLE IF NOT EXISTS session_reactions (
+        log_id      TEXT NOT NULL,
+        climber_id  TEXT NOT NULL REFERENCES climbers(id) ON DELETE CASCADE,
+        reaction    TEXT NOT NULL,
+        created_at  TIMESTAMPTZ DEFAULT NOW(),
+        PRIMARY KEY (log_id, climber_id)
+      );
+
+      -- "On grimpe ensemble" : relie plusieurs séances (une par participant) comme faisant
+      -- partie d'une même sortie commune, sans dupliquer les données de chacun.
+      CREATE TABLE IF NOT EXISTS session_links (
+        id          TEXT PRIMARY KEY,
+        log_id      TEXT NOT NULL,
+        climber_id  TEXT NOT NULL REFERENCES climbers(id) ON DELETE CASCADE,
+        created_at  TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_session_links_link ON session_links(id);
+      CREATE INDEX IF NOT EXISTS idx_session_links_log ON session_links(log_id);
+
+      -- Séances proposées à des partenaires ("Séances à venir / Je participe").
+      CREATE TABLE IF NOT EXISTS proposed_sessions (
+        id           TEXT PRIMARY KEY,
+        created_by   TEXT NOT NULL REFERENCES climbers(id) ON DELETE CASCADE,
+        type         TEXT NOT NULL,
+        date         DATE NOT NULL,
+        time_label   TEXT DEFAULT '',
+        location     TEXT DEFAULT '',
+        invitees     JSONB DEFAULT '[]',
+        created_at   TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS proposed_session_participants (
+        proposed_id  TEXT NOT NULL REFERENCES proposed_sessions(id) ON DELETE CASCADE,
+        climber_id   TEXT NOT NULL REFERENCES climbers(id) ON DELETE CASCADE,
+        log_id       TEXT,
+        joined_at    TIMESTAMPTZ DEFAULT NOW(),
+        PRIMARY KEY (proposed_id, climber_id)
+      );
+
+      -- Challenges privés (crew entier ou sélection de partenaires).
+      CREATE TABLE IF NOT EXISTS challenges (
+        id            TEXT PRIMARY KEY,
+        created_by    TEXT NOT NULL REFERENCES climbers(id) ON DELETE CASCADE,
+        name          TEXT NOT NULL,
+        description   TEXT DEFAULT '',
+        metric        TEXT NOT NULL,
+        target        NUMERIC NOT NULL,
+        start_date    DATE NOT NULL,
+        end_date      DATE NOT NULL,
+        created_at    TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS challenge_participants (
+        challenge_id  TEXT NOT NULL REFERENCES challenges(id) ON DELETE CASCADE,
+        climber_id    TEXT NOT NULL REFERENCES climbers(id) ON DELETE CASCADE,
+        PRIMARY KEY (challenge_id, climber_id)
+      );
     `);
     console.log('✅ Base de données initialisée');
   } catch (err) {
