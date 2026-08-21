@@ -388,6 +388,19 @@ select.form-control { appearance: auto; }
 .modal-body { padding: 20px; }
 .modal-footer { padding: 12px 20px 20px; display: flex; gap: 8px; justify-content: flex-end; }
 
+/* Drawer latéral (détail banque de séances) : même backdrop que .modal, mais le panneau
+   glisse depuis la droite au lieu d'être centré — pour ne pas recouvrir toute la bibliothèque. */
+.modal-backdrop.sb-drawer { justify-content: flex-end; align-items: stretch; padding: 0; }
+.modal-backdrop.sb-drawer .modal.sb-drawer-panel {
+  width: min(440px, 100%); max-width: 100%; height: 100%; max-height: 100%;
+  border-radius: 0; margin: 0; animation: sbDrawerIn .16s ease-out;
+}
+@keyframes sbDrawerIn { from { transform: translateX(28px); opacity: .5; } to { transform: translateX(0); opacity: 1; } }
+@media (max-width: 720px) {
+  .modal-backdrop.sb-drawer { align-items: flex-end; }
+  .modal-backdrop.sb-drawer .modal.sb-drawer-panel { width: 100%; height: auto; max-height: 90vh; border-radius: var(--radius) var(--radius) 0 0; }
+}
+
 /* Ascent row */
 .ascent-row { display: grid; grid-template-columns: 90px 1fr 100px 70px 80px auto; gap: 8px; align-items: center; border: 1px solid var(--border); border-radius: var(--r-sm); padding: 8px 10px; background: var(--surface2); margin-bottom: 6px; }
 
@@ -1452,9 +1465,9 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   </div>
 </div>
 
-<!-- Modal détail fiche banque de séances -->
-<div class="modal-backdrop" id="sb-detail-modal">
-  <div class="modal" style="width:min(560px,100%)">
+<!-- Drawer latéral détail fiche banque de séances -->
+<div class="modal-backdrop sb-drawer" id="sb-detail-modal" onclick="if(event.target===this) closeModal('sb-detail-modal')">
+  <div class="modal sb-drawer-panel">
     <div class="modal-header">
       <span class="modal-title" id="sb-detail-title">Séance</span>
       <button class="btn sm" onclick="closeModal('sb-detail-modal')">Fermer</button>
@@ -7868,37 +7881,55 @@ const BANK_CATEGORY_TO_TYPE = {
 
 function getBank() { return db.sessionBank || (db.sessionBank = []); }
 
-// — Grandes familles ("Pour quoi ?") — regroupement PRÉSENTATIONNEL des dossiers/types
-// existants, ne modifie aucune donnée. Navigation simplifiée : famille → contexte → fiche.
-const BANK_FAMILIES = [
-  { key:'grimpe',               label:'Grimpe',                icon:'🧗', categories:['Bloc','Voie','Spray Wall','Kilter / Moon / Tension'] },
-  { key:'doigts_force',         label:'Doigts / Force',        icon:'💪', categories:['Campus','Hangboard','No Hang','Force'] },
-  { key:'endurance',            label:'Endurance',             icon:'🔥', categories:['Cardio'] },
-  { key:'technique_mental',     label:'Technique / Mental',    icon:'🧠', categories:['Technique','Mental'] },
-  { key:'mobilite_prevention',  label:'Mobilité / Prévention', icon:'🧘', categories:['Échauffement','Mobilité','Prévention','Rééducation','Récupération'] },
-  { key:'tests_jeux',           label:'Tests / Jeux',          icon:'🎯', categories:['Tests','Jeux','Enfants'] },
+// — Navigation principale "Pour quoi ?" — OBJECTIF d'abord, CONTEXTE ensuite.
+// Regroupement PRÉSENTATIONNEL du champ `goal` (et, en repli, de `category`/`type`) :
+// ne modifie aucune donnée existante. Logique : objectif → contexte (Bloc/Voie/Board/
+// Falaise, via `type`) → fiches. Remplace l'ancienne navigation par dossier/sous-dossier
+// comme point d'entrée principal (celle-ci reste disponible dans "Filtres +").
+const BANK_OBJECTIFS = [
+  { key:'force',        label:'Force',        icon:'💪', goals:['force_max','puissance','projet'] },
+  { key:'resistance',   label:'Résistance',    icon:'🔥', goals:['resi','arc','circuit'] },
+  { key:'volume',       label:'Volume',        icon:'📈', goals:['volume'] },
+  { key:'technique',    label:'Technique',     icon:'🧠', goals:['technique','dalle','devers','coordination','flasher','onsight','comp_simulation','peaking'] },
+  { key:'doigts',       label:'Doigts',        icon:'🤏', goals:['doigts_max'], categories:['Campus','Hangboard','No Hang'] },
+  { key:'recuperation', label:'Récupération',  icon:'🧘', goals:['recuperation','prevention','retour_blessure'] },
 ];
-const BANK_TYPE_TO_FAMILY = {
-  bloc:'grimpe', voies:'grimpe', falaise:'grimpe', pan:'grimpe', competition:'grimpe', via_ferrata:'grimpe',
-  doigts:'doigts_force', prehension:'doigts_force', musculation:'doigts_force', ppg:'doigts_force',
-  cardio:'endurance',
-  video:'technique_mental', mentale:'technique_mental',
-  mobilite:'mobilite_prevention', yoga:'mobilite_prevention', recup_active:'mobilite_prevention', 'kiné':'mobilite_prevention',
-  autre:'tests_jeux'
+const BANK_GOAL_TO_OBJECTIF = {};
+BANK_OBJECTIFS.forEach(o => (o.goals||[]).forEach(g => { BANK_GOAL_TO_OBJECTIF[g] = o.key; }));
+const BANK_CATEGORY_TO_OBJECTIF = {};
+BANK_OBJECTIFS.forEach(o => (o.categories||[]).forEach(c => { BANK_CATEGORY_TO_OBJECTIF[c] = o.key; }));
+// Filet de sécurité par type : évite qu'une fiche sans `goal`/`category` reconnu devienne
+// invisible depuis la navigation par objectif (elle reste toujours trouvable via "Toutes"
+// et la recherche, mais on lui donne quand même un objectif par défaut cohérent).
+const BANK_TYPE_TO_OBJECTIF_FALLBACK = {
+  doigts:'doigts', prehension:'doigts',
+  ppg:'force', musculation:'force', bloc:'force', pan:'force',
+  voies:'resistance', falaise:'resistance', cardio:'resistance',
+  mobilite:'recuperation', yoga:'recuperation', recup_active:'recuperation', 'kiné':'recuperation',
+  video:'technique', mentale:'technique', competition:'technique', via_ferrata:'technique', autre:'technique'
 };
-const BANK_CATEGORY_TO_FAMILY = {};
-BANK_FAMILIES.forEach(f => f.categories.forEach(c => { BANK_CATEGORY_TO_FAMILY[c] = f.key; }));
-function sbFamilyOf(s) {
-  if (s.category && BANK_CATEGORY_TO_FAMILY[s.category]) return BANK_CATEGORY_TO_FAMILY[s.category];
-  return BANK_TYPE_TO_FAMILY[s.type] || 'tests_jeux';
+function sbObjectifOf(s) {
+  if (s.goal && BANK_GOAL_TO_OBJECTIF[s.goal]) return BANK_GOAL_TO_OBJECTIF[s.goal];
+  if (s.category && BANK_CATEGORY_TO_OBJECTIF[s.category]) return BANK_CATEGORY_TO_OBJECTIF[s.category];
+  return BANK_TYPE_TO_OBJECTIF_FALLBACK[s.type] || 'technique';
 }
+// Contexte (2e niveau, affiché seulement "si pertinent") : les 4 grands contextes de
+// pratique, basés sur le `type` existant — aucune nouvelle donnée.
+const BANK_CONTEXTS = [
+  { key:'bloc',   label:'Bloc' },
+  { key:'voies',  label:'Voie' },
+  { key:'pan',    label:'Board' },
+  { key:'falaise',label:'Falaise' },
+];
 
-// — Navigation bibliothèque : dossier (catégorie) → sous-dossier, + filtres transversaux —
+// — Navigation bibliothèque (avancée, déplacée dans "Filtres +") : dossier (catégorie) →
+// sous-dossier, + filtres transversaux —
 let sbActiveCategory = '';
 let sbActiveSubcategory = '';
 let sbActiveCrossTags = new Set();
-// — Simplification UX : familles, favoris, récentes, type de contenu —
-let sbActiveFamily = '';
+// — Simplification UX : navigation objectif→contexte, favoris, récentes, type de contenu —
+let sbActiveFamily = '';    // clé d'objectif sélectionné (BANK_OBJECTIFS)
+let sbActiveContext = '';   // type sélectionné dans le contexte (BANK_CONTEXTS)
 let sbViewMode = 'toutes'; // 'favoris' | 'recentes' | 'toutes'
 let sbContentTypeFilter = ''; // '' | 'seance' | 'exercice'
 let sbFavoriteIds = new Set();
@@ -7914,9 +7945,27 @@ async function sbLoadFavoritesAndRecent() {
       fetch('/api/bank/recent', { headers: authHeaders() })
     ]);
     if (favR.ok) sbFavoriteIds = new Set(await favR.json());
+    // sbRecentIds : [{bankId, date, planned}, ...] triés du plus récent au plus ancien.
     if (recR.ok) sbRecentIds = await recR.json();
   } catch (e) { /* best-effort */ }
   sbRenderGrid();
+}
+function sbRecentInfo(id) { return sbRecentIds.find(r => r.bankId === id) || null; }
+function sbRecentLabel(info) {
+  if (!info || !info.date) return '';
+  const d = new Date(info.date + 'T00:00:00');
+  const today = new Date(); today.setHours(0,0,0,0);
+  const diffDays = Math.round((d - today) / 86400000);
+  if (info.planned) {
+    if (diffDays === 0) return "Programmée aujourd'hui";
+    if (diffDays === 1) return "Programmée demain";
+    if (diffDays > 1) return `Programmée dans ${diffDays} j`;
+    return "Programmée";
+  }
+  if (diffDays === 0) return "Utilisée aujourd'hui";
+  if (diffDays === -1) return "Utilisée hier";
+  if (diffDays < -1) return `Utilisée il y a ${Math.abs(diffDays)} j`;
+  return "Utilisée récemment";
 }
 async function sbToggleFavorite(id, ev) {
   if (ev) ev.stopPropagation();
@@ -7938,11 +7987,16 @@ window.sbSetViewMode = sbSetViewMode;
 
 function sbSetFamily(key) {
   sbActiveFamily = sbActiveFamily === key ? '' : key;
-  sbActiveCategory = '';
-  sbActiveSubcategory = '';
+  sbActiveContext = '';
   sbRenderGrid();
 }
 window.sbSetFamily = sbSetFamily;
+
+function sbSetContext(type) {
+  sbActiveContext = sbActiveContext === type ? '' : type;
+  sbRenderGrid();
+}
+window.sbSetContext = sbSetContext;
 
 function sbSetContentType(ct) {
   sbContentTypeFilter = ct;
@@ -7970,14 +8024,24 @@ function sbRenderFamilyNav() {
   const row = document.getElementById('sb-family-row');
   const ctxRow = document.getElementById('sb-family-context-row');
   if (!row || !ctxRow) return;
-  row.innerHTML = BANK_FAMILIES.map(f =>
-    `<button class="btn sm sb-quick-pill${sbActiveFamily===f.key?' active':''}" onclick="sbSetFamily('${f.key}')">${f.icon} ${esc(f.label)}</button>`
+  // Niveau 1 : "Pour quoi ?" — objectif (le principal moyen de découverte de la banque).
+  row.innerHTML = BANK_OBJECTIFS.map(o =>
+    `<button class="btn sm sb-quick-pill${sbActiveFamily===o.key?' active':''}" onclick="sbSetFamily('${o.key}')">${o.icon} ${esc(o.label)}</button>`
   ).join('');
+  // Niveau 2 : contexte (Bloc/Voie/Board/Falaise), affiché seulement si pertinent — c'est-à-
+  // dire seulement si l'objectif sélectionné a). été choisi et b). contient réellement des
+  // fiches de ces contextes-là (sinon la ligne resterait vide, sans intérêt).
   if (sbActiveFamily) {
-    const fam = BANK_FAMILIES.find(f => f.key === sbActiveFamily);
-    ctxRow.style.display = '';
-    ctxRow.innerHTML = `<button class="btn sm sb-quick-pill${!sbActiveCategory?' active':''}" onclick="sbSetCategory('')">Tout « ${esc(fam.label)} »</button>`
-      + fam.categories.map(c => `<button class="btn sm sb-quick-pill${sbActiveCategory===c?' active':''}" onclick="sbSetCategory('${jsAttr(c)}')">${esc(c)}</button>`).join('');
+    const inFamily = getBank().filter(s => sbObjectifOf(s) === sbActiveFamily);
+    const relevant = BANK_CONTEXTS.filter(c => inFamily.some(s => s.type === c.key));
+    if (relevant.length) {
+      ctxRow.style.display = '';
+      ctxRow.innerHTML = `<button class="btn sm sb-quick-pill${!sbActiveContext?' active':''}" onclick="sbSetContext('')">Tout</button>`
+        + relevant.map(c => `<button class="btn sm sb-quick-pill${sbActiveContext===c.key?' active':''}" onclick="sbSetContext('${c.key}')">${esc(c.label)}</button>`).join('');
+    } else {
+      ctxRow.style.display = 'none';
+      ctxRow.innerHTML = '';
+    }
   } else {
     ctxRow.style.display = 'none';
     ctxRow.innerHTML = '';
@@ -8000,7 +8064,8 @@ function sbRenderActiveChips() {
   const el = document.getElementById('sb-active-chips');
   if (!el) return;
   const chips = [];
-  if (sbActiveFamily) { const f = BANK_FAMILIES.find(x=>x.key===sbActiveFamily); chips.push({label:`${f.icon} ${f.label}`, onClear:"sbSetFamily('')"}); }
+  if (sbActiveFamily) { const f = BANK_OBJECTIFS.find(x=>x.key===sbActiveFamily); chips.push({label:`${f.icon} ${f.label}`, onClear:"sbSetFamily('')"}); }
+  if (sbActiveContext) { const c = BANK_CONTEXTS.find(x=>x.key===sbActiveContext); chips.push({label:c?.label||sbActiveContext, onClear:"sbSetContext('')"}); }
   if (sbActiveCategory) chips.push({label:'📁 '+sbActiveCategory, onClear:"sbSetCategory('')"});
   if (sbActiveSubcategory) chips.push({label:sbActiveSubcategory, onClear:"sbSetSubcategory('')"});
   const typeF = document.getElementById('sb-type-filter')?.value;
@@ -8164,7 +8229,7 @@ function sbRenderGrid() {
   const bank      = getBank();
 
   // Show/hide reset button
-  const hasFilters = typeF||goalF||supportF||levelF||sourceF||search||sbActiveCategory||sbActiveSubcategory||sbActiveCrossTags.size||sbActiveFamily||sbContentTypeFilter;
+  const hasFilters = typeF||goalF||supportF||levelF||sourceF||search||sbActiveCategory||sbActiveSubcategory||sbActiveCrossTags.size||sbActiveFamily||sbActiveContext||sbContentTypeFilter;
   const resetBtn = document.getElementById('sb-reset-filters');
   if (resetBtn) resetBtn.style.display = hasFilters ? '' : 'none';
 
@@ -8196,12 +8261,16 @@ function sbRenderGrid() {
   let items = bank.slice();
 
   // ── Filters ──
+  // Recherche : couvre nom, description, tags, crossTags, support, objectif, dossier/sous-dossier.
   if (search) items = items.filter(s =>
     s.name.toLowerCase().includes(search) ||
     s.description?.toLowerCase().includes(search) ||
     (s.tags||[]).some(t => t.toLowerCase().includes(search)) ||
+    (s.crossTags||[]).some(t => t.toLowerCase().includes(search)) ||
     (SUPPORTS[s.support]?.label||'').toLowerCase().includes(search) ||
-    (SB_GOAL_LABELS[s.goal]||'').toLowerCase().includes(search)
+    (SB_GOAL_LABELS[s.goal]||'').toLowerCase().includes(search) ||
+    (s.category||'').toLowerCase().includes(search) ||
+    (s.subcategory||'').toLowerCase().includes(search)
   );
   if (typeF)    items = items.filter(s => s.type === typeF);
   if (goalF)    items = items.filter(s => s.goal === goalF);
@@ -8212,14 +8281,16 @@ function sbRenderGrid() {
   if (sbActiveCategory) items = items.filter(s => s.category === sbActiveCategory);
   if (sbActiveSubcategory) items = items.filter(s => s.subcategory === sbActiveSubcategory);
   if (sbActiveCrossTags.size) items = items.filter(s => (s.crossTags||[]).some(t => sbActiveCrossTags.has(t)));
-  if (sbActiveFamily) items = items.filter(s => sbFamilyOf(s) === sbActiveFamily);
+  if (sbActiveFamily) items = items.filter(s => sbObjectifOf(s) === sbActiveFamily);
+  if (sbActiveContext) items = items.filter(s => s.type === sbActiveContext);
   if (sbContentTypeFilter) items = items.filter(s => (s.contentType||'seance') === sbContentTypeFilter);
   if (sbViewMode === 'favoris') items = items.filter(s => sbFavoriteIds.has(s.id));
-  if (sbViewMode === 'recentes') items = items.filter(s => sbRecentIds.includes(s.id));
+  if (sbViewMode === 'recentes') items = items.filter(s => sbRecentIds.some(r => r.bankId === s.id));
 
   // ── Sort ──
   if (sbViewMode === 'recentes') {
-    items.sort((a,b) => sbRecentIds.indexOf(a.id) - sbRecentIds.indexOf(b.id));
+    // sbRecentIds est déjà trié du plus récent au plus ancien par le backend.
+    items.sort((a,b) => sbRecentIds.findIndex(r=>r.bankId===a.id) - sbRecentIds.findIndex(r=>r.bankId===b.id));
   } else {
     const sorters = {
       recent:         (a,b) => (b.createdAt||0) - (a.createdAt||0),
@@ -8253,11 +8324,15 @@ function sbRenderGrid() {
     const isFav = sbFavoriteIds.has(s.id);
     const intDots = Array.from({length:5},(_,i) =>
       `<span class="${i < (s.intensity||3) ? 'on' : ''}"></span>`).join('');
-    const contextLabel = s.subcategory || s.category || (SESSION_TYPES[s.type]?.label) || '';
+    // Contexte (type) d'abord, objectif ensuite — ex. "Board · Force max" — cohérent avec
+    // la nouvelle navigation objectif → contexte.
+    const contextLabel = SESSION_TYPES[s.type]?.label || s.subcategory || s.category || '';
+    const freshness = sbViewMode === 'recentes' ? sbRecentLabel(sbRecentInfo(s.id)) : '';
     return `<div class="sb-card" draggable="true" ondragstart="onBankDragStart(event,'${s.id}')" ondragend="onBankDragEnd(event)" title="Glisse cette séance sur une case du calendrier pour la programmer, ou clique pour voir le détail" onclick="sbOpenDetail('${s.id}')">
       <button class="sb-fav-btn" onclick="sbToggleFavorite('${s.id}', event)" title="${isFav?'Retirer des favoris':'Ajouter aux favoris'}">${isFav?'★':'☆'}</button>
       <div style="font-weight:700;font-size:15px;margin-bottom:2px;padding-right:24px">${esc(s.name)}</div>
-      ${contextLabel ? `<div style="font-size:12px;color:var(--muted);margin-bottom:10px">${esc(contextLabel)}${s.goal?' · '+esc(SB_GOAL_LABELS[s.goal]||s.goal):''}</div>` : '<div style="margin-bottom:10px"></div>'}
+      ${contextLabel ? `<div style="font-size:12px;color:var(--muted);margin-bottom:${freshness?'4px':'10px'}">${esc(contextLabel)}${s.goal?' · '+esc(SB_GOAL_LABELS[s.goal]||s.goal):''}</div>` : '<div style="margin-bottom:10px"></div>'}
+      ${freshness ? `<div style="font-size:10.5px;color:var(--accent);text-transform:uppercase;letter-spacing:.02em;margin-bottom:8px">${esc(freshness)}</div>` : ''}
       <div style="display:flex;align-items:center;gap:8px">
         <span style="font-size:12px;color:var(--muted)">${s.duration||90} min</span>
         <span class="sb-intensity">${intDots}</span>
@@ -8312,15 +8387,64 @@ function sbOpenDetail(id) {
     <p style="font-size:13px;line-height:1.6;margin-bottom:14px;white-space:pre-wrap">${esc(s.description || 'Pas de description.')}</p>
     ${(s.tags||[]).length ? `<div style="margin-bottom:10px"><span style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">Tags</span>${s.tags.map(x=>`<span class="sb-tag" style="margin-right:4px;margin-bottom:4px;display:inline-block">${esc(x)}</span>`).join('')}</div>` : ''}
     ${(s.crossTags||[]).length ? `<div style="margin-bottom:10px"><span style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">Filtres transversaux</span>${s.crossTags.map(x=>`<span class="sb-tag" style="margin-right:4px;margin-bottom:4px;display:inline-block">🏷️ ${esc(x)}</span>`).join('')}</div>` : ''}
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:18px;padding-top:14px;border-top:1px solid var(--border)">
+    <div style="display:flex;gap:8px;align-items:center;margin-top:18px;padding-top:14px;border-top:1px solid var(--border)">
+      <input type="date" id="sb-detail-schedule-date" class="form-control" style="max-width:160px" value="${new Date().toISOString().slice(0,10)}">
+      <button class="btn primary" onclick="sbScheduleFromDetail('${id}')">📅 Programmer</button>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
       <button class="btn" onclick="sbToggleFavorite('${id}');sbOpenDetail('${id}')">${isFav?'★ Retirer des favoris':'☆ Ajouter aux favoris'}</button>
       <button class="btn" onclick="shareBankToCrew('${id}')">🔗 Partager avec le crew</button>
+      <button class="btn coach-only-btn" onclick="sbDuplicateCard('${id}')">⧉ Dupliquer</button>
       <button class="btn primary coach-only-btn" onclick="closeModal('sb-detail-modal');sbEditCard('${id}')">✏️ Modifier</button>
+      <button class="btn danger coach-only-btn" onclick="sbDeleteFromDetail('${id}')">🗑️ Supprimer</button>
     </div>`;
   applyRoleUI();
   document.getElementById('sb-detail-modal').classList.add('open');
 }
 window.sbOpenDetail = sbOpenDetail;
+
+// PROGRAMMER : réutilise la logique existante du glisser-déposer (addPlannedSessionFromBank)
+// pour programmer cette fiche sur la date choisie, sans dupliquer la logique de planification.
+function sbScheduleFromDetail(id) {
+  const dateEl = document.getElementById('sb-detail-schedule-date');
+  const dateStr = dateEl?.value;
+  if (!dateStr) { alert('Choisis une date.'); return; }
+  closeModal('sb-detail-modal');
+  addPlannedSessionFromBank(id, dateStr); // programme + ouvre le récap du jour programmé
+}
+window.sbScheduleFromDetail = sbScheduleFromDetail;
+
+// DUPLIQUER : crée une copie indépendante de la fiche (nouvel id), via la route granulaire
+// POST /api/bank — n'affecte aucune autre fiche de la banque partagée.
+async function sbDuplicateCard(id) {
+  const s = getBank().find(x => x.id === id);
+  if (!s) return;
+  const copy = { ...s, id: 'sb_' + Date.now() + '_' + Math.random().toString(36).slice(2,6), name: s.name + ' (copie)', createdAt: Date.now() };
+  getBank().push(copy);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+  try {
+    await fetch('/api/bank', { method: 'POST', headers: authHeaders(), body: JSON.stringify(copy) });
+  } catch (e) { /* best-effort, restera en local sinon */ }
+  sbRenderGrid();
+  sbOpenDetail(copy.id);
+}
+window.sbDuplicateCard = sbDuplicateCard;
+
+// SUPPRIMER (depuis le drawer) : supprime côté serveur d'abord (route granulaire DELETE
+// /api/bank/:id, qui nettoie aussi les favoris liés), puis localement.
+async function sbDeleteFromDetail(id) {
+  const s = getBank().find(x => x.id === id);
+  if (!s || !confirm(`Supprimer "${s.name}" de la banque de séances ?`)) return;
+  try {
+    const res = await fetch('/api/bank/' + id, { method: 'DELETE', headers: authHeaders() });
+    if (!res.ok) { alert('Suppression impossible.'); return; }
+  } catch (e) { alert('Suppression impossible (connexion au serveur).'); return; }
+  db.sessionBank = (db.sessionBank||[]).filter(x => x.id !== id);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+  closeModal('sb-detail-modal');
+  sbRenderGrid();
+}
+window.sbDeleteFromDetail = sbDeleteFromDetail;
 
 function sbEditCard(id) {
   const s = getBank().find(x => x.id === id);
@@ -8756,6 +8880,7 @@ document.getElementById('sb-reset-filters').onclick = () => {
   sbActiveSubcategory = '';
   sbActiveCrossTags = new Set();
   sbActiveFamily = '';
+  sbActiveContext = '';
   sbSetContentType('');
   const searchMainEl = document.getElementById('sb-search-main');
   if (searchMainEl) searchMainEl.value = '';
