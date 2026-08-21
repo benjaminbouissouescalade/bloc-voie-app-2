@@ -68,6 +68,17 @@ async function initDB() {
       ALTER TABLE session_bank ADD COLUMN IF NOT EXISTS category TEXT;
       ALTER TABLE session_bank ADD COLUMN IF NOT EXISTS subcategory TEXT;
       ALTER TABLE session_bank ADD COLUMN IF NOT EXISTS cross_tags JSONB DEFAULT '[]';
+      -- 'seance' (séance complète) ou 'exercice' (bloc de contenu court à intégrer) — permet
+      -- de ne pas mélanger une séance de 90min et un exercice de 10min dans la même vue.
+      ALTER TABLE session_bank ADD COLUMN IF NOT EXISTS content_type TEXT DEFAULT 'seance';
+      -- Favoris par utilisateur — la banque de séances reste globale/partagée, mais le statut
+      -- favori est personnel à chaque grimpeur (pas de duplication de la fiche elle-même).
+      CREATE TABLE IF NOT EXISTS session_bank_favorites (
+        climber_id  TEXT NOT NULL REFERENCES climbers(id) ON DELETE CASCADE,
+        bank_id     TEXT NOT NULL,
+        created_at  TIMESTAMPTZ DEFAULT NOW(),
+        PRIMARY KEY (climber_id, bank_id)
+      );
       CREATE TABLE IF NOT EXISTS goals (
         id            TEXT PRIMARY KEY,
         climber_id    TEXT NOT NULL REFERENCES climbers(id) ON DELETE CASCADE,
