@@ -188,11 +188,21 @@ async function initDB() {
       -- "On grimpe ensemble" : relie plusieurs séances (une par participant) comme faisant
       -- partie d'une même sortie commune, sans dupliquer les données de chacun.
       CREATE TABLE IF NOT EXISTS session_links (
-        id          TEXT PRIMARY KEY,
+        id          TEXT NOT NULL,
         log_id      TEXT NOT NULL,
         climber_id  TEXT NOT NULL REFERENCES climbers(id) ON DELETE CASCADE,
         created_at  TIMESTAMPTZ DEFAULT NOW()
       );
+      -- La table a été créée à l'origine avec id TEXT PRIMARY KEY, ce qui empêchait plusieurs
+      -- participants de partager le même id de groupe. On corrige ici : un id de groupe peut
+      -- désormais avoir une ligne par participant, et une séance (log_id) n'appartient qu'à
+      -- un seul groupe à la fois.
+      ALTER TABLE session_links DROP CONSTRAINT IF EXISTS session_links_pkey;
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'session_links_log_unique') THEN
+          ALTER TABLE session_links ADD CONSTRAINT session_links_log_unique UNIQUE (log_id);
+        END IF;
+      END $$;
       CREATE INDEX IF NOT EXISTS idx_session_links_link ON session_links(id);
       CREATE INDEX IF NOT EXISTS idx_session_links_log ON session_links(log_id);
 
