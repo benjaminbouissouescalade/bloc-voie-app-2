@@ -9079,7 +9079,7 @@ async function saveProfileDetail() {
   }
 }
 
-function deleteClimber(id) {
+async function deleteClimber(id) {
   const c = db.climbers.find(x=>x.id===id);
   if (!c) return;
   if (db.climbers.length <= 1) { alert('Il faut garder au moins un grimpeur.'); return; }
@@ -9088,6 +9088,21 @@ function deleteClimber(id) {
     ? `Supprimer ${c.name} et ses ${sessionCount} séance${sessionCount>1?'s':''} ? Cette action est irréversible.`
     : `Supprimer le profil de ${c.name} ?`;
   if (!confirm(msg)) return;
+  // Supprimer côté backend d'abord : sinon le profil "supprimé" localement
+  // ressuscite au prochain chargement (loadFromBackend récupère la liste serveur).
+  if (authToken()) {
+    try {
+      const res = await fetch(`/api/climbers/${id}`, { method: 'DELETE', headers: authHeaders() });
+      if (!res.ok) {
+        const err = await res.json().catch(()=>({}));
+        alert('Suppression impossible : ' + (err.error || `erreur ${res.status}`));
+        return;
+      }
+    } catch (e) {
+      alert('Suppression impossible (connexion au serveur) : ' + e.message);
+      return;
+    }
+  }
   db.climbers = db.climbers.filter(x=>x.id!==id);
   if (db.activeId === id) db.activeId = db.climbers[0].id;
   saveDB();
