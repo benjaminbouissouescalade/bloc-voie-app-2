@@ -1429,6 +1429,17 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   </div>
 </div>
 
+<!-- Modal détail séance partenaire (Feed) -->
+<div class="modal-backdrop" id="partner-session-modal">
+  <div class="modal" style="width:min(480px,100%)">
+    <div class="modal-header">
+      <span class="modal-title" id="partner-session-title">Séance</span>
+      <button class="btn sm" onclick="closeModal('partner-session-modal')">Fermer</button>
+    </div>
+    <div class="modal-body" id="partner-session-body"></div>
+  </div>
+</div>
+
 <!-- Modal cycle -->
 <div class="modal-backdrop" id="cycle-modal">
   <div class="modal" style="width:min(680px,100%)">
@@ -5755,6 +5766,121 @@ function partnerShowSuccess(html) {
   const errEl = document.getElementById('partner-action-error'); if (errEl) errEl.style.display = 'none';
 }
 let partnerCache = [];
+// Les 5 réactions Digger — pas de like classique.
+const REACTIONS = [
+  { key: 'fort', emoji: '💪', label: 'Fort' },
+  { key: 'propre', emoji: '✨', label: 'Propre' },
+  { key: 'allez', emoji: '👊', label: 'Allez' },
+  { key: 'jaloux', emoji: '😤', label: 'Jaloux' },
+  { key: 'jepars', emoji: '🏃', label: "Je pars direct m'entraîner" },
+];
+function feedRelativeDay(dateStr) {
+  const today = new Date().toISOString().slice(0, 10);
+  const y = new Date(); y.setDate(y.getDate() - 1);
+  const yesterday = y.toISOString().slice(0, 10);
+  if (dateStr === today) return "Aujourd'hui";
+  if (dateStr === yesterday) return 'Hier';
+  return fmtDate(dateStr);
+}
+function feedBestPerf(ascents) {
+  if (!ascents || !ascents.length) return null;
+  const valid = ascents.filter(a => GRADE_IDX[a.grade] !== undefined);
+  if (!valid.length) return null;
+  const sent = valid.filter(a => a.status !== 'try');
+  const pool = sent.length ? sent : valid;
+  return pool.map(a => a.grade).sort((x, y) => GRADE_IDX[y] - GRADE_IDX[x])[0];
+}
+let partnerFeedCache = [];
+async function renderPartnerFeed() {
+  const el = document.getElementById('partner-feed-list');
+  if (!el) return;
+  el.innerHTML = '<p style="font-size:13px;color:var(--muted)">Chargement…</p>';
+  try {
+    const r = await fetch('/api/partners/feed', { headers: authHeaders() });
+    const feed = await r.json();
+    if (!r.ok) { el.innerHTML = `<p style="color:var(--warm);font-size:13px">${esc(feed.error || 'Erreur de chargement')}</p>`; return; }
+    partnerFeedCache = feed;
+    if (!feed.length) {
+      el.innerHTML = `<p style="font-size:13px;color:var(--muted)">Rien à afficher pour l'instant — dès que tes partenaires logueront une séance, elle apparaîtra ici.</p>`;
+      return;
+    }
+    el.innerHTML = feed.map((item, i) => {
+      const t = SESSION_TYPES[item.log.type] || SESSION_TYPES.autre;
+      const initials = item.climberName.trim().split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 2);
+      const best = feedBestPerf(item.log.ascents);
+      const showCharge = (item.sharing?.charge || 'partenaires') !== 'prive';
+      const load = showCharge ? Math.round(sessionLoad(item.log)) : null;
+      const ascentCount = (item.log.ascents || []).length;
+      const reactRow = REACTIONS.map(r => `<button class="btn sm${item.myReaction === r.key ? ' primary' : ''}" style="padding:4px 8px;font-size:13px" title="${esc(r.label)}" onclick="reactToSession('${item.log.id}','${r.key}')">${r.emoji}</button>`).join('');
+      const countsText = REACTIONS.filter(r => item.reactionCounts?.[r.key]).map(r => `${esc(r.label)} ${item.reactionCounts[r.key]}`).join(' · ');
+      return `<div class="panel" style="margin-bottom:10px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <div class="crew-member-avatar" style="background:${item.climberColor}">${initials}</div>
+          <div style="flex:1">
+            <div style="font-weight:700;font-size:13px">${esc(item.climberName)}</div>
+            <div style="font-size:11px;color:var(--muted)">${esc(feedRelativeDay(item.log.date))} · ${esc(t.label)}</div>
+          </div>
+          ${best ? `<span class="tag" style="border-color:var(--accent);color:var(--accent);font-weight:700">${esc(best)}</span>` : ''}
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px">${item.log.minutes || 0} min${ascentCount ? ` · ${ascentCount} ascension${ascentCount !== 1 ? 's' : ''}` : ''}${load !== null ? ` · Charge ${load}` : ''}</div>
+        <div style="display:flex;gap:6px;margin-bottom:6px">${reactRow}</div>
+        ${countsText ? `<div style="font-size:11px;color:var(--muted);margin-bottom:10px">${countsText}</div>` : ''}
+        <div style="display:flex;gap:8px">
+          <button class="btn sm" onclick="openFeedSessionDetail(${i})">Voir la séance</button>
+          <button class="btn sm" onclick="copyPartnerSession(${i})">Copier cette séance</button>
+        </div>
+      </div>`;
+    }).join('');
+  } catch (e) {
+    el.innerHTML = '<p style="color:var(--warm);font-size:13px">Erreur réseau</p>';
+  }
+}
+window.renderPartnerFeed = renderPartnerFeed;
+
+async function reactToSession(logId, reactionKey) {
+  const item = partnerFeedCache.find(x => x.log.id === logId);
+  const newReaction = item && item.myReaction === reactionKey ? null : reactionKey;
+  try {
+    await fetch('/api/partners/feed/' + logId + '/react', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ reaction: newReaction }) });
+    renderPartnerFeed();
+  } catch (e) { /* best-effort */ }
+}
+window.reactToSession = reactToSession;
+
+function openFeedSessionDetail(i) {
+  const item = partnerFeedCache[i];
+  if (!item) return;
+  const t = SESSION_TYPES[item.log.type] || SESSION_TYPES.autre;
+  const showCharge = (item.sharing?.charge || 'partenaires') !== 'prive';
+  const load = showCharge ? Math.round(sessionLoad(item.log)) : null;
+  document.getElementById('partner-session-title').textContent = `${item.climberName} — ${t.label}`;
+  document.getElementById('partner-session-body').innerHTML = `
+    <div style="font-size:13px;color:var(--muted);margin-bottom:12px">${esc(fmtDate(item.log.date))} · ${item.log.minutes || 0} min · intensité ${item.log.intensity || '—'}${load !== null ? ` · charge ${load}` : ''}${item.log.location ? ` · ${esc(item.log.location)}` : ''}</div>
+    ${(item.log.ascents || []).length ? `<div class="log-tags" style="margin-bottom:12px">${item.log.ascents.map(a => `<span class="chip">${esc(a.grade)} · ${esc(statusLabel(a.status))}</span>`).join('')}</div>` : '<p style="font-size:13px;color:var(--muted)">Pas d\'ascension détaillée.</p>'}
+    ${item.log.notes ? `<div style="font-size:13px;padding:10px;background:var(--surface2);border-radius:8px">${esc(item.log.notes)}</div>` : ''}
+    <button class="btn primary" style="width:100%;margin-top:14px" onclick="closeModal('partner-session-modal');copyPartnerSession(${i})">Copier cette séance</button>
+  `;
+  document.getElementById('partner-session-modal').classList.add('open');
+}
+window.openFeedSessionDetail = openFeedSessionDetail;
+
+function copyPartnerSession(i) {
+  const item = partnerFeedCache[i];
+  if (!item) return;
+  const log = item.log;
+  switchPage('new-session');
+  newSession();
+  document.getElementById('s-type').value = log.type || 'bloc';
+  document.getElementById('s-minutes').value = log.minutes || 90;
+  document.getElementById('s-intensity').value = log.intensity || 3;
+  document.getElementById('s-support').value = log.support || '';
+  updateSessionTypeUI(log.bNoGrade || {});
+  // Récupère la structure (les cotations visées), pas les résultats du partenaire.
+  sessionAscents = (log.ascents || []).map(a => ({ grade: a.grade, status: 'try', tries: 1, progress: 100, styles: [] }));
+  renderAscentsEditor();
+}
+window.copyPartnerSession = copyPartnerSession;
+
 async function renderPartnersPanel() {
   renderPrivacyPanel();
   const el = document.getElementById('partner-list');
@@ -5780,6 +5906,7 @@ async function renderPartnersPanel() {
   } catch (e) {
     el.innerHTML = '<p style="color:var(--warm);font-size:13px">Erreur réseau</p>';
   }
+  renderPartnerFeed();
 }
 window.renderPartnersPanel = renderPartnersPanel;
 
