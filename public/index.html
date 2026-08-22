@@ -1848,11 +1848,18 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
             <div class="fp-step-title">Endurance intermittente</div>
             <span class="fp-step-protocol-link">ℹ️ Voir le protocole</span>
           </div>
-          <div class="fp-step-sub">60% MVC</div>
-          <div class="form-group">
-            <label class="form-label">Résultat (kg.s/kg)</label>
-            <input class="form-control" type="number" step="0.01" id="fp-intermittent" placeholder="ex. 12.4">
+          <div class="fp-step-sub">60% MVC — jusqu'à l'échec, pauses de 2s comprises</div>
+          <div class="form-row form-row-2">
+            <div class="form-group">
+              <label class="form-label">Temps total tenu (secondes)</label>
+              <input class="form-control" type="number" step="1" id="fp-intermittent-time" oninput="fpComputeIntermittentFromTime()" placeholder="ex. 95">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Valeur normalisée (kg.s/kg, auto)</label>
+              <input class="form-control" type="number" step="0.01" id="fp-intermittent" readonly>
+            </div>
           </div>
+          <p class="fp-step-hint">Chronomètre depuis le début du test jusqu'à l'échec, pauses de 2s incluses — Digger calcule la valeur normalisée à partir de ce temps et de ta force maximale (étape 01).</p>
           <label class="fp-quality-flag"><input type="checkbox" id="fp-flag-intermittent" checked> Protocole exact respecté</label>
         </div>
       </div>
@@ -1864,11 +1871,18 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
             <div class="fp-step-title">Endurance continue</div>
             <span class="fp-step-protocol-link">ℹ️ Voir le protocole</span>
           </div>
-          <div class="fp-step-sub">60% MVC</div>
-          <div class="form-group">
-            <label class="form-label">Résultat (kg.s/kg)</label>
-            <input class="form-control" type="number" step="0.01" id="fp-continuous" placeholder="ex. 8.2">
+          <div class="fp-step-sub">60% MVC — jusqu'à l'échec, sans pause</div>
+          <div class="form-row form-row-2">
+            <div class="form-group">
+              <label class="form-label">Temps tenu (secondes)</label>
+              <input class="form-control" type="number" step="1" id="fp-continuous-time" oninput="fpComputeContinuousFromTime()" placeholder="ex. 47">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Valeur normalisée (kg.s/kg, auto)</label>
+              <input class="form-control" type="number" step="0.01" id="fp-continuous" readonly>
+            </div>
           </div>
+          <p class="fp-step-hint">Chronomètre depuis le début du maintien jusqu'à l'échec — Digger calcule la valeur normalisée à partir de ce temps et de ta force maximale (étape 01).</p>
           <label class="fp-quality-flag"><input type="checkbox" id="fp-flag-continuous" checked> Protocole exact respecté</label>
         </div>
       </div>
@@ -5567,19 +5581,19 @@ const FP_PROTOCOLS = {
     steps: [
       'Même réglette et même prise demi-arquée que pour le test de force maximale.',
       'Détermine d\'abord ta cible : 60% de ta force maximale (MVC) mesurée juste avant.',
-      'Maintiens cette charge par cycles de 8 secondes de traction / 2 secondes de repos, en continu.',
+      'Maintiens une force isométrique constante à cette cible (pas de traction répétée type pull-up — c\'est un maintien), par cycles de 8 secondes de maintien / 2 secondes de relâchement complet, en continu.',
       'Arrête le test dès que tu n\'arrives plus à tenir la charge cible (chute nette de force sur 2 cycles consécutifs) ou à l\'épuisement volontaire.',
-      'Chronomètre le temps total écoulé jusqu\'à l\'arrêt — c\'est ce résultat (en secondes, ramené à ton poids) qui est demandé.'
+      'Chronomètre le temps total écoulé depuis le début jusqu\'à l\'arrêt, pauses de 2s comprises — c\'est ce temps (en secondes) qu\'il faut entrer. Digger calcule automatiquement la valeur normalisée à partir de ce temps et de ta force maximale.'
     ]
   },
   continuous_kg_s_kg: {
     title: 'Endurance continue',
     steps: [
       'Même réglette et même prise demi-arquée.',
-      'Toujours à 60% de ta force maximale (MVC), mais cette fois en traction continue, SANS phase de repos.',
+      'Toujours à 60% de ta force maximale (MVC) : maintiens une force constante à cette cible jusqu\'à l\'échec, sans relâcher entre les efforts — ce n\'est pas une traction répétée type pull-up, mais un maintien isométrique continu, sans aucune pause.',
       'Tiens jusqu\'à l\'échec (chute nette de force) ou l\'épuisement volontaire.',
       'Ce test dure normalement beaucoup moins longtemps que le test intermittent (souvent moins d\'une minute) — c\'est normal, ne compare pas les deux durées.',
-      'Chronomètre le temps jusqu\'à l\'échec.'
+      'Chronomètre le temps jusqu\'à l\'échec et entre-le en secondes — Digger calcule automatiquement la valeur normalisée à partir de ce temps et de ta force maximale.'
     ]
   },
   finger_hang_s: {
@@ -5622,6 +5636,38 @@ function fpComputeMvcRelative() {
   const mass = parseFloat(document.getElementById('fp-body-mass').value);
   if (Number.isFinite(mvcKg) && Number.isFinite(mass) && mass > 0) {
     document.getElementById('fp-mvc-kg-kg').value = Math.round((mvcKg / mass) * 1000) / 1000;
+  }
+  // La force max conditionne le calcul des deux tests d'endurance (voir plus bas) —
+  // on les recalcule dès qu'elle change.
+  fpComputeContinuousFromTime();
+  fpComputeIntermittentFromTime();
+}
+
+// Les tests d'endurance sont chronométrés (secondes), pas saisis directement en kg.s/kg :
+// personne ne peut mesurer à la main une intégrale force×temps. On calcule cette valeur
+// normalisée à partir du temps tenu et de la force maximale (étape 01), en supposant une
+// charge cible constante à 60% MVC — reconstruction validée statistiquement sur les 307
+// lignes du dataset Berta et al. 2024 (temps implicites tous physiologiquement plausibles :
+// ~6-92s en continu, ~15-307s de travail actif en intermittent).
+function fpComputeContinuousFromTime() {
+  const t = parseFloat(document.getElementById('fp-continuous-time').value);
+  const mvc = parseFloat(document.getElementById('fp-mvc-kg-kg').value);
+  const out = document.getElementById('fp-continuous');
+  if (Number.isFinite(t) && Number.isFinite(mvc) && mvc > 0) {
+    out.value = Math.round(0.6 * mvc * t * 100) / 100;
+  } else {
+    out.value = '';
+  }
+}
+function fpComputeIntermittentFromTime() {
+  const t = parseFloat(document.getElementById('fp-intermittent-time').value);
+  const mvc = parseFloat(document.getElementById('fp-mvc-kg-kg').value);
+  const out = document.getElementById('fp-intermittent');
+  if (Number.isFinite(t) && Number.isFinite(mvc) && mvc > 0) {
+    // Ratio de travail 8s maintien / 2s repos → 80% du temps total chronométré est actif.
+    out.value = Math.round(0.6 * mvc * t * 0.8 * 100) / 100;
+  } else {
+    out.value = '';
   }
 }
 
