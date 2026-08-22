@@ -1049,11 +1049,11 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
         <div class="form-row form-row-3">
           <div class="form-group" style="margin:0">
             <label class="form-label">Durée (min)</label>
-            <input class="form-control" type="number" id="s-minutes" value="90" min="1">
+            <input class="form-control" type="number" id="s-minutes" value="90" min="1" oninput="updateLoadPreview()">
           </div>
           <div class="form-group" style="margin:0">
             <label class="form-label">Intensité (1–5)</label>
-            <input class="form-control" type="number" id="s-intensity" value="3" min="1" max="5">
+            <input class="form-control" type="number" id="s-intensity" value="3" min="1" max="5" oninput="updateLoadPreview()">
           </div>
           <div class="form-group" style="margin:0">
             <label class="form-label">Forme physique</label>
@@ -3093,6 +3093,12 @@ const SUPPORTS = {
 // pas en valeur absolue : chaque grimpeur a sa propre échelle de volume.
 const C_LEVELS = [{max:0.5,cls:'c1',label:'C1'},{max:1.0,cls:'c2',label:'C2'},{max:1.5,cls:'c3',label:'C3'},{max:Infinity,cls:'c4',label:'C4'}];
 const KAYA_BASE = 100, KAYA_GROWTH = 1.18;
+// Charge des séances hors escalade (muscu, ppg, mobilité, cardio...) : méthode session-RPE (Foster et al.),
+// standard en sciences du sport = durée (min) × intensité perçue (0–10). Notre échelle intensité va de 1 à 5,
+// d'où le facteur ×2 pour ramener sur une échelle 0–10 équivalente. Résultat sur un ordre de grandeur comparable
+// aux charges bloc/voies calculées via KAYA_BASE/KAYA_GROWTH ci-dessus (calibré empiriquement, ex: 60min à
+// intensité 3/5 → 360, comparable à une séance bloc salle moyenne).
+const SESSION_RPE_MULT = 2;
 
 const STORAGE_KEY = 'bloc_voie_v2';
 
@@ -4001,7 +4007,10 @@ function sessionLoad(log) {
   const ref = getRefGrade();
   const al = (log.ascents||[]).reduce((s,a)=>s+ascentLoad(a,ref),0);
   const bl = boulderLoad(log.bNoGrade||{}, ref);
-  return Math.round(al+bl);
+  // Séances hors escalade (pas d'ascensions/blocs saisis) : charge = durée × intensité (méthode session-RPE)
+  const cfg = SESSION_CONFIG[log.type] || SESSION_CONFIG.autre;
+  const srpe = (cfg.extraPanel === 'ppg') ? (log.minutes||0) * (log.intensity||3) * SESSION_RPE_MULT : 0;
+  return Math.round(al+bl+srpe);
 }
 
 // ═══════════════ BADGES (tableau de bord personnel, indépendant du mode jeu) ═══════════════
@@ -7503,26 +7512,15 @@ function updateSessionTypeUI(savedBNoGrade) {
 
   // ── Extra panel content ──
   if (cfg.extraPanel === 'ppg') {
-    // Pas de voies, pas de bloc : juste une note sur la charge manuelle
+    // Pas de voies, pas de bloc : rien à saisir en plus — la charge se calcule automatiquement
+    // à partir de la durée et de l'intensité déjà renseignées plus haut dans le formulaire.
     panel.innerHTML = `
       <div class="panel-header"><span class="panel-title">Séance hors escalade</span></div>
-      <p style="font-size:13px;color:var(--muted);margin-bottom:12px">PPG, mobilité, musculation — pas d'ascensions à saisir. La charge est calculée à partir de la durée × intensité.</p>
-      <div class="form-row form-row-2">
-        <div class="form-group" style="margin:0">
-          <label class="form-label">Charge manuelle bonus</label>
-          <input class="form-control" type="number" id="s-b-sent" value="${bData.manualExtra||0}" min="0" placeholder="0" oninput="updateLoadPreview()">
-          <div style="font-size:11px;color:var(--muted);margin-top:4px">Ajoute un bonus si la séance était particulièrement chargée</div>
-        </div>
-        <div class="form-group" style="margin:0">
-          <label class="form-label">Charge estimée séance</label>
-          <input class="form-control" id="s-b-preview" disabled value="—">
-        </div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px">PPG, mobilité, musculation… pas d'ascensions à saisir. La charge se calcule automatiquement à partir de la durée × l'intensité renseignées ci-dessus — rien d'autre à remplir.</p>
+      <div class="form-group" style="margin:0">
+        <label class="form-label">Charge estimée séance</label>
+        <input class="form-control" id="s-b-preview" disabled value="—">
       </div>`;
-    // Dummy hidden fields so save logic doesn't break
-    if (!document.getElementById('s-b-tries')) {
-      const h = (id, val) => { const i=document.createElement('input'); i.type='hidden'; i.id=id; i.value=val; panel.appendChild(i); };
-      h('s-b-tries','0'); h('s-b-progress','60'); h('s-b-diff','travail');
-    }
   } else if (cfg.extraPanel === 'bloc') {
     // Bloc salle : blocs non cotés, répartis sur 3 paliers indépendants (plus d'exclusivité entre échauffement/travail/projet dans une même séance)
     const legacyMode = bData.facileSent===undefined && bData.moyenSent===undefined && bData.travailSent===undefined && bData.travailTries===undefined;
@@ -7726,19 +7724,27 @@ function updateLoadPreview(){
   // Ascensions cotées
   const routeLoad = Math.round(sessionAscents.reduce((s,a)=>s+ascentLoad(a,ref), 0));
 
-  // Panneau complémentaire (bloc non coté / volume additionnel)
-  const b = cfg.extraPanel === 'bloc' ? {
-    facileSent:      fieldVal('s-b-facile', 0),
-    moyenSent:       fieldVal('s-b-moyen', 0),
-    travailSent:     fieldVal('s-b-travail', 0),
-    travailTries:    fieldVal('s-b-travail-tries', 0)
-  } : {
-    sent:     fieldVal('s-b-sent', 0),
-    tries:    fieldVal('s-b-tries', 0),
-    progress: fieldVal('s-b-progress', 60),
-    diff:     fieldStr('s-b-diff', 'travail')
-  };
-  const bLoad = Math.round(boulderLoad(b, ref));
+  // Panneau complémentaire (bloc non coté / volume additionnel / séance hors escalade)
+  let bLoad;
+  if (cfg.extraPanel === 'ppg') {
+    // Séance hors escalade : charge = durée × intensité (méthode session-RPE), pas de saisie manuelle
+    const minutes = fieldVal('s-minutes', 0);
+    const intensity = fieldVal('s-intensity', 3);
+    bLoad = Math.round(minutes * intensity * SESSION_RPE_MULT);
+  } else {
+    const b = cfg.extraPanel === 'bloc' ? {
+      facileSent:      fieldVal('s-b-facile', 0),
+      moyenSent:       fieldVal('s-b-moyen', 0),
+      travailSent:     fieldVal('s-b-travail', 0),
+      travailTries:    fieldVal('s-b-travail-tries', 0)
+    } : {
+      sent:     fieldVal('s-b-sent', 0),
+      tries:    fieldVal('s-b-tries', 0),
+      progress: fieldVal('s-b-progress', 60),
+      diff:     fieldStr('s-b-diff', 'travail')
+    };
+    bLoad = Math.round(boulderLoad(b, ref));
+  }
 
   const total = routeLoad + bLoad;
   document.getElementById('s-load-total').textContent = total;
@@ -7811,7 +7817,7 @@ document.getElementById('save-session-btn').onclick=()=>{
     moyenSent:       fieldVal('s-b-moyen', 0),
     travailSent:     fieldVal('s-b-travail', 0),
     travailTries:    fieldVal('s-b-travail-tries', 0)
-  } : {
+  } : sCfg.extraPanel === 'ppg' ? {} : {
     sent:fieldVal('s-b-sent', 0),
     tries:fieldVal('s-b-tries', 0),
     progress:fieldVal('s-b-progress', 60),
