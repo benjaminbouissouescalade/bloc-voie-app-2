@@ -1028,6 +1028,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     <p id="s-prescribed-badge" style="display:none;font-size:12px;font-weight:600;color:#1a4a7a;background:var(--accent2);padding:6px 10px;border-radius:6px;margin-top:8px">
       🧑‍🏫 Séance prescrite par ton coach — le type, la durée, l'intensité et le support sont fixés par lui. Tu peux enregistrer tes ascensions, ton ressenti et tes notes.
     </p>
+    <button type="button" id="s-flex-change-btn" class="btn sm" style="display:none;margin-top:8px" onclick="openFlexChoiceModal(document.getElementById('edit-log-id').value)">🔁 Changer de séance</button>
   </div>
   <div class="two-col">
     <div>
@@ -1781,11 +1782,17 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
         </div>
         <div class="form-group" style="border-top:1px solid var(--border);padding-top:14px">
           <label class="form-label">Ajouter une séance au cycle</label>
+          <div style="display:flex;gap:6px;margin-bottom:8px" id="cycle-item-mode-picker">
+            <button type="button" class="btn sm active" data-itemmode="fixed" onclick="setCycleItemMode('fixed')">Séance précise</button>
+            <button type="button" class="btn sm" data-itemmode="flex" onclick="setCycleItemMode('flex')">🎯 Objectif libre (l'athlète choisit)</button>
+          </div>
           <div style="display:flex;gap:8px">
             <select class="form-control" id="cycle-bank-select" style="flex:1"></select>
+            <select class="form-control" id="cycle-flex-goal-select" style="flex:1;display:none"></select>
             <input class="form-control" type="number" min="1" max="60" value="4" id="cycle-freq" style="width:90px" title="Nombre de fois sur la période">
             <button class="btn primary" onclick="addCycleItem()">+ Ajouter</button>
           </div>
+          <p id="cycle-flex-hint" style="font-size:11px;color:var(--muted);margin-top:6px;display:none">L'athlète verra un créneau "objectif" sur son calendrier et choisira lui-même une séance de la banque avec ce tag, pour s'adapter au matériel disponible ce jour-là.</p>
         </div>
         <div id="cycle-items-list" style="margin-bottom:14px"></div>
       </div>
@@ -1806,6 +1813,21 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <div id="cycle-error" style="background:var(--warm2);color:var(--warm);border-radius:8px;padding:10px;font-size:13px;margin-bottom:12px;display:none"></div>
       <div id="cycle-warning" style="background:#fdf6e3;color:#8a6a10;border:1px solid #e8d08a;border-radius:8px;padding:10px;font-size:13px;margin-bottom:12px;display:none"></div>
       <button class="btn primary" style="width:100%" onclick="generateCycle()">Générer le cycle</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal "créneau objectif libre" : l'athlète choisit sa séance parmi la banque, filtrée sur
+     l'objectif fixé par le coach (voir flexGoal sur logs, généré par le cycle "Objectif libre"). -->
+<div class="modal-backdrop" id="flex-choice-modal">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-header">
+      <span class="modal-title">Choisis ta séance</span>
+      <button class="btn sm" onclick="closeModal('flex-choice-modal')">Fermer</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Objectif fixé par ton coach : <strong id="flex-choice-goal-label"></strong>. Choisis la séance de la banque qui correspond le mieux à ce dont tu disposes aujourd'hui.</p>
+      <div id="flex-choice-list"></div>
     </div>
   </div>
 </div>
@@ -4887,10 +4909,26 @@ function addPlannedSessionFromBank(bankId, dateStr) {
 }
 
 // ═══════════════ CYCLE (fréquence de séances sur une période, ou jour par jour) ═══════════════
-let cycleItems = []; // mode simple : [{bankId, freq}]
+// cycleItems (mode simple) : [{key, bankId, freq}] pour une séance précise, ou
+// [{key, flexGoal, freq}] pour un "objectif libre" — l'athlète choisira lui-même une séance de la
+// banque taguée avec ce goal (cf. SB_GOAL_LABELS) pour s'adapter à son support d'entraînement du jour.
+let cycleItems = [];
 let cycleDetailedItems = []; // mode détaillé : [{bankId, days:[0..6]}]
 let cycleMode = 'simple';
+let cycleItemMode = 'fixed'; // 'fixed' (séance précise) | 'flex' (objectif libre) — item en cours d'ajout
 const CYCLE_DAY_LABELS = [['1','Lun'],['2','Mar'],['3','Mer'],['4','Jeu'],['5','Ven'],['6','Sam'],['0','Dim']];
+
+function setCycleItemMode(mode) {
+  cycleItemMode = mode;
+  document.querySelectorAll('#cycle-item-mode-picker button').forEach(b => b.classList.toggle('active', b.dataset.itemmode === mode));
+  const bankSel = document.getElementById('cycle-bank-select');
+  const goalSel = document.getElementById('cycle-flex-goal-select');
+  const hint = document.getElementById('cycle-flex-hint');
+  if (bankSel) bankSel.style.display = mode === 'fixed' ? '' : 'none';
+  if (goalSel) goalSel.style.display = mode === 'flex' ? '' : 'none';
+  if (hint) hint.style.display = mode === 'flex' ? '' : 'none';
+}
+window.setCycleItemMode = setCycleItemMode;
 
 function setCycleMode(mode) {
   cycleMode = mode;
@@ -4927,6 +4965,7 @@ function openCycleModal() {
   document.getElementById('cycle-error').style.display = 'none';
   document.getElementById('cycle-warning').style.display = 'none';
   setCycleMode('simple');
+  setCycleItemMode('fixed');
 
   // Jours disponibles (mode simple)
   const daysEl = document.getElementById('cycle-avail-days');
@@ -4951,21 +4990,34 @@ function openCycleModal() {
     : `<option value="">— Banque vide —</option>`;
   document.getElementById('cycle-bank-select').innerHTML = bankOptions;
   document.getElementById('cycle-detailed-bank-select').innerHTML = bankOptions;
+  const goalOptions = Object.keys(SB_GOAL_LABELS).map(g => `<option value="${g}">${esc(SB_GOAL_LABELS[g])}</option>`).join('');
+  const flexGoalSel = document.getElementById('cycle-flex-goal-select');
+  if (flexGoalSel) flexGoalSel.innerHTML = goalOptions;
 
   document.getElementById('cycle-modal').classList.add('open');
 }
 
 function addCycleItem() {
-  const bankId = document.getElementById('cycle-bank-select').value;
   const freq = +document.getElementById('cycle-freq').value || 1;
-  if (!bankId) return;
-  const existing = cycleItems.find(it => it.bankId === bankId);
-  if (existing) existing.freq += freq;
-  else cycleItems.push({ bankId, freq });
+  if (cycleItemMode === 'flex') {
+    const goal = document.getElementById('cycle-flex-goal-select').value;
+    if (!goal) return;
+    const key = 'g:' + goal;
+    const existing = cycleItems.find(it => it.key === key);
+    if (existing) existing.freq += freq;
+    else cycleItems.push({ key, flexGoal: goal, freq });
+  } else {
+    const bankId = document.getElementById('cycle-bank-select').value;
+    if (!bankId) return;
+    const key = 'b:' + bankId;
+    const existing = cycleItems.find(it => it.key === key);
+    if (existing) existing.freq += freq;
+    else cycleItems.push({ key, bankId, freq });
+  }
   renderCycleItemsList();
 }
-function removeCycleItem(bankId) {
-  cycleItems = cycleItems.filter(it => it.bankId !== bankId);
+function removeCycleItem(key) {
+  cycleItems = cycleItems.filter(it => it.key !== key);
   renderCycleItemsList();
 }
 function renderCycleItemsList() {
@@ -4973,12 +5025,17 @@ function renderCycleItemsList() {
   if (!cycleItems.length) { el.innerHTML = `<p style="font-size:12px;color:var(--muted)">Aucune séance ajoutée pour l'instant.</p>`; return; }
   const bank = getBank();
   el.innerHTML = cycleItems.map(it => {
-    const s = bank.find(x => x.id === it.bankId);
-    const name = s ? s.name : '(séance supprimée)';
+    let name;
+    if (it.flexGoal) {
+      name = `🎯 Objectif libre : ${esc(SB_GOAL_LABELS[it.flexGoal] || it.flexGoal)} <span style="font-weight:400;color:var(--muted)">(l'athlète choisit)</span>`;
+    } else {
+      const s = bank.find(x => x.id === it.bankId);
+      name = esc(s ? s.name : '(séance supprimée)');
+    }
     return `<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r-xs);background:var(--surface2);margin-bottom:6px">
-      <span style="flex:1;font-size:13px;font-weight:500">${esc(name)}</span>
+      <span style="flex:1;font-size:13px;font-weight:500">${name}</span>
       <span style="font-size:12px;color:var(--muted)">× ${it.freq}</span>
-      <button class="btn sm danger" onclick="removeCycleItem('${it.bankId}')">✕</button>
+      <button class="btn sm danger" onclick="removeCycleItem('${it.key}')">✕</button>
     </div>`;
   }).join('');
 }
@@ -5065,9 +5122,18 @@ function generateCycle() {
     }
     if (!eligibleDates.length) { errEl.textContent = 'Aucun jour disponible sur cette période.'; errEl.style.display = ''; return; }
     cycleItems.forEach(it => {
+      const n = Math.max(1, it.freq);
+      if (it.flexGoal) {
+        // Objectif libre : pas de séance précise, juste un goal — l'athlète choisira lui-même
+        // depuis la banque (cf. fulfillFlexSession) une fois le cycle généré.
+        for (let i = 0; i < n; i++) {
+          const idx = Math.round((i + 0.5) * (eligibleDates.length / n)) % eligibleDates.length;
+          plannedEntries.push({ dateStr: eligibleDates[idx], flexGoal: it.flexGoal });
+        }
+        return;
+      }
       const item = bank.find(s => s.id === it.bankId);
       if (!item) return;
-      const n = Math.max(1, it.freq);
       for (let i = 0; i < n; i++) {
         // Répartition régulière de chaque occurrence sur les jours éligibles
         const idx = Math.round((i + 0.5) * (eligibleDates.length / n)) % eligibleDates.length;
@@ -5098,8 +5164,8 @@ function generateCycle() {
       .map(l => l.date);
 
     plannedEntries.forEach(entry => {
-      const item = bank.find(s => s.id === entry.bankId);
-      if (!item) return;
+      const item = entry.bankId ? bank.find(s => s.id === entry.bankId) : null;
+      if (entry.bankId && !item) return;
       if (minGapDays > 0) {
         const newD = new Date(entry.dateStr + 'T00:00:00');
         for (const other of knownDates) {
@@ -5109,25 +5175,50 @@ function generateCycle() {
         }
       }
       knownDates.push(entry.dateStr);
-      climber.logs.push({
-        id: 'log_' + Date.now() + '_' + Math.random().toString(36).slice(2,6) + '_' + climberId.slice(-4),
-        date: entry.dateStr,
-        type: item.type || 'autre',
-        minutes: item.duration || 90,
-        intensity: item.intensity || 3,
-        shape: 'normal',
-        location: '',
-        support: item.support || '',
-        notes: item.name,
-        ascents: [],
-        bNoGrade: {},
-        planned: true,
-        bankRef: entry.bankId,
-        cycleId,
-        cycleName,
-        source: isCoachPrescribing ? 'coach' : 'self',
-        assignedByCoachId: isCoachPrescribing ? window.currentUser.id : null
-      });
+      if (entry.flexGoal) {
+        // Créneau "objectif libre" : pas de contenu précis tant que l'athlète n'a pas choisi une
+        // séance de la banque taguée avec ce goal (cf. openFlexChoiceModal / fulfillFlexSession).
+        climber.logs.push({
+          id: 'log_' + Date.now() + '_' + Math.random().toString(36).slice(2,6) + '_' + climberId.slice(-4),
+          date: entry.dateStr,
+          type: 'autre',
+          minutes: 90,
+          intensity: 3,
+          shape: 'normal',
+          location: '',
+          support: '',
+          notes: `Objectif fixé par le coach : ${SB_GOAL_LABELS[entry.flexGoal] || entry.flexGoal}. Choisis une séance de la banque avec ce tag pour t'adapter à ton support d'entraînement du jour.`,
+          ascents: [],
+          bNoGrade: {},
+          planned: true,
+          bankRef: null,
+          flexGoal: entry.flexGoal,
+          cycleId,
+          cycleName,
+          source: isCoachPrescribing ? 'coach' : 'self',
+          assignedByCoachId: isCoachPrescribing ? window.currentUser.id : null
+        });
+      } else {
+        climber.logs.push({
+          id: 'log_' + Date.now() + '_' + Math.random().toString(36).slice(2,6) + '_' + climberId.slice(-4),
+          date: entry.dateStr,
+          type: item.type || 'autre',
+          minutes: item.duration || 90,
+          intensity: item.intensity || 3,
+          shape: 'normal',
+          location: '',
+          support: item.support || '',
+          notes: item.name,
+          ascents: [],
+          bNoGrade: {},
+          planned: true,
+          bankRef: entry.bankId,
+          cycleId,
+          cycleName,
+          source: isCoachPrescribing ? 'coach' : 'self',
+          assignedByCoachId: isCoachPrescribing ? window.currentUser.id : null
+        });
+      }
       created++;
     });
   });
@@ -7618,6 +7709,7 @@ function renderHistory() {
             <span style="color:var(--muted);font-weight:400;font-size:13px">${fmtDate(l.date)}</span>
             ${l.location?`<span style="color:var(--muted);font-size:12px">— ${l.location}</span>`:''}
             ${l.planned?'<span class="tag" style="border-color:var(--accent);color:var(--accent)">📌 Prévue</span>':''}
+            ${l.flexGoal?`<span class="tag" style="border-color:#b07a10;color:#b07a10">🎯 ${l.bankRef?'Objectif':'À choisir'} : ${esc(SB_GOAL_LABELS[l.flexGoal]||l.flexGoal)}</span>`:''}
           </div>
           <div class="log-meta">${l.minutes||0} min · intensité ${l.intensity||'—'}${l.planned?'':` · charge ${load}`}</div>
         </div>
@@ -7977,6 +8069,20 @@ function newSession(date=null){
   if (date) sNewSessionDateLocked = true;
   voiceResetPanel();
   applyPrescriptionLock(null);
+  updateFlexChangeButton(null);
+}
+// Affiche/masque le bouton "Changer de séance" pour un créneau "objectif libre" (flexGoal) — visible
+// tant que le créneau existe, qu'il soit déjà résolu ou non, car le choix reste modifiable jusqu'à
+// ce que la séance soit réellement faite (voir openFlexChoiceModal / fulfillFlexSession).
+function updateFlexChangeButton(log) {
+  const btn = document.getElementById('s-flex-change-btn');
+  if (!btn) return;
+  if (log && log.flexGoal) {
+    btn.style.display = '';
+    btn.textContent = `🔁 Changer de séance (objectif : ${SB_GOAL_LABELS[log.flexGoal] || log.flexGoal})`;
+  } else {
+    btn.style.display = 'none';
+  }
 }
 // Vrai seulement quand l'ATHLÈTE lui-même (pas son coach) consulte une séance que son coach lui
 // a prescrite (source='coach') — voir addPlannedSessionFromBank/generateCycle pour le tagging.
@@ -7996,6 +8102,9 @@ function applyPrescriptionLock(log) {
 
 function editSession(id){
   const log=getLogs().find(l=>l.id===id);if(!log)return;
+  // Créneau "objectif libre" pas encore résolu : rien à éditer tant que l'athlète n'a pas choisi
+  // sa séance dans la banque — on ouvre directement le picker plutôt que le formulaire normal.
+  if (log.flexGoal && !log.bankRef) { openFlexChoiceModal(id); return; }
   editingId=id; sessionAscents=JSON.parse(JSON.stringify(log.ascents||[]));
   document.getElementById('edit-log-id').value=id;
   document.getElementById('session-form-title').textContent='Modifier la séance';
@@ -8014,7 +8123,58 @@ function editSession(id){
   if (!log.planned) { renderTogetherPanel(id); } else { document.getElementById('s-together-panel').style.display='none'; }
   voiceResetPanel();
   applyPrescriptionLock(log);
+  updateFlexChangeButton(log);
 }
+// ═══════════════ CRÉNEAU "OBJECTIF LIBRE" — l'athlète choisit sa séance ═══════════════
+// Le coach a proposé un objectif (ex: Volume endurance) sur un créneau plutôt qu'une séance
+// précise (cf. generateCycle, mode "Objectif libre"). L'athlète pioche dans la banque, filtrée sur
+// ce même goal, la séance qui correspond le mieux à ce dont il dispose ce jour-là.
+let flexChoiceLogId = null;
+function openFlexChoiceModal(logId) {
+  const log = getLogs().find(l => l.id === logId);
+  if (!log || !log.flexGoal) return;
+  flexChoiceLogId = logId;
+  const goalLabel = SB_GOAL_LABELS[log.flexGoal] || log.flexGoal;
+  document.getElementById('flex-choice-goal-label').textContent = goalLabel;
+  const candidates = getBank().filter(s => s.goal === log.flexGoal);
+  const listEl = document.getElementById('flex-choice-list');
+  if (!candidates.length) {
+    listEl.innerHTML = `<div class="empty-state" style="padding:20px"><p>Aucune séance de la banque n'est taguée "${esc(goalLabel)}" pour l'instant. Demande à ton coach d'en ajouter une, ou enregistre une séance normale depuis "Nouvelle séance".</p></div>`;
+  } else {
+    listEl.innerHTML = candidates.map(s => {
+      const intDots = Array.from({length:5},(_,i) => `<span class="${i < (s.intensity||3) ? 'on' : ''}"></span>`).join('');
+      const contextLabel = SESSION_TYPES[s.type]?.label || s.subcategory || s.category || '';
+      return `<div class="sb-card" style="cursor:pointer;margin-bottom:8px" onclick="fulfillFlexSession('${s.id}')">
+        <div style="font-weight:700;font-size:14px;margin-bottom:2px">${esc(s.name)}</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:8px">${esc(contextLabel)}${s.support&&SUPPORTS[s.support]?' · '+SUPPORTS[s.support].icon+' '+esc(SUPPORTS[s.support].label):''}</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:12px;color:var(--muted)">${s.duration||90} min</span>
+          <span class="sb-intensity">${intDots}</span>
+        </div>
+      </div>`;
+    }).join('');
+  }
+  document.getElementById('flex-choice-modal').classList.add('open');
+}
+window.openFlexChoiceModal = openFlexChoiceModal;
+
+function fulfillFlexSession(bankId) {
+  const item = getBank().find(x => x.id === bankId);
+  const log = getLogs().find(l => l.id === flexChoiceLogId);
+  if (!item || !log) return;
+  log.type = item.type || 'autre';
+  log.minutes = item.duration || 90;
+  log.intensity = item.intensity || 3;
+  log.support = item.support || '';
+  log.notes = item.name;
+  log.bankRef = bankId;
+  saveDB();
+  closeModal('flex-choice-modal');
+  renderCalendar();
+  editSession(log.id);
+}
+window.fulfillFlexSession = fulfillFlexSession;
+
 function renderNewSession(){
   if(!editingId&&!sessionAscents.length&&!sNewSessionDateLocked) newSession();
   sNewSessionDateLocked=false;
@@ -8244,7 +8404,7 @@ function openDayModal(dateStr){
     return `<div class="log-item" style="${l.planned?'border-style:dashed':''}" onclick="closeModal('day-modal');editSession('${l.id}')">
       <div class="log-item-header">
         <div>
-          <div class="log-date" style="display:flex;align-items:center;gap:8px"><span class="sess-dot" style="background:${t.color}"></span>${t.label}${l.planned?' <span class="tag" style="border-color:var(--accent);color:var(--accent)">📌 Prévue</span>':''}</div>
+          <div class="log-date" style="display:flex;align-items:center;gap:8px"><span class="sess-dot" style="background:${t.color}"></span>${t.label}${l.planned?' <span class="tag" style="border-color:var(--accent);color:var(--accent)">📌 Prévue</span>':''}${l.flexGoal?` <span class="tag" style="border-color:#b07a10;color:#b07a10">🎯 ${l.bankRef?'Objectif':'À choisir'} : ${esc(SB_GOAL_LABELS[l.flexGoal]||l.flexGoal)}</span>`:''}</div>
           <div class="log-meta">${l.minutes||0} min · intensité ${l.intensity||'—'}${l.planned?'':` · charge ${load}`}${l.location?` · ${l.location}`:''}${l.support&&SUPPORTS[l.support]?` · <span style="font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:3px;padding:1px 7px">${SUPPORTS[l.support].icon} ${SUPPORTS[l.support].label}</span>`:''}</div>
         </div>
         ${l.planned?`<button class="btn sm danger" onclick="event.stopPropagation();deletePlannedSession('${l.id}','${dateStr}')" title="Retirer cette séance prévue">✕</button>`:''}
