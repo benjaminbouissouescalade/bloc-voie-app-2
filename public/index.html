@@ -244,25 +244,24 @@ body.preview-mode #sidebar-user { color: var(--accent) !important; font-weight: 
 .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 20px; }
 
 /* Tableau de bord — mise en page compactée pour limiter le défilement (trop de panneaux pleine
-   largeur empilés + cartes stats très hautes forçaient un scroll important). Scopé à #page-dashboard
-   uniquement pour ne pas changer la densité des autres pages qui réutilisent .panel/.stat-card. */
+   largeur empilés forçaient un scroll important). Scopé à #page-dashboard uniquement pour ne pas
+   changer la densité des autres pages qui réutilisent .panel/.stat-card. Les cartes stats (grade,
+   charge 7j/28j, séances du mois) gardent leur taille d'origine — seuls les panneaux Objectifs /
+   Prochaines séances / Cycles en cours (très hauts, beaucoup de blanc) sont resserrés. */
 #page-dashboard .page-header { margin-bottom: 14px; }
 #page-dashboard .page-header h2 { font-size: 24px; }
-#page-dashboard .panel { padding: 14px 16px; margin-bottom: 10px; }
-#page-dashboard .panel-header { margin-bottom: 8px; }
-#page-dashboard .stat-grid { gap: 10px; margin-bottom: 10px; }
-#page-dashboard .stat-card { padding: 12px 14px 10px; }
-#page-dashboard .stat-card::before { top: 7px; left: 14px; }
-#page-dashboard .stat-card::after { left: 14px; bottom: 7px; }
-#page-dashboard .stat-label { margin-bottom: 3px; }
-#page-dashboard .stat-value { font-size: 22px; }
-#page-dashboard .stat-sub { margin-top: 2px; }
-#page-dashboard .mini-spark { height: 16px; margin-top: 4px; }
+#page-dashboard .panel { padding: 12px 14px; margin-bottom: 8px; }
+#page-dashboard .panel-header { margin-bottom: 6px; }
+#page-dashboard .panel-title { font-size: 13px; }
+#page-dashboard .stat-grid { margin-bottom: 10px; }
 #page-dashboard .two-col { gap: 12px; margin-bottom: 10px; }
 #page-dashboard .objectives-row { gap: 6px; }
 #page-dashboard .objective-card { padding: 7px 10px; min-width: 150px; }
+#page-dashboard .objectives-empty { padding: 2px; font-size: 12px; }
 #page-dashboard .legend { gap: 10px; }
 #page-dashboard .log-item { padding: 10px 12px; margin-bottom: 6px; }
+#page-dashboard #dash-upcoming-list .upcoming-list { gap: 2px; }
+#page-dashboard .upcoming-item { padding: 4px 8px; }
 
 /* Buttons */
 .btn { border: 1px solid var(--border2); background: var(--surface); color: var(--text); border-radius: var(--r-sm); padding: 9px 14px; cursor: pointer; font-size: 13px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; transition: all .12s; white-space: nowrap; }
@@ -6000,17 +5999,17 @@ function renderCoachObjectivesPanel(panelId, listId) {
       const doneCount = (c.logs || []).filter(l => l.objectiveId === o.id).length;
       return doneCount < (o.targetCount || 1);
     });
-    return `<div style="padding:10px 0;border-bottom:1px solid var(--border)">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px;flex-wrap:wrap">
-        <div style="display:flex;align-items:center;gap:8px">
-          <span style="width:8px;height:8px;border-radius:50%;background:${col};flex-shrink:0"></span>
-          <span style="font-weight:600;font-size:13px">${esc(cy.displayName)}</span>
+    return `<div style="padding:6px 0;border-bottom:1px solid var(--border)">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:4px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="width:7px;height:7px;border-radius:50%;background:${col};flex-shrink:0"></span>
+          <span style="font-weight:600;font-size:12px">${esc(cy.displayName)}</span>
           ${period ? `<span style="font-size:11px;color:var(--muted)">${period}</span>` : ''}
         </div>
-        <span style="font-size:12px;color:var(--muted)">${cy.done}/${cy.total} faites${overdue?' — échéance dépassée':''}</span>
+        <span style="font-size:11px;color:var(--muted)">${cy.done}/${cy.total} faites${overdue?' — échéance dépassée':''}</span>
       </div>
-      <div class="prog-bar-bg"><div class="prog-bar-fill" style="width:${pct}%"></div></div>
-      ${pendingObjectives.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">${pendingObjectives.map(o => {
+      <div class="prog-bar-bg" style="height:5px"><div class="prog-bar-fill" style="width:${pct}%"></div></div>
+      ${pendingObjectives.length ? `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px">${pendingObjectives.map(o => {
         const doneCount = (c.logs || []).filter(l => l.objectiveId === o.id).length;
         return `<button class="btn sm primary" onclick="openObjectiveFulfillModal('${o.id}')">+ ${esc(SB_GOAL_LABELS[o.flexGoal]||o.flexGoal)} (${doneCount}/${o.targetCount||1})</button>`;
       }).join('')}</div>` : ''}
