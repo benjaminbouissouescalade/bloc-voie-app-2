@@ -133,6 +133,14 @@ async function initDB() {
         climber_id  TEXT NOT NULL,
         PRIMARY KEY (coach_id, climber_id)
       );
+      -- Mode de planification par relation coach-athlète (voir section "coexistence planification
+      -- coach/athlète") : free = l'athlète gère librement, shared = les deux peuvent planifier
+      -- (comportement historique, donc valeur par défaut), coach_only = le coach contrôle le
+      -- prévisionnel. Appliqué côté interface uniquement pour l'instant — pas un verrou serveur,
+      -- car les séances sont sauvegardées via un remplacement complet de l'historique
+      -- (POST /api/logs/:climberId/sync), qui ne permet pas de distinguer "nouvelle séance
+      -- ajoutée par l'athlète" au niveau de la requête.
+      ALTER TABLE coach_athletes ADD COLUMN IF NOT EXISTS planning_mode TEXT DEFAULT 'shared';
       CREATE TABLE IF NOT EXISTS plans (
         climber_id  TEXT PRIMARY KEY REFERENCES climbers(id) ON DELETE CASCADE,
         coach_id    TEXT,
