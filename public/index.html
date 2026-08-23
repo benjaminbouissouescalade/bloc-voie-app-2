@@ -4640,14 +4640,25 @@ function colorForCycleName(name) {
 }
 // Beaucoup de cycles existants n'ont jamais reçu de nom personnalisé et portent tous le libellé
 // générique "Cycle" (ancien fallback, cf. generateCycle) : sur le calendrier, ça donne plusieurs
-// étiquettes identiques et de même couleur, impossibles à distinguer. On affiche donc "Cycle du
-// {date}" pour ceux-là (basé sur leur date de début réelle), et on colore en se basant sur le
-// cycleId (toujours unique) plutôt que sur le nom (souvent partagé).
+// étiquettes identiques et de même couleur, impossibles à distinguer. Fallback ultime si aucun
+// thème n'est calculable (cf. cycleThemeFromGoals ci-dessous) : la date de début. On colore en se
+// basant sur le cycleId (toujours unique) plutôt que sur le nom (souvent partagé).
 function cycleDisplayName(rawName, fallbackDate) {
   if (!rawName || rawName === 'Cycle') return fallbackDate ? `Cycle du ${fmtDate(fallbackDate)}` : 'Cycle';
   return rawName;
 }
 function colorForCycleId(id) { return colorForCycleName(id || ''); }
+// Devine le "thème" d'un cycle à partir des objectifs (SB_GOAL_LABELS) des séances qui le
+// composent — ex: "Volume endurance", ou "Force max + Puissance explosive" s'il y en a plusieurs.
+// Sert de nom par défaut bien plus parlant que "Cycle" ou une date : se recalcule à l'affichage à
+// partir des bankRef / flexGoal déjà enregistrés, donc ça marche aussi pour les cycles déjà créés
+// sans nom, sans avoir besoin de les modifier en base.
+function cycleThemeFromGoals(goals) {
+  const labels = [...new Set((goals || []).filter(Boolean))].map(g => SB_GOAL_LABELS[g] || g);
+  if (!labels.length) return null;
+  if (labels.length <= 2) return labels.join(' + ');
+  return labels.slice(0, 2).join(' + ') + ` +${labels.length - 2}`;
+}
 
 // Vue d'ensemble d'un cycle : regroupe séances fixes datées (climber.logs avec cycleId) ET
 // objectifs de période (climber.cycleObjectives) qui partagent le même cycleId. Avant, un cycle
@@ -4680,7 +4691,15 @@ function getClimberCycles(climber) {
     const fixedDone = c.fixedLogs.filter(l => !l.planned).length;
     const objTotal = c.objectives.reduce((s,o) => s + (o.targetCount || 1), 0);
     const objDone = c.objectives.reduce((s,o) => s + (climber.logs || []).filter(l => l.objectiveId === o.id).length, 0);
-    const displayName = cycleDisplayName(c.cycleName, startDate);
+    const isGenericName = !c.cycleName || c.cycleName === 'Cycle' || /^Cycle du /.test(c.cycleName);
+    let displayName = c.cycleName;
+    if (isGenericName) {
+      const bank = getBank();
+      const goals = [];
+      c.fixedLogs.forEach(l => { const b = bank.find(x => x.id === l.bankRef); if (b && b.goal) goals.push(b.goal); });
+      c.objectives.forEach(o => { if (o.flexGoal) goals.push(o.flexGoal); });
+      displayName = cycleThemeFromGoals(goals) || cycleDisplayName(c.cycleName, startDate);
+    }
     return { ...c, startDate, endDate, displayName, fixedTotal, fixedDone, objTotal, objDone, total: fixedTotal + objTotal, done: fixedDone + objDone };
   }).sort((a,b) => (b.startDate || '').localeCompare(a.startDate || ''));
 }
@@ -4696,8 +4715,10 @@ function cyclesActiveOnDate(climber, dateStr) {
   });
 }
 
-// Découpe un mois en semaines (lundi-dimanche) pour la vue Année
-function monthWeekRows(y, m, logs) {
+// Découpe un mois en semaines (lundi-dimanche) pour la vue Année. cycleNameById permet d'afficher
+// le nom "résolu" du cycle (thème deviné depuis les objectifs des séances, cf.
+// cycleThemeFromGoals) plutôt que le nom brut enregistré, souvent générique ("Cycle").
+function monthWeekRows(y, m, logs, cycleNameById) {
   const daysInMonth = new Date(y, m+1, 0).getDate();
   const rows = [];
   let d = 1;
@@ -4708,7 +4729,7 @@ function monthWeekRows(y, m, logs) {
       const dt = new Date(l.date + 'T00:00:00');
       return dt.getFullYear() === y && dt.getMonth() === m && dt.getDate() >= d && dt.getDate() <= rowEnd;
     });
-    const cycleNames = [...new Set(rowLogs.map(l => l.cycleName).filter(Boolean))];
+    const cycleNames = [...new Set(rowLogs.map(l => l.cycleId ? ((cycleNameById && cycleNameById[l.cycleId]) || l.cycleName) : l.cycleName).filter(Boolean))];
     rows.push({ start: d, end: rowEnd, cycleNames, rowLogs });
     d = rowEnd + 1;
   }
@@ -4721,13 +4742,14 @@ function renderCalendarYear() {
   document.getElementById('cal-month-title').textContent = String(y);
   const grid = document.getElementById('cal-year-grid');
   const logs = getLogs();
+  const yearCycleNameById = Object.fromEntries(getClimberCycles(getActive()).map(c => [c.cycleId, c.displayName]));
   let totalLoad=0,totalAscents=0,totalMinutes=0,totalSessions=0;
 
   // Passe 1 : calcule les semaines de chaque mois pour pouvoir détecter
   // les cycles qui traversent une frontière de mois (ex: dernière semaine d'avril = 1ère de mai).
   const monthsInfo = Array.from({length:12},(_,m)=>{
     const monthLogs = logs.filter(l => { const d=new Date(l.date+'T00:00:00'); return d.getFullYear()===y && d.getMonth()===m; });
-    return { m, monthLogs, weekRows: monthWeekRows(y, m, monthLogs) };
+    return { m, monthLogs, weekRows: monthWeekRows(y, m, monthLogs, yearCycleNameById) };
   });
   monthsInfo.forEach((info, m) => {
     const prev = monthsInfo[m-1];
@@ -8607,13 +8629,17 @@ function openDayModal(dateStr){
   const d=new Date(dateStr+'T00:00:00');
   document.getElementById('day-modal-title').textContent=d.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
   const ref=getRefGrade();
+  // Cycles du grimpeur actif, précalculés une fois : sert à retrouver le "thème" (cf.
+  // cycleThemeFromGoals) déjà résolu pour chaque cycleId plutôt que de le redériver par log.
+  const dmClimberCycles = getClimberCycles(getActive());
   document.getElementById('day-modal-body').innerHTML=logs.length?logs.map(l=>{
     const t=SESSION_TYPES[l.type]||SESSION_TYPES.autre;
     const load=sessionLoad(l);
+    const cycleLabel = l.cycleName ? (dmClimberCycles.find(c => c.cycleId === l.cycleId)?.displayName || cycleDisplayName(l.cycleName, l.date)) : '';
     return `<div class="log-item" style="${l.planned?'border-style:dashed':''}" onclick="closeModal('day-modal');editSession('${l.id}')">
       <div class="log-item-header">
         <div>
-          <div class="log-date" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="sess-dot" style="background:${t.color}"></span>${t.label}${l.planned?' <span class="tag" style="border-color:var(--accent);color:var(--accent)">📌 Prévue</span>':''}${l.flexGoal?` <span class="tag" style="border-color:#b07a10;color:#b07a10">🎯 ${l.bankRef?'Objectif':'À choisir'} : ${esc(SB_GOAL_LABELS[l.flexGoal]||l.flexGoal)}</span>`:''}${l.cycleName?` <span class="tag" style="border-color:${colorForCycleId(l.cycleId)};color:${colorForCycleId(l.cycleId)}">🔁 ${esc(cycleDisplayName(l.cycleName, l.date))}</span>`:''}</div>
+          <div class="log-date" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="sess-dot" style="background:${t.color}"></span>${t.label}${l.planned?' <span class="tag" style="border-color:var(--accent);color:var(--accent)">📌 Prévue</span>':''}${l.flexGoal?` <span class="tag" style="border-color:#b07a10;color:#b07a10">🎯 ${l.bankRef?'Objectif':'À choisir'} : ${esc(SB_GOAL_LABELS[l.flexGoal]||l.flexGoal)}</span>`:''}${cycleLabel?` <span class="tag" style="border-color:${colorForCycleId(l.cycleId)};color:${colorForCycleId(l.cycleId)}">🔁 ${esc(cycleLabel)}</span>`:''}</div>
           <div class="log-meta">${l.minutes||0} min · intensité ${l.intensity||'—'}${l.planned?'':` · charge ${load}`}${l.location?` · ${l.location}`:''}${l.support&&SUPPORTS[l.support]?` · <span style="font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:3px;padding:1px 7px">${SUPPORTS[l.support].icon} ${SUPPORTS[l.support].label}</span>`:''}</div>
         </div>
         ${l.planned?`<button class="btn sm danger" onclick="event.stopPropagation();deletePlannedSession('${l.id}','${dateStr}')" title="Retirer cette séance prévue">✕</button>`:''}
