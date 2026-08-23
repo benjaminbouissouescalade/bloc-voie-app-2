@@ -2237,6 +2237,16 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   <!-- Calendrier de planification : objectif, zoom, glisser-déposer depuis la banque -->
   <div class="panel" id="plan-objective-banner" style="margin-bottom:16px"></div>
 
+  <!-- Objectifs de période "libres" (cf. generateCycle, toggle "Objectif libre") pour l'athlète en
+       cours de planification : invisibles sur ce calendrier par design (pas de jour imposé), donc
+       affichés ici pour que le coach garde une visibilité sur la progression. -->
+  <div class="panel" id="plan-cycle-objectives-panel" style="margin-bottom:16px;display:none">
+    <div class="panel-header">
+      <span class="panel-title">🧩 Objectifs à remplir</span>
+    </div>
+    <div id="plan-cycle-objectives-list"></div>
+  </div>
+
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
     <div style="display:flex;gap:8px" id="cal-zoom-picker">
       <button class="time-filter-btn" data-calzoom="week" onclick="setCalZoom('week')">Semaine</button>
@@ -5629,9 +5639,9 @@ function objectiveDueLabel(dateStr) {
 // Objectifs de période proposés par un coach (cf. generateCycle, mode "Objectif libre") : pas de
 // jour imposé, juste un nombre de séances à faire avant une échéance. La progression se déduit des
 // logs qui portent cet objectiveId (pas de compteur séparé à maintenir en sync).
-function renderCoachObjectivesPanel() {
-  const panel = document.getElementById('dash-cycle-objectives-panel');
-  const el = document.getElementById('dash-cycle-objectives-list');
+function renderCoachObjectivesPanel(panelId, listId) {
+  const panel = document.getElementById(panelId || 'dash-cycle-objectives-panel');
+  const el = document.getElementById(listId || 'dash-cycle-objectives-list');
   if (!panel || !el) return;
   const c = getActive();
   const today = new Date().toISOString().slice(0,10);
@@ -8589,6 +8599,7 @@ document.getElementById('day-modal').addEventListener('click',e=>{if(e.target.id
 
 function renderPlanning() {
   renderCalendar();
+  renderCoachObjectivesPanel('plan-cycle-objectives-panel', 'plan-cycle-objectives-list');
   const c = getActive();
   const ref = getRefGrade();
   const stats = climberStats(c);
