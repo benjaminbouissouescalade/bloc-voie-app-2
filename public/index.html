@@ -4043,8 +4043,14 @@ async function loadFromBackend() {
 
     db.climbers = climbersWithLogs;
     db.sessionBank = bank;
+    // Au chargement (connexion / rechargement de page), on repart toujours sur SON PROPRE profil,
+    // jamais sur celui d'un athlète consulté lors d'une session de coaching précédente : la vue
+    // "Coaching" (openCoachingView) est volontairement non persistante d'un rechargement à l'autre
+    // (voir coachingClimberId, remis à null à chaque chargement de page). Sans ce reset, un
+    // owner/coach qui rechargeait la page en pleine vue Coaching restait bloqué sur l'athlète —
+    // y compris sur sa propre page "Profil" (auto-évaluation grisée car ce n'était plus son climberId).
     const preferredId = window.currentUser?.climberId;
-    if (preferredId && db.climbers.find(c=>c.id===preferredId) && (!db.activeId || !db.climbers.find(c=>c.id===db.activeId))) {
+    if (preferredId && db.climbers.find(c=>c.id===preferredId)) {
       db.activeId = preferredId;
     } else if (!db.activeId || !db.climbers.find(c=>c.id===db.activeId)) {
       db.activeId = db.climbers[0]?.id;
