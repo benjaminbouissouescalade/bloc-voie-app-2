@@ -9561,6 +9561,14 @@ function renderClimberCards() {
       : '';
 
     const photo = c.profile?.photo;
+    const isMine = c.id === window.currentUser?.climberId;
+    // Sélectionner un AUTRE grimpeur depuis cette fenêtre passe par le même chemin que "Mes
+    // athlètes" (openCoachingView) : une seule vraie façon de consulter/piloter l'entraînement
+    // d'un athlète, toujours avec la bannière "Coaching — {nom}". Cette fenêtre reste le bon
+    // endroit pour la gestion des profils (créer/modifier/supprimer/inviter), pas pour naviguer.
+    const selectBtn = isActive ? '' : (isMine
+      ? `<button class="btn sm primary" onclick="switchClimber('${c.id}')">Sélectionner</button>`
+      : `<button class="btn sm primary" onclick="closeModal('climber-modal');openCoachingView('${c.id}')">🧑‍🏫 Coacher</button>`);
     return `<div class="climber-card ${isActive?'active-card':''}">
       ${isActive?`<div style="position:absolute;top:8px;right:8px;font-size:10px;font-weight:700;color:var(--accent);background:var(--accent2);padding:2px 7px;border-radius:3px">Actif</div>`:''}
       <div class="cc-avatar" style="${avatarPhotoStyle(photo, c.color)}">${photo?'':initials}</div>
@@ -9573,7 +9581,7 @@ function renderClimberCards() {
       </div>
       ${trendHtml}
       <div class="cc-actions" style="margin-top:8px;flex-wrap:wrap">
-        ${!isActive?`<button class="btn sm primary" onclick="switchClimber('${c.id}')">Sélectionner</button>`:''}
+        ${selectBtn}
         <button class="btn sm" onclick="editClimberForm('${c.id}')">Modifier</button>
         ${isAdmin() ? `<button class="btn sm" onclick="openProfileDetailModal('${c.id}')" title="Niveau, matériel, temps dispo, objectifs">📋 Profil détaillé</button>` : ''}
         ${db.climbers.length > 1 ? `<button class="btn sm danger" onclick="deleteClimber('${c.id}')" title="Supprimer ce grimpeur">✕</button>` : ''}
