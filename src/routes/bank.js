@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const { pool } = require('../db/schema');
 const { requireAuth } = require('../middleware/auth');
+const { isCoachRole } = require('../lib/roles');
 
 router.use(requireAuth);
 
@@ -61,7 +62,7 @@ router.post('/', async (req, res) => {
 // cette route aux coachs (role=admin) pour éviter qu'un compte athlète ne puisse effacer/
 // reconstruire la bibliothèque commune.
 router.post('/sync', async (req, res) => {
-  if (req.user?.role !== 'admin') {
+  if (!isCoachRole(req.user?.role)) {
     return res.status(403).json({ error: 'Seul un coach peut resynchroniser la banque de séances' });
   }
   const { items } = req.body;
