@@ -4807,7 +4807,34 @@ function dropChoiceCycle(mode) {
 }
 window.dropChoiceOnce = dropChoiceOnce;
 window.dropChoiceCycle = dropChoiceCycle;
+// Mode de planification appliqué au compte connecté (voir GET /api/auth/my-planning-mode).
+// Purement côté interface : ça guide l'UX, ce n'est pas un verrou serveur (voir le commentaire
+// sur la colonne planning_mode dans src/db/schema.js pour la raison).
+let myPlanningMode = { mode: 'free', coachName: null };
+async function loadMyPlanningMode() {
+  if (!authToken()) return;
+  try {
+    const res = await fetch('/api/auth/my-planning-mode', { headers: authHeaders() });
+    if (res.ok) myPlanningMode = await res.json();
+  } catch (e) {}
+}
+// Vrai seulement quand un ATHLÈTE (pas son coach) tente de planifier sur SON PROPRE profil en
+// mode coach_only. Un coach/owner qui planifie pour un athlète depuis l'espace Coaching n'est
+// jamais bloqué : la restriction porte sur ce que l'athlète peut faire lui-même.
+function planningBlockedForMe() {
+  const climber = getActive();
+  return !!climber
+    && climber.id === window.currentUser?.climberId
+    && !isCoachRoleValue(window.currentUser?.role)
+    && myPlanningMode.mode === 'coach_only';
+}
+function warnPlanningBlocked() {
+  const coach = myPlanningMode.coachName ? ` (${myPlanningMode.coachName})` : '';
+  alert(`Ton coach${coach} gère la planification de tes séances à venir. Tu peux toujours enregistrer une séance déjà réalisée depuis "Nouvelle séance".`);
+}
+
 function addPlannedSessionFromBank(bankId, dateStr) {
+  if (planningBlockedForMe()) { warnPlanningBlocked(); return; }
   const item = getBank().find(x => x.id === bankId);
   if (!item) return;
   const payload = {
@@ -4850,6 +4877,7 @@ function setCycleMode(mode) {
 window.setCycleMode = setCycleMode;
 
 function openCycleModal() {
+  if (planningBlockedForMe()) { warnPlanningBlocked(); return; }
   const c = getActive();
   const targetsGroup = document.getElementById('cycle-targets-group');
   const targetsList = document.getElementById('cycle-targets-list');
@@ -9658,17 +9686,42 @@ function renderClimberCards() {
 // distincte de "Gérer les grimpeurs" (qui mélange encore ton propre profil avec eux). Cliquer
 // un athlète ouvre l'espace Coaching (voir openCoachingView) plutôt que de changer silencieusement
 // "ton" profil actif — c'est la distinction que ce chantier de rôles est censé apporter.
-function renderCoachAthletesPage() {
+async function renderCoachAthletesPage() {
   const grid = document.getElementById('coach-athletes-grid');
   const empty = document.getElementById('coach-athletes-empty');
   if (!grid) return;
   const myId = window.currentUser?.climberId;
   const athletes = (db.climbers || []).filter(c => c.id !== myId);
   if (empty) empty.style.display = athletes.length ? 'none' : '';
+
+  // Le mode de planification n'a de sens que pour un vrai compte coach dédié (pas l'owner, qui
+  // voit tous les grimpeurs sans forcément avoir de relation coach_athletes avec chacun).
+  let planningModes = {};
+  const isRealCoach = isCoachRoleValue(window.currentUser?.role) && !isOwnerRoleValue(window.currentUser?.role);
+  if (isRealCoach) {
+    try {
+      const res = await fetch('/api/auth/athletes', { headers: authHeaders() });
+      const rows = await res.json();
+      if (res.ok && Array.isArray(rows)) {
+        rows.forEach(r => { planningModes[r.climber_id] = r.planning_mode || 'shared'; });
+      }
+    } catch (e) {}
+  }
+
   grid.innerHTML = athletes.map(c => {
     const initials = c.name.trim().split(/\s+/).map(w=>w[0]).join('').toUpperCase().slice(0,2);
     const stats = climberStats(c);
     const photo = c.profile?.photo;
+    const mode = planningModes[c.id];
+    const modeSelect = isRealCoach ? `
+      <div style="margin-top:8px;display:flex;align-items:center;gap:6px;justify-content:center">
+        <label style="font-size:11px;color:var(--muted)" title="Qui peut ajouter des séances prévues dans son calendrier">Planification</label>
+        <select class="form-control" style="width:auto;font-size:11px;padding:3px 6px" onchange="coachSetPlanningMode('${window.currentUser?.id}','${c.id}',this.value)">
+          <option value="free" ${mode==='free'?'selected':''}>Libre</option>
+          <option value="shared" ${(!mode||mode==='shared')?'selected':''}>Partagée</option>
+          <option value="coach_only" ${mode==='coach_only'?'selected':''}>Coach uniquement</option>
+        </select>
+      </div>` : '';
     return `<div class="climber-card">
       <div class="cc-avatar" style="${avatarPhotoStyle(photo, c.color)}">${photo?'':initials}</div>
       <div class="cc-name">${esc(c.name)}</div>
@@ -9676,9 +9729,25 @@ function renderCoachAthletesPage() {
       <div class="cc-actions" style="margin-top:8px;flex-wrap:wrap;justify-content:center">
         <button class="btn sm primary" onclick="openCoachingView('${c.id}')">🧑‍🏫 Voir son entraînement</button>
       </div>
+      ${modeSelect}
     </div>`;
   }).join('');
 }
+
+async function coachSetPlanningMode(coachId, climberId, mode) {
+  try {
+    const res = await fetch('/api/auth/set-planning-mode', {
+      method: 'POST', headers: authHeaders(),
+      body: JSON.stringify({ coachId, climberId, mode })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erreur');
+  } catch (e) {
+    alert('Erreur : ' + e.message + (e.message.includes('introuvable') ? '\n\nAttribue d\'abord cet athlète à un coach dans Administration.' : ''));
+    renderCoachAthletesPage();
+  }
+}
+window.coachSetPlanningMode = coachSetPlanningMode;
 
 // Ouvre l'espace Coaching pour un athlète : réutilise les pages "Mon entraînement" existantes
 // (dashboard, calendrier, etc. — zéro risque, aucun rendu modifié) mais les affiche sous une
@@ -10624,6 +10693,7 @@ window.initAppData = async function() {
   if (typeof applyRoleUI === 'function') applyRoleUI();
   setAppMode(appMode);
   initNewsTicker();
+  loadMyPlanningMode();
 };
 
 // ═══════════════ BANDEAU NEWS + ACTIVITÉ DES ATHLÈTES ═══════════════
