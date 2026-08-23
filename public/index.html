@@ -887,11 +887,12 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     <div id="dash-upcoming-list"></div>
   </div>
 
-  <!-- Objectifs de période proposés par le coach (ex: Volume × 6 sur 3 semaines) — pas de jour
-       imposé, l'athlète pioche dans la banque quand il veut (cf. openObjectiveFulfillModal). -->
+  <!-- Cycles en cours : regroupe séances fixes datées ET objectifs de période libres (ex: Volume
+       × 6 sur 3 semaines, sans jour imposé — l'athlète pioche dans la banque quand il veut, cf.
+       openObjectiveFulfillModal) — cf. getClimberCycles / renderCoachObjectivesPanel. -->
   <div class="panel" id="dash-cycle-objectives-panel" style="margin-bottom:16px;display:none">
     <div class="panel-header">
-      <span class="panel-title">🧩 Objectifs à remplir</span>
+      <span class="panel-title">🔁 Cycles en cours</span>
     </div>
     <div id="dash-cycle-objectives-list"></div>
   </div>
@@ -2237,12 +2238,13 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   <!-- Calendrier de planification : objectif, zoom, glisser-déposer depuis la banque -->
   <div class="panel" id="plan-objective-banner" style="margin-bottom:16px"></div>
 
-  <!-- Objectifs de période "libres" (cf. generateCycle, toggle "Objectif libre") pour l'athlète en
-       cours de planification : invisibles sur ce calendrier par design (pas de jour imposé), donc
-       affichés ici pour que le coach garde une visibilité sur la progression. -->
+  <!-- Cycles en cours pour l'athlète en cours de planification : regroupe les séances fixes
+       datées (visibles sur ce calendrier) ET les objectifs de période "libres" (cf. generateCycle,
+       toggle "Objectif libre"), invisibles sur le calendrier par design (pas de jour imposé) —
+       ce panneau est donc le seul endroit où TOUS les cycles sont listés avec leur progression. -->
   <div class="panel" id="plan-cycle-objectives-panel" style="margin-bottom:16px;display:none">
     <div class="panel-header">
-      <span class="panel-title">🧩 Objectifs à remplir</span>
+      <span class="panel-title">🔁 Cycles en cours</span>
     </div>
     <div id="plan-cycle-objectives-list"></div>
   </div>
@@ -3165,6 +3167,7 @@ Utilise les raccourcis ci-dessus ou pose-moi directement une question. Par exemp
       <span class="modal-title" id="day-modal-title">Séances du jour</span>
       <button class="btn sm" onclick="closeModal('day-modal')">Fermer</button>
     </div>
+    <div id="day-modal-cycles" style="padding:0 20px;display:none"></div>
     <div class="modal-body" id="day-modal-body"></div>
     <div class="modal-footer" style="gap:8px;flex-wrap:wrap">
       <button class="btn primary" id="day-modal-add">+ Ajouter une séance ce jour</button>
@@ -4527,8 +4530,21 @@ function setCalZoom(mode) {
 }
 window.setCalZoom = setCalZoom;
 
+// Étiquettes de nom de cycle pour une case de calendrier (mois/semaine) : avant, seule la vue
+// Année montrait le nom d'un cycle, et uniquement pour les séances déjà datées — les cycles
+// "objectif libre" restaient invisibles partout tant qu'aucune séance n'avait été choisie. Ici on
+// se base sur la période complète du cycle (cf. getClimberCycles), donc chaque case comprise
+// entre son début et sa fin affiche son nom, même les jours sans séance précise.
+function cycleTagsHtmlForDate(ds, climberCycles) {
+  const active = (climberCycles || []).filter(c => (!c.startDate || ds >= c.startDate) && (!c.endDate || ds <= c.endDate));
+  if (!active.length) return '';
+  return `<div style="display:flex;flex-direction:column;gap:1px;margin-top:2px">${active.slice(0,2).map(c => {
+    const remaining = Math.max(0, c.total - c.done);
+    return `<div style="font-size:8px;line-height:1.5;color:#fff;background:${colorForCycleName(c.cycleName)};padding:0 4px;border-radius:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(c.cycleName)} — ${c.done}/${c.total} séances${remaining?`, ${remaining} restante${remaining>1?'s':''}`:' — terminé'}">${esc(c.cycleName)}</div>`;
+  }).join('')}${active.length > 2 ? `<div style="font-size:8px;color:var(--muted)">+${active.length-2} autre${active.length-2>1?'s':''}</div>` : ''}</div>`;
+}
 // Construit une case de calendrier (jour) entièrement câblée — réutilisée par les vues mois et semaine
-function buildCalCell(ds, dayNum, isOther, todayStr) {
+function buildCalCell(ds, dayNum, isOther, todayStr, climberCycles) {
   const cell = document.createElement('div');
   const dayLogs = getLogs().filter(l => l.date === ds);
   const load = dayLogs.reduce((s,l) => s + sessionLoad(l), 0);
@@ -4541,7 +4557,7 @@ function buildCalCell(ds, dayNum, isOther, todayStr) {
     : dayLogs.length > 1
       ? `<div style="font-size:9px;color:var(--muted);margin-top:2px">🧗 ${dayLogs.length} séances</div>`
       : '';
-  cell.innerHTML = `${plannedLogsForCell.length?`<div class="cal-planned-badge" title="${plannedLogsForCell.length} séance${plannedLogsForCell.length>1?'s':''} prévue${plannedLogsForCell.length>1?'s':''}">📌</div>`:''}<div class="cal-num">${dayNum}</div><div class="cal-dots">${dayLogs.map(l=>`<div class="cal-dot${l.planned?' cal-dot-planned':''}" style="${l.planned?`border-color:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`:`background:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`}" title="${esc((SESSION_TYPES[l.type]||SESSION_TYPES.autre).label)}${l.planned?' (prévue)':''}"></div>`).join('')}</div>${typeLabelHtml}${load?`<div style="font-size:10px;color:var(--muted);margin-top:3px">⚡ ${load}</div>`:''}`;
+  cell.innerHTML = `${plannedLogsForCell.length?`<div class="cal-planned-badge" title="${plannedLogsForCell.length} séance${plannedLogsForCell.length>1?'s':''} prévue${plannedLogsForCell.length>1?'s':''}">📌</div>`:''}<div class="cal-num">${dayNum}</div><div class="cal-dots">${dayLogs.map(l=>`<div class="cal-dot${l.planned?' cal-dot-planned':''}" style="${l.planned?`border-color:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`:`background:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`}" title="${esc((SESSION_TYPES[l.type]||SESSION_TYPES.autre).label)}${l.planned?' (prévue)':''}"></div>`).join('')}</div>${typeLabelHtml}${cycleTagsHtmlForDate(ds, climberCycles)}${load?`<div style="font-size:10px;color:var(--muted);margin-top:3px">⚡ ${load}</div>`:''}`;
   cell.onclick = () => openDayModal(ds);
   cell.ondragover = (e) => { e.preventDefault(); cell.classList.add('drag-over'); };
   cell.ondragleave = () => cell.classList.remove('drag-over');
@@ -4564,6 +4580,7 @@ function renderCalendarMonth() {
   const first=new Date(y,m,1), firstDay=(first.getDay()+6)%7, daysInMonth=new Date(y,m+1,0).getDate();
   const grid=document.getElementById('cal-grid'); grid.innerHTML='';
   const todayStr=new Date().toISOString().slice(0,10);
+  const monthClimberCycles = getClimberCycles(getActive());
   let totalLoad=0,totalAscents=0,totalMinutes=0,totalSessions=0;
   for(let i=0;i<42;i++){
     let dayNum=i-firstDay+1, isOther=false;
@@ -4573,7 +4590,7 @@ function renderCalendarMonth() {
     if(i<firstDay){const pm=new Date(y,m,0);ds=`${pm.getFullYear()}-${String(pm.getMonth()+1).padStart(2,'0')}-${String(new Date(y,m,0).getDate()-firstDay+i+1).padStart(2,'0')}`;}
     else if(i>=firstDay+daysInMonth){const nm=new Date(y,m+1,1);ds=`${nm.getFullYear()}-${String(nm.getMonth()+1).padStart(2,'0')}-${String(i-firstDay-daysInMonth+1).padStart(2,'0')}`;}
     else{ds=`${y}-${String(m+1).padStart(2,'0')}-${String(dayNum).padStart(2,'0')}`;}
-    const { cell, dayLogs, isOther: other } = buildCalCell(ds, dayNum, isOther, todayStr);
+    const { cell, dayLogs, isOther: other } = buildCalCell(ds, dayNum, isOther, todayStr, monthClimberCycles);
     grid.appendChild(cell);
     if(!other){const doneLogs=dayLogs.filter(l=>!l.planned);const load=dayLogs.reduce((s,l)=>s+sessionLoad(l),0);totalSessions+=doneLogs.length;totalMinutes+=doneLogs.reduce((s,l)=>s+(l.minutes||0),0);totalLoad+=load;totalAscents+=doneLogs.reduce((s,l)=>s+(l.ascents||[]).length,0);}
   }
@@ -4596,11 +4613,12 @@ function renderCalendarWeek() {
   const grid = document.getElementById('cal-week-grid');
   grid.innerHTML = '';
   grid.style.gridTemplateColumns = 'repeat(7,1fr)';
+  const weekClimberCycles = getClimberCycles(getActive());
   let totalLoad=0,totalAscents=0,totalMinutes=0,totalSessions=0;
   for (let i=0;i<7;i++) {
     const dd = new Date(monday); dd.setDate(monday.getDate()+i);
     const ds = dd.toISOString().slice(0,10);
-    const { cell, dayLogs } = buildCalCell(ds, dd.getDate(), false, todayStr);
+    const { cell, dayLogs } = buildCalCell(ds, dd.getDate(), false, todayStr, weekClimberCycles);
     cell.style.minHeight = '110px';
     grid.appendChild(cell);
     const doneLogs = dayLogs.filter(l=>!l.planned);
@@ -4619,6 +4637,52 @@ function colorForCycleName(name) {
   let h = 0;
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
   return CYCLE_COLOR_PALETTE[h % CYCLE_COLOR_PALETTE.length];
+}
+
+// Vue d'ensemble d'un cycle : regroupe séances fixes datées (climber.logs avec cycleId) ET
+// objectifs de période (climber.cycleObjectives) qui partagent le même cycleId. Avant, un cycle
+// "objectif libre" restait totalement invisible (pas de log daté tant que l'athlète n'avait rien
+// choisi) sauf via le panneau dédié — cette fonction sert de socle commun au panneau "Cycles en
+// cours" et aux étiquettes de cases du calendrier (mois/semaine), pour que TOUS les cycles soient
+// visibles, pas seulement ceux avec des séances fixes déjà datées.
+function getClimberCycles(climber) {
+  if (!climber) return [];
+  const map = new Map();
+  (climber.logs || []).forEach(l => {
+    if (!l.cycleId) return;
+    if (!map.has(l.cycleId)) map.set(l.cycleId, { cycleId: l.cycleId, cycleName: l.cycleName || 'Cycle', source: l.source, fixedLogs: [], objectives: [], dates: [] });
+    const c = map.get(l.cycleId);
+    c.fixedLogs.push(l);
+    c.dates.push(l.date);
+  });
+  (climber.cycleObjectives || []).forEach(o => {
+    if (!o.cycleId) return;
+    if (!map.has(o.cycleId)) map.set(o.cycleId, { cycleId: o.cycleId, cycleName: o.cycleName || 'Cycle', source: o.source, fixedLogs: [], objectives: [], dates: [] });
+    const c = map.get(o.cycleId);
+    c.objectives.push(o);
+    if (o.startDate) c.dates.push(o.startDate);
+    if (o.endDate) c.dates.push(o.endDate);
+  });
+  return Array.from(map.values()).map(c => {
+    const startDate = c.dates.length ? c.dates.reduce((a,b) => a < b ? a : b) : null;
+    const endDate = c.dates.length ? c.dates.reduce((a,b) => a > b ? a : b) : null;
+    const fixedTotal = c.fixedLogs.length;
+    const fixedDone = c.fixedLogs.filter(l => !l.planned).length;
+    const objTotal = c.objectives.reduce((s,o) => s + (o.targetCount || 1), 0);
+    const objDone = c.objectives.reduce((s,o) => s + (climber.logs || []).filter(l => l.objectiveId === o.id).length, 0);
+    return { ...c, startDate, endDate, fixedTotal, fixedDone, objTotal, objDone, total: fixedTotal + objTotal, done: fixedDone + objDone };
+  }).sort((a,b) => (b.startDate || '').localeCompare(a.startDate || ''));
+}
+// Cycles dont la période (bornée par les dates de ses séances fixes et/ou de ses objectifs)
+// couvre la date donnée — sert à étiqueter une case de calendrier et à proposer, au clic sur un
+// jour, d'y remplir un objectif du cycle correspondant.
+function cyclesActiveOnDate(climber, dateStr) {
+  return getClimberCycles(climber).filter(c => {
+    if (!c.startDate && !c.endDate) return false;
+    if (c.startDate && dateStr < c.startDate) return false;
+    if (c.endDate && dateStr > c.endDate) return false;
+    return true;
+  });
 }
 
 // Découpe un mois en semaines (lundi-dimanche) pour la vue Année
@@ -4760,7 +4824,7 @@ document.getElementById('cal-today').onclick=()=>{calDate=new Date();renderCalen
 
 // — Calendrier simple (Carnet d'entraînement) : lecture / ajout de séances, sans les outils de planification coach —
 let cal2Date = new Date();
-function buildCal2Cell(ds, dayNum, isOther, todayStr) {
+function buildCal2Cell(ds, dayNum, isOther, todayStr, climberCycles) {
   const cell = document.createElement('div');
   const dayLogs = getLogs().filter(l => l.date === ds);
   const load = dayLogs.reduce((s,l) => s + sessionLoad(l), 0);
@@ -4773,7 +4837,7 @@ function buildCal2Cell(ds, dayNum, isOther, todayStr) {
     : dayLogs.length > 1
       ? `<div style="font-size:9px;color:var(--muted);margin-top:2px">🧗 ${dayLogs.length} séances</div>`
       : '';
-  cell.innerHTML = `${plannedLogsForCell.length?`<div class="cal-planned-badge" title="${plannedLogsForCell.length} séance${plannedLogsForCell.length>1?'s':''} prévue${plannedLogsForCell.length>1?'s':''}">📌</div>`:''}<div class="cal-num">${dayNum}</div><div class="cal-dots">${dayLogs.map(l=>`<div class="cal-dot${l.planned?' cal-dot-planned':''}" style="${l.planned?`border-color:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`:`background:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`}" title="${esc((SESSION_TYPES[l.type]||SESSION_TYPES.autre).label)}${l.planned?' (prévue)':''}"></div>`).join('')}</div>${typeLabelHtml2}${load?`<div style="font-size:10px;color:var(--muted);margin-top:3px">⚡ ${load}</div>`:''}`;
+  cell.innerHTML = `${plannedLogsForCell.length?`<div class="cal-planned-badge" title="${plannedLogsForCell.length} séance${plannedLogsForCell.length>1?'s':''} prévue${plannedLogsForCell.length>1?'s':''}">📌</div>`:''}<div class="cal-num">${dayNum}</div><div class="cal-dots">${dayLogs.map(l=>`<div class="cal-dot${l.planned?' cal-dot-planned':''}" style="${l.planned?`border-color:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`:`background:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`}" title="${esc((SESSION_TYPES[l.type]||SESSION_TYPES.autre).label)}${l.planned?' (prévue)':''}"></div>`).join('')}</div>${typeLabelHtml2}${cycleTagsHtmlForDate(ds, climberCycles)}${load?`<div style="font-size:10px;color:var(--muted);margin-top:3px">⚡ ${load}</div>`:''}`;
   cell.onclick = () => openDayModal(ds);
   return { cell, dayLogs, isOther };
 }
@@ -4787,6 +4851,7 @@ function renderSimpleCalendar() {
   const first=new Date(y,m,1), firstDay=(first.getDay()+6)%7, daysInMonth=new Date(y,m+1,0).getDate();
   gridEl.innerHTML='';
   const todayStr=new Date().toISOString().slice(0,10);
+  const cal2ClimberCycles = getClimberCycles(getActive());
   let totalLoad=0,totalAscents=0,totalMinutes=0,totalSessions=0;
   for(let i=0;i<42;i++){
     let dayNum=i-firstDay+1, isOther=false;
@@ -4796,7 +4861,7 @@ function renderSimpleCalendar() {
     if(i<firstDay){const pm=new Date(y,m,0);ds=`${pm.getFullYear()}-${String(pm.getMonth()+1).padStart(2,'0')}-${String(new Date(y,m,0).getDate()-firstDay+i+1).padStart(2,'0')}`;}
     else if(i>=firstDay+daysInMonth){const nm=new Date(y,m+1,1);ds=`${nm.getFullYear()}-${String(nm.getMonth()+1).padStart(2,'0')}-${String(i-firstDay-daysInMonth+1).padStart(2,'0')}`;}
     else{ds=`${y}-${String(m+1).padStart(2,'0')}-${String(dayNum).padStart(2,'0')}`;}
-    const { cell, dayLogs, isOther: other } = buildCal2Cell(ds, dayNum, isOther, todayStr);
+    const { cell, dayLogs, isOther: other } = buildCal2Cell(ds, dayNum, isOther, todayStr, cal2ClimberCycles);
     gridEl.appendChild(cell);
     if(!other){const doneLogs=dayLogs.filter(l=>!l.planned);const load=dayLogs.reduce((s,l)=>s+sessionLoad(l),0);totalSessions+=doneLogs.length;totalMinutes+=doneLogs.reduce((s,l)=>s+(l.minutes||0),0);totalLoad+=load;totalAscents+=doneLogs.reduce((s,l)=>s+(l.ascents||[]).length,0);}
   }
@@ -5637,36 +5702,45 @@ function objectiveDueLabel(dateStr) {
   if (days < 60) return `Dans ${Math.round(days/7)} sem.`;
   return `Échéance : ${fmtDate(dateStr)}`;
 }
-// Objectifs de période proposés par un coach (cf. generateCycle, mode "Objectif libre") : pas de
-// jour imposé, juste un nombre de séances à faire avant une échéance. La progression se déduit des
-// logs qui portent cet objectiveId (pas de compteur séparé à maintenir en sync).
+// Panneau "Cycles en cours" : avant, seuls les objectifs de période "libres" (cf. generateCycle,
+// mode "Objectif libre") apparaissaient ici — les cycles à séances fixes déjà datées n'avaient
+// AUCUN endroit récapitulatif (juste des points sur le calendrier), ce qui rendait impossible de
+// voir "tous mes cycles" d'un coup d'œil. On se base maintenant sur getClimberCycles pour lister
+// TOUT cycle actif (fixe et/ou libre), avec sa période, sa progression globale, et — pour ses
+// objectifs libres non résolus — un bouton pour y ajouter directement une séance (la progression
+// se déduit des logs qui portent l'objectiveId correspondant, pas de compteur séparé à maintenir).
 function renderCoachObjectivesPanel(panelId, listId) {
   const panel = document.getElementById(panelId || 'dash-cycle-objectives-panel');
   const el = document.getElementById(listId || 'dash-cycle-objectives-list');
   if (!panel || !el) return;
   const c = getActive();
   const today = new Date().toISOString().slice(0,10);
-  const objectives = (c?.cycleObjectives || []).filter(o => {
-    const doneCount = (c.logs || []).filter(l => l.objectiveId === o.id).length;
-    return doneCount < (o.targetCount || 1);
-  });
-  if (!objectives.length) { panel.style.display = 'none'; el.innerHTML = ''; return; }
+  const cycles = getClimberCycles(c).filter(cy => cy.done < cy.total || (cy.endDate && cy.endDate >= today) || !cy.endDate);
+  if (!cycles.length) { panel.style.display = 'none'; el.innerHTML = ''; return; }
   panel.style.display = '';
-  el.innerHTML = objectives.map(o => {
-    const doneCount = (c.logs || []).filter(l => l.objectiveId === o.id).length;
-    const target = o.targetCount || 1;
-    const pct = Math.min(100, Math.round((doneCount / target) * 100));
-    const goalLabel = esc(SB_GOAL_LABELS[o.flexGoal] || o.flexGoal);
-    const overdue = o.endDate && o.endDate < today;
+  el.innerHTML = cycles.map(cy => {
+    const col = colorForCycleName(cy.cycleName);
+    const pct = cy.total ? Math.min(100, Math.round((cy.done / cy.total) * 100)) : 0;
+    const period = cy.startDate && cy.endDate ? `${fmtDate(cy.startDate)} → ${fmtDate(cy.endDate)}` : '';
+    const overdue = cy.endDate && cy.endDate < today && cy.done < cy.total;
+    const pendingObjectives = cy.objectives.filter(o => {
+      const doneCount = (c.logs || []).filter(l => l.objectiveId === o.id).length;
+      return doneCount < (o.targetCount || 1);
+    });
     return `<div style="padding:10px 0;border-bottom:1px solid var(--border)">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px">
-        <div>
-          <span style="font-weight:600;font-size:13px">🎯 ${goalLabel}</span>
-          <span style="font-size:12px;color:var(--muted);margin-left:8px">${doneCount}/${target} faites${o.endDate?` — ${overdue?'échéance dépassée':'avant le '+fmtDate(o.endDate)}`:''}</span>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="width:8px;height:8px;border-radius:50%;background:${col};flex-shrink:0"></span>
+          <span style="font-weight:600;font-size:13px">${esc(cy.cycleName)}</span>
+          ${period ? `<span style="font-size:11px;color:var(--muted)">${period}</span>` : ''}
         </div>
-        <button class="btn sm primary" onclick="openObjectiveFulfillModal('${o.id}')">+ Ajouter une séance</button>
+        <span style="font-size:12px;color:var(--muted)">${cy.done}/${cy.total} faites${overdue?' — échéance dépassée':''}</span>
       </div>
       <div class="prog-bar-bg"><div class="prog-bar-fill" style="width:${pct}%"></div></div>
+      ${pendingObjectives.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">${pendingObjectives.map(o => {
+        const doneCount = (c.logs || []).filter(l => l.objectiveId === o.id).length;
+        return `<button class="btn sm primary" onclick="openObjectiveFulfillModal('${o.id}')">+ ${esc(SB_GOAL_LABELS[o.flexGoal]||o.flexGoal)} (${doneCount}/${o.targetCount||1})</button>`;
+      }).join('')}</div>` : ''}
     </div>`;
   }).join('');
 }
@@ -8524,7 +8598,7 @@ function openDayModal(dateStr){
     return `<div class="log-item" style="${l.planned?'border-style:dashed':''}" onclick="closeModal('day-modal');editSession('${l.id}')">
       <div class="log-item-header">
         <div>
-          <div class="log-date" style="display:flex;align-items:center;gap:8px"><span class="sess-dot" style="background:${t.color}"></span>${t.label}${l.planned?' <span class="tag" style="border-color:var(--accent);color:var(--accent)">📌 Prévue</span>':''}${l.flexGoal?` <span class="tag" style="border-color:#b07a10;color:#b07a10">🎯 ${l.bankRef?'Objectif':'À choisir'} : ${esc(SB_GOAL_LABELS[l.flexGoal]||l.flexGoal)}</span>`:''}</div>
+          <div class="log-date" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="sess-dot" style="background:${t.color}"></span>${t.label}${l.planned?' <span class="tag" style="border-color:var(--accent);color:var(--accent)">📌 Prévue</span>':''}${l.flexGoal?` <span class="tag" style="border-color:#b07a10;color:#b07a10">🎯 ${l.bankRef?'Objectif':'À choisir'} : ${esc(SB_GOAL_LABELS[l.flexGoal]||l.flexGoal)}</span>`:''}${l.cycleName?` <span class="tag" style="border-color:${colorForCycleName(l.cycleName)};color:${colorForCycleName(l.cycleName)}">🔁 ${esc(l.cycleName)}</span>`:''}</div>
           <div class="log-meta">${l.minutes||0} min · intensité ${l.intensity||'—'}${l.planned?'':` · charge ${load}`}${l.location?` · ${l.location}`:''}${l.support&&SUPPORTS[l.support]?` · <span style="font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:3px;padding:1px 7px">${SUPPORTS[l.support].icon} ${SUPPORTS[l.support].label}</span>`:''}</div>
         </div>
         ${l.planned?`<button class="btn sm danger" onclick="event.stopPropagation();deletePlannedSession('${l.id}','${dateStr}')" title="Retirer cette séance prévue">✕</button>`:''}
@@ -8534,6 +8608,7 @@ function openDayModal(dateStr){
       ${l.planned&&l.bankRef&&getBank().find(b=>b.id===l.bankRef)?`<button class="btn sm" style="margin-top:8px" onclick="event.stopPropagation();closeModal('day-modal');switchPage('session-bank');sbEditCard('${l.bankRef}')">📋 Voir la fiche complète</button>`:''}
     </div>`;
   }).join(''):'<p style="color:var(--muted);text-align:center;padding:20px">Aucune séance ce jour</p>';
+  renderDayModalCycles(dateStr);
   const addBtn = document.getElementById('day-modal-add');
   if (appMode === 'coach') {
     addBtn.textContent = '📅 Planifier une séance ce jour';
@@ -8554,6 +8629,37 @@ function openDayModal(dateStr){
     };
   }
   document.getElementById('day-modal').classList.add('open');
+}
+// Affiche, en haut de la fenêtre "Séances du jour", les cycles dont la période couvre cette date
+// (cf. getClimberCycles) : nom du cycle, progression, et pour chaque objectif de période non
+// encore rempli, un bouton pour y ajouter directement une séance — ce qui décompte le nombre de
+// séances restantes. Répond au besoin de voir "quels cycles sont en cours ce jour-là" et d'agir
+// directement depuis le calendrier plutôt que de chercher le bon panneau ailleurs.
+function renderDayModalCycles(dateStr) {
+  const el = document.getElementById('day-modal-cycles');
+  if (!el) return;
+  const climber = getActive();
+  const cycles = cyclesActiveOnDate(climber, dateStr);
+  if (!cycles.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.style.display = '';
+  el.innerHTML = cycles.map(c => {
+    const col = colorForCycleName(c.cycleName);
+    const remaining = Math.max(0, c.total - c.done);
+    const pendingObjectives = c.objectives.filter(o => {
+      const doneCount = (climber.logs||[]).filter(l => l.objectiveId === o.id).length;
+      return doneCount < (o.targetCount || 1);
+    });
+    return `<div style="border-left:3px solid ${col};background:var(--surface2);border-radius:3px;padding:8px 10px;margin-bottom:8px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+        <span style="font-weight:600;font-size:13px">🔁 ${esc(c.cycleName)}</span>
+        <span style="font-size:11px;color:var(--muted)">${c.done}/${c.total} séances${remaining?` · ${remaining} restante${remaining>1?'s':''}`:' · terminé'}</span>
+      </div>
+      ${pendingObjectives.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">${pendingObjectives.map(o => {
+        const doneCount = (climber.logs||[]).filter(l => l.objectiveId === o.id).length;
+        return `<button class="btn sm primary" onclick="closeModal('day-modal');openObjectiveFulfillModal('${o.id}')">+ ${esc(SB_GOAL_LABELS[o.flexGoal]||o.flexGoal)} (${doneCount}/${o.targetCount||1})</button>`;
+      }).join('')}</div>` : ''}
+    </div>`;
+  }).join('');
 }
 let planPickerDate = null;
 function openPlanPicker(dateStr) {
