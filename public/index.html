@@ -3816,7 +3816,11 @@ function refreshCurrentUser() {
   return window.currentUser;
 }
 var previewMode = false;
-function isAdmin() { return window.currentUser?.role === 'admin' && !previewMode; }
+// Modèle de rôles owner/coach/athlete (voir src/lib/roles.js côté backend) : 'admin' est l'ancien
+// nom unique du rôle coach, gardé en alias le temps que les JWT signés avant la migration expirent.
+function isOwnerRoleValue(role) { return role === 'owner' || role === 'admin'; }
+function isCoachRoleValue(role) { return isOwnerRoleValue(role) || role === 'coach'; }
+function isAdmin() { return isCoachRoleValue(window.currentUser?.role) && !previewMode; }
 function togglePreviewMode() {
   if (!previewMode) {
     const active = getActive();
@@ -3849,7 +3853,7 @@ function updateSidebarIdentity() {
     const active = getActive();
     el.textContent = `👁 Aperçu — ${active ? active.name : ''} côté athlète`;
   } else {
-    el.textContent = window.currentUser.name + (window.currentUser.role === 'admin' ? ' · coach' : '');
+    el.textContent = window.currentUser.name + (isCoachRoleValue(window.currentUser.role) ? ' · coach' : '');
   }
 }
 function applyRoleUI() {
@@ -3857,7 +3861,7 @@ function applyRoleUI() {
   const inviteWrap = document.getElementById('invite-athlete-btn-wrap');
   if (inviteWrap) inviteWrap.style.display = admin ? '' : 'none';
   const previewBtn = document.getElementById('preview-toggle-btn');
-  if (previewBtn) previewBtn.style.display = (window.currentUser?.role === 'admin') ? '' : 'none';
+  if (previewBtn) previewBtn.style.display = isCoachRoleValue(window.currentUser?.role) ? '' : 'none';
   if (previewBtn) previewBtn.textContent = previewMode ? "↩ Quitter l'aperçu" : "👁 Voir comme l'athlète";
   document.querySelectorAll('.coach-only-btn').forEach(el => { el.style.display = admin ? '' : 'none'; });
   sbApplyEditorAccess();
@@ -10383,7 +10387,7 @@ function afterAuth(){
   var ob=document.getElementById("onboarding-screen"); if(ob) ob.style.display="none";
   var u = refreshCurrentUser();
   var el = document.getElementById("sidebar-user");
-  if (el && u) el.textContent = u.name + (u.role==='admin' ? ' · coach' : '');
+  if (el && u) el.textContent = u.name + (isCoachRoleValue(u.role) ? ' · coach' : '');
   window.initAppData();
 }
 window.afterAuth = afterAuth;
