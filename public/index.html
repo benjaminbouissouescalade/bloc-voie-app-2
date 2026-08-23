@@ -3166,8 +3166,9 @@ Utilise les raccourcis ci-dessus ou pose-moi directement une question. Par exemp
       <button class="btn sm" onclick="closeModal('day-modal')">Fermer</button>
     </div>
     <div class="modal-body" id="day-modal-body"></div>
-    <div class="modal-footer">
+    <div class="modal-footer" style="gap:8px;flex-wrap:wrap">
       <button class="btn primary" id="day-modal-add">+ Ajouter une séance ce jour</button>
+      <button class="btn" id="day-modal-add-cycle">🔁 Planifier un cycle</button>
     </div>
   </div>
 </div>
@@ -8540,6 +8541,17 @@ function openDayModal(dateStr){
   } else {
     addBtn.textContent = '+ Ajouter une séance ce jour';
     addBtn.onclick = () => { closeModal('day-modal'); newSession(dateStr); switchPage('new-session'); };
+  }
+  // Bouton "Planifier un cycle" : ouvre le même modal de cycle que le bouton "🔁 Créer un
+  // cycle" du calendrier, avec la date cliquée déjà pré-remplie comme date de début (même
+  // mécanisme que dropChoiceCycle lors d'un glisser-déposer depuis la banque).
+  const addCycleBtn = document.getElementById('day-modal-add-cycle');
+  if (addCycleBtn) {
+    addCycleBtn.onclick = () => {
+      closeModal('day-modal');
+      openCycleModal();
+      document.getElementById('cycle-start').value = dateStr;
+    };
   }
   document.getElementById('day-modal').classList.add('open');
 }
