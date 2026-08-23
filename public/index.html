@@ -2498,9 +2498,17 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
          mettre en forme et de proposer une fiche — sans lui imposer le type/objectif/durée
          choisis dans les champs guidés (cf. sbAiGenerate, branche freeform). -->
     <div id="sb-ai-freeform-fields" style="display:none;margin-bottom:10px">
-      <div class="form-group" style="margin:0">
+      <div class="form-group" style="margin:0 0 10px">
         <label class="form-label">Ta séance, en texte libre</label>
-        <textarea class="form-control" id="sb-ai-freeform" rows="6" placeholder="Écris ta séance comme tu veux : échauffement, exercices, séries, intensité, conseils… L'IA se contente de la mettre en forme et de proposer une fiche, sans rien inventer ni imposer une structure."></textarea>
+        <textarea class="form-control" id="sb-ai-freeform" rows="6" placeholder="Écris ta séance comme tu veux : échauffement, exercices, séries, intensité, conseils… ou juste un seul exercice si c'est tout ce que tu veux donner."></textarea>
+      </div>
+      <div class="form-group" style="margin:0">
+        <label class="form-label">Ce que l'IA doit en faire</label>
+        <div style="display:flex;gap:6px" id="sb-ai-strictness-picker">
+          <button type="button" class="btn sm active" data-aistrict="strict" onclick="setSbAiStrictness('strict')">🖊️ Mise en forme stricte — rien ajouter</button>
+          <button type="button" class="btn sm" data-aistrict="complete" onclick="setSbAiStrictness('complete')">🧠 Compléter en séance complète</button>
+        </div>
+        <p style="font-size:11px;color:var(--muted);margin-top:6px">"Mise en forme stricte" : l'IA reformule ce que tu as écrit sans rien inventer (si tu ne donnes qu'un exercice, la fiche ne contiendra que cet exercice). "Compléter" : l'IA peut ajouter les parties manquantes (échauffement, retour au calme…) pour proposer une séance complète, sans changer ce que tu as déjà précisé.</p>
       </div>
     </div>
     <div id="sb-ai-guided-fields">
@@ -9736,6 +9744,18 @@ function setSbAiMode(mode) {
 }
 window.setSbAiMode = setSbAiMode;
 
+// En mode texte libre, contrôle si l'IA a le droit de compléter ce que le coach a écrit (ex:
+// rajouter un échauffement non demandé) — cf. sbAiGenerate. Par défaut "strict" : on avait
+// remarqué que l'IA rajoutait beaucoup de choses non demandées (ex: un seul exercice de
+// suspension devenait une séance complète avec échauffement inventé), donc "strict" doit être le
+// comportement par défaut, et "complete" une option explicite plutôt que l'inverse.
+let sbAiStrictness = 'strict';
+function setSbAiStrictness(mode) {
+  sbAiStrictness = mode;
+  document.querySelectorAll('#sb-ai-strictness-picker button').forEach(b => b.classList.toggle('active', b.dataset.aistrict === mode));
+}
+window.setSbAiStrictness = setSbAiStrictness;
+
 // Remet la box IA à zéro : avant, fermer la box (croix ou re-clic sur "Générer avec l'IA") ne
 // faisait que la cacher — la proposition précédente (sbPendingAiCard + le HTML du résultat)
 // restait affichée à la réouverture, ce qui donnait l'impression qu'elle n'avait jamais disparu.
@@ -9752,6 +9772,7 @@ function sbResetAiBox() {
   const btn = document.getElementById('sb-ai-generate-btn');
   if (btn) { btn.disabled = false; btn.textContent = '✦ Générer la séance'; }
   setSbAiMode('guided');
+  setSbAiStrictness('strict');
 }
 window.sbResetAiBox = sbResetAiBox;
 function sbCloseAiBox() {
@@ -9794,29 +9815,51 @@ async function sbAiGenerate() {
     resultBox.style.display = '';
     resultBox.innerHTML = `<div style="color:var(--muted);font-style:italic;font-size:13px">L'IA met ta séance en forme…</div>`;
 
-    const prompt = `Tu es un assistant qui met en forme une séance d'escalade rédigée librement par un coach, SANS changer son contenu, ses contraintes ou ses intentions — tu ne fais que la reformuler clairement et la classer.
-
-PROFIL DU GRIMPEUR : ${c.name}, grade de référence ${ref}, niveau ${c.level||'non précisé'}
-
-TEXTE DU COACH (à respecter tel quel, ne rien inventer ni ajouter) :
-"""
-${freeText}
-"""
-
-Choisis toi-même, à partir de ce texte, le type de séance le plus proche parmi : bloc, voies, falaise, pan, competition, ppg, doigts, prehension, musculation, cardio, mobilite, yoga, recup_active, video, mentale.
+    const classifyInstructions = `Choisis toi-même, à partir de ce texte, le type de séance le plus proche parmi : bloc, voies, falaise, pan, competition, ppg, doigts, prehension, musculation, cardio, mobilite, yoga, recup_active, video, mentale.
 Choisis aussi l'objectif principal le plus proche parmi : projet, force_max, puissance, doigts_max, volume, resi, arc, circuit, technique, dalle, devers, coordination, flasher, comp_simulation, onsight, peaking, recuperation, prevention, retour_blessure.
-Si une durée est mentionnée dans le texte, reprends-la ; sinon estime une durée raisonnable en minutes.
+Si une durée est mentionnée dans le texte, reprends-la ; sinon estime une durée raisonnable en minutes.`;
 
-Réponds UNIQUEMENT en JSON valide, sans markdown, sans backticks, avec exactement ces champs :
+    const jsonSpec = `Réponds UNIQUEMENT en JSON valide, sans markdown, sans backticks, avec exactement ces champs :
 {
   "name": "Nom court de la séance (max 50 chars), basé sur le texte du coach",
-  "description": "Reformulation claire et structurée du texte du coach (échauffement / corps de séance / retour au calme si présents) — n'ajoute rien qui n'y figure pas",
+  "description": "%%DESCRIPTION_INSTRUCTION%%",
   "type": "un des types listés ci-dessus",
   "goal": "un des objectifs listés ci-dessus",
   "duration": nombre entier de minutes,
   "intensity": 1 à 5 (entier),
   "tags": ["tag1", "tag2"] (parmi: Dalle, Dévers, Compression, Physique, Doigts, Rési, Puissance, Coordination, Équilibre, Technique)
 }`;
+
+    // "strict" (par défaut) : on avait remarqué que l'IA rajoutait beaucoup de choses non
+    // demandées (ex: un seul exercice de suspension devenait une séance complète avec un
+    // échauffement inventé) — le prompt interdit donc explicitement tout ajout, y compris les
+    // sections habituelles (échauffement/retour au calme) si elles ne sont pas dans le texte.
+    // "complete" : option explicite, choisie par le coach, pour au contraire demander à l'IA de
+    // compléter les parties manquantes et proposer une séance complète.
+    const prompt = sbAiStrictness === 'complete' ? `Tu es un coach escalade expert. Un coach t'a donné le texte ci-dessous, qui peut être incomplet (juste un exercice, une idée générale…). Ta tâche : le compléter pour proposer une séance complète et cohérente, en conservant tel quel tout ce qu'il a déjà précisé (ne change rien à ce qui est déjà écrit, ajoute seulement ce qui manque : échauffement, structure, récupération, conseils, etc. si pertinent).
+
+PROFIL DU GRIMPEUR : ${c.name}, grade de référence ${ref}, niveau ${c.level||'non précisé'}
+
+TEXTE DU COACH (à conserver tel quel, tu peux seulement compléter ce qui manque) :
+"""
+${freeText}
+"""
+
+${classifyInstructions}
+
+${jsonSpec.replace('%%DESCRIPTION_INSTRUCTION%%', 'Séance complète : reprend tel quel ce que le coach a écrit et complète ce qui manque (échauffement, structure, retour au calme, conseils) pour que ce soit une séance cohérente et prête à suivre.')}`
+    : `Tu es un assistant qui met en forme une séance d'escalade rédigée librement par un coach. Règle absolue : tu ne dois RIEN ajouter qui ne soit pas déjà dans le texte du coach — pas d'échauffement, pas de retour au calme, pas d'exercice supplémentaire, pas de conseil, pas de série ou répétition non mentionnée. Si le texte ne décrit qu'un seul exercice (ex: un exercice de suspension), la fiche ne doit contenir QUE cet exercice, reformulé plus clairement, sans lui greffer une séance complète autour. Ta seule tâche : reformuler proprement ce qui est écrit et le classer.
+
+PROFIL DU GRIMPEUR : ${c.name}, grade de référence ${ref}, niveau ${c.level||'non précisé'}
+
+TEXTE DU COACH (à reformuler tel quel, SANS RIEN AJOUTER) :
+"""
+${freeText}
+"""
+
+${classifyInstructions}
+
+${jsonSpec.replace('%%DESCRIPTION_INSTRUCTION%%', "Reformulation claire du texte du coach, MOT POUR MOT le même contenu (mêmes exercices, mêmes séries/répétitions, rien de plus) — juste mieux écrit. N'invente aucune section absente du texte original.")}`;
 
     try {
       const resp = await fetch('/api/ai/chat', {
