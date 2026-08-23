@@ -515,6 +515,18 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 .sb-fav-btn:hover { color:var(--accent); transform:scale(1.15); }
 .sb-card:hover { border-color:var(--border2); box-shadow:var(--shadow); }
 .sb-card.active { border-color:var(--accent); background:var(--accent2); }
+
+/* Tests généraux (hub Doigts/Bras/Souplesse/Général) */
+.tests-hub-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; margin-bottom:24px; }
+.tests-hub-card { text-align:left; }
+.tests-hub-card .th-icon { font-size:26px; display:block; margin-bottom:8px; }
+.tests-hub-card .th-title { font-weight:700; font-size:15px; margin-bottom:2px; }
+.tests-hub-card .th-sub { font-size:12px; color:var(--muted); line-height:1.4; }
+.tests-hub-card.disabled { cursor:default; opacity:.55; }
+.tests-hub-card .th-badge { position:absolute; top:12px; right:12px; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; background:var(--border); color:var(--muted); padding:2px 7px; border-radius:3px; }
+.tests-breadcrumb { font-size:12px; color:var(--muted); margin-bottom:6px; cursor:pointer; display:inline-flex; align-items:center; gap:4px; }
+.tests-breadcrumb:hover { color:var(--text); }
+@media (max-width:640px) { .tests-hub-grid { grid-template-columns:1fr; } }
 .sb-tag { display:inline-flex; align-items:center; height:20px; padding:0 7px; border-radius:3px; font-size:11px; font-weight:600; background:var(--surface2); border:1px solid var(--border); color:var(--muted); }
 .sb-tag.type-bloc { background:#f3edf8; color:#5a2d82; border-color:#d4aff0; }
 .sb-tag.type-voies { background:#e8f0fa; color:#1a4a7a; border-color:#b5d4f4; }
@@ -781,9 +793,9 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 17l4-8 4 4 4-6 4 6"/><path d="M3 21h18"/></svg>
       Performance
     </button>
-    <button class="nav-btn" data-page="finger-profile">
+    <button class="nav-btn" data-page="tests-hub">
       <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2v6M9 4v4M15 4v4M6 8v4a6 6 0 0012 0V8"/><path d="M6 14v2a6 6 0 0012 0v-2"/></svg>
-      Finger Profile
+      Tests généraux
     </button>
     <button class="nav-btn" data-page="badges">
       <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="6"/><path d="M8.5 13.5L7 22l5-3 5 3-1.5-8.5"/></svg>
@@ -1843,10 +1855,74 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   </div>
 </div>
 
+<!-- ═══════════════ TESTS GÉNÉRAUX (hub) ═══════════════ -->
+<div class="page" id="page-tests-hub">
+  <div class="page-header">
+    <div>
+      <h2>Tests généraux</h2>
+      <p>Toutes tes évaluations physiques, par catégorie</p>
+    </div>
+  </div>
+  <div class="tests-hub-grid">
+    <div class="sb-card tests-hub-card" onclick="switchPage('tests-doigts')">
+      <span class="th-icon">🖐️</span>
+      <div class="th-title">Doigts</div>
+      <div class="th-sub">Finger Profile, SmartBoard, suspension sur réglette</div>
+    </div>
+    <div class="sb-card tests-hub-card disabled">
+      <span class="th-badge">Bientôt</span>
+      <span class="th-icon">💪</span>
+      <div class="th-title">Bras</div>
+      <div class="th-sub">Tractions, tirage, poussée</div>
+    </div>
+    <div class="sb-card tests-hub-card disabled">
+      <span class="th-badge">Bientôt</span>
+      <span class="th-icon">🤸</span>
+      <div class="th-title">Souplesse</div>
+      <div class="th-sub">Mobilité, ouverture de hanches</div>
+    </div>
+    <div class="sb-card tests-hub-card disabled">
+      <span class="th-badge">Bientôt</span>
+      <span class="th-icon">📋</span>
+      <div class="th-title">Tests généraux</div>
+      <div class="th-sub">Endurance, gainage, tests physiques</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ TESTS GÉNÉRAUX — DOIGTS ═══════════════ -->
+<div class="page" id="page-tests-doigts">
+  <div class="page-header">
+    <div>
+      <div class="tests-breadcrumb" onclick="switchPage('tests-hub')">‹ Tests généraux</div>
+      <h2>Doigts</h2>
+      <p>Force de doigts — profil, SmartBoard, suspension sur réglette</p>
+    </div>
+  </div>
+  <div class="tests-hub-grid">
+    <div class="sb-card tests-hub-card" onclick="switchPage('finger-profile')">
+      <span class="th-icon">🖐️</span>
+      <div class="th-title">Finger Profile</div>
+      <div class="th-sub">Tindeq · comparaison à la population (Berta 2024)</div>
+    </div>
+    <div class="sb-card tests-hub-card" onclick="switchPage('tests-smartboard')">
+      <span class="th-icon">📟</span>
+      <div class="th-title">SmartBoard</div>
+      <div class="th-sub">Force pic gauche/droite, force critique, asymétrie</div>
+    </div>
+    <div class="sb-card tests-hub-card" onclick="switchPage('tests-edgehang')">
+      <span class="th-icon">🧗</span>
+      <div class="th-title">Suspension sur réglette</div>
+      <div class="th-sub">Force max par taille de réglette</div>
+    </div>
+  </div>
+</div>
+
 <!-- ═══════════════ FINGER PROFILE ═══════════════ -->
 <div class="page" id="page-finger-profile">
   <div class="page-header">
     <div>
+      <div class="tests-breadcrumb" onclick="switchPage('tests-doigts')">‹ Tests généraux / Doigts</div>
       <h2>Finger Profile</h2>
       <p>Ton profil doigts, en un coup d'œil — <span id="fp-athlete-name"></span></p>
     </div>
@@ -2048,6 +2124,112 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <button class="btn sm" onclick="closeModal('fp-protocol-modal')">Fermer</button>
     </div>
     <div class="modal-body" id="fp-protocol-body"></div>
+  </div>
+</div>
+
+<!-- ═══════════════ TESTS GÉNÉRAUX — SMARTBOARD ═══════════════ -->
+<div class="page" id="page-tests-smartboard">
+  <div class="page-header">
+    <div>
+      <div class="tests-breadcrumb" onclick="switchPage('tests-doigts')">‹ Tests généraux / Doigts</div>
+      <h2>SmartBoard</h2>
+      <p>Force pic gauche/droite, force critique — <span id="smb-athlete-name"></span></p>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-bottom:20px">
+    <div class="panel-header">
+      <span class="panel-title">Nouveau test SmartBoard</span>
+    </div>
+    <div class="form-row form-row-3">
+      <div class="form-group">
+        <label class="form-label">Date</label>
+        <input class="form-control" type="date" id="smb-date">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Réglette / prise</label>
+        <input class="form-control" type="text" id="smb-edge" placeholder="ex : 20mm plat">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Durée du test (s)</label>
+        <input class="form-control" type="number" step="0.1" id="smb-duration">
+      </div>
+    </div>
+    <div class="form-row form-row-3">
+      <div class="form-group">
+        <label class="form-label">Force pic gauche (kg)</label>
+        <input class="form-control" type="number" step="0.1" id="smb-peak-left">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Force pic droite (kg)</label>
+        <input class="form-control" type="number" step="0.1" id="smb-peak-right">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Force critique CF (kg)</label>
+        <input class="form-control" type="number" step="0.1" id="smb-cf">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Notes</label>
+      <textarea class="form-control" id="smb-notes" rows="2"></textarea>
+    </div>
+    <button class="btn primary" onclick="smbSaveTest()">Enregistrer le test</button>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">Historique</span>
+    </div>
+    <div id="smb-history-list"><p style="font-size:13px;color:var(--muted)">Chargement…</p></div>
+  </div>
+</div>
+
+<!-- ═══════════════ TESTS GÉNÉRAUX — SUSPENSION SUR RÉGLETTE ═══════════════ -->
+<div class="page" id="page-tests-edgehang">
+  <div class="page-header">
+    <div>
+      <div class="tests-breadcrumb" onclick="switchPage('tests-doigts')">‹ Tests généraux / Doigts</div>
+      <h2>Suspension sur réglette</h2>
+      <p>Force max en % du poids de corps, par taille de réglette — <span id="eh-athlete-name"></span></p>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-bottom:20px">
+    <div class="panel-header">
+      <span class="panel-title">Nouveau test</span>
+    </div>
+    <div class="form-row form-row-3">
+      <div class="form-group">
+        <label class="form-label">Date</label>
+        <input class="form-control" type="date" id="eh-date">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Réglette (mm)</label>
+        <input class="form-control" type="number" step="1" id="eh-edge-mm">
+      </div>
+      <div class="form-group">
+        <label class="form-label">% du poids de corps</label>
+        <input class="form-control" type="number" step="0.1" id="eh-pct-bw">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Notes</label>
+      <textarea class="form-control" id="eh-notes" rows="2"></textarea>
+    </div>
+    <button class="btn primary" onclick="ehSaveTest()">Enregistrer le test</button>
+  </div>
+
+  <div class="panel" style="margin-bottom:20px">
+    <div class="panel-header">
+      <span class="panel-title">Historique</span>
+      <span class="panel-sub" id="eh-filter-wrap"></span>
+    </div>
+    <div id="eh-history-list"><p style="font-size:13px;color:var(--muted)">Chargement…</p></div>
+  </div>
+
+  <div class="panel" id="eh-chart-panel" style="display:none">
+    <div class="panel-header"><span class="panel-title">Évolution</span><span class="panel-sub" id="eh-chart-sub"></span></div>
+    <div class="chart-wrap" style="height:220px"><canvas id="eh-evo-chart"></canvas></div>
   </div>
 </div>
 
@@ -4024,7 +4206,7 @@ function applyRoleUI() {
 }
 
 // ═══════════════ MODE MES DONNÉES / MON COACH ═══════════════
-const APPMODE_MINE_PAGES = ['dashboard','calendar','new-session','performance','workload','finger-profile','badges','ai-coach','history','community'];
+const APPMODE_MINE_PAGES = ['dashboard','calendar','new-session','performance','workload','tests-hub','tests-doigts','finger-profile','tests-smartboard','tests-edgehang','badges','ai-coach','history','community'];
 const APPMODE_COACH_PAGES = ['coach-athletes','planning','session-bank'];
 let appMode = 'mine';
 try { appMode = localStorage.getItem('appMode') || 'mine'; } catch (e) {}
@@ -4365,6 +4547,8 @@ function renderPage(name) {
   if(name==='performance') { renderPerformance(); renderPyramidPage(); }
   if(name==='workload') renderWorkload();
   if(name==='finger-profile') renderFingerProfile();
+  if(name==='tests-smartboard') renderSmartboard();
+  if(name==='tests-edgehang') renderEdgeHang();
   if(name==='badges') renderBadges();
   if(name==='community') renderCommunityPage();
   if(name==='history') renderHistory();
@@ -6611,6 +6795,213 @@ async function fpDeleteTest(testId) {
   else fpLoadProfileTab();
 }
 window.fpDeleteTest = fpDeleteTest;
+
+// ═══════════════ TESTS GÉNÉRAUX — SMARTBOARD ═══════════════
+// Utilise la table générique general_tests (category='doigts', testType='smartboard') — chaque
+// test est une ligne d'historique conservée, jamais écrasée (cf. Finger Profile côté conception).
+let smbHistoryCache = [];
+
+async function renderSmartboard() {
+  const climber = getActive();
+  const nameEl = document.getElementById('smb-athlete-name');
+  if (nameEl) nameEl.textContent = climber?.name || '';
+  const dateEl = document.getElementById('smb-date');
+  if (dateEl && !dateEl.value) dateEl.value = new Date().toISOString().slice(0, 10);
+  await smbFetchHistory();
+}
+
+async function smbFetchHistory() {
+  const climber = getActive();
+  if (!climber) return;
+  try {
+    const r = await fetch('/api/general-tests/' + climber.id + '?type=smartboard', { headers: authHeaders() });
+    smbHistoryCache = r.ok ? await r.json() : [];
+  } catch (e) { smbHistoryCache = []; }
+  smbRenderHistory();
+}
+
+function smbRenderHistory() {
+  const el = document.getElementById('smb-history-list');
+  if (!el) return;
+  if (!smbHistoryCache.length) { el.innerHTML = `<p style="font-size:13px;color:var(--muted)">Aucun test enregistré pour l'instant.</p>`; return; }
+  el.innerHTML = smbHistoryCache.map(t => {
+    const p = t.payload || {};
+    const asym = (p.peakLeft != null && p.peakRight != null && Math.max(p.peakLeft, p.peakRight) > 0)
+      ? Math.round(Math.abs(p.peakLeft - p.peakRight) / Math.max(p.peakLeft, p.peakRight) * 100)
+      : null;
+    return `<div class="fp-history-row" style="cursor:default">
+      <div style="flex:1">
+        <div style="font-size:14px;font-weight:600">${fmtDate(t.testDate)}${p.edge ? ' · ' + esc(p.edge) : ''}</div>
+        <div style="font-size:12px;color:var(--muted)">G ${p.peakLeft ?? '–'} kg · D ${p.peakRight ?? '–'} kg${asym !== null ? ' · asym. ' + asym + '%' : ''}${p.cf != null ? ' · CF ' + p.cf + ' kg' : ''}</div>
+      </div>
+      <button class="btn" style="padding:4px 8px;font-size:11px" onclick="smbDeleteTest('${t.id}')">Suppr.</button>
+    </div>`;
+  }).join('');
+}
+
+async function smbSaveTest() {
+  const climber = getActive();
+  if (!climber) return;
+  const date = document.getElementById('smb-date').value;
+  if (!date) { alert('Renseigne une date.'); return; }
+  const payload = {
+    edge: document.getElementById('smb-edge').value.trim(),
+    peakLeft: parseFloat(document.getElementById('smb-peak-left').value) || null,
+    peakRight: parseFloat(document.getElementById('smb-peak-right').value) || null,
+    cf: parseFloat(document.getElementById('smb-cf').value) || null,
+    duration: parseFloat(document.getElementById('smb-duration').value) || null
+  };
+  const body = {
+    id: 'gt_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+    category: 'doigts',
+    testType: 'smartboard',
+    testDate: date,
+    payload,
+    notes: document.getElementById('smb-notes').value.trim()
+  };
+  try {
+    await fetch('/api/general-tests/' + climber.id, { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) });
+  } catch (e) { alert("Erreur lors de l'enregistrement."); return; }
+  ['smb-edge', 'smb-peak-left', 'smb-peak-right', 'smb-cf', 'smb-duration', 'smb-notes'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  await smbFetchHistory();
+}
+window.smbSaveTest = smbSaveTest;
+
+async function smbDeleteTest(testId) {
+  if (!confirm('Supprimer ce test ?')) return;
+  const climber = getActive();
+  try {
+    await fetch('/api/general-tests/' + climber.id + '/' + testId, { method: 'DELETE', headers: authHeaders() });
+  } catch (e) { /* silencieux */ }
+  await smbFetchHistory();
+}
+window.smbDeleteTest = smbDeleteTest;
+
+// ═══════════════ TESTS GÉNÉRAUX — SUSPENSION SUR RÉGLETTE ═══════════════
+// category='doigts', testType='edge_hang'. Courbe d'évolution affichée seulement quand un filtre
+// de taille de réglette est actif ET qu'il y a au moins 2 points sur cette taille (comparaison
+// entre réglettes de tailles différentes n'a pas de sens physiologique direct).
+let ehHistoryCache = [];
+let ehFilterEdge = 'all';
+
+async function renderEdgeHang() {
+  const climber = getActive();
+  const nameEl = document.getElementById('eh-athlete-name');
+  if (nameEl) nameEl.textContent = climber?.name || '';
+  const dateEl = document.getElementById('eh-date');
+  if (dateEl && !dateEl.value) dateEl.value = new Date().toISOString().slice(0, 10);
+  ehFilterEdge = 'all';
+  await ehFetchHistory();
+}
+
+async function ehFetchHistory() {
+  const climber = getActive();
+  if (!climber) return;
+  try {
+    const r = await fetch('/api/general-tests/' + climber.id + '?type=edge_hang', { headers: authHeaders() });
+    ehHistoryCache = r.ok ? await r.json() : [];
+  } catch (e) { ehHistoryCache = []; }
+  ehRenderFilters();
+  ehRenderHistory();
+  ehRenderChart();
+}
+
+function ehEdgeSizes() {
+  return [...new Set(ehHistoryCache.map(t => t.payload?.edgeMm).filter(v => v != null))].sort((a, b) => a - b);
+}
+
+function ehRenderFilters() {
+  const wrap = document.getElementById('eh-filter-wrap');
+  if (!wrap) return;
+  const sizes = ehEdgeSizes();
+  if (!sizes.length) { wrap.innerHTML = ''; return; }
+  wrap.innerHTML = `<select class="form-control" style="display:inline-block;width:auto;padding:2px 6px;font-size:12px" onchange="ehSetFilter(this.value)">
+    <option value="all"${ehFilterEdge === 'all' ? ' selected' : ''}>Toutes réglettes</option>
+    ${sizes.map(s => `<option value="${s}"${String(ehFilterEdge) === String(s) ? ' selected' : ''}>${s} mm</option>`).join('')}
+  </select>`;
+}
+
+function ehSetFilter(v) {
+  ehFilterEdge = v;
+  ehRenderHistory();
+  ehRenderChart();
+}
+window.ehSetFilter = ehSetFilter;
+
+function ehFilteredList() {
+  if (ehFilterEdge === 'all') return ehHistoryCache;
+  return ehHistoryCache.filter(t => String(t.payload?.edgeMm) === String(ehFilterEdge));
+}
+
+function ehRenderHistory() {
+  const el = document.getElementById('eh-history-list');
+  if (!el) return;
+  const list = ehFilteredList();
+  if (!list.length) { el.innerHTML = `<p style="font-size:13px;color:var(--muted)">Aucun test enregistré pour l'instant.</p>`; return; }
+  el.innerHTML = list.map(t => {
+    const p = t.payload || {};
+    return `<div class="fp-history-row" style="cursor:default">
+      <div style="flex:1">
+        <div style="font-size:14px;font-weight:600">${fmtDate(t.testDate)}${p.edgeMm != null ? ' · ' + p.edgeMm + ' mm' : ''}</div>
+        <div style="font-size:12px;color:var(--muted)">${p.pctBw != null ? p.pctBw + '% du poids de corps' : ''}</div>
+      </div>
+      <button class="btn" style="padding:4px 8px;font-size:11px" onclick="ehDeleteTest('${t.id}')">Suppr.</button>
+    </div>`;
+  }).join('');
+}
+
+function ehRenderChart() {
+  const panel = document.getElementById('eh-chart-panel');
+  const sub = document.getElementById('eh-chart-sub');
+  if (!panel) return;
+  const list = ehFilteredList().slice().sort((a, b) => a.testDate.localeCompare(b.testDate));
+  const pts = list.filter(t => t.payload?.pctBw != null);
+  if (ehFilterEdge === 'all' || pts.length < 2) {
+    panel.style.display = 'none';
+    destroyChart('eh-evo-chart');
+    return;
+  }
+  panel.style.display = '';
+  if (sub) sub.textContent = ehFilterEdge + ' mm';
+  makeChart('eh-evo-chart', {
+    type: 'line',
+    data: { labels: pts.map(t => fmtDate(t.testDate)), datasets: [{ data: pts.map(t => t.payload.pctBw), borderColor: '#2d7a4e', backgroundColor: '#2d7a4e22', tension: .3, pointRadius: 3, fill: true }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { font: { size: 9 } } }, y: { ticks: { font: { size: 9 } } } } }
+  });
+}
+
+async function ehSaveTest() {
+  const climber = getActive();
+  if (!climber) return;
+  const date = document.getElementById('eh-date').value;
+  const edgeMm = parseFloat(document.getElementById('eh-edge-mm').value);
+  const pctBw = parseFloat(document.getElementById('eh-pct-bw').value);
+  if (!date || !edgeMm || !pctBw) { alert('Date, réglette (mm) et % du poids de corps sont requis.'); return; }
+  const body = {
+    id: 'gt_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+    category: 'doigts',
+    testType: 'edge_hang',
+    testDate: date,
+    payload: { edgeMm, pctBw },
+    notes: document.getElementById('eh-notes').value.trim()
+  };
+  try {
+    await fetch('/api/general-tests/' + climber.id, { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) });
+  } catch (e) { alert("Erreur lors de l'enregistrement."); return; }
+  ['eh-edge-mm', 'eh-pct-bw', 'eh-notes'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  await ehFetchHistory();
+}
+window.ehSaveTest = ehSaveTest;
+
+async function ehDeleteTest(testId) {
+  if (!confirm('Supprimer ce test ?')) return;
+  const climber = getActive();
+  try {
+    await fetch('/api/general-tests/' + climber.id + '/' + testId, { method: 'DELETE', headers: authHeaders() });
+  } catch (e) { /* silencieux */ }
+  await ehFetchHistory();
+}
+window.ehDeleteTest = ehDeleteTest;
 
 // ═══════════════ COMMUNAUTÉ / CREWS (mode jeu) ═══════════════
 // Choix d'emoji pour les kudos entre coéquipiers — même liste côté backend (crews.js KUDOS_EMOJIS).
