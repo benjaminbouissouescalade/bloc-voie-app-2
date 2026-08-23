@@ -17,6 +17,10 @@ function decodeBearer(req) {
   try { return jwt.verify(header.slice(7), JWT_SECRET); } catch (e) { return null; }
 }
 
+// Ordre de restriction croissante — utilisé pour choisir le mode le plus restrictif quand un
+// athlète a plusieurs coachs (cas rare mais possible via coach_athletes).
+const PLANNING_MODE_RANK = { free: 0, shared: 1, coach_only: 2 };
+
 function uid() { return 'u_' + Date.now() + '_' + Math.random().toString(36).slice(2,8); }
 function cid() { return 'c_' + Date.now() + '_' + Math.random().toString(36).slice(2,8); }
 function invToken() { return crypto.randomBytes(24).toString('hex'); }
@@ -119,10 +123,15 @@ router.get('/athletes', async (req, res) => {
              WHERE u.role = 'athlete' ORDER BY u.created_at DESC`
           ));
     } else {
+      // Jointure directe (plutôt qu'un IN sur sous-requête) pour récupérer au passage le
+      // planning_mode de la relation — utilisé par l'espace Coaching pour afficher/éditer le
+      // mode de planification (libre/partagé/coach uniquement) de chaque athlète.
       ({ rows } = await pool.query(
-        `SELECT u.id, u.email, u.name, u.role, u.climber_id, u.created_at, c.color, c.level FROM users u
+        `SELECT u.id, u.email, u.name, u.role, u.climber_id, u.created_at, c.color, c.level, ca.planning_mode
+         FROM users u
+         JOIN coach_athletes ca ON ca.climber_id = u.climber_id AND ca.coach_id = $1
          LEFT JOIN climbers c ON c.id = u.climber_id
-         WHERE u.role = 'athlete' AND u.climber_id IN (SELECT climber_id FROM coach_athletes WHERE coach_id = $1)
+         WHERE u.role = 'athlete'
          ORDER BY u.created_at DESC`,
         [user.id]
       ));
@@ -225,6 +234,55 @@ router.delete('/assign-athlete/:coachId/:climberId', async (req, res) => {
   try {
     await pool.query('DELETE FROM coach_athletes WHERE coach_id=$1 AND climber_id=$2', [req.params.coachId, req.params.climberId]);
     res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/auth/set-planning-mode — règle le mode de planification (free/shared/coach_only)
+// pour une relation coach-athlète donnée. Un coach ne peut régler que sur ses propres athlètes ;
+// un owner peut le faire pour n'importe quelle relation. Appliqué côté interface uniquement
+// (voir commentaire sur la colonne dans src/db/schema.js).
+router.post('/set-planning-mode', async (req, res) => {
+  const caller = decodeBearer(req);
+  if (!caller || !isCoachRole(caller.role)) return res.status(403).json({ error: 'Coach requis' });
+  const { coachId, climberId, mode } = req.body || {};
+  if (!coachId || !climberId || !['free', 'shared', 'coach_only'].includes(mode)) {
+    return res.status(400).json({ error: 'coachId, climberId et mode (free/shared/coach_only) requis' });
+  }
+  if (!isOwnerRole(caller.role) && caller.id !== coachId) {
+    return res.status(403).json({ error: 'Tu ne peux régler le mode que sur tes propres athlètes' });
+  }
+  try {
+    const { rows } = await pool.query(
+      'UPDATE coach_athletes SET planning_mode=$1 WHERE coach_id=$2 AND climber_id=$3 RETURNING *',
+      [mode, coachId, climberId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Relation coach-athlète introuvable' });
+    res.json({ ok: true, coachId, climberId, mode });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/auth/my-planning-mode — mode applicable au compte connecté : le plus restrictif parmi
+// ses relations de coaching, ou 'free' si aucun coach (un athlète doit pouvoir utiliser Digger
+// même sans coach, voir section "Athlete" du modèle de rôles).
+router.get('/my-planning-mode', async (req, res) => {
+  const caller = decodeBearer(req);
+  if (!caller) return res.status(401).json({ error: 'Non authentifié' });
+  try {
+    const { rows } = await pool.query(
+      `SELECT ca.planning_mode, u.name AS coach_name FROM coach_athletes ca
+       JOIN users u ON u.id = ca.coach_id WHERE ca.climber_id = $1`,
+      [caller.climberId]
+    );
+    if (!rows.length) return res.json({ mode: 'free', coachName: null });
+    let best = rows[0];
+    for (const r of rows) {
+      if ((PLANNING_MODE_RANK[r.planning_mode] || 0) > (PLANNING_MODE_RANK[best.planning_mode] || 0)) best = r;
+    }
+    res.json({ mode: best.planning_mode || 'shared', coachName: best.coach_name });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
