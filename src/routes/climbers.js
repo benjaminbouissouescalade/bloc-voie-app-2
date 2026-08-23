@@ -4,13 +4,18 @@ const router = express.Router();
 const { pool } = require('../db/schema');
 const { requireAuth } = require('../middleware/auth');
 const { canAccessClimber } = require('../middleware/access');
+const { isOwnerRole, isCoachRole } = require('../lib/roles');
 
 router.use(requireAuth);
 
 // GET /api/climbers — les grimpeurs accessibles à l'utilisateur connecté
-// (son propre profil + les athlètes qu'il coach s'il est admin)
+// (son propre profil + les athlètes qu'il coach ; un owner voit tous les profils)
 router.get('/', async (req, res) => {
   try {
+    if (isOwnerRole(req.user.role)) {
+      const { rows } = await pool.query('SELECT * FROM climbers ORDER BY created_at ASC');
+      return res.json(rows);
+    }
     const { rows } = await pool.query(
       `SELECT DISTINCT c.* FROM climbers c
        WHERE c.id = $1
@@ -50,9 +55,9 @@ router.post('/', async (req, res) => {
       const ok = await canAccessClimber(req.user, id);
       if (!ok) return res.status(403).json({ error: 'Accès refusé à ce grimpeur' });
     } else {
-      // Nouveau grimpeur : autorisé pour son propre profil, ou pour un admin
+      // Nouveau grimpeur : autorisé pour son propre profil, ou pour un coach/owner
       // qui crée un profil qu'il coachera lui-même
-      if (id !== req.user.climberId && req.user.role !== 'admin') {
+      if (id !== req.user.climberId && !isCoachRole(req.user.role)) {
         return res.status(403).json({ error: 'Seul un coach peut créer de nouveaux profils' });
       }
     }
