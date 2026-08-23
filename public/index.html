@@ -1025,6 +1025,9 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   <div class="page-header">
     <h2 id="session-form-title">Nouvelle séance</h2>
     <p>Enregistre ta séance, tes ascensions et ta charge.</p>
+    <p id="s-prescribed-badge" style="display:none;font-size:12px;font-weight:600;color:#1a4a7a;background:var(--accent2);padding:6px 10px;border-radius:6px;margin-top:8px">
+      🧑‍🏫 Séance prescrite par ton coach — le type, la durée, l'intensité et le support sont fixés par lui. Tu peux enregistrer tes ascensions, ton ressenti et tes notes.
+    </p>
   </div>
   <div class="two-col">
     <div>
@@ -4837,6 +4840,11 @@ function addPlannedSessionFromBank(bankId, dateStr) {
   if (planningBlockedForMe()) { warnPlanningBlocked(); return; }
   const item = getBank().find(x => x.id === bankId);
   if (!item) return;
+  const climber = getActive();
+  // Source de la séance : 'coach' quand un coach/owner la programme pour un AUTRE grimpeur
+  // depuis l'espace Coaching, 'self' sinon (comportement historique, y compris pour un athlète
+  // qui se programme lui-même — cf. section 6 : autonomie même sans coach).
+  const isCoachPrescribing = climber?.id !== window.currentUser?.climberId && isCoachRoleValue(window.currentUser?.role);
   const payload = {
     id: 'log_' + Date.now() + '_' + Math.random().toString(36).slice(2,6),
     date: dateStr,
@@ -4850,9 +4858,10 @@ function addPlannedSessionFromBank(bankId, dateStr) {
     ascents: [],
     bNoGrade: {},
     planned: true,
-    bankRef: bankId
+    bankRef: bankId,
+    source: isCoachPrescribing ? 'coach' : 'self',
+    assignedByCoachId: isCoachPrescribing ? window.currentUser.id : null
   };
-  const climber = getActive();
   if (!climber.logs) climber.logs = [];
   climber.logs.push(payload);
   saveDB();
@@ -5061,6 +5070,9 @@ function generateCycle() {
     if (!climber) return;
     if (!climber.logs) climber.logs = [];
     targetNames.push(climber.name);
+    // Source : 'coach' quand ce cycle est généré pour un AUTRE grimpeur par un coach/owner
+    // (cf. addPlannedSessionFromBank pour la même logique appliquée aux séances individuelles).
+    const isCoachPrescribing = climberId !== window.currentUser?.climberId && isCoachRoleValue(window.currentUser?.role);
 
     // Dates déjà occupées sur la période (séances existantes d'autres cycles, prévues ou faites)
     const periodEndDate = new Date(startDate.getTime() + totalDays * 86400000);
@@ -5095,7 +5107,9 @@ function generateCycle() {
         planned: true,
         bankRef: entry.bankId,
         cycleId,
-        cycleName
+        cycleName,
+        source: isCoachPrescribing ? 'coach' : 'self',
+        assignedByCoachId: isCoachPrescribing ? window.currentUser.id : null
       });
       created++;
     });
@@ -7945,7 +7959,24 @@ function newSession(date=null){
   renderAscentsEditor();
   if (date) sNewSessionDateLocked = true;
   voiceResetPanel();
+  applyPrescriptionLock(null);
 }
+// Vrai seulement quand l'ATHLÈTE lui-même (pas son coach) consulte une séance que son coach lui
+// a prescrite (source='coach') — voir addPlannedSessionFromBank/generateCycle pour le tagging.
+// Un coach qui édite la même séance depuis l'espace Coaching n'est jamais bridé : il garde le
+// contrôle total sur ce qu'il a prescrit.
+function applyPrescriptionLock(log) {
+  const locked = !!log && log.source === 'coach'
+    && getActive()?.id === window.currentUser?.climberId
+    && !isCoachRoleValue(window.currentUser?.role);
+  ['s-type','s-minutes','s-intensity','s-support'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.disabled = locked;
+  });
+  const badge = document.getElementById('s-prescribed-badge');
+  if (badge) badge.style.display = locked ? '' : 'none';
+}
+
 function editSession(id){
   const log=getLogs().find(l=>l.id===id);if(!log)return;
   editingId=id; sessionAscents=JSON.parse(JSON.stringify(log.ascents||[]));
@@ -7965,6 +7996,7 @@ function editSession(id){
   renderAscentsEditor();
   if (!log.planned) { renderTogetherPanel(id); } else { document.getElementById('s-together-panel').style.display='none'; }
   voiceResetPanel();
+  applyPrescriptionLock(log);
 }
 function renderNewSession(){
   if(!editingId&&!sessionAscents.length&&!sNewSessionDateLocked) newSession();
