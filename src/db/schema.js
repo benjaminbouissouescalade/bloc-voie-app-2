@@ -32,6 +32,13 @@ async function initDB() {
       ALTER TABLE climbers ADD COLUMN IF NOT EXISTS trips JSONB DEFAULT '[]';
       ALTER TABLE climbers ADD COLUMN IF NOT EXISTS profile JSONB DEFAULT '{}';
       ALTER TABLE climbers ADD COLUMN IF NOT EXISTS objectives JSONB DEFAULT '[]';
+      -- Objectifs de coaching "libres" sur une période (ex: cycle "Volume × 6 sur 3 semaines") : le
+      -- coach fixe un objectif (goal) + un nombre de séances sur une période, sans imposer de jour
+      -- précis. L'athlète pioche lui-même dans la banque (même goal) quand il veut, ce qui crée une
+      -- séance réelle (logs.objective_id) et fait avancer la progression. Tableau d'objets
+      -- {id, flexGoal, targetCount, startDate, endDate, cycleId, cycleName, source, assignedByCoachId}.
+      -- Remplace l'ancien mécanisme "créneaux datés" (logs.flex_goal seul) jugé trop rigide.
+      ALTER TABLE climbers ADD COLUMN IF NOT EXISTS cycle_objectives JSONB DEFAULT '[]';
       CREATE TABLE IF NOT EXISTS logs (
         id          TEXT PRIMARY KEY,
         climber_id  TEXT NOT NULL REFERENCES climbers(id) ON DELETE CASCADE,
@@ -58,12 +65,12 @@ async function initDB() {
       -- génération automatique. assigned_by_coach_id identifie le coach quand source='coach'.
       ALTER TABLE logs ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'self';
       ALTER TABLE logs ADD COLUMN IF NOT EXISTS assigned_by_coach_id TEXT;
-      -- Créneau "objectif libre" (coach propose un objectif type 'volume' sur une période, l'athlète
-      -- choisit lui-même une séance de la banque avec ce même goal pour s'adapter à son support du
-      -- jour). flex_goal = la valeur de goal attendue (cf. SB_GOAL_LABELS côté frontend). Tant que
-      -- bank_ref est NULL, le créneau n'est pas encore résolu ; une fois choisi, bank_ref/type/
-      -- minutes/intensity/support sont remplis normalement et flex_goal reste comme trace historique.
+      -- flex_goal : quand une séance provient d'un objectif de période (climbers.cycle_objectives),
+      -- trace le goal correspondant (cf. SB_GOAL_LABELS côté frontend) pour l'affichage ("🎯
+      -- Objectif : Volume endurance"). objective_id relie la séance à l'objectif qu'elle fait
+      -- avancer (compte de progression = nombre de logs avec ce objective_id).
       ALTER TABLE logs ADD COLUMN IF NOT EXISTS flex_goal TEXT;
+      ALTER TABLE logs ADD COLUMN IF NOT EXISTS objective_id TEXT;
       CREATE INDEX IF NOT EXISTS idx_logs_climber_date ON logs(climber_id, date DESC);
       CREATE TABLE IF NOT EXISTS session_bank (
         id          TEXT PRIMARY KEY,
