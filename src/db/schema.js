@@ -18,6 +18,9 @@ async function initDB() {
         created_at  TIMESTAMPTZ DEFAULT NOW()
       );
       ALTER TABLE users ADD COLUMN IF NOT EXISTS climber_id TEXT;
+      -- Modèle de rôles owner/coach/athlete : l'ancien rôle unique "admin" (= coach unique de
+      -- l'app à l'origine) devient "owner". Idempotent : sans ligne 'admin' restante, no-op.
+      UPDATE users SET role = 'owner' WHERE role = 'admin';
       CREATE TABLE IF NOT EXISTS climbers (
         id          TEXT PRIMARY KEY,
         name        TEXT NOT NULL,
