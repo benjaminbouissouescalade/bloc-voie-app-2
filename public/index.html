@@ -9736,13 +9736,16 @@ async function renderAdminCoachesPage() {
     if (!athletesRes.ok) throw new Error(athletes?.error || 'Erreur de chargement des athlètes');
 
     coachesListEl.innerHTML = coaches.length ? coaches.map(c => `
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:8px">
         <div>
           <div style="font-weight:600;font-size:14px">${esc(c.name)}</div>
           <div style="font-size:12px;color:var(--muted)">${esc(c.email)}</div>
         </div>
-        <span style="font-size:12px;color:var(--muted)">${c.athleteCount} athlète${c.athleteCount!==1?'s':''}</span>
-      </div>`).join('') : `<p style="font-size:13px;color:var(--muted);font-style:italic">Aucun coach pour l'instant — utilise "+ Créer un coach".</p>`;
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:12px;color:var(--muted)">${c.athleteCount} athlète${c.athleteCount!==1?'s':''}</span>
+          <button class="btn sm" onclick="adminSetRole('${c.id}','athlete')" title="Repasse ce compte en simple athlète — son historique et ses athlètes déjà attribués sont conservés">⬇ Rétrograder en athlète</button>
+        </div>
+      </div>`).join('') : `<p style="font-size:13px;color:var(--muted);font-style:italic">Aucun coach pour l'instant — utilise "+ Créer un coach", ou promeus un athlète existant ci-dessous.</p>`;
 
     const coachOptions = coaches.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
     athletesListEl.innerHTML = athletes.length ? athletes.map(a => {
@@ -9757,12 +9760,13 @@ async function renderAdminCoachesPage() {
       return `<div style="padding:10px 0;border-bottom:1px solid var(--border)">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
           <div style="font-weight:600;font-size:14px">${esc(a.name)}</div>
-          <div style="display:flex;gap:6px;align-items:center">
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
             <select class="form-control" style="width:auto;font-size:12px;padding:4px 8px" id="admin-assign-select-${a.id}">
               <option value="">— Attribuer à —</option>
               ${coachOptions}
             </select>
             <button class="btn sm" onclick="adminAssignAthlete('${a.climber_id}','admin-assign-select-${a.id}')">Attribuer</button>
+            <button class="btn sm" onclick="adminSetRole('${a.id}','coach')" title="Ce compte garde son propre carnet d'entraînement, il gagne juste les droits coach">⬆ Promouvoir en coach</button>
           </div>
         </div>
         <div style="margin-top:6px">${tags}</div>
@@ -9820,6 +9824,25 @@ async function submitCreateCoach() {
   }
 }
 window.submitCreateCoach = submitCreateCoach;
+
+// Promeut un compte athlète existant en coach, ou repasse un coach en simple athlète — sans
+// jamais toucher à son profil grimpeur/climber_id (voir POST /api/auth/set-role côté backend).
+async function adminSetRole(userId, role) {
+  const label = role === 'coach' ? 'promouvoir ce compte en coach' : 'repasser ce compte en simple athlète';
+  if (!confirm(`Confirmer : ${label} ?`)) return;
+  try {
+    const res = await fetch('/api/auth/set-role', {
+      method: 'POST', headers: authHeaders(),
+      body: JSON.stringify({ userId, role })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erreur');
+    renderAdminCoachesPage();
+  } catch (e) {
+    alert('Erreur : ' + e.message);
+  }
+}
+window.adminSetRole = adminSetRole;
 
 async function adminAssignAthlete(climberId, selectId) {
   const select = document.getElementById(selectId);
