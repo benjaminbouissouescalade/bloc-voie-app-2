@@ -1065,6 +1065,24 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   </div>
 </div>
 
+<!-- Aperçu détaillé d'une fiche avant de la planifier (bouton 👁 sur chaque carte du picker
+     ci-dessus) : évite de choisir "à l'aveugle" en ne voyant que le nom + la durée. -->
+<div class="modal-backdrop" id="plan-picker-detail-modal">
+  <div class="modal" style="width:min(480px,100%)">
+    <div class="modal-header">
+      <span class="modal-title" id="plan-picker-detail-title">Détail de la séance</span>
+      <button class="btn sm" onclick="closeModal('plan-picker-detail-modal')">Fermer</button>
+    </div>
+    <div class="modal-body">
+      <div id="plan-picker-detail-body"></div>
+      <div style="display:flex;gap:8px;margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+        <button class="btn" onclick="planPickerBackToList()">‹ Retour à la liste</button>
+        <button class="btn primary" id="plan-picker-detail-choose-btn">📅 Planifier cette séance</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ═══════════════ NEW SESSION ═══════════════ -->
 <div class="page" id="page-new-session">
   <div class="page-header">
@@ -5071,10 +5089,11 @@ function renderCalBankMini() {
     const t = SESSION_TYPES[s.type] || SESSION_TYPES.autre;
     return `<div class="cal-bank-mini-card" draggable="true" ondragstart="onBankDragStart(event,'${s.id}')" ondragend="onBankDragEnd(event)" title="${esc(s.name)}">
       <span class="sess-dot" style="background:${t.color};flex-shrink:0"></span>
-      <div style="min-width:0">
+      <div style="min-width:0;flex:1">
         <div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(s.name)}</div>
         <div style="font-size:10px;color:var(--muted)">${s.duration||90} min · int. ${s.intensity||3}</div>
       </div>
+      <button class="btn sm" style="flex-shrink:0;padding:2px 6px" draggable="false" onclick="event.stopPropagation();sbOpenDetail('${s.id}')" title="Voir le détail de la séance">👁</button>
     </div>`;
   }).join('');
 }
@@ -9171,10 +9190,11 @@ function renderPlanPickerList() {
     const t = SESSION_TYPES[s.type] || SESSION_TYPES.autre;
     return `<div class="cal-bank-mini-card" style="cursor:pointer" onclick="choosePlanPickerBank('${s.id}')">
       <span class="sess-dot" style="background:${t.color};flex-shrink:0"></span>
-      <div style="min-width:0">
+      <div style="min-width:0;flex:1">
         <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(s.name)}</div>
         <div style="font-size:11px;color:var(--muted)">${s.duration||90} min · int. ${s.intensity||3}</div>
       </div>
+      <button class="btn sm" style="flex-shrink:0" onclick="event.stopPropagation();planPickerPreview('${s.id}')" title="Voir le détail de la séance">👁</button>
     </div>`;
   }).join('');
 }
@@ -9186,6 +9206,24 @@ function choosePlanPickerBank(bankId) {
   onBankDropOnDate(planPickerDate);
 }
 window.choosePlanPickerBank = choosePlanPickerBank;
+// Aperçu lisible d'une fiche avant de la choisir pour ce jour — répond au besoin de "lire la
+// séance" plutôt que de choisir seulement sur son nom + sa durée dans la mini-carte.
+function planPickerPreview(id) {
+  const s = getBank().find(x => x.id === id);
+  if (!s) return;
+  document.getElementById('plan-picker-detail-title').textContent = s.name;
+  document.getElementById('plan-picker-detail-body').innerHTML = sbSessionSummaryHtml(s);
+  const chooseBtn = document.getElementById('plan-picker-detail-choose-btn');
+  chooseBtn.onclick = () => { closeModal('plan-picker-detail-modal'); choosePlanPickerBank(id); };
+  closeModal('plan-picker-modal');
+  document.getElementById('plan-picker-detail-modal').classList.add('open');
+}
+window.planPickerPreview = planPickerPreview;
+function planPickerBackToList() {
+  closeModal('plan-picker-detail-modal');
+  document.getElementById('plan-picker-modal').classList.add('open');
+}
+window.planPickerBackToList = planPickerBackToList;
 function deletePlannedSession(id, dateStr) {
   if (!confirm('Retirer cette séance prévue ?')) return;
   getActive().logs = (getActive().logs||[]).filter(l=>l.id!==id);
@@ -9948,16 +9986,13 @@ async function shareBankToCrew(bankId) {
 }
 window.shareBankToCrew = shareBankToCrew;
 
-// — Panneau de détail (vue "choisir") : toutes les infos, séparées de la carte simplifiée —
-function sbOpenDetail(id) {
-  const s = getBank().find(x => x.id === id);
-  if (!s) return;
-  sbDetailId = id;
-  document.getElementById('sb-detail-title').textContent = s.name;
-  const isFav = sbFavoriteIds.has(id);
+// Bloc d'infos réutilisable (tags, durée/intensité, description, tags libres) — partagé entre
+// le drawer de détail complet (sbOpenDetail) et l'aperçu rapide lors de la planification
+// (planPickerPreview), pour ne pas dupliquer le rendu à deux endroits.
+function sbSessionSummaryHtml(s) {
   const t = SESSION_TYPES[s.type] || SESSION_TYPES.autre;
   const intDots = Array.from({length:5},(_,i) => `<span class="${i < (s.intensity||3) ? 'on' : ''}"></span>`).join('');
-  document.getElementById('sb-detail-body').innerHTML = `
+  return `
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
       <span class="sb-tag ${SB_TYPE_TAG_CLASS[s.type]||''}">${esc(t.label)}</span>
       ${s.category ? `<span class="sb-tag">📁 ${esc(s.category)}${s.subcategory?' › '+esc(s.subcategory):''}</span>` : ''}
@@ -9973,7 +10008,17 @@ function sbOpenDetail(id) {
     </div>
     <p style="font-size:13px;line-height:1.6;margin-bottom:14px;white-space:pre-wrap">${esc(s.description || 'Pas de description.')}</p>
     ${(s.tags||[]).length ? `<div style="margin-bottom:10px"><span style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">Tags</span>${s.tags.map(x=>`<span class="sb-tag" style="margin-right:4px;margin-bottom:4px;display:inline-block">${esc(x)}</span>`).join('')}</div>` : ''}
-    ${(s.crossTags||[]).length ? `<div style="margin-bottom:10px"><span style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">Filtres transversaux</span>${s.crossTags.map(x=>`<span class="sb-tag" style="margin-right:4px;margin-bottom:4px;display:inline-block">🏷️ ${esc(x)}</span>`).join('')}</div>` : ''}
+    ${(s.crossTags||[]).length ? `<div style="margin-bottom:10px"><span style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">Filtres transversaux</span>${s.crossTags.map(x=>`<span class="sb-tag" style="margin-right:4px;margin-bottom:4px;display:inline-block">🏷️ ${esc(x)}</span>`).join('')}</div>` : ''}`;
+}
+
+// — Panneau de détail (vue "choisir") : toutes les infos, séparées de la carte simplifiée —
+function sbOpenDetail(id) {
+  const s = getBank().find(x => x.id === id);
+  if (!s) return;
+  sbDetailId = id;
+  document.getElementById('sb-detail-title').textContent = s.name;
+  const isFav = sbFavoriteIds.has(id);
+  document.getElementById('sb-detail-body').innerHTML = sbSessionSummaryHtml(s) + `
     <div style="display:flex;gap:8px;align-items:center;margin-top:18px;padding-top:14px;border-top:1px solid var(--border)">
       <input type="date" id="sb-detail-schedule-date" class="form-control" style="max-width:160px" value="${new Date().toISOString().slice(0,10)}">
       <button class="btn primary" onclick="sbScheduleFromDetail('${id}')">📅 Programmer</button>
