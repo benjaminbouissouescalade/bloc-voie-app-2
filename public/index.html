@@ -2487,9 +2487,23 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
       <span style="font-size:18px">✦</span>
       <strong style="font-size:14px">Générer des séances avec l'IA</strong>
-      <button class="btn sm" style="margin-left:auto" onclick="document.getElementById('sb-ai-box').style.display='none'">✕</button>
+      <button class="btn sm" style="margin-left:auto" onclick="sbCloseAiBox()">✕</button>
     </div>
     <p style="font-size:13px;color:var(--muted);margin-bottom:12px">Décris le type de séance que tu veux, l'IA la crée et l'ajoute à ta banque.</p>
+    <div style="display:flex;gap:6px;margin-bottom:12px" id="sb-ai-mode-picker">
+      <button type="button" class="btn sm active" data-aimode="guided" onclick="setSbAiMode('guided')">Champs guidés</button>
+      <button type="button" class="btn sm" data-aimode="freeform" onclick="setSbAiMode('freeform')">✏️ Texte libre</button>
+    </div>
+    <!-- Mode "texte libre" : le coach rédige toute la séance lui-même, l'IA se contente de la
+         mettre en forme et de proposer une fiche — sans lui imposer le type/objectif/durée
+         choisis dans les champs guidés (cf. sbAiGenerate, branche freeform). -->
+    <div id="sb-ai-freeform-fields" style="display:none;margin-bottom:10px">
+      <div class="form-group" style="margin:0">
+        <label class="form-label">Ta séance, en texte libre</label>
+        <textarea class="form-control" id="sb-ai-freeform" rows="6" placeholder="Écris ta séance comme tu veux : échauffement, exercices, séries, intensité, conseils… L'IA se contente de la mettre en forme et de proposer une fiche, sans rien inventer ni imposer une structure."></textarea>
+      </div>
+    </div>
+    <div id="sb-ai-guided-fields">
     <div class="form-row form-row-3" style="margin-bottom:10px">
       <div class="form-group" style="margin:0">
         <label class="form-label">Type</label>
@@ -2600,10 +2614,11 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
           <input class="form-control" type="text" id="sb-ai-notes" placeholder="Ex. focus dévers, petites prises, après falaise…">
         </div>
       </div>
+    </div>
     <div style="display:flex;gap:8px;align-items:center">
       <button class="btn primary" id="sb-ai-generate-btn">✦ Générer la séance</button>
     </div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
+    <div id="sb-ai-shortcuts-block" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
       <span style="font-size:11px;color:var(--muted);align-self:center;margin-right:4px">Raccourcis :</span>
       <button class="btn sm" onclick="sbAiQuick('projet')">🎯 Projet / limite</button>
       <button class="btn sm" onclick="sbAiQuick('arc')">💧 ARC training</button>
@@ -9704,19 +9719,150 @@ function sbDelete() {
 }
 
 // ── IA generation ──
+// Deux modes : "guided" (champs type/objectif/durée/support, comportement historique) et
+// "freeform" (le coach écrit toute la séance lui-même, l'IA se contente de la mettre en forme et
+// de deviner type/objectif/durée pour le classement — cf. sbAiGenerate ci-dessous). On garde les
+// deux : le mode guidé n'a pas changé, le texte libre est une option en plus, pas un remplacement.
+let sbAiMode = 'guided';
+function setSbAiMode(mode) {
+  sbAiMode = mode;
+  document.querySelectorAll('#sb-ai-mode-picker button').forEach(b => b.classList.toggle('active', b.dataset.aimode === mode));
+  const guided = document.getElementById('sb-ai-guided-fields');
+  const shortcuts = document.getElementById('sb-ai-shortcuts-block');
+  const freeform = document.getElementById('sb-ai-freeform-fields');
+  if (guided) guided.style.display = mode === 'guided' ? '' : 'none';
+  if (shortcuts) shortcuts.style.display = mode === 'guided' ? '' : 'none';
+  if (freeform) freeform.style.display = mode === 'freeform' ? '' : 'none';
+}
+window.setSbAiMode = setSbAiMode;
+
+// Remet la box IA à zéro : avant, fermer la box (croix ou re-clic sur "Générer avec l'IA") ne
+// faisait que la cacher — la proposition précédente (sbPendingAiCard + le HTML du résultat)
+// restait affichée à la réouverture, ce qui donnait l'impression qu'elle n'avait jamais disparu.
+function sbResetAiBox() {
+  const resultBox = document.getElementById('sb-ai-result');
+  if (resultBox) { resultBox.style.display = 'none'; resultBox.innerHTML = ''; }
+  sbPendingAiCard = null;
+  const freeEl = document.getElementById('sb-ai-freeform'); if (freeEl) freeEl.value = '';
+  const notesEl = document.getElementById('sb-ai-notes'); if (notesEl) notesEl.value = '';
+  const typeEl = document.getElementById('sb-ai-type'); if (typeEl) typeEl.selectedIndex = 0;
+  const goalEl = document.getElementById('sb-ai-goal'); if (goalEl) goalEl.selectedIndex = 0;
+  const durEl = document.getElementById('sb-ai-duration'); if (durEl) durEl.value = 90;
+  const supEl = document.getElementById('sb-ai-support'); if (supEl) supEl.value = '';
+  const btn = document.getElementById('sb-ai-generate-btn');
+  if (btn) { btn.disabled = false; btn.textContent = '✦ Générer la séance'; }
+  setSbAiMode('guided');
+}
+window.sbResetAiBox = sbResetAiBox;
+function sbCloseAiBox() {
+  document.getElementById('sb-ai-box').style.display = 'none';
+  sbResetAiBox();
+}
+window.sbCloseAiBox = sbCloseAiBox;
+
+// Affiche la proposition de l'IA (carte à ajouter/modifier) — partagé par les deux modes.
+function sbRenderAiProposal(card) {
+  sbPendingAiCard = card;
+  const resultBox = document.getElementById('sb-ai-result');
+  resultBox.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);padding:14px;margin-top:4px">
+      <div style="font-weight:600;font-size:14px;margin-bottom:6px">✓ ${esc(card.name)}</div>
+      <div style="font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:10px">${esc(card.description)}</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <span style="font-size:12px;color:var(--muted)">Intensité ${card.intensity}/5</span>
+        ${card.tags.map(t=>`<span class="sb-tag">${esc(t)}</span>`).join('')}
+        <button class="btn sm primary" id="sb-ai-add-btn">+ Ajouter à la banque</button>
+        <button class="btn sm" id="sb-ai-edit-btn">Modifier avant d'ajouter</button>
+      </div>
+    </div>`;
+  document.getElementById('sb-ai-add-btn').onclick = () => sbAiAddToBank(sbPendingAiCard);
+  document.getElementById('sb-ai-edit-btn').onclick = () => sbAiEditBeforeAdd(sbPendingAiCard);
+}
+
 async function sbAiGenerate() {
+  const ref = getRefGrade();
+  const c   = getActive();
+  const btn = document.getElementById('sb-ai-generate-btn');
+  const resultBox = document.getElementById('sb-ai-result');
+
+  if (sbAiMode === 'freeform') {
+    const freeText = document.getElementById('sb-ai-freeform').value.trim();
+    if (!freeText) { alert('Écris ta séance dans le champ texte libre avant de générer.'); return; }
+
+    btn.disabled = true;
+    btn.textContent = '✦ Mise en forme en cours…';
+    resultBox.style.display = '';
+    resultBox.innerHTML = `<div style="color:var(--muted);font-style:italic;font-size:13px">L'IA met ta séance en forme…</div>`;
+
+    const prompt = `Tu es un assistant qui met en forme une séance d'escalade rédigée librement par un coach, SANS changer son contenu, ses contraintes ou ses intentions — tu ne fais que la reformuler clairement et la classer.
+
+PROFIL DU GRIMPEUR : ${c.name}, grade de référence ${ref}, niveau ${c.level||'non précisé'}
+
+TEXTE DU COACH (à respecter tel quel, ne rien inventer ni ajouter) :
+"""
+${freeText}
+"""
+
+Choisis toi-même, à partir de ce texte, le type de séance le plus proche parmi : bloc, voies, falaise, pan, competition, ppg, doigts, prehension, musculation, cardio, mobilite, yoga, recup_active, video, mentale.
+Choisis aussi l'objectif principal le plus proche parmi : projet, force_max, puissance, doigts_max, volume, resi, arc, circuit, technique, dalle, devers, coordination, flasher, comp_simulation, onsight, peaking, recuperation, prevention, retour_blessure.
+Si une durée est mentionnée dans le texte, reprends-la ; sinon estime une durée raisonnable en minutes.
+
+Réponds UNIQUEMENT en JSON valide, sans markdown, sans backticks, avec exactement ces champs :
+{
+  "name": "Nom court de la séance (max 50 chars), basé sur le texte du coach",
+  "description": "Reformulation claire et structurée du texte du coach (échauffement / corps de séance / retour au calme si présents) — n'ajoute rien qui n'y figure pas",
+  "type": "un des types listés ci-dessus",
+  "goal": "un des objectifs listés ci-dessus",
+  "duration": nombre entier de minutes,
+  "intensity": 1 à 5 (entier),
+  "tags": ["tag1", "tag2"] (parmi: Dalle, Dévers, Compression, Physique, Doigts, Rési, Puissance, Coordination, Équilibre, Technique)
+}`;
+
+    try {
+      const resp = await fetch('/api/ai/chat', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ messages: [{role:'user', content: prompt}], max_tokens: 2048 })
+      });
+      const data = await resp.json();
+      if (data.error) throw new Error(typeof data.error === 'string' ? data.error : (data.error.message || 'Erreur API Anthropic'));
+      const raw = (data.content||[]).map(b=>b.text||'').join('');
+      const cleaned = raw.replace(/```json|```/g,'').trim();
+      const parsed = JSON.parse(cleaned);
+
+      const card = {
+        id: 'sb_ai_' + Date.now(),
+        name:        parsed.name || 'Séance générée',
+        type:        parsed.type || 'voies',
+        level:       c.level && GRADE_IDX[c.level] >= 22 ? 'expert'
+                   : c.level && GRADE_IDX[c.level] >= 16 ? 'confirme'
+                   : c.level && GRADE_IDX[c.level] >= 10 ? 'intermediaire' : 'debutant',
+        duration:    +parsed.duration || 90,
+        intensity:   Math.min(5, Math.max(1, parsed.intensity||3)),
+        goal:        parsed.goal || 'projet',
+        description: parsed.description || freeText,
+        tags:        Array.isArray(parsed.tags) ? parsed.tags.filter(t => STYLES.includes(t)) : [],
+        createdAt:   Date.now(),
+        source:      'ai',
+      };
+      sbRenderAiProposal(card);
+    } catch(e) {
+      resultBox.innerHTML = `<div style="color:var(--warm);font-size:13px;padding:8px">⚠️ Erreur : ${esc(e.message)}. Vérifie la connexion API.</div>`;
+    }
+
+    btn.disabled = false;
+    btn.textContent = '✦ Générer la séance';
+    return;
+  }
+
+  // Mode guidé (comportement historique, inchangé)
   const type     = document.getElementById('sb-ai-type').value;
   const goal     = document.getElementById('sb-ai-goal').value;
   const duration = document.getElementById('sb-ai-duration').value;
   const notes    = document.getElementById('sb-ai-notes').value.trim();
-  const ref      = getRefGrade();
-  const c        = getActive();
 
-  const btn = document.getElementById('sb-ai-generate-btn');
   btn.disabled = true;
   btn.textContent = '✦ Génération en cours…';
-
-  const resultBox = document.getElementById('sb-ai-result');
   resultBox.style.display = '';
   resultBox.innerHTML = `<div style="color:var(--muted);font-style:italic;font-size:13px">L'IA rédige ta séance…</div>`;
 
@@ -9775,22 +9921,7 @@ Réponds UNIQUEMENT en JSON valide, sans markdown, sans backticks, avec exacteme
       source:      'ai',
     };
 
-    // Store pending card in a closure-safe variable (no JSON in onclick attr)
-    sbPendingAiCard = card;
-
-    resultBox.innerHTML = `
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);padding:14px;margin-top:4px">
-        <div style="font-weight:600;font-size:14px;margin-bottom:6px">✓ ${esc(card.name)}</div>
-        <div style="font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:10px">${esc(card.description)}</div>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <span style="font-size:12px;color:var(--muted)">Intensité ${card.intensity}/5</span>
-          ${card.tags.map(t=>`<span class="sb-tag">${esc(t)}</span>`).join('')}
-          <button class="btn sm primary" id="sb-ai-add-btn">+ Ajouter à la banque</button>
-          <button class="btn sm" id="sb-ai-edit-btn">Modifier avant d'ajouter</button>
-        </div>
-      </div>`;
-    document.getElementById('sb-ai-add-btn').onclick = () => sbAiAddToBank(sbPendingAiCard);
-    document.getElementById('sb-ai-edit-btn').onclick = () => sbAiEditBeforeAdd(sbPendingAiCard);
+    sbRenderAiProposal(card);
 
   } catch(e) {
     resultBox.innerHTML = `<div style="color:var(--warm);font-size:13px;padding:8px">⚠️ Erreur : ${esc(e.message)}. Vérifie la connexion API.</div>`;
@@ -9992,7 +10123,11 @@ document.addEventListener('DOMContentLoaded', () => {}, false); // safety
 document.getElementById('sb-new-btn').onclick = sbNewCard;
 document.getElementById('sb-ai-btn').onclick = () => {
   const box = document.getElementById('sb-ai-box');
-  box.style.display = box.style.display === 'none' ? '' : 'none';
+  const opening = box.style.display === 'none';
+  box.style.display = opening ? '' : 'none';
+  // Referme = repart de zéro la prochaine fois qu'on l'ouvre (cf. sbResetAiBox) : avant, la
+  // proposition précédente restait affichée tant qu'on ne rechargeait pas la page.
+  if (!opening) sbResetAiBox();
 };
 document.getElementById('sb-ai-generate-btn').onclick = sbAiGenerate;
 document.getElementById('sb-save-btn').onclick = sbSave;
