@@ -355,12 +355,13 @@ body.preview-mode #sidebar-user { color: var(--accent) !important; font-weight: 
 .objective-card-check:hover { color: var(--accent); }
 .objectives-empty { font-size: 13px; color: var(--muted); padding: 6px 2px; }
 
-/* Prochaines séances (dashboard) */
-.upcoming-list { display: flex; flex-direction: column; gap: 6px; }
-.upcoming-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--r-xs); background: var(--surface2); cursor: pointer; transition: background .12s; }
+/* Prochaines séances (dashboard) — volontairement compact : seulement les 7 prochains jours,
+   voir renderUpcomingSessions, pour ne pas prendre trop de place sur le tableau de bord. */
+.upcoming-list { display: flex; flex-direction: column; gap: 3px; }
+.upcoming-item { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: var(--r-xs); background: var(--surface2); cursor: pointer; transition: background .12s; }
 .upcoming-item:hover { background: var(--border); }
-.upcoming-item-day { font-size: 13px; font-weight: 600; text-transform: capitalize; }
-.upcoming-item-meta { font-size: 12px; color: var(--muted); }
+.upcoming-item-day { font-size: 12px; font-weight: 600; text-transform: capitalize; }
+.upcoming-item-meta { font-size: 11px; color: var(--muted); }
 .trip-card-actions button { border: none; background: transparent; color: var(--muted); cursor: pointer; font-size: 13px; padding: 2px 4px; border-radius: 4px; }
 .trip-card-actions button:hover { background: var(--surface); color: var(--text); }
 .trip-empty { color: var(--muted); font-size: 13px; padding: 8px 0; }
@@ -4393,10 +4394,17 @@ function renderDashRhythm(l7, l28) {
 function renderUpcomingSessions() {
   const el = document.getElementById('dash-upcoming-list');
   if (!el) return;
-  const today = new Date().toISOString().slice(0,10);
-  const upcoming = getLogs().filter(l => l.planned && l.date >= today).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,6);
+  // Volontairement limité aux 7 prochains jours (plutôt qu'un simple top N) : le panneau prenait
+  // trop de place sur le tableau de bord, en listant parfois des séances programmées loin dans le
+  // futur. Une fenêtre de visibilité courte + des lignes plus compactes (cf. CSS .upcoming-item)
+  // règle les deux à la fois.
+  const today = new Date();
+  const todayStr = today.toISOString().slice(0,10);
+  const in7 = new Date(today); in7.setDate(in7.getDate() + 7);
+  const in7Str = in7.toISOString().slice(0,10);
+  const upcoming = getLogs().filter(l => l.planned && l.date >= todayStr && l.date <= in7Str).sort((a,b)=>a.date.localeCompare(b.date));
   if (!upcoming.length) {
-    el.innerHTML = `<div class="objectives-empty">Aucune séance programmée pour les prochaines semaines.</div>`;
+    el.innerHTML = `<div class="objectives-empty">Aucune séance programmée dans les 7 prochains jours.</div>`;
     return;
   }
   el.innerHTML = `<div class="upcoming-list">${upcoming.map(l => {
@@ -4404,7 +4412,7 @@ function renderUpcomingSessions() {
     const d = new Date(l.date+'T00:00:00');
     const dayLabel = d.toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short'});
     return `<div class="upcoming-item" onclick="openDayModal('${l.date}')">
-      <span style="width:8px;height:8px;border-radius:50%;flex-shrink:0;background:${t.color};border:1.5px solid ${t.color}"></span>
+      <span style="width:6px;height:6px;border-radius:50%;flex-shrink:0;background:${t.color};border:1.5px solid ${t.color}"></span>
       <div style="flex:1;min-width:0">
         <div class="upcoming-item-day">${esc(dayLabel)}</div>
         <div class="upcoming-item-meta">${esc(t.label)}${l.cycleName?` · ${esc(l.cycleName)}`:''}</div>
