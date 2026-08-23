@@ -52,6 +52,12 @@ async function initDB() {
       ALTER TABLE logs ADD COLUMN IF NOT EXISTS bank_ref TEXT;
       ALTER TABLE logs ADD COLUMN IF NOT EXISTS cycle_id TEXT;
       ALTER TABLE logs ADD COLUMN IF NOT EXISTS cycle_name TEXT;
+      -- Origine de la séance (section "coexistence planification coach/athlète") : 'self' =
+      -- créée par l'athlète lui-même (valeur par défaut, comportement historique inchangé),
+      -- 'coach' = prescrite par un coach depuis l'espace Coaching, 'ai' = réservé pour une future
+      -- génération automatique. assigned_by_coach_id identifie le coach quand source='coach'.
+      ALTER TABLE logs ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'self';
+      ALTER TABLE logs ADD COLUMN IF NOT EXISTS assigned_by_coach_id TEXT;
       CREATE INDEX IF NOT EXISTS idx_logs_climber_date ON logs(climber_id, date DESC);
       CREATE TABLE IF NOT EXISTS session_bank (
         id          TEXT PRIMARY KEY,
