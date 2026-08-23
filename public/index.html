@@ -9235,6 +9235,34 @@ function deletePlannedSession(id, dateStr) {
 function closeModal(id){document.getElementById(id).classList.remove('open');}
 document.getElementById('day-modal').addEventListener('click',e=>{if(e.target.id==='day-modal')closeModal('day-modal');});
 
+// Garde-fou retour navigateur : l'appli est une SPA sur une seule URL, aucune navigation interne
+// (changement de page, ouverture de fenêtre) ne pousse d'entrée dans l'historique — donc un simple
+// clic sur "précédent" quittait carrément l'appli au lieu de fermer la fenêtre ouverte ou de
+// revenir à l'accueil. On pousse une entrée tampon ; chaque retour arrière est "absorbé" par cette
+// entrée tant qu'il y a une fenêtre à fermer ou qu'on n'est pas déjà à l'accueil — un retour arrière
+// depuis l'accueil, lui, quitte normalement.
+let backNavGuardInstalled = false;
+function installBackNavGuard() {
+  if (backNavGuardInstalled) return;
+  backNavGuardInstalled = true;
+  history.pushState({ app: true }, '', location.pathname);
+  window.addEventListener('popstate', () => {
+    const openModal = document.querySelector('.modal-backdrop.open');
+    if (openModal) {
+      closeModal(openModal.id);
+      history.pushState({ app: true }, '', location.pathname);
+      return;
+    }
+    const homePage = appMode === 'coach' ? (isAdmin() ? 'coach-athletes' : 'planning') : 'dashboard';
+    const activePage = document.querySelector('.page.active')?.id?.replace('page-', '');
+    if (activePage && activePage !== homePage) {
+      switchPage(homePage);
+      history.pushState({ app: true }, '', location.pathname);
+    }
+    // sinon (déjà à l'accueil, aucune fenêtre ouverte) : on laisse le retour arrière sortir normalement.
+  });
+}
+
 // — Planning generator —
 // ═══════════════ PLANNING ENGINE ═══════════════
 
@@ -11918,6 +11946,7 @@ function afterAuth(){
   var el = document.getElementById("sidebar-user");
   if (el && u) el.textContent = u.name + (isCoachRoleValue(u.role) ? ' · coach' : '');
   window.initAppData();
+  installBackNavGuard();
 }
 window.afterAuth = afterAuth;
 async function login(){
