@@ -259,7 +259,10 @@ body.preview-mode #sidebar-user { color: var(--accent) !important; font-weight: 
 #page-dashboard .objective-card { padding: 7px 10px; min-width: 150px; }
 #page-dashboard .objectives-empty { padding: 2px; font-size: 12px; }
 #page-dashboard .legend { gap: 10px; }
-#page-dashboard .log-item { padding: 10px 12px; margin-bottom: 6px; }
+#page-dashboard .log-item { padding: 7px 10px; margin-bottom: 4px; }
+#page-dashboard .log-item .log-date { font-size: 12px; }
+#page-dashboard .log-item .log-meta { font-size: 11px; margin-top: 1px; }
+#page-dashboard .log-item .grade { height: 22px; min-width: 36px; font-size: 11px; padding: 0 8px; }
 #page-dashboard #dash-upcoming-list .upcoming-list { gap: 2px; }
 #page-dashboard .upcoming-item { padding: 4px 8px; }
 
@@ -968,13 +971,13 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
           <span class="legend-item"><span class="legend-swatch" style="background:#5a2d82"></span>C4</span>
         </div>
       </div>
-      <div class="chart-wrap" style="height:140px"><canvas id="weeklyChart" aria-label="Charge hebdomadaire sur 12 semaines">Données charge hebdomadaire</canvas></div>
+      <div class="chart-wrap" style="height:170px"><canvas id="weeklyChart" aria-label="Charge hebdomadaire sur 12 semaines">Données charge hebdomadaire</canvas></div>
     </div>
     <div class="panel">
       <div class="panel-header">
         <span class="panel-title">Intensité moyenne / semaine</span>
       </div>
-      <div class="chart-wrap" style="height:140px"><canvas id="intensityChart" aria-label="Intensité moyenne hebdomadaire">Données intensité</canvas></div>
+      <div class="chart-wrap" style="height:170px"><canvas id="intensityChart" aria-label="Intensité moyenne hebdomadaire">Données intensité</canvas></div>
     </div>
   </div>
 
@@ -991,8 +994,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
         <span class="panel-title">Répartition des types</span>
         <span class="panel-sub">12 derniers mois</span>
       </div>
-      <div class="chart-wrap" style="height:130px"><canvas id="typeChart" aria-label="Répartition types de séances">Types de séances</canvas></div>
-      <div id="type-legend" class="legend" style="margin-top:8px;justify-content:center"></div>
+      <div class="chart-wrap" style="height:150px"><canvas id="typeChart" aria-label="Répartition types de séances">Types de séances</canvas></div>
     </div>
   </div>
 </div>
@@ -4678,7 +4680,7 @@ function renderDashboard() {
   });
 
   // Recent sessions
-  const recent=getLogs().slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
+  const recent=getLogs().slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0,4);
   const rEl=document.getElementById('recent-sessions');
   if(!recent.length){rEl.innerHTML='<div class="empty-state" style="padding:24px"><p>Aucune séance enregistrée</p></div>';return;}
   rEl.innerHTML=recent.map(l=>{
@@ -4701,19 +4703,19 @@ function renderDashboard() {
     </div>`;
   }).join('');
 
-  // Type chart
+  // Type chart — graphe en colonnes (une barre par type de séance, plus lisible qu'un donut
+  // pour comparer les volumes entre types d'un coup d'œil).
   const typeCounts={};
   getLogs().forEach(l=>{typeCounts[l.type]=(typeCounts[l.type]||0)+1;});
-  const typeKeys=Object.keys(typeCounts);
+  const typeKeys=Object.keys(typeCounts).sort((a,b)=>typeCounts[b]-typeCounts[a]);
   makeChart('typeChart',{
-    type:'doughnut',
+    type:'bar',
     data:{
       labels:typeKeys.map(k=>(SESSION_TYPES[k]||SESSION_TYPES.autre).label),
-      datasets:[{data:typeKeys.map(k=>typeCounts[k]),backgroundColor:typeKeys.map(k=>(SESSION_TYPES[k]||SESSION_TYPES.autre).color),borderWidth:2,borderColor:'#fff'}]
+      datasets:[{data:typeKeys.map(k=>typeCounts[k]),backgroundColor:typeKeys.map(k=>(SESSION_TYPES[k]||SESSION_TYPES.autre).color),borderRadius:4,maxBarThickness:34}]
     },
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},cutout:'65%'}
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{font:{size:10}}},y:{beginAtZero:true,ticks:{precision:0,font:{size:10}},grid:{color:'rgba(0,0,0,.05)'}}}}
   });
-  document.getElementById('type-legend').innerHTML=typeKeys.map(k=>`<span class="legend-item"><span class="legend-swatch" style="background:${(SESSION_TYPES[k]||SESSION_TYPES.autre).color}"></span>${(SESSION_TYPES[k]||SESSION_TYPES.autre).label}</span>`).join('');
 }
 
 // — Objectif de l'athlète (posé par lui-même ou par le coach) —
