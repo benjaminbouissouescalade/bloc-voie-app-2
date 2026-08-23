@@ -4835,6 +4835,17 @@ function warnPlanningBlocked() {
   const coach = myPlanningMode.coachName ? ` (${myPlanningMode.coachName})` : '';
   alert(`Ton coach${coach} gère la planification de tes séances à venir. Tu peux toujours enregistrer une séance déjà réalisée depuis "Nouvelle séance".`);
 }
+// Spec section 11 : un simple athlète sans coach ne doit pas voir une section "Mon coach" inutile.
+// coachName===null (renvoyé par /my-planning-mode) signifie qu'il n'a aucune ligne coach_athletes,
+// donc aucun coach du tout — un coach/owner garde toujours son propre "Mon coach" (rôle différent).
+function updateCoachSectionVisibility() {
+  const noCoachAtAll = !isCoachRoleValue(window.currentUser?.role) && !myPlanningMode.coachName;
+  const switchEl = document.getElementById('app-mode-switch');
+  const coachBtn = document.querySelector('.app-mode-btn[data-mode="coach"]');
+  if (coachBtn) coachBtn.style.display = noCoachAtAll ? 'none' : '';
+  if (switchEl) switchEl.style.display = noCoachAtAll ? 'none' : '';
+  if (noCoachAtAll && appMode === 'coach') setAppMode('mine');
+}
 
 function addPlannedSessionFromBank(bankId, dateStr) {
   if (planningBlockedForMe()) { warnPlanningBlocked(); return; }
@@ -10725,7 +10736,8 @@ window.initAppData = async function() {
   if (typeof applyRoleUI === 'function') applyRoleUI();
   setAppMode(appMode);
   initNewsTicker();
-  loadMyPlanningMode();
+  await loadMyPlanningMode();
+  updateCoachSectionVisibility();
 };
 
 // ═══════════════ BANDEAU NEWS + ACTIVITÉ DES ATHLÈTES ═══════════════
