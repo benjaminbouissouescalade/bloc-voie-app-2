@@ -195,6 +195,25 @@ async function initDB() {
       );
       CREATE INDEX IF NOT EXISTS idx_finger_tests_climber ON finger_tests(climber_id, test_date DESC);
 
+      -- Tests généraux (hub Doigts/Bras/Souplesse/Général, cf. src/routes/generalTests.js) :
+      -- table générique plutôt qu'une table par type de test, pour que chaque nouveau test
+      -- (SmartBoard, suspension sur réglette, et les futurs tests bras/souplesse/général) se
+      -- rattache simplement via test_type + payload JSONB, sans nouvelle migration à chaque fois.
+      -- Chaque ligne est une mesure datée, jamais écrasée (sauf mise à jour explicite du même id) :
+      -- ça permet historique, meilleur résultat, dernier résultat, progression % et asymétrie G/D
+      -- calculés à la volée côté frontend à partir de la liste complète.
+      CREATE TABLE IF NOT EXISTS general_tests (
+        id          TEXT PRIMARY KEY,
+        climber_id  TEXT NOT NULL REFERENCES climbers(id) ON DELETE CASCADE,
+        category    TEXT NOT NULL,
+        test_type   TEXT NOT NULL,
+        test_date   DATE NOT NULL,
+        payload     JSONB DEFAULT '{}',
+        notes       TEXT DEFAULT '',
+        created_at  TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_general_tests_lookup ON general_tests(climber_id, test_type, test_date DESC);
+
       -- Communauté / mode jeu : crews indépendants de la relation coach-athlète (peuvent
       -- rassembler des grimpeurs de coachs différents, via un code d'invitation partagé).
       CREATE TABLE IF NOT EXISTS crews (
