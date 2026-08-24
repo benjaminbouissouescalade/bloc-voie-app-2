@@ -1326,6 +1326,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
         <button class="perf-tab" data-ctx="tete">Tête</button>
         <button class="perf-tab" data-ctx="moulinette">Moulinette</button>
         <button class="perf-tab" data-ctx="flash">Flash</button>
+        <button class="perf-tab" data-ctx="av">À vue</button>
       </div>
     </div>
     <div class="perf-tabs" id="pyr-location-tabs">
@@ -1337,7 +1338,8 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     <div class="legend" style="margin-top:12px" id="pyr-legend">
       <span class="legend-item"><span class="legend-swatch" style="background:var(--accent)"></span>Enchaîné tête</span>
       <span class="legend-item"><span class="legend-swatch" style="background:#b07a10"></span>Moulinette</span>
-      <span class="legend-item"><span class="legend-swatch" style="background:#7ab8f5"></span>Flash / à vue</span>
+      <span class="legend-item"><span class="legend-swatch" style="background:#7ab8f5"></span>Flash</span>
+      <span class="legend-item"><span class="legend-swatch" style="background:#3fa796"></span>À vue</span>
       <span class="legend-item"><span class="legend-swatch" style="background:#d9cff5"></span>Travail</span>
     </div>
   </div>
@@ -1363,7 +1365,8 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <div class="legend" style="margin-top:12px">
         <span class="legend-item"><span class="legend-swatch" style="background:var(--accent)"></span>Enchaîné tête</span>
         <span class="legend-item"><span class="legend-swatch" style="background:#b07a10"></span>Moulinette</span>
-        <span class="legend-item"><span class="legend-swatch" style="background:#7ab8f5"></span>Flash / À vue</span>
+        <span class="legend-item"><span class="legend-swatch" style="background:#7ab8f5"></span>Flash</span>
+        <span class="legend-item"><span class="legend-swatch" style="background:#3fa796"></span>À vue</span>
         <span class="legend-item"><span class="legend-swatch" style="background:#d9cff5"></span>Travail</span>
       </div>
     </div>
@@ -5705,7 +5708,7 @@ function renderSmallPyramid(logs, ctx='all', loc='all') {
     if(!isLoc)return [];
     return (l.ascents||[]).map(a=>({...a,sessionType:l.type}));
   });
-  if(ctx!=='all') ascents=ascents.filter(a=>a.status===ctx||(ctx==='flash'&&a.status==='av'));
+  if(ctx!=='all') ascents=ascents.filter(a=>a.status===ctx);
 
   const byGrade={};
   ascents.forEach(a=>{
@@ -5721,11 +5724,12 @@ function renderSmallPyramid(logs, ctx='all', loc='all') {
     const total=(d.tete||0)+(d.moulinette||0)+(d.flash||0)+(d.av||0)+(d.try||0);
     // Le nombre est écrit à côté de chaque segment (pas seulement au survol) — textColor est
     // parfois différent de barColor quand la couleur de la barre est trop claire pour du texte.
+    // Flash et à vue sont deux segments distincts (pas fusionnés) pour rester lisibles séparément.
     const barW=(n,barColor,textColor,label)=>n?`<span class="pyr-seg" title="${label}: ${n}"><span class="pyr-bar" style="width:${Math.max(4,(n/maxCount)*320)}px;background:${barColor}"></span><span class="pyr-seg-count" style="color:${textColor}">${n}</span></span>`:'';
     return `<div class="pyr-row">
       <div class="pyr-grade">${g}</div>
       <div class="pyr-bars">
-        ${barW(d.tete,'#2d5a3d','#2d5a3d','Enchaîné tête')}${barW(d.moulinette,'#b07a10','#b07a10','Moulinette')}${barW(d.flash||d.av,'#7ab8f5','#1a5a8a','Flash / à vue')}${barW(d.try,'#d9cff5','#8a6fc4','Travail')}
+        ${barW(d.tete,'#2d5a3d','#2d5a3d','Enchaîné tête')}${barW(d.moulinette,'#b07a10','#b07a10','Moulinette')}${barW(d.flash,'#7ab8f5','#1a5a8a','Flash')}${barW(d.av,'#3fa796','#1f6e63','À vue')}${barW(d.try,'#d9cff5','#8a6fc4','Travail')}
       </div>
       <div class="pyr-count">${total}</div>
     </div>`;
@@ -8334,11 +8338,11 @@ function renderPyramidPage() {
   document.getElementById('full-pyramid').innerHTML=usedGrades.length?`<div class="pyramid">`+usedGrades.map(g=>{
     const d=byGrade[g];
     const total=(d.tete||0)+(d.moulinette||0)+(d.flash||0)+(d.av||0)+(d.try||0);
-    const barW=(n,color,label)=>n?`<div class="pyr-bar" style="width:${Math.max(6,(n/maxCount)*380)}px;background:${color}" title="${label}: ${n}"></div>`:'';
+    const barW=(n,barColor,textColor,label)=>n?`<span class="pyr-seg" title="${label}: ${n}"><span class="pyr-bar" style="width:${Math.max(6,(n/maxCount)*380)}px;background:${barColor}"></span><span class="pyr-seg-count" style="color:${textColor}">${n}</span></span>`:'';
     return `<div class="pyr-row">
       <div class="pyr-grade">${g}</div>
       <div class="pyr-bars">
-        ${barW(d.tete,'#2d5a3d','Tête')}${barW(d.moulinette,'#b07a10','Moulinette')}${barW((d.flash||0)+(d.av||0),'#7ab8f5','Flash/AV')}${barW(d.try,'#d9cff5','Essai')}
+        ${barW(d.tete,'#2d5a3d','#2d5a3d','Tête')}${barW(d.moulinette,'#b07a10','#b07a10','Moulinette')}${barW(d.flash,'#7ab8f5','#1a5a8a','Flash')}${barW(d.av,'#3fa796','#1f6e63','À vue')}${barW(d.try,'#d9cff5','#8a6fc4','Essai')}
       </div>
       <div class="pyr-count">${total}</div>
     </div>`;
@@ -8346,12 +8350,12 @@ function renderPyramidPage() {
 
   // Stats table
   const ref=getRefGrade();
-  const rows=usedGrades.map(g=>{const d=byGrade[g];const total=(d.tete||0)+(d.moulinette||0)+(d.flash||0)+(d.av||0)+(d.try||0);return `<div class="pyr-row" style="grid-template-columns:60px 40px 40px 40px 40px 1fr;margin-bottom:6px;font-size:13px">
+  const rows=usedGrades.map(g=>{const d=byGrade[g];const total=(d.tete||0)+(d.moulinette||0)+(d.flash||0)+(d.av||0)+(d.try||0);return `<div class="pyr-row" style="grid-template-columns:60px 40px 40px 40px 40px 40px 1fr;margin-bottom:6px;font-size:13px">
     <span class="grade ${gradeClass(g)}">${g}</span>
-    <span>${d.tete||0}</span><span>${d.moulinette||0}</span><span>${(d.flash||0)+(d.av||0)}</span><span>${d.try||0}</span>
+    <span>${d.tete||0}</span><span>${d.moulinette||0}</span><span>${d.flash||0}</span><span>${d.av||0}</span><span>${d.try||0}</span>
     <span style="color:var(--muted)">${total} enc.</span>
   </div>`;});
-  document.getElementById('grade-stats-table').innerHTML=rows.length?`<div class="pyr-row" style="grid-template-columns:60px 40px 40px 40px 40px 1fr;font-weight:600;font-size:11px;color:var(--muted);margin-bottom:8px"><span>Grade</span><span>Tête</span><span>Mouli.</span><span>Flash</span><span>Essai</span><span></span></div>`+rows.join(''):'<p style="color:var(--muted);font-size:13px">Pas de données</p>';
+  document.getElementById('grade-stats-table').innerHTML=rows.length?`<div class="pyr-row" style="grid-template-columns:60px 40px 40px 40px 40px 40px 1fr;font-weight:600;font-size:11px;color:var(--muted);margin-bottom:8px"><span>Grade</span><span>Tête</span><span>Mouli.</span><span>Flash</span><span>À vue</span><span>Essai</span><span></span></div>`+rows.join(''):'<p style="color:var(--muted);font-size:13px">Pas de données</p>';
 }
 document.querySelectorAll('[data-pyr-range]').forEach(b=>{b.onclick=()=>{document.querySelectorAll('[data-pyr-range]').forEach(x=>x.classList.remove('active'));b.classList.add('active');pyrFullRange=b.dataset.pyrRange;renderPyramidPage();};});
 document.getElementById('pyr-full-tabs').addEventListener('click',e=>{const b=e.target.closest('[data-pyrfull]');if(b){document.querySelectorAll('[data-pyrfull]').forEach(x=>x.classList.remove('active'));b.classList.add('active');pyrFullLoc=b.dataset.pyrfull;renderPyramidPage();}});
@@ -11696,7 +11700,7 @@ function buildClimberContext() {
   });
   const pyramidLines = GRADES.filter(g=>byGrade[g]).reverse().map(g=>{
     const d=byGrade[g];
-    return `  ${g}: tête=${d.tete||0} mouli=${d.moulinette||0} flash=${(d.flash||0)+(d.av||0)} essais=${d.try||0}`;
+    return `  ${g}: tête=${d.tete||0} mouli=${d.moulinette||0} flash=${d.flash||0} à_vue=${d.av||0} essais=${d.try||0}`;
   }).join('\n');
 
   // Weekly loads last 8 weeks
