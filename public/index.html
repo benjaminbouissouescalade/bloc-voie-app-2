@@ -289,9 +289,14 @@ body.preview-mode #sidebar-user { color: var(--accent) !important; font-weight: 
 .pyramid { display: flex; flex-direction: column; gap: 3px; margin-top: 8px; }
 .pyr-row { display: grid; grid-template-columns: 48px 1fr 32px; gap: 6px; align-items: center; }
 .pyr-grade { font-size: 13px; font-weight: 600; text-align: right; color: var(--text); }
-.pyr-bars { display: flex; gap: 3px; align-items: center; height: 16px; }
+.pyr-bars { display: flex; gap: 8px; align-items: center; height: 16px; flex-wrap: wrap; }
 .pyr-bar { height: 16px; border-radius: 3px; transition: width .4s ease; }
+.pyr-seg { display: inline-flex; align-items: center; gap: 4px; }
+.pyr-seg-count { font-size: 11px; font-weight: 700; }
 .pyr-count { font-size: 12px; font-weight: 600; text-align: right; color: var(--muted); }
+.pyr-legend { display: flex; gap: 14px; font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+.pyr-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.pyr-legend-swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
 
 /* C-Level badges */
 .clevel { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: var(--r-sm); font-size: 13px; font-weight: 700; border: 1.5px solid; }
@@ -6253,12 +6258,18 @@ function openTripDetail(id) {
       <div class="stat-card warm"><div class="stat-label">Voie la + dure enchaînée</div><div class="stat-value" style="font-size:26px">${s.hardestSent}</div></div>
       <div class="stat-card"><div class="stat-label">Moyenne des voies</div><div class="stat-value" style="font-size:26px">${s.avgGrade}</div></div>
     </div>
-    ${usedGrades.length ? `<div class="pyramid">${usedGrades.map(g=>{
+    ${usedGrades.length ? `<div class="pyramid">
+      <div class="pyr-legend"><span><span class="pyr-legend-swatch" style="background:#2d5a3d"></span>Envoyées</span><span><span class="pyr-legend-swatch" style="background:#d9cff5"></span>Essais</span></div>
+      ${usedGrades.map(g=>{
       const d = byGrade[g];
-      const barW = (n,color,label) => n?`<div class="pyr-bar" style="width:${Math.max(6,(n/maxCount)*300)}px;background:${color}" title="${label}: ${n}"></div>`:'';
+      // Le nombre est écrit à côté de chaque segment (pas seulement au survol en title=) pour que
+      // la répartition envoyées/essais soit lisible directement, pas juste devinée par la couleur.
+      // textColor est distinct de barColor pour "Essais" : le violet clair de la barre serait
+      // illisible en texte sur fond blanc.
+      const barW = (n,barColor,textColor,label) => n?`<span class="pyr-seg" title="${label}: ${n}"><span class="pyr-bar" style="width:${Math.max(6,(n/maxCount)*300)}px;background:${barColor}"></span><span class="pyr-seg-count" style="color:${textColor}">${n}</span></span>`:'';
       return `<div class="pyr-row">
         <div class="pyr-grade">${g}</div>
-        <div class="pyr-bars">${barW(d.sent,'#2d5a3d','Envoyées')}${barW(d.try,'#d9cff5','Essais')}</div>
+        <div class="pyr-bars">${barW(d.sent,'#2d5a3d','#2d5a3d','Envoyées')}${barW(d.try,'#d9cff5','#8a6fc4','Essais')}</div>
         <div class="pyr-count">${d.sent+d.try}</div>
       </div>`;
     }).join('')}</div>` : '<p class="trip-empty">Aucune ascension enregistrée sur cette période.</p>'}
