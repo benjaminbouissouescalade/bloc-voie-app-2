@@ -1337,7 +1337,8 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     <div class="legend" style="margin-top:12px" id="pyr-legend">
       <span class="legend-item"><span class="legend-swatch" style="background:var(--accent)"></span>Enchaîné tête</span>
       <span class="legend-item"><span class="legend-swatch" style="background:#b07a10"></span>Moulinette</span>
-      <span class="legend-item"><span class="legend-swatch" style="background:#7ab8f5"></span>Flash</span>
+      <span class="legend-item"><span class="legend-swatch" style="background:#7ab8f5"></span>Flash / à vue</span>
+      <span class="legend-item"><span class="legend-swatch" style="background:#d9cff5"></span>Travail</span>
     </div>
   </div>
 
@@ -5718,11 +5719,13 @@ function renderSmallPyramid(logs, ctx='all', loc='all') {
   document.getElementById('pyramid-chart').innerHTML=`<div class="pyramid">`+usedGrades.map(g=>{
     const d=byGrade[g];
     const total=(d.tete||0)+(d.moulinette||0)+(d.flash||0)+(d.av||0)+(d.try||0);
-    const barW=(n,color)=>n?`<div class="pyr-bar" style="width:${Math.max(4,(n/maxCount)*320)}px;background:${color}" title="${n}"></div>`:'';
+    // Le nombre est écrit à côté de chaque segment (pas seulement au survol) — textColor est
+    // parfois différent de barColor quand la couleur de la barre est trop claire pour du texte.
+    const barW=(n,barColor,textColor,label)=>n?`<span class="pyr-seg" title="${label}: ${n}"><span class="pyr-bar" style="width:${Math.max(4,(n/maxCount)*320)}px;background:${barColor}"></span><span class="pyr-seg-count" style="color:${textColor}">${n}</span></span>`:'';
     return `<div class="pyr-row">
       <div class="pyr-grade">${g}</div>
       <div class="pyr-bars">
-        ${barW(d.tete,'#2d5a3d')}${barW(d.moulinette,'#b07a10')}${barW(d.flash||d.av,'#7ab8f5')}${barW(d.try,'#d9cff5')}
+        ${barW(d.tete,'#2d5a3d','#2d5a3d','Enchaîné tête')}${barW(d.moulinette,'#b07a10','#b07a10','Moulinette')}${barW(d.flash||d.av,'#7ab8f5','#1a5a8a','Flash / à vue')}${barW(d.try,'#d9cff5','#8a6fc4','Travail')}
       </div>
       <div class="pyr-count">${total}</div>
     </div>`;
