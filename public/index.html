@@ -4533,17 +4533,29 @@ function cLevel(load, baseline) {
 
 function weeklyData(nWeeks=16) {
   const now = new Date(); now.setHours(0,0,0,0);
-  const results = [];
+  // Les semaines sont d'abord construites (bornes + libellé), puis les logs sont répartis dedans
+  // en UN SEUL passage — plutôt que de refiltrer tout getLogs() à chaque semaine (coût en
+  // nWeeks × nLogs). Avec le filtre "Tout" et des centaines de séances sur plusieurs années,
+  // l'ancienne version pouvait geler la page plusieurs secondes au clic sur le bouton.
+  const weeks = [];
   for (let i=nWeeks-1;i>=0;i--) {
     const start=new Date(now); start.setDate(start.getDate()-((now.getDay()||7)-1)-i*7);
     const end=new Date(start); end.setDate(end.getDate()+7);
-    const logs=getLogs().filter(l=>{const d=new Date(l.date);return d>=start&&d<end;});
-    const load=logs.reduce((s,l)=>s+sessionLoad(l),0);
-    const avgInt=logs.length?logs.reduce((s,l)=>s+(l.intensity||3),0)/logs.length:0;
     const label=`S${Math.ceil((start.getDate()+(new Date(start.getFullYear(),start.getMonth(),1).getDay()||7)-1)/7)} ${start.toLocaleDateString('fr',{month:'short'})}`;
-    results.push({start,end,load:Math.round(load),sessions:logs.length,avgInt:Math.round(avgInt*10)/10,label});
+    weeks.push({start,end,label,load:0,sessions:0,intSum:0});
   }
-  return results;
+  const rangeStart = weeks[0].start, rangeEnd = weeks[weeks.length-1].end;
+  const msPerWeek = 7*24*3600*1000;
+  getLogs().forEach(l=>{
+    const d=new Date(l.date);
+    if (d<rangeStart || d>=rangeEnd) return;
+    const w = weeks[Math.floor((d-rangeStart)/msPerWeek)];
+    if (!w) return;
+    w.load += sessionLoad(l);
+    w.sessions++;
+    w.intSum += (l.intensity||3);
+  });
+  return weeks.map(w=>({start:w.start,end:w.end,load:Math.round(w.load),sessions:w.sessions,avgInt:w.sessions?Math.round(w.intSum/w.sessions*10)/10:0,label:w.label}));
 }
 
 function miniSparkSvg(values, color) {
@@ -11602,11 +11614,13 @@ function perfWeeksForRange(range) {
   const since = rangeToDate(range);
   const now = new Date();
   if (since) return Math.max(1, Math.ceil((now - since) / (7*24*3600*1000)));
-  // 'all' : depuis la première séance enregistrée (minimum 12 semaines pour garder un graphe lisible)
+  // 'all' : depuis la première séance enregistrée, borné entre 12 semaines (graphe lisible) et
+  // 156 (3 ans) — au-delà, un graphe hebdomadaire devient illisible de toute façon, et ça évite
+  // que le calcul grossisse sans limite au fil des années d'utilisation de l'appli.
   const logs = getLogs();
   if (!logs.length) return 12;
   const earliest = logs.reduce((min,l) => { const d=new Date(l.date); return d<min?d:min; }, now);
-  return Math.max(12, Math.ceil((now - earliest) / (7*24*3600*1000)) + 1);
+  return Math.max(12, Math.min(156, Math.ceil((now - earliest) / (7*24*3600*1000)) + 1));
 }
 function rangeToDate(range){
   const d=new Date();
