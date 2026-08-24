@@ -1486,11 +1486,8 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <span class="panel-title">Classement des trips</span>
     </div>
     <div class="perf-tabs" id="trip-rank-tabs">
-      <button class="perf-tab" data-rank="sentScore">Difficulté cumulée</button>
-      <button class="perf-tab active" data-rank="sent">Nb de voies enchaînées</button>
-      <button class="perf-tab" data-rank="load">Charge totale</button>
-      <button class="perf-tab" data-rank="days">Nombre de jours</button>
-      <button class="perf-tab" data-rank="loadPerDay">Charge / jour</button>
+      <button class="perf-tab active" data-rank="perfScore">Meilleure perf cumulée</button>
+      <button class="perf-tab" data-rank="load">Charge cumulée</button>
     </div>
     <div id="trip-ranking"></div>
   </div>
@@ -5863,6 +5860,19 @@ document.getElementById('wl-info-modal').addEventListener('click',e=>{if(e.targe
 // — Trips (comparaison de périodes) —
 let selectedTripIds = [];
 
+// Points par ascension façon 8a.nu/Vertical-Life : barème linéaire calé sur 8a = 1000 pts et +50
+// pts par demi-cotation (donc 8a+ = 1050, 7c = 900, 7b = 800...), + bonus pour le style d'envoi
+// (à vue/flash valorisés car réussis en un essai, sans travail préalable). Les essais (status
+// 'try') ne rapportent rien : seule une voie réellement enchaînée compte pour la performance.
+// cf. https://www.8a.nu/articles/8a-stats-and-grades
+function ascentPoints(a) {
+  if (a.status==='try' || GRADE_IDX[a.grade]===undefined) return 0;
+  const base = Math.max(0, GRADE_IDX[a.grade]*50 - 200); // 8a (idx 24) = 1000 pts
+  if (a.status==='av') return base + 145;    // à vue (onsight)
+  if (a.status==='flash') return base + 53;  // flash
+  return base;                                // en tête (redpoint) / moulinette
+}
+
 function tripStats(trip) {
   const logs = getLogs().filter(l => l.date >= trip.start && l.date <= trip.end);
   const load = logs.reduce((s,l)=>s+sessionLoad(l),0);
@@ -5878,14 +5888,13 @@ function tripStats(trip) {
   const hardestSent = sentAscents.length ? sentAscents.map(a=>a.grade).sort((x,y)=>GRADE_IDX[y]-GRADE_IDX[x])[0] : '—';
   const avgGrade = validAscents.length ? GRADES[Math.round(validAscents.reduce((s,a)=>s+GRADE_IDX[a.grade],0)/validAscents.length)] : '—';
   // "sent" compte les voies enchaînées à l'unité, toutes cotations confondues — un 4a et un 8a+
-  // comptent pareil, ce qui peut classer devant un trip à fort volume mais faible niveau plutôt
-  // qu'un trip avec moins de voies mais bien plus dures. sentScore pondère chaque envoi par sa
-  // cotation (indice GRADE_IDX + 1, pour qu'un envoi en 4a compte 1 point plutôt que 0).
-  const sentScore = sentAscents.reduce((s,a)=>s+GRADE_IDX[a.grade]+1, 0);
+  // comptent pareil. perfScore (barème 8a.nu, cf. ascentPoints ci-dessus) pondère chaque envoi
+  // par sa cotation et son style, pour refléter la performance réelle plutôt que le seul volume.
+  const perfScore = ascents.reduce((s,a)=>s+ascentPoints(a), 0);
   return {
     load: Math.round(load),
     sessions: logs.length,
-    totalAscents, sent, tries, sentScore,
+    totalAscents, sent, tries, perfScore,
     avgInt: Math.round(avgInt*10)/10,
     days,
     loadPerDay: Math.round((load/days)*10)/10,
@@ -6192,8 +6201,8 @@ function deleteTrip(id) {
 }
 
 // — Classement des trips —
-let tripRankSort = 'sent';
-const TRIP_RANK_LABELS = { sentScore:'score de difficulté', sent:'nb de voies enchaînées', load:'pts de charge', days:'jours', loadPerDay:'pts/jour' };
+let tripRankSort = 'perfScore';
+const TRIP_RANK_LABELS = { perfScore:'perf cumulée (pts)', load:'charge cumulée' };
 function renderTripRanking() {
   const el = document.getElementById('trip-ranking');
   if (!el) return;
@@ -6202,7 +6211,7 @@ function renderTripRanking() {
   const ranked = trips.map(t=>({t, s: tripStats(t)})).sort((a,b)=>b.s[tripRankSort]-a.s[tripRankSort]);
   const medals = ['🥇','🥈','🥉'];
   el.innerHTML = `<table class="trip-compare-table">
-    <thead><tr><th></th><th>Trip</th><th>Dates</th><th>Jours</th><th>Charge</th><th>Voies (env. / essais)</th><th>Séances</th><th>Voie la + dure essayée</th><th>Voie la + dure enchaînée</th><th>Moyenne</th><th>Score difficulté</th></tr></thead>
+    <thead><tr><th></th><th>Trip</th><th>Dates</th><th>Jours</th><th>Charge</th><th>Voies (enchaînées / essais)</th><th>Séances</th><th>Voie la + dure essayée</th><th>Voie la + dure enchaînée</th><th>Moyenne</th><th>Perf. cumulée</th></tr></thead>
     <tbody>
       ${ranked.map((r,i)=>`<tr>
         <td>${medals[i]||i+1}</td>
@@ -6215,11 +6224,11 @@ function renderTripRanking() {
         <td class="num">${r.s.hardestTried!=='—'?`<span class="grade ${gradeClass(r.s.hardestTried)}" style="height:24px;min-width:0;padding:0 8px;font-size:12px">${r.s.hardestTried}</span>`:'—'}</td>
         <td class="num">${r.s.hardestSent!=='—'?`<span class="grade ${gradeClass(r.s.hardestSent)}" style="height:24px;min-width:0;padding:0 8px;font-size:12px">${r.s.hardestSent}</span>`:'—'}</td>
         <td class="num">${r.s.avgGrade!=='—'?`<span class="grade ${gradeClass(r.s.avgGrade)}" style="height:24px;min-width:0;padding:0 8px;font-size:12px">${r.s.avgGrade}</span>`:'—'}</td>
-        <td class="num">${r.s.sentScore}</td>
+        <td class="num">${r.s.perfScore}</td>
       </tr>`).join('')}
     </tbody>
   </table>
-  <p style="font-size:11px;color:var(--muted);margin-top:8px">Le "score de difficulté" pondère chaque voie enchaînée par sa cotation (plus la voie est dure, plus elle compte de points) — contrairement au nombre brut de voies qui compte un 4a et un 8a+ pareil.</p>`;
+  <p style="font-size:11px;color:var(--muted);margin-top:8px">"Perf. cumulée" utilise un barème façon 8a.nu : 8a = 1000 pts, +50 pts par demi-cotation, avec bonus pour un envoi à vue (+145) ou flash (+53). Les essais non conclus ne rapportent rien — seule une voie réellement enchaînée compte.</p>`;
 }
 document.getElementById('trip-rank-tabs').addEventListener('click', e=>{
   const b = e.target.closest('[data-rank]');
