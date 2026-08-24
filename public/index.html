@@ -1481,7 +1481,8 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <span class="panel-title">Classement des trips</span>
     </div>
     <div class="perf-tabs" id="trip-rank-tabs">
-      <button class="perf-tab active" data-rank="sent">Voies enchaînées</button>
+      <button class="perf-tab" data-rank="sentScore">Difficulté cumulée</button>
+      <button class="perf-tab active" data-rank="sent">Nb de voies enchaînées</button>
       <button class="perf-tab" data-rank="load">Charge totale</button>
       <button class="perf-tab" data-rank="days">Nombre de jours</button>
       <button class="perf-tab" data-rank="loadPerDay">Charge / jour</button>
@@ -5871,10 +5872,15 @@ function tripStats(trip) {
   const hardestTried = validAscents.length ? validAscents.map(a=>a.grade).sort((x,y)=>GRADE_IDX[y]-GRADE_IDX[x])[0] : '—';
   const hardestSent = sentAscents.length ? sentAscents.map(a=>a.grade).sort((x,y)=>GRADE_IDX[y]-GRADE_IDX[x])[0] : '—';
   const avgGrade = validAscents.length ? GRADES[Math.round(validAscents.reduce((s,a)=>s+GRADE_IDX[a.grade],0)/validAscents.length)] : '—';
+  // "sent" compte les voies enchaînées à l'unité, toutes cotations confondues — un 4a et un 8a+
+  // comptent pareil, ce qui peut classer devant un trip à fort volume mais faible niveau plutôt
+  // qu'un trip avec moins de voies mais bien plus dures. sentScore pondère chaque envoi par sa
+  // cotation (indice GRADE_IDX + 1, pour qu'un envoi en 4a compte 1 point plutôt que 0).
+  const sentScore = sentAscents.reduce((s,a)=>s+GRADE_IDX[a.grade]+1, 0);
   return {
     load: Math.round(load),
     sessions: logs.length,
-    totalAscents, sent, tries,
+    totalAscents, sent, tries, sentScore,
     avgInt: Math.round(avgInt*10)/10,
     days,
     loadPerDay: Math.round((load/days)*10)/10,
@@ -6182,7 +6188,7 @@ function deleteTrip(id) {
 
 // — Classement des trips —
 let tripRankSort = 'sent';
-const TRIP_RANK_LABELS = { sent:'voies enchaînées', load:'pts de charge', days:'jours', loadPerDay:'pts/jour' };
+const TRIP_RANK_LABELS = { sentScore:'score de difficulté', sent:'nb de voies enchaînées', load:'pts de charge', days:'jours', loadPerDay:'pts/jour' };
 function renderTripRanking() {
   const el = document.getElementById('trip-ranking');
   if (!el) return;
@@ -6191,7 +6197,7 @@ function renderTripRanking() {
   const ranked = trips.map(t=>({t, s: tripStats(t)})).sort((a,b)=>b.s[tripRankSort]-a.s[tripRankSort]);
   const medals = ['🥇','🥈','🥉'];
   el.innerHTML = `<table class="trip-compare-table">
-    <thead><tr><th></th><th>Trip</th><th>Dates</th><th>Jours</th><th>Charge</th><th>Voies (env. / essais)</th><th>Séances</th><th>Voie la + dure essayée</th><th>Voie la + dure enchaînée</th><th>Moyenne</th></tr></thead>
+    <thead><tr><th></th><th>Trip</th><th>Dates</th><th>Jours</th><th>Charge</th><th>Voies (env. / essais)</th><th>Séances</th><th>Voie la + dure essayée</th><th>Voie la + dure enchaînée</th><th>Moyenne</th><th>Score difficulté</th></tr></thead>
     <tbody>
       ${ranked.map((r,i)=>`<tr>
         <td>${medals[i]||i+1}</td>
@@ -6204,9 +6210,11 @@ function renderTripRanking() {
         <td class="num">${r.s.hardestTried!=='—'?`<span class="grade ${gradeClass(r.s.hardestTried)}" style="height:24px;min-width:0;padding:0 8px;font-size:12px">${r.s.hardestTried}</span>`:'—'}</td>
         <td class="num">${r.s.hardestSent!=='—'?`<span class="grade ${gradeClass(r.s.hardestSent)}" style="height:24px;min-width:0;padding:0 8px;font-size:12px">${r.s.hardestSent}</span>`:'—'}</td>
         <td class="num">${r.s.avgGrade!=='—'?`<span class="grade ${gradeClass(r.s.avgGrade)}" style="height:24px;min-width:0;padding:0 8px;font-size:12px">${r.s.avgGrade}</span>`:'—'}</td>
+        <td class="num">${r.s.sentScore}</td>
       </tr>`).join('')}
     </tbody>
-  </table>`;
+  </table>
+  <p style="font-size:11px;color:var(--muted);margin-top:8px">Le "score de difficulté" pondère chaque voie enchaînée par sa cotation (plus la voie est dure, plus elle compte de points) — contrairement au nombre brut de voies qui compte un 4a et un 8a+ pareil.</p>`;
 }
 document.getElementById('trip-rank-tabs').addEventListener('click', e=>{
   const b = e.target.closest('[data-rank]');
