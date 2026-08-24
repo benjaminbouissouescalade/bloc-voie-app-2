@@ -1320,7 +1320,16 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 
   <div class="panel">
     <div class="panel-header">
-      <span class="panel-title">Pyramide des cotations</span>
+      <span class="panel-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">Pyramide des cotations
+        <select id="pyr-range-mini" style="font-weight:500;font-size:12px;color:var(--text);border:1px solid var(--border2);border-radius:99px;padding:3px 8px;background:var(--surface);cursor:pointer">
+          <option value="week">Cette semaine</option>
+          <option value="month">Ce mois</option>
+          <option value="3m">3 derniers mois</option>
+          <option value="6m">6 derniers mois</option>
+          <option value="1y">12 derniers mois</option>
+          <option value="all">Depuis le début</option>
+        </select>
+      </span>
       <div class="perf-tabs" id="pyr-context-tabs">
         <button class="perf-tab active" data-ctx="all">Tout</button>
         <button class="perf-tab" data-ctx="tete">Tête</button>
@@ -5694,10 +5703,17 @@ function renderPerformance() {
   `;
 
   // Pyramid
+  const pyrMiniEl=document.getElementById('pyr-range-mini');
+  if(pyrMiniEl) pyrMiniEl.value=perfRange;
   renderSmallPyramid(logs, pyrCtx, pyrLoc);
 }
 document.querySelectorAll('[data-perf-range]').forEach(b=>{
   b.onclick=()=>{document.querySelectorAll('[data-perf-range]').forEach(x=>x.classList.remove('active'));b.classList.add('active');perfRange=b.dataset.perfRange;renderPerformance();};
+});
+document.getElementById('pyr-range-mini')?.addEventListener('change',e=>{
+  perfRange=e.target.value;
+  document.querySelectorAll('[data-perf-range]').forEach(x=>x.classList.toggle('active',x.dataset.perfRange===perfRange));
+  renderPerformance();
 });
 document.getElementById('pyr-context-tabs').addEventListener('click',e=>{const b=e.target.closest('[data-ctx]');if(b){document.querySelectorAll('[data-ctx]').forEach(x=>x.classList.remove('active'));b.classList.add('active');pyrCtx=b.dataset.ctx;renderPerformance();}});
 document.getElementById('pyr-location-tabs').addEventListener('click',e=>{const b=e.target.closest('[data-loc]');if(b){document.querySelectorAll('[data-loc]').forEach(x=>x.classList.remove('active'));b.classList.add('active');pyrLoc=b.dataset.loc;renderPerformance();}});
