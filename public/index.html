@@ -4612,7 +4612,7 @@ function renderDashRhythm(l7, l28) {
   pill.style.background = zone.bg;
   pill.style.color = zone.color;
   pill.innerHTML = `${zone.emoji} ${esc(zone.label)}`;
-  pill.title = ratio!==null ? `Cette semaine : ${Math.round(l7)} · Ton rythme habituel : ${Math.round(chronic)}` : 'Pas encore assez de données sur les 4 dernières semaines';
+  pill.title = ratio!==null ? `7 derniers jours : ${Math.round(l7)} · Ton rythme habituel : ${Math.round(chronic)}` : 'Pas encore assez de données sur les 4 dernières semaines';
 }
 // Les 6 prochaines séances planifiées (bancs de séances / cycles posés dans le calendrier).
 function renderUpcomingSessions() {
@@ -5743,7 +5743,7 @@ function renderAcwrGauge(l7, l28) {
     markerEl.style.left='0%';
     return;
   }
-  detailEl.textContent = `Cette semaine : ${Math.round(l7)} · Ton rythme habituel : ${Math.round(chronic)}`;
+  detailEl.textContent = `7 derniers jours : ${Math.round(l7)} · Ton rythme habituel : ${Math.round(chronic)}`;
   markerEl.style.left = Math.max(0, Math.min(100, (ratio/2)*100)) + '%';
 }
 let wlShowIntensityOverlay = false;
