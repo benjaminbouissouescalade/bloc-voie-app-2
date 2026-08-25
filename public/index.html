@@ -11434,7 +11434,7 @@ async function renderCoachFeed() {
     listEl.innerHTML = `<div style="max-height:280px;overflow-y:auto;display:flex;flex-direction:column;gap:4px">${items.map((it, i) => {
       const typeLabel = (SESSION_TYPES[it.type] || {}).label || it.type;
       const hasComments = it.commentsCount > 0;
-      const commentBtn = `<button class="btn sm${hasComments ? ' primary' : ''}" style="padding:3px 8px;font-size:11px" onclick="event.stopPropagation();openFeedCommentModal(${i})" title="Commentaires">💬${hasComments ? ' ' + it.commentsCount : ''}</button>`;
+      const commentBtn = hasComments ? `<button class="btn sm primary" style="padding:3px 8px;font-size:11px" onclick="event.stopPropagation();openFeedCommentModal(${i})" title="Commentaires">💬 ${it.commentsCount}</button>` : '';
       return `<div class="log-item" style="cursor:pointer;padding:8px 10px;display:flex;justify-content:space-between;align-items:center;gap:8px" onclick="openCoachFeedItem('${it.climberId}','${it.id}')">
         <div style="font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
           <span style="font-weight:600">${esc(it.climberName)}</span>
