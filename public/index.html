@@ -1313,6 +1313,16 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
         <div id="s-together-status" style="margin-top:10px;font-size:12px"></div>
       </div>
 
+      <div class="panel" id="s-comments-panel" style="display:none">
+        <div class="panel-header"><span class="panel-title">💬 Commentaires</span></div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:8px">Échange entre l'athlète et son coach sur cette séance.</p>
+        <div id="s-comments-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px"></div>
+        <div style="display:flex;gap:8px">
+          <input type="text" class="form-control" id="s-comment-input" placeholder="Écrire un commentaire…" onkeydown="if(event.key==='Enter'){event.preventDefault();postSessionComment();}">
+          <button class="btn sm primary" onclick="postSessionComment()">Envoyer</button>
+        </div>
+      </div>
+
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button class="btn danger" id="delete-session-btn" style="display:none">Supprimer</button>
         <button class="btn" onclick="switchPage('history')">Annuler</button>
@@ -2438,6 +2448,10 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   <div class="page-header">
     <h2>Mes athlètes</h2>
     <p>Sélectionne un athlète pour consulter et piloter son entraînement — tu restes toujours coach, jamais l'athlète lui-même.</p>
+  </div>
+  <div class="panel">
+    <div class="panel-header"><span class="panel-title">Activité récente</span></div>
+    <div id="coach-feed-list"><p style="font-size:13px;color:var(--muted)">Chargement…</p></div>
   </div>
   <div id="coach-athletes-grid" class="climber-card-grid"></div>
   <p id="coach-athletes-empty" style="display:none;color:var(--muted);font-size:14px">Tu n'as pas encore d'athlète. Utilise "Inviter un athlète" dans "Gérer les grimpeurs" pour en ajouter un.</p>
@@ -4728,7 +4742,7 @@ function renderPage(name) {
   if(name==='community') renderCommunityPage();
   if(name==='history') renderHistory();
   if(name==='new-session') renderNewSession();
-  if(name==='coach-athletes') renderCoachAthletesPage();
+  if(name==='coach-athletes') { renderCoachAthletesPage(); renderCoachFeed(); }
   if(name==='admin-coaches') renderAdminCoachesPage();
   if(name==='planning') renderPlanning();
   if(name==='session-bank') renderSessionBank();
@@ -9104,6 +9118,7 @@ function newSession(date=null){
   document.getElementById('s-notes').value='';
   document.getElementById('delete-session-btn').style.display='none';
   document.getElementById('s-together-panel').style.display='none';
+  document.getElementById('s-comments-panel').style.display='none';
   updateSessionTypeUI({});
   renderAscentsEditor();
   if (date) sNewSessionDateLocked = true;
@@ -9164,7 +9179,52 @@ function editSession(id){
   voiceResetPanel();
   applyPrescriptionLock(log);
   updateFlexChangeButton(log);
+  renderSessionComments(log);
 }
+
+// Fil de commentaires coach ↔ athlète sur une séance déjà enregistrée (voir POST
+// /api/logs/:climberId/:logId/comments côté backend). Masqué pour une séance planifiée non
+// encore réalisée ou pas encore créée — ça n'a de sens qu'une fois la séance loguée.
+function renderSessionComments(log) {
+  const panel = document.getElementById('s-comments-panel');
+  const listEl = document.getElementById('s-comments-list');
+  if (!panel || !listEl) return;
+  if (!log || log.planned) { panel.style.display = 'none'; return; }
+  panel.style.display = '';
+  const comments = log.comments || [];
+  listEl.innerHTML = comments.length ? comments.map(c => {
+    const mine = c.authorId === window.currentUser?.id;
+    const roleLabel = isCoachRoleValue(c.authorRole) ? 'coach' : 'athlète';
+    return `<div style="padding:8px 10px;border-radius:8px;background:${mine?'var(--accent2)':'var(--surface2)'}">
+      <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:2px">${esc(c.authorName)} <span style="font-weight:400">· ${roleLabel} · ${new Date(c.createdAt).toLocaleDateString('fr-FR',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</span></div>
+      <div style="font-size:13px">${esc(c.message)}</div>
+    </div>`;
+  }).join('') : '<p style="font-size:12px;color:var(--muted)">Aucun commentaire pour l\'instant.</p>';
+}
+
+async function postSessionComment() {
+  const input = document.getElementById('s-comment-input');
+  const message = (input?.value || '').trim();
+  const logId = document.getElementById('edit-log-id').value;
+  if (!message || !logId) return;
+  const climberId = getActive()?.id;
+  if (!climberId) return;
+  try {
+    const res = await fetch(`/api/logs/${climberId}/${logId}/comments`, {
+      method: 'POST', headers: authHeaders(),
+      body: JSON.stringify({ message })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erreur');
+    const log = getLogs().find(l => l.id === logId);
+    if (log) log.comments = data.comments;
+    input.value = '';
+    renderSessionComments(log);
+  } catch (e) {
+    alert('Erreur : ' + e.message);
+  }
+}
+window.postSessionComment = postSessionComment;
 // ═══════════════ OBJECTIF DE PÉRIODE — l'athlète choisit sa séance, sans jour imposé ═══════════
 // Le coach propose un objectif (ex: Volume endurance × 6 sur 3 semaines) via generateCycle plutôt
 // que des séances précises datées (cf. climber.cycleObjectives). L'athlète pioche dans la banque,
@@ -11324,6 +11384,53 @@ async function coachSetPlanningMode(coachId, climberId, mode) {
   }
 }
 window.coachSetPlanningMode = coachSetPlanningMode;
+
+// Panneau "Activité récente" du dashboard coach : dernières séances loguées par tous les
+// athlètes (ou tous les grimpeurs pour un owner), tous confondus — répond au besoin "je veux
+// voir sur mon tableau de bord quand un athlète valide une séance" sans avoir à ouvrir chaque
+// fiche individuellement. Clic sur une entrée → ouvre directement la séance (via l'espace
+// Coaching existant) pour lire/écrire un commentaire.
+async function renderCoachFeed() {
+  const listEl = document.getElementById('coach-feed-list');
+  if (!listEl) return;
+  listEl.innerHTML = '<p style="font-size:13px;color:var(--muted)">Chargement…</p>';
+  try {
+    const res = await fetch('/api/coach-feed/recent?limit=20', { headers: authHeaders() });
+    const items = await res.json();
+    if (!res.ok) throw new Error(items.error || 'Erreur');
+    if (!items.length) {
+      listEl.innerHTML = '<p style="font-size:13px;color:var(--muted)">Aucune séance récente de tes athlètes pour l\'instant.</p>';
+      return;
+    }
+    listEl.innerHTML = items.map(it => {
+      const typeLabel = (SESSION_TYPES[it.type] || {}).label || it.type;
+      const notesPreview = it.notes ? esc(it.notes.length > 90 ? it.notes.slice(0, 90) + '…' : it.notes) : '';
+      const commentsBadge = it.commentsCount ? `<span class="tag" style="margin-left:6px">💬 ${it.commentsCount}</span>` : '';
+      return `<div class="log-item" style="cursor:pointer" onclick="openCoachFeedItem('${it.climberId}','${it.id}')">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div>
+            <span style="font-weight:600">${esc(it.climberName)}</span>
+            <span style="color:var(--muted);font-size:12px"> · ${esc(typeLabel)} · ${it.minutes||0} min</span>
+          </div>
+          <div style="display:flex;align-items:center">
+            <span style="font-size:12px;color:var(--muted)">${fmtDate(it.date)}</span>
+            ${commentsBadge}
+          </div>
+        </div>
+        ${notesPreview ? `<div style="font-size:12px;color:var(--muted);margin-top:4px">${notesPreview}</div>` : ''}
+      </div>`;
+    }).join('');
+  } catch (e) {
+    listEl.innerHTML = `<p style="font-size:13px;color:var(--warm)">Erreur de chargement : ${esc(e.message)}</p>`;
+  }
+}
+window.renderCoachFeed = renderCoachFeed;
+
+function openCoachFeedItem(climberId, logId) {
+  openCoachingView(climberId);
+  setTimeout(() => editSession(logId), 0);
+}
+window.openCoachFeedItem = openCoachFeedItem;
 
 // Ouvre l'espace Coaching pour un athlète : réutilise les pages "Mon entraînement" existantes
 // (dashboard, calendrier, etc. — zéro risque, aucun rendu modifié) mais les affiche sous une
