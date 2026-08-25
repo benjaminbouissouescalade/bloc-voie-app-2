@@ -11406,6 +11406,12 @@ async function renderCoachFeed() {
       const typeLabel = (SESSION_TYPES[it.type] || {}).label || it.type;
       const notesPreview = it.notes ? esc(it.notes.length > 90 ? it.notes.slice(0, 90) + '…' : it.notes) : '';
       const commentsBadge = it.commentsCount ? `<span class="tag" style="margin-left:6px">💬 ${it.commentsCount}</span>` : '';
+      // Le dernier commentaire est affiché directement ici, sans avoir à ouvrir la séance — sinon
+      // un commentaire d'athlète (ex: Lisa qui répond sur sa séance) passe inaperçu tant que le
+      // coach ne clique pas dessus. La séance remonte aussi en tête du flux dès qu'un commentaire
+      // y est ajouté (tri côté serveur par GREATEST(created_at, updated_at)).
+      const lc = it.lastComment;
+      const lastCommentHtml = lc ? `<div style="font-size:12px;background:var(--accent2);color:var(--accent);border-radius:6px;padding:6px 8px;margin-top:6px">💬 <strong>${esc(lc.authorName)}</strong> : ${esc(lc.message)}</div>` : '';
       return `<div class="log-item" style="cursor:pointer" onclick="openCoachFeedItem('${it.climberId}','${it.id}')">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
           <div>
@@ -11418,6 +11424,7 @@ async function renderCoachFeed() {
           </div>
         </div>
         ${notesPreview ? `<div style="font-size:12px;color:var(--muted);margin-top:4px">${notesPreview}</div>` : ''}
+        ${lastCommentHtml}
       </div>`;
     }).join('');
   } catch (e) {
