@@ -191,18 +191,8 @@ button, input, select, textarea { font-family: inherit; }
 .news-ticker-text[href]:hover { text-decoration: underline; cursor: pointer; }
 .news-ticker-close { background: none; border: none; color: rgba(255,255,255,.7); cursor: pointer; font-size: 13px; flex-shrink: 0; line-height: 1; padding: 2px 4px; }
 .news-ticker-close:hover { color: #fff; }
-/* Sidebar sombre — redéfinit localement les variables de couleur (texte/bordures/surfaces) pour
-   que tous les composants imbriqués (climber-switcher, nav, footer) qui utilisent déjà var(--text)/
-   var(--muted)/var(--border)/var(--surface2) basculent automatiquement en version "sur fond sombre"
-   sans avoir à retoucher chacune de leurs règles individuellement. */
 .sidebar {
-  --text: #f2efe7;
-  --muted: #aaa69b;
-  --border: rgba(242,239,231,.12);
-  --border2: rgba(242,239,231,.22);
-  --surface2: #1c1b17;
-  --bg: #1c1b17;
-  background: #11110f; border-right: 1px solid #232019; padding: 20px 0; position: sticky; top: 0; height: 100vh; overflow-y: auto; display: flex; flex-direction: column;
+  background: var(--surface); border-right: 1px solid var(--border); padding: 20px 0; position: sticky; top: 0; height: 100vh; overflow-y: auto; display: flex; flex-direction: column;
 }
 .logo { display: flex; align-items: center; gap: 10px; padding: 0 20px 18px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
 .logo-mark { width: 32px; height: 32px; flex-shrink: 0; border-radius: 8px; }
@@ -210,15 +200,12 @@ button, input, select, textarea { font-family: inherit; }
 .logo p { font-size: 9px; font-weight: 600; color: var(--warm); margin-top: 1px; text-transform: uppercase; letter-spacing: .06em; }
 .nav-group { margin-bottom: 8px; }
 .nav-label { font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding: 0 20px 6px; }
-.nav-btn { display: flex; align-items: center; gap: 10px; width: calc(100% - 16px); margin: 0 8px; padding: 10px 12px; background: none; border: none; border-left: 3px solid transparent; cursor: pointer; color: var(--muted); font-size: 14px; font-weight: 400; border-radius: var(--r-xs); transition: all .15s; text-align: left; }
+.nav-btn { display: flex; align-items: center; gap: 10px; width: calc(100% - 16px); margin: 0 8px; padding: 10px 12px; background: none; border: none; cursor: pointer; color: var(--muted); font-size: 14px; font-weight: 400; border-radius: var(--r-xs); transition: all .15s; text-align: left; }
 .nav-btn:hover { background: var(--surface2); color: var(--text); }
-.nav-btn.active { background: var(--accent); color: #fff; font-weight: 500; border-left-color: var(--warm); }
+.nav-btn.active { background: var(--accent2); color: var(--accent); font-weight: 500; }
 .nav-btn .icon { width: 20px; height: 20px; opacity: .7; flex-shrink: 0; }
 .nav-btn.active .icon { opacity: 1; }
 .sidebar-footer { margin-top: auto; padding: 16px 20px; border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); }
-.sidebar .btn { background: var(--surface2); color: var(--text); border-color: var(--border2); }
-.sidebar .btn:hover { background: var(--bg); }
-.sidebar .app-mode-btn.active { background: var(--accent); color: #fff; box-shadow: none; }
 
 .main { padding: 28px; overflow-x: hidden; }
 .page { display: none; }
@@ -239,7 +226,7 @@ body.preview-mode #sidebar-user { color: var(--accent) !important; font-weight: 
 .stat-grid-4 { grid-template-columns: repeat(4, 1fr); }
 .stat-grid-3 { grid-template-columns: repeat(3, 1fr); }
 .stat-grid-2 { grid-template-columns: repeat(2, 1fr); }
-.stat-card { position: relative; overflow: hidden; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 26px 18px 20px; counter-increment: statnum; box-shadow: var(--shadow); background-image: linear-gradient(135deg, transparent 50%, var(--warm) 50%); background-repeat: no-repeat; background-position: top right; background-size: 18px 18px; }
+.stat-card { position: relative; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 26px 18px 20px; counter-increment: statnum; box-shadow: var(--shadow); }
 .stat-card::before { content: counter(statnum, decimal-leading-zero); position: absolute; top: 12px; left: 18px; font-family: var(--serif); font-size: 10px; font-weight: 400; letter-spacing: .04em; color: var(--muted); opacity: .6; }
 .stat-card::after { content: ''; position: absolute; left: 18px; bottom: 12px; width: 20px; height: 2px; background: var(--dg-green); }
 .stat-label { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
@@ -300,7 +287,7 @@ body.preview-mode #sidebar-user { color: var(--accent) !important; font-weight: 
 /* Buttons */
 .btn { border: 1px solid var(--border2); background: var(--surface); color: var(--text); border-radius: var(--r-sm); padding: 9px 14px; cursor: pointer; font-size: 13px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; transition: all .12s; white-space: nowrap; }
 .btn:hover { background: var(--surface2); }
-.btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); border-radius: 0; clip-path: polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 0 100%); }
 .btn.primary:hover { background: #245030; }
 .btn.sm { padding: 6px 10px; font-size: 12px; border-radius: var(--r-xs); }
 .btn.danger { color: var(--warm); }
@@ -818,7 +805,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   <!-- Climber switcher -->
   <div class="climber-switcher">
     <button class="climber-active" onclick="openClimberModal()" title="Changer de grimpeur">
-      <div class="climber-avatar" id="sidebar-avatar" style="background:#1f5a45">?</div>
+      <div class="climber-avatar" id="sidebar-avatar" style="background:#2d5a3d">?</div>
       <div class="climber-info">
         <div class="climber-name" id="sidebar-name">—</div>
         <div class="climber-grade" id="sidebar-grade">grade réf. —</div>
