@@ -331,6 +331,7 @@ body.preview-mode #sidebar-user { color: var(--accent) !important; font-weight: 
 .cal-cell.has-planned { border: 2px dashed var(--accent); background: repeating-linear-gradient(135deg, var(--surface2) 0 8px, var(--accent2) 8px 16px); }
 .cal-cell.has-planned.has-session, .cal-cell.has-planned.has-hard { background: var(--accent2); }
 .cal-planned-badge { position: absolute; top: 4px; right: 4px; font-size: 13px; line-height: 1; filter: drop-shadow(0 1px 1px rgba(0,0,0,.25)); }
+.cal-avail-badge { position: absolute; top: 4px; right: 20px; font-size: 11px; line-height: 1; opacity: .85; }
 .cal-cell.drag-over { outline: 3px dashed var(--accent); outline-offset: -3px; background: var(--accent2); }
 .cal-bank-mini-card { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border: 1px solid var(--border); border-radius: var(--r-xs); background: var(--surface2); cursor: grab; }
 .cal-bank-mini-card:hover { border-color: var(--border2); background: var(--surface); }
@@ -861,6 +862,10 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     <button class="nav-btn" data-page="session-bank">
       <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="4" rx="1"/><rect x="3" y="10" width="18" height="4" rx="1"/><rect x="3" y="17" width="18" height="4" rx="1"/></svg>
       Banque de séances
+    </button>
+    <button class="nav-btn coach-only-btn" data-page="gyms">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6"/></svg>
+      Salles
     </button>
   </div>
   <!-- Administration : visible en permanence pour l'owner, indépendamment du bascule
@@ -2411,6 +2416,40 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   <p id="coach-athletes-empty" style="display:none;color:var(--muted);font-size:14px">Tu n'as pas encore d'athlète. Utilise "Inviter un athlète" dans "Gérer les grimpeurs" pour en ajouter un.</p>
 </div>
 
+<!-- ═══════════════ SALLES ═══════════════ -->
+<div class="page" id="page-gyms">
+  <div class="page-header">
+    <h2>Salles</h2>
+    <p>Liste partagée des salles d'entraînement et de leurs équipements — sert quand un athlète déclare sa disponibilité sur le calendrier.</p>
+  </div>
+
+  <div class="panel" id="gym-form-panel">
+    <div class="panel-header"><span class="panel-title" id="gym-form-title">Ajouter une salle</span></div>
+    <input type="hidden" id="gym-edit-id">
+    <div class="form-group">
+      <label class="form-label">Nom de la salle</label>
+      <input type="text" class="form-control" id="gym-name" placeholder="ex : Arkose Pantin">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Équipements disponibles</label>
+      <div id="gym-facilities-checks" style="display:flex;flex-wrap:wrap;gap:10px"></div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Notes (optionnel)</label>
+      <input type="text" class="form-control" id="gym-notes" placeholder="ex : accès limité le week-end">
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn primary" onclick="gymSave()">Enregistrer</button>
+      <button class="btn" id="gym-cancel-edit-btn" style="display:none" onclick="gymResetForm()">Annuler</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header"><span class="panel-title">Salles enregistrées</span></div>
+    <div id="gyms-list"><p style="font-size:13px;color:var(--muted)">Chargement…</p></div>
+  </div>
+</div>
+
 <!-- ═══════════════ ADMINISTRATION (OWNER) ═══════════════ -->
 <div class="page" id="page-admin-coaches">
   <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px">
@@ -3430,10 +3469,40 @@ Utilise les raccourcis ci-dessus ou pose-moi directement une question. Par exemp
       <button class="btn sm" onclick="closeModal('day-modal')">Fermer</button>
     </div>
     <div id="day-modal-cycles" style="padding:0 20px;display:none"></div>
+    <div id="day-modal-availability" style="padding:0 20px 12px;display:none"></div>
     <div class="modal-body" id="day-modal-body"></div>
     <div class="modal-footer" style="gap:8px;flex-wrap:wrap">
       <button class="btn primary" id="day-modal-add">+ Ajouter une séance ce jour</button>
       <button class="btn" id="day-modal-add-cycle">🔁 Planifier un cycle</button>
+      <button class="btn" id="day-modal-add-avail">🏟 Déclarer ma disponibilité</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal déclaration de disponibilité (salle + temps) -->
+<div class="modal-backdrop" id="avail-modal">
+  <div class="modal" style="width:min(440px,100%)">
+    <div class="modal-header">
+      <span class="modal-title">Ma disponibilité — <span id="avail-modal-date"></span></span>
+      <button class="btn sm" onclick="closeModal('avail-modal')">Fermer</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="avail-edit-id">
+      <input type="hidden" id="avail-date">
+      <div class="form-group">
+        <label class="form-label">Salle</label>
+        <select class="form-control" id="avail-gym"></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Temps disponible (minutes)</label>
+        <input type="number" class="form-control" id="avail-minutes" value="90" min="15" step="15">
+      </div>
+      <div id="avail-gym-facilities" style="font-size:12px;color:var(--muted);margin-bottom:6px"></div>
+    </div>
+    <div class="modal-footer" style="gap:8px;flex-wrap:wrap">
+      <button class="btn danger" id="avail-delete-btn" style="display:none" onclick="availDelete()">Supprimer</button>
+      <button class="btn" onclick="closeModal('avail-modal')">Annuler</button>
+      <button class="btn primary" onclick="availSave()">Enregistrer</button>
     </div>
   </div>
 </div>
@@ -3503,6 +3572,17 @@ const SUPPORTS = {
   elastiques:     { label: 'Élastiques / TRX',        group: 'Physique', icon: '🔴' },
   // ── Autre ──
   autre_support:  { label: 'Autre',                   group: 'Autre', icon: '•' },
+};
+// Équipements possibles d'une salle (référentiel partagé, cf. src/routes/gyms.js) — utilisé pour
+// le formulaire de gestion des salles et pour l'affichage des badges de disponibilité déclarée.
+const GYM_FACILITIES = {
+  voies:      { label: 'Voies',      icon: '🧗' },
+  bloc:       { label: 'Bloc',       icon: '🪨' },
+  vitesse:    { label: 'Vitesse',    icon: '⏱️' },
+  muscu:      { label: 'Salle de muscu', icon: '🏋️' },
+  pan:        { label: 'Pan',        icon: '🟫' },
+  poutre:     { label: 'Poutre',     icon: '🪵' },
+  smartboard: { label: 'Smartboard', icon: '💡' }
 };
 // Seuils exprimés en ratio par rapport à la charge hebdo moyenne du grimpeur (12 dernières semaines),
 // pas en valeur absolue : chaque grimpeur a sa propre échelle de volume.
@@ -4626,7 +4706,240 @@ function renderPage(name) {
   if(name==='planning') renderPlanning();
   if(name==='session-bank') renderSessionBank();
   if(name==='ai-coach') renderAiCoach();
+  if(name==='gyms') renderGymsPage();
 }
+
+// — Salles (référentiel partagé) —
+let gymsCache = [];
+async function fetchGyms() {
+  try {
+    const r = await fetch('/api/gyms', { headers: authHeaders() });
+    if (r.ok) gymsCache = await r.json();
+  } catch (e) { /* silencieux */ }
+  return gymsCache;
+}
+
+function gymFacilitiesChecksHtml(checked) {
+  checked = checked || {};
+  return Object.entries(GYM_FACILITIES).map(([key, f]) => `
+    <label style="display:flex;align-items:center;gap:5px;font-size:13px;border:1px solid var(--border2);border-radius:99px;padding:5px 10px;cursor:pointer">
+      <input type="checkbox" class="gym-facility-check" value="${key}" ${checked[key] ? 'checked' : ''} style="margin:0">
+      ${f.icon} ${f.label}
+    </label>`).join('');
+}
+
+function gymFacilitiesBadgesHtml(facilities) {
+  facilities = facilities || {};
+  const active = Object.keys(GYM_FACILITIES).filter(k => facilities[k]);
+  if (!active.length) return '<span style="color:var(--muted);font-size:12px">Aucun équipement renseigné</span>';
+  return active.map(k => `<span class="tag" style="font-size:11px">${GYM_FACILITIES[k].icon} ${GYM_FACILITIES[k].label}</span>`).join(' ');
+}
+
+async function renderGymsPage() {
+  document.getElementById('gym-facilities-checks').innerHTML = gymFacilitiesChecksHtml();
+  gymResetForm();
+  const listEl = document.getElementById('gyms-list');
+  listEl.innerHTML = '<p style="font-size:13px;color:var(--muted)">Chargement…</p>';
+  await fetchGyms();
+  if (!gymsCache.length) {
+    listEl.innerHTML = '<p style="font-size:13px;color:var(--muted)">Aucune salle enregistrée pour l\'instant.</p>';
+    return;
+  }
+  listEl.innerHTML = gymsCache.map(g => `
+    <div class="log-item" style="margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+        <div>
+          <div style="font-weight:600;font-size:14px">${g.name}</div>
+          <div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px">${gymFacilitiesBadgesHtml(g.facilities)}</div>
+          ${g.notes ? `<div style="margin-top:4px;font-size:12px;color:var(--muted)">${g.notes}</div>` : ''}
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          <button class="btn sm" onclick="gymEdit('${g.id}')">Modifier</button>
+          <button class="btn sm danger" onclick="gymDelete('${g.id}')">Suppr.</button>
+        </div>
+      </div>
+    </div>`).join('');
+}
+window.renderGymsPage = renderGymsPage;
+
+function gymResetForm() {
+  document.getElementById('gym-edit-id').value = '';
+  document.getElementById('gym-name').value = '';
+  document.getElementById('gym-notes').value = '';
+  document.querySelectorAll('.gym-facility-check').forEach(c => c.checked = false);
+  document.getElementById('gym-form-title').textContent = 'Ajouter une salle';
+  document.getElementById('gym-cancel-edit-btn').style.display = 'none';
+}
+window.gymResetForm = gymResetForm;
+
+function gymEdit(id) {
+  const g = gymsCache.find(x => x.id === id);
+  if (!g) return;
+  document.getElementById('gym-edit-id').value = g.id;
+  document.getElementById('gym-name').value = g.name;
+  document.getElementById('gym-notes').value = g.notes || '';
+  document.querySelectorAll('.gym-facility-check').forEach(c => { c.checked = !!(g.facilities || {})[c.value]; });
+  document.getElementById('gym-form-title').textContent = 'Modifier la salle';
+  document.getElementById('gym-cancel-edit-btn').style.display = '';
+  document.getElementById('gym-form-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+window.gymEdit = gymEdit;
+
+async function gymSave() {
+  const name = document.getElementById('gym-name').value.trim();
+  if (!name) { alert('Le nom de la salle est requis.'); return; }
+  const editId = document.getElementById('gym-edit-id').value;
+  const facilities = {};
+  document.querySelectorAll('.gym-facility-check').forEach(c => { if (c.checked) facilities[c.value] = true; });
+  const body = {
+    id: editId || ('gym_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8)),
+    name,
+    facilities,
+    notes: document.getElementById('gym-notes').value.trim()
+  };
+  try {
+    await fetch('/api/gyms', { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) });
+  } catch (e) { alert("Erreur lors de l'enregistrement."); return; }
+  await renderGymsPage();
+}
+window.gymSave = gymSave;
+
+async function gymDelete(id) {
+  if (!confirm('Supprimer cette salle ?')) return;
+  try {
+    await fetch('/api/gyms/' + id, { method: 'DELETE', headers: authHeaders() });
+  } catch (e) { /* silencieux */ }
+  await renderGymsPage();
+}
+window.gymDelete = gymDelete;
+
+// — Disponibilité déclarée (salle + temps) par jour, cf. src/routes/availability.js —
+// Chargée une fois par grimpeur actif sur une fenêtre large (J-30 à J+180) et mise en cache,
+// pour permettre l'affichage d'un badge sur chaque case du calendrier sans un fetch par jour.
+let availabilityCache = {};
+let availabilityFetchedFor = {};
+async function ensureAvailabilityLoaded(climberId) {
+  if (!climberId) return [];
+  if (availabilityFetchedFor[climberId]) return availabilityCache[climberId] || [];
+  try {
+    const fmt = d => d.toISOString().slice(0, 10);
+    const from = new Date(); from.setDate(from.getDate() - 30);
+    const to = new Date(); to.setDate(to.getDate() + 180);
+    const r = await fetch(`/api/availability/${climberId}?from=${fmt(from)}&to=${fmt(to)}`, { headers: authHeaders() });
+    if (r.ok) availabilityCache[climberId] = await r.json();
+  } catch (e) { /* silencieux */ }
+  availabilityFetchedFor[climberId] = true;
+  return availabilityCache[climberId] || [];
+}
+function invalidateAvailabilityCache(climberId) { delete availabilityFetchedFor[climberId]; }
+function availabilityForDate(climberId, dateStr) {
+  return (availabilityCache[climberId] || []).filter(a => a.date === dateStr);
+}
+function gymNameById(id) {
+  const g = gymsCache.find(x => x.id === id);
+  return g ? g.name : null;
+}
+// Déclenche le chargement en tâche de fond au premier affichage du calendrier concerné (athlète
+// ou coach), puis ré-affiche une seule fois une fois les données arrivées — même schéma que le
+// bandeau d'actualités (fetch async, pas de blocage de l'affichage initial de la grille).
+function triggerAvailabilityLoad(climberId, onLoaded) {
+  if (!climberId || availabilityFetchedFor[climberId]) return;
+  Promise.all([ensureAvailabilityLoaded(climberId), gymsCache.length ? Promise.resolve() : fetchGyms()])
+    .then(() => { if (typeof onLoaded === 'function') onLoaded(); });
+}
+
+async function renderDayModalAvailability(dateStr) {
+  const el = document.getElementById('day-modal-availability');
+  if (!el) return;
+  const climber = getActive();
+  if (!climber) { el.style.display = 'none'; return; }
+  if (!gymsCache.length) await fetchGyms();
+  await ensureAvailabilityLoaded(climber.id);
+  const entries = availabilityForDate(climber.id, dateStr);
+  if (!entries.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.style.display = '';
+  el.innerHTML = entries.map(a => `
+    <div style="display:flex;align-items:center;gap:8px;background:var(--surface2);border-radius:6px;padding:6px 10px;margin-bottom:4px;font-size:13px">
+      🏟 <strong>${esc(gymNameById(a.gymId) || 'Salle non précisée')}</strong> · ${a.minutes} min dispo
+      <button class="btn sm" style="margin-left:auto" onclick="openAvailModal('${dateStr}','${a.id}')">Modifier</button>
+    </div>`).join('');
+}
+
+async function openAvailModal(dateStr, availId) {
+  if (!gymsCache.length) await fetchGyms();
+  const gymSel = document.getElementById('avail-gym');
+  gymSel.innerHTML = '<option value="">— Choisir une salle —</option>' + gymsCache.map(g => `<option value="${g.id}">${esc(g.name)}</option>`).join('');
+  document.getElementById('avail-modal-date').textContent = new Date(dateStr + 'T00:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+  document.getElementById('avail-date').value = dateStr;
+  document.getElementById('avail-edit-id').value = '';
+  document.getElementById('avail-minutes').value = 90;
+  document.getElementById('avail-delete-btn').style.display = 'none';
+  gymSel.value = '';
+  if (availId) {
+    const climber = getActive();
+    const entry = (availabilityCache[climber.id] || []).find(a => a.id === availId);
+    if (entry) {
+      document.getElementById('avail-edit-id').value = entry.id;
+      gymSel.value = entry.gymId || '';
+      document.getElementById('avail-minutes').value = entry.minutes || 90;
+      document.getElementById('avail-delete-btn').style.display = '';
+    }
+  }
+  updateAvailGymFacilities();
+  document.getElementById('avail-modal').classList.add('open');
+}
+window.openAvailModal = openAvailModal;
+
+function updateAvailGymFacilities() {
+  const gymSel = document.getElementById('avail-gym');
+  const g = gymsCache.find(x => x.id === gymSel.value);
+  document.getElementById('avail-gym-facilities').innerHTML = g ? gymFacilitiesBadgesHtml(g.facilities) : '';
+}
+
+async function refreshCalendarAfterAvailChange() {
+  const activePageId = document.querySelector('.page.active')?.id;
+  if (activePageId === 'page-calendar') renderSimpleCalendar();
+  else if (activePageId === 'page-planning') renderCalendar();
+}
+
+async function availSave() {
+  const climber = getActive();
+  if (!climber) return;
+  const gymId = document.getElementById('avail-gym').value;
+  if (!gymId) { alert('Choisis une salle.'); return; }
+  const body = {
+    id: document.getElementById('avail-edit-id').value || ('av_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8)),
+    date: document.getElementById('avail-date').value,
+    gymId,
+    minutes: parseInt(document.getElementById('avail-minutes').value, 10) || 90
+  };
+  try {
+    await fetch('/api/availability/' + climber.id, { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) });
+  } catch (e) { alert("Erreur lors de l'enregistrement."); return; }
+  invalidateAvailabilityCache(climber.id);
+  await ensureAvailabilityLoaded(climber.id);
+  closeModal('avail-modal');
+  await renderDayModalAvailability(body.date);
+  await refreshCalendarAfterAvailChange();
+}
+window.availSave = availSave;
+
+async function availDelete() {
+  const climber = getActive();
+  const id = document.getElementById('avail-edit-id').value;
+  if (!climber || !id || !confirm('Supprimer cette disponibilité ?')) return;
+  try {
+    await fetch('/api/availability/' + climber.id + '/' + id, { method: 'DELETE', headers: authHeaders() });
+  } catch (e) { /* silencieux */ }
+  const dateStr = document.getElementById('avail-date').value;
+  invalidateAvailabilityCache(climber.id);
+  await ensureAvailabilityLoaded(climber.id);
+  closeModal('avail-modal');
+  await renderDayModalAvailability(dateStr);
+  await refreshCalendarAfterAvailChange();
+}
+window.availDelete = availDelete;
+document.getElementById('avail-gym')?.addEventListener('change', updateAvailGymFacilities);
 
 // — Dashboard —
 // Petit indicateur couleur "où j'en suis" (réutilise le même système que le gauge de la page Charge).
@@ -4840,7 +5153,11 @@ function buildCalCell(ds, dayNum, isOther, todayStr, climberCycles) {
     : dayLogs.length > 1
       ? `<div style="font-size:9px;color:var(--muted);margin-top:2px">🧗 ${dayLogs.length} séances</div>`
       : '';
-  cell.innerHTML = `${plannedLogsForCell.length?`<div class="cal-planned-badge" title="${plannedLogsForCell.length} séance${plannedLogsForCell.length>1?'s':''} prévue${plannedLogsForCell.length>1?'s':''}">📌</div>`:''}<div class="cal-num">${dayNum}</div><div class="cal-dots">${dayLogs.map(l=>`<div class="cal-dot${l.planned?' cal-dot-planned':''}" style="${l.planned?`border-color:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`:`background:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`}" title="${esc((SESSION_TYPES[l.type]||SESSION_TYPES.autre).label)}${l.planned?' (prévue)':''}"></div>`).join('')}</div>${typeLabelHtml}${cycleTagsHtmlForDate(ds, climberCycles)}${load?`<div style="font-size:14px;font-weight:700;color:var(--text);margin-top:3px">⚡ ${load}</div>`:''}`;
+  const dayAvail = getActive() ? availabilityForDate(getActive().id, ds) : [];
+  const availBadgeHtml = dayAvail.length
+    ? `<div class="cal-avail-badge" title="Dispo déclarée : ${esc(dayAvail.map(a=>gymNameById(a.gymId)||'salle non précisée').join(', '))}">🏟</div>`
+    : '';
+  cell.innerHTML = `${plannedLogsForCell.length?`<div class="cal-planned-badge" title="${plannedLogsForCell.length} séance${plannedLogsForCell.length>1?'s':''} prévue${plannedLogsForCell.length>1?'s':''}">📌</div>`:''}${availBadgeHtml}<div class="cal-num">${dayNum}</div><div class="cal-dots">${dayLogs.map(l=>`<div class="cal-dot${l.planned?' cal-dot-planned':''}" style="${l.planned?`border-color:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`:`background:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`}" title="${esc((SESSION_TYPES[l.type]||SESSION_TYPES.autre).label)}${l.planned?' (prévue)':''}"></div>`).join('')}</div>${typeLabelHtml}${cycleTagsHtmlForDate(ds, climberCycles)}${load?`<div style="font-size:14px;font-weight:700;color:var(--text);margin-top:3px">⚡ ${load}</div>`:''}`;
   cell.onclick = () => openDayModal(ds);
   cell.ondragover = (e) => { e.preventDefault(); cell.classList.add('drag-over'); };
   cell.ondragleave = () => cell.classList.remove('drag-over');
@@ -4854,6 +5171,7 @@ function renderCalendar() {
   else if (calZoom === 'year') renderCalendarYear();
   else renderCalendarMonth();
   renderCalBankMini();
+  triggerAvailabilityLoad(getActive()?.id, renderCalendar);
 }
 
 function renderCalendarMonth() {
@@ -5154,7 +5472,11 @@ function buildCal2Cell(ds, dayNum, isOther, todayStr, climberCycles) {
     : dayLogs.length > 1
       ? `<div style="font-size:9px;color:var(--muted);margin-top:2px">🧗 ${dayLogs.length} séances</div>`
       : '';
-  cell.innerHTML = `${plannedLogsForCell.length?`<div class="cal-planned-badge" title="${plannedLogsForCell.length} séance${plannedLogsForCell.length>1?'s':''} prévue${plannedLogsForCell.length>1?'s':''}">📌</div>`:''}<div class="cal-num">${dayNum}</div><div class="cal-dots">${dayLogs.map(l=>`<div class="cal-dot${l.planned?' cal-dot-planned':''}" style="${l.planned?`border-color:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`:`background:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`}" title="${esc((SESSION_TYPES[l.type]||SESSION_TYPES.autre).label)}${l.planned?' (prévue)':''}"></div>`).join('')}</div>${typeLabelHtml2}${cycleTagsHtmlForDate(ds, climberCycles)}${load?`<div style="font-size:14px;font-weight:700;color:var(--text);margin-top:3px">⚡ ${load}</div>`:''}`;
+  const dayAvail2 = getActive() ? availabilityForDate(getActive().id, ds) : [];
+  const availBadgeHtml2 = dayAvail2.length
+    ? `<div class="cal-avail-badge" title="Dispo déclarée : ${esc(dayAvail2.map(a=>gymNameById(a.gymId)||'salle non précisée').join(', '))}">🏟</div>`
+    : '';
+  cell.innerHTML = `${plannedLogsForCell.length?`<div class="cal-planned-badge" title="${plannedLogsForCell.length} séance${plannedLogsForCell.length>1?'s':''} prévue${plannedLogsForCell.length>1?'s':''}">📌</div>`:''}${availBadgeHtml2}<div class="cal-num">${dayNum}</div><div class="cal-dots">${dayLogs.map(l=>`<div class="cal-dot${l.planned?' cal-dot-planned':''}" style="${l.planned?`border-color:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`:`background:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`}" title="${esc((SESSION_TYPES[l.type]||SESSION_TYPES.autre).label)}${l.planned?' (prévue)':''}"></div>`).join('')}</div>${typeLabelHtml2}${cycleTagsHtmlForDate(ds, climberCycles)}${load?`<div style="font-size:14px;font-weight:700;color:var(--text);margin-top:3px">⚡ ${load}</div>`:''}`;
   cell.onclick = () => openDayModal(ds);
   return { cell, dayLogs, isOther };
 }
@@ -5186,6 +5508,7 @@ function renderSimpleCalendar() {
   document.getElementById('cal2-minutes').textContent=totalMinutes;
   document.getElementById('cal2-load').textContent=totalLoad;
   document.getElementById('cal2-ascents').textContent=totalAscents;
+  triggerAvailabilityLoad(getActive()?.id, renderSimpleCalendar);
 }
 document.getElementById('cal2-prev').onclick=()=>{ cal2Date.setMonth(cal2Date.getMonth()-1); renderSimpleCalendar(); };
 document.getElementById('cal2-next').onclick=()=>{ cal2Date.setMonth(cal2Date.getMonth()+1); renderSimpleCalendar(); };
@@ -9195,6 +9518,9 @@ function openDayModal(dateStr){
       document.getElementById('cycle-start').value = dateStr;
     };
   }
+  const addAvailBtn = document.getElementById('day-modal-add-avail');
+  if (addAvailBtn) addAvailBtn.onclick = () => openAvailModal(dateStr);
+  renderDayModalAvailability(dateStr);
   document.getElementById('day-modal').classList.add('open');
 }
 // Affiche, en haut de la fenêtre "Séances du jour", les cycles dont la période couvre cette date
