@@ -71,6 +71,12 @@ async function initDB() {
       -- avancer (compte de progression = nombre de logs avec ce objective_id).
       ALTER TABLE logs ADD COLUMN IF NOT EXISTS flex_goal TEXT;
       ALTER TABLE logs ADD COLUMN IF NOT EXISTS objective_id TEXT;
+      -- Fil de commentaires coach ↔ athlète sur une séance (ex: coach qui commente le ressenti
+      -- noté par l'athlète). Tableau d'objets {id, authorId, authorName, authorRole, message,
+      -- createdAt}. Alimenté uniquement via POST /:climberId/:logId/comments (jamais via le
+      -- create/update normal ni via /sync) pour ne jamais être écrasé par un resync complet
+      -- déclenché depuis l'état local du client (voir commentaire sur la route /sync plus bas).
+      ALTER TABLE logs ADD COLUMN IF NOT EXISTS comments JSONB DEFAULT '[]';
       CREATE INDEX IF NOT EXISTS idx_logs_climber_date ON logs(climber_id, date DESC);
       CREATE TABLE IF NOT EXISTS session_bank (
         id          TEXT PRIMARY KEY,
