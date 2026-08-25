@@ -357,6 +357,35 @@ async function initDB() {
       -- Défi ciblant une séance précise de la banque (ex. "Voie rose, Salle X") plutôt
       -- qu'une métrique chiffrée générique. NULL pour les défis chiffrés classiques.
       ALTER TABLE challenges ADD COLUMN IF NOT EXISTS bank_id TEXT;
+
+      -- Salles : référentiel partagé (un seul, pas par coach) des lieux d'entraînement, avec
+      -- leurs équipements disponibles (voies, bloc, vitesse, muscu, pan, poutre, smartboard).
+      -- Sert à la fois à la déclaration de disponibilité des athlètes (table availability
+      -- ci-dessous) et à la banque de séances / au coach pour adapter le contenu prescrit.
+      CREATE TABLE IF NOT EXISTS gyms (
+        id          TEXT PRIMARY KEY,
+        name        TEXT NOT NULL,
+        facilities  JSONB DEFAULT '{}',
+        notes       TEXT DEFAULT '',
+        created_at  TIMESTAMPTZ DEFAULT NOW(),
+        updated_at  TIMESTAMPTZ DEFAULT NOW()
+      );
+
+      -- Disponibilité déclarée par l'athlète pour les semaines à venir : jour + salle + temps
+      -- disponible (minutes). Plusieurs entrées possibles par jour (ex. matin/soir dans des
+      -- salles différentes). gym_id en TEXT simple (pas de FK stricte) pour tolérer la
+      -- suppression d'une salle sans casser l'historique de dispo déjà déclaré.
+      CREATE TABLE IF NOT EXISTS availability (
+        id          TEXT PRIMARY KEY,
+        climber_id  TEXT NOT NULL REFERENCES climbers(id) ON DELETE CASCADE,
+        date        DATE NOT NULL,
+        gym_id      TEXT,
+        minutes     INTEGER DEFAULT 90,
+        notes       TEXT DEFAULT '',
+        created_at  TIMESTAMPTZ DEFAULT NOW(),
+        updated_at  TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_availability_climber_date ON availability(climber_id, date);
     `);
     console.log('✅ Base de données initialisée');
   } catch (err) {
