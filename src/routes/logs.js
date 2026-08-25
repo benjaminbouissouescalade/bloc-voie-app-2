@@ -35,9 +35,38 @@ router.get('/:climberId', async (req, res) => {
       source: r.source || 'self',
       assignedByCoachId: r.assigned_by_coach_id || null,
       flexGoal: r.flex_goal || null,
-      objectiveId: r.objective_id || null
+      objectiveId: r.objective_id || null,
+      comments: r.comments || []
     }));
     res.json(logs);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/logs/:climberId/:logId/comments — ajoute un commentaire (fil coach ↔ athlète) sur une
+// séance déjà enregistrée. Jamais touché par le create/update normal ni par /sync (voir commentaire
+// plus bas) : c'est le seul point d'écriture de cette colonne, en append-only via concat JSONB pour
+// éviter toute perte en cas d'écritures concurrentes (coach + athlète en même temps).
+router.post('/:climberId/:logId/comments', async (req, res) => {
+  const message = (req.body.message || '').trim();
+  if (!message) return res.status(400).json({ error: 'message requis' });
+  const comment = {
+    id: 'cm_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+    authorId: req.user.id,
+    authorName: req.user.name,
+    authorRole: req.user.role,
+    message,
+    createdAt: new Date().toISOString()
+  };
+  try {
+    const { rows } = await pool.query(
+      `UPDATE logs SET comments = COALESCE(comments, '[]'::jsonb) || $1::jsonb
+       WHERE id=$2 AND climber_id=$3 RETURNING comments`,
+      [JSON.stringify([comment]), req.params.logId, req.params.climberId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Séance introuvable' });
+    res.json({ ok: true, comments: rows[0].comments });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -87,18 +116,26 @@ router.post('/:climberId/sync', async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    // Supprime tout et réinsère (pour l'import complet)
+    // Le client envoie son état local complet, qui ne connaît pas forcément les commentaires
+    // coach ↔ athlète ajoutés entre-temps (ex. depuis un autre appareil) — cette sync est
+    // déclenchée en continu par saveDB() sur quasi toute action de l'app, donc sans cette
+    // préservation un simple resync silencieux effacerait le fil de commentaires. On les
+    // capture avant le delete, puis on les réapplique après le reinsert.
+    const { rows: existing } = await client.query('SELECT id, comments FROM logs WHERE climber_id=$1', [req.params.climberId]);
+    const commentsById = {};
+    existing.forEach(r => { commentsById[r.id] = r.comments; });
     await client.query('DELETE FROM logs WHERE climber_id=$1', [req.params.climberId]);
     for (const log of logs) {
       await client.query(
-        `INSERT INTO logs (id, climber_id, date, type, support, minutes, intensity, shape, location, notes, ascents, b_no_grade, planned, bank_ref, cycle_id, cycle_name, source, assigned_by_coach_id, flex_goal, objective_id)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)`,
+        `INSERT INTO logs (id, climber_id, date, type, support, minutes, intensity, shape, location, notes, ascents, b_no_grade, planned, bank_ref, cycle_id, cycle_name, source, assigned_by_coach_id, flex_goal, objective_id, comments)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)`,
         [log.id, req.params.climberId, log.date, log.type, log.support||'',
          log.minutes||90, log.intensity||3, log.shape||'normal',
          log.location||'', log.notes||'',
          JSON.stringify(log.ascents||[]), JSON.stringify(log.bNoGrade||{}),
          !!log.planned, log.bankRef||null, log.cycleId||null, log.cycleName||null,
-         log.source||'self', log.assignedByCoachId||null, log.flexGoal||null, log.objectiveId||null]
+         log.source||'self', log.assignedByCoachId||null, log.flexGoal||null, log.objectiveId||null,
+         JSON.stringify(commentsById[log.id] || [])]
       );
     }
     await client.query('COMMIT');
