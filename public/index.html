@@ -820,7 +820,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     </button>
     <button class="nav-btn" data-page="performance">
       <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 17l4-8 4 4 4-6 4 6"/><path d="M3 21h18"/></svg>
-      Performance
+      Dig Deeper
     </button>
     <button class="nav-btn" data-page="tests-hub">
       <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2v6M9 4v4M15 4v4M6 8v4a6 6 0 0012 0V8"/><path d="M6 14v2a6 6 0 0012 0v-2"/></svg>
@@ -846,7 +846,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     <div class="nav-label">Communauté</div>
     <button class="nav-btn" data-page="community">
       <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="9" r="3"/><circle cx="16" cy="9" r="3"/><path d="M2 20c0-3.5 2.7-6 6-6s6 2.5 6 6M10 20c0-3.5 2.7-6 6-6s6 2.5 6 6"/></svg>
-      Communauté
+      The Crew
     </button>
   </div>
   <div class="nav-group mode-coach appmode-hidden">
@@ -861,7 +861,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     </button>
     <button class="nav-btn" data-page="session-bank">
       <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="4" rx="1"/><rect x="3" y="10" width="18" height="4" rx="1"/><rect x="3" y="17" width="18" height="4" rx="1"/></svg>
-      Banque de séances
+      La Mine
     </button>
     <button class="nav-btn coach-only-btn" data-page="gyms">
       <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6"/></svg>
@@ -1298,7 +1298,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 <!-- ═══════════════ PERFORMANCE ═══════════════ -->
 <div class="page" id="page-performance">
   <div class="page-header">
-    <h2>Performance</h2>
+    <h2>Dig Deeper</h2>
     <p>Suivi de tes meilleures cotations et évolution dans le temps</p>
   </div>
 
@@ -2310,7 +2310,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 <div class="page" id="page-community">
   <div class="page-header">
     <div>
-      <h2>Communauté</h2>
+      <h2>The Crew</h2>
       <p>Ton espace privé — partenaires, crews et défis. Pas de réseau social public.</p>
     </div>
   </div>
@@ -2559,7 +2559,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     </div>
     <div class="panel" style="max-height:600px;display:flex;flex-direction:column">
       <div class="panel-header" style="margin-bottom:8px">
-        <span class="panel-title" style="font-size:13px">📋 Banque de séances</span>
+        <span class="panel-title" style="font-size:13px">📋 La Mine</span>
       </div>
       <p style="font-size:11px;color:var(--muted);margin-bottom:8px">Glisse une séance sur un jour du calendrier pour la programmer.</p>
       <input class="form-control" style="font-size:12px;padding:6px 8px;margin-bottom:8px" id="cal-bank-search" placeholder="Rechercher…" oninput="renderCalBankMini()">
@@ -2588,7 +2588,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 <div class="page" id="page-session-bank">
   <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px">
     <div>
-      <h2>Banque de séances</h2>
+      <h2>La Mine</h2>
       <p>Séances types réutilisables pour la planification — créées manuellement ou par l'IA</p>
     </div>
     <div style="display:flex;gap:8px">
@@ -2602,7 +2602,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 
   <!-- Favoris / Récentes / Toutes -->
   <div style="display:flex;gap:8px;margin-bottom:12px" id="sb-view-tabs">
-    <button class="time-filter-btn" data-sbview="favoris" onclick="sbSetViewMode('favoris')">☆ Favoris</button>
+    <button class="time-filter-btn" data-sbview="favoris" onclick="sbSetViewMode('favoris')">💎 Pépites</button>
     <button class="time-filter-btn" data-sbview="recentes" onclick="sbSetViewMode('recentes')">🕓 Récentes</button>
     <button class="time-filter-btn active" data-sbview="toutes" onclick="sbSetViewMode('toutes')">Toutes</button>
   </div>
@@ -3133,7 +3133,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   <div class="ai-shortcuts" id="ai-shortcuts">
     <button class="ai-shortcut" onclick="aiShortcut('analyse')">📊 Analyse ma progression</button>
     <button class="ai-shortcut" onclick="aiShortcut('planning')">📅 Planifie ma semaine</button>
-    <button class="ai-shortcut" onclick="aiShortcut('points_faibles')">🎯 Identifie mes points faibles</button>
+    <button class="ai-shortcut" onclick="aiShortcut('points_faibles')">🎯 À creuser : mes points faibles</button>
     <button class="ai-shortcut" onclick="aiShortcut('charge')">⚡ Mon niveau de charge est-il adapté ?</button>
     <button class="ai-shortcut" onclick="aiShortcut('objectif')">🏔️ Quel objectif viser ?</button>
     <button class="ai-shortcut" onclick="aiShortcut('recuperation')">😴 Est-ce que je récupère bien ?</button>
@@ -7916,7 +7916,7 @@ async function renderTogetherPanel(logId) {
     } catch (e) { /* best-effort */ }
   }
   if (!partnerCache.length) {
-    listEl.innerHTML = '<p style="font-size:12px;color:var(--muted)">Aucun partenaire connecté — retrouve-les dans Communauté → Feed.</p>';
+    listEl.innerHTML = '<p style="font-size:12px;color:var(--muted)">Aucun partenaire connecté — retrouve-les dans The Crew → Feed.</p>';
     return;
   }
 
@@ -8584,8 +8584,8 @@ function renderCrewActivity(items, crewId) {
       const meta = SESSION_TYPES[a.payload?.type] || SESSION_TYPES.autre;
       text = `<strong>${esc(a.climberName)}</strong> a complété une séance ${esc(meta.label)}`;
     } else if (a.kind === 'pr') {
-      icon = '🏆';
-      text = `<strong>${esc(a.climberName)}</strong> a battu son record ${esc(a.payload?.statusLabel || '')} : <strong>${esc(a.payload?.grade || '')}</strong> 🎉`;
+      icon = '🪙';
+      text = `Struck Gold ! <strong>${esc(a.climberName)}</strong> a battu son record ${esc(a.payload?.statusLabel || '')} : <strong>${esc(a.payload?.grade || '')}</strong> 🎉`;
     } else if (a.kind === 'badge_unlocked') {
       icon = a.payload?.icon || '🎖️';
       text = `<strong>${esc(a.climberName)}</strong> a débloqué le badge <strong>${esc(a.payload?.label || '')}</strong>`;
@@ -9574,7 +9574,7 @@ function renderPlanPickerList() {
     s.name.toLowerCase().includes(search) ||
     (s.tags||[]).some(t=>t.toLowerCase().includes(search))
   );
-  if (!items.length) { el.innerHTML = `<p style="font-size:12px;color:var(--muted)">Aucune séance dans la banque — crée-en une dans "Banque de séances".</p>`; return; }
+  if (!items.length) { el.innerHTML = `<p style="font-size:12px;color:var(--muted)">Aucune séance dans la banque — crée-en une dans "La Mine".</p>`; return; }
   el.innerHTML = items.map(s => {
     const t = SESSION_TYPES[s.type] || SESSION_TYPES.autre;
     return `<div class="cal-bank-mini-card" style="cursor:pointer" onclick="choosePlanPickerBank('${s.id}')">
@@ -10351,7 +10351,7 @@ function sbRenderGrid() {
   if (countEl) countEl.textContent = `${items.length} séance${items.length!==1?'s':''}`;
 
   if (!items.length) {
-    const emptyMsg = sbViewMode === 'favoris' ? "Aucun favori pour l'instant — clique sur l'étoile d'une fiche pour l'ajouter."
+    const emptyMsg = sbViewMode === 'favoris' ? "Aucune pépite pour l'instant — clique sur l'étoile d'une fiche pour l'ajouter."
       : sbViewMode === 'recentes' ? "Rien d'utilisé récemment — programme une séance depuis la banque pour la voir apparaître ici."
       : "Crée une séance manuellement ou génère-en une avec l'IA.";
     grid.innerHTML = `<div class="sb-empty" style="grid-column:1/-1">
@@ -10371,7 +10371,7 @@ function sbRenderGrid() {
     const contextLabel = SESSION_TYPES[s.type]?.label || s.subcategory || s.category || '';
     const freshness = sbViewMode === 'recentes' ? sbRecentLabel(sbRecentInfo(s.id)) : '';
     return `<div class="sb-card" draggable="true" ondragstart="onBankDragStart(event,'${s.id}')" ondragend="onBankDragEnd(event)" title="Glisse cette séance sur une case du calendrier pour la programmer, ou clique pour voir le détail" onclick="sbOpenDetail('${s.id}')">
-      <button class="sb-fav-btn" onclick="sbToggleFavorite('${s.id}', event)" title="${isFav?'Retirer des favoris':'Ajouter aux favoris'}">${isFav?'★':'☆'}</button>
+      <button class="sb-fav-btn" onclick="sbToggleFavorite('${s.id}', event)" title="${isFav?'Retirer des pépites':'Ajouter aux pépites'}">${isFav?'★':'☆'}</button>
       <div style="font-weight:700;font-size:15px;margin-bottom:2px;padding-right:24px">${esc(s.name)}</div>
       ${contextLabel ? `<div style="font-size:12px;color:var(--muted);margin-bottom:${freshness?'4px':'10px'}">${esc(contextLabel)}${s.goal?' · '+esc(SB_GOAL_LABELS[s.goal]||s.goal):''}</div>` : '<div style="margin-bottom:10px"></div>'}
       ${freshness ? `<div style="font-size:10.5px;color:var(--accent);text-transform:uppercase;letter-spacing:.02em;margin-bottom:8px">${esc(freshness)}</div>` : ''}
@@ -10392,7 +10392,7 @@ async function shareBankToCrew(bankId) {
     const r = await fetch('/api/crews', { headers: authHeaders() });
     if (r.ok) crews = await r.json();
   } catch (e) { /* best-effort */ }
-  if (!crews.length) { alert('Rejoins ou crée un crew (dans Communauté → Crew) avant de partager une fiche.'); return; }
+  if (!crews.length) { alert('Rejoins ou crée un crew (dans The Crew → Crew) avant de partager une fiche.'); return; }
   try {
     await Promise.all(crews.map(c => fetch('/api/crews/' + c.id + '/activity', {
       method: 'POST', headers: authHeaders(),
@@ -10441,7 +10441,7 @@ function sbOpenDetail(id) {
       <button class="btn primary" onclick="sbScheduleFromDetail('${id}')">📅 Programmer</button>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
-      <button class="btn" onclick="sbToggleFavorite('${id}');sbOpenDetail('${id}')">${isFav?'★ Retirer des favoris':'☆ Ajouter aux favoris'}</button>
+      <button class="btn" onclick="sbToggleFavorite('${id}');sbOpenDetail('${id}')">${isFav?'★ Retirer des pépites':'☆ Ajouter aux pépites'}</button>
       <button class="btn" onclick="shareBankToCrew('${id}')">🔗 Partager avec le crew</button>
       <button class="btn coach-only-btn" onclick="sbDuplicateCard('${id}')">⧉ Dupliquer</button>
       <button class="btn primary coach-only-btn" onclick="closeModal('sb-detail-modal');sbEditCard('${id}')">✏️ Modifier</button>
