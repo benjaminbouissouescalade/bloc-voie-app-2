@@ -61,7 +61,7 @@ router.post('/:climberId/:logId/comments', async (req, res) => {
   };
   try {
     const { rows } = await pool.query(
-      `UPDATE logs SET comments = COALESCE(comments, '[]'::jsonb) || $1::jsonb
+      `UPDATE logs SET comments = COALESCE(comments, '[]'::jsonb) || $1::jsonb, updated_at = NOW()
        WHERE id=$2 AND climber_id=$3 RETURNING comments`,
       [JSON.stringify([comment]), req.params.logId, req.params.climberId]
     );
