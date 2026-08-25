@@ -45,7 +45,6 @@ router.get('/recent', async (req, res) => {
     const { rows } = await pool.query(query, params);
     res.json(rows.map(r => {
       const comments = r.comments || [];
-      const lastComment = comments.length ? comments[comments.length - 1] : null;
       return {
         id: r.id,
         climberId: r.climber_id,
@@ -57,8 +56,8 @@ router.get('/recent', async (req, res) => {
         minutes: r.minutes,
         intensity: r.intensity,
         notes: r.notes,
+        comments,
         commentsCount: comments.length,
-        lastComment,
         createdAt: r.created_at
       };
     }));
