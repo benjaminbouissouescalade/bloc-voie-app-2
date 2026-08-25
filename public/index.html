@@ -11420,7 +11420,7 @@ async function renderCoachFeed() {
   if (!listEl) return;
   listEl.innerHTML = '<p style="font-size:13px;color:var(--muted)">Chargement…</p>';
   try {
-    const res = await fetch('/api/coach-feed/recent?limit=12', { headers: authHeaders() });
+    const res = await fetch('/api/coach-feed/recent?limit=30', { headers: authHeaders() });
     const items = await res.json();
     if (!res.ok) throw new Error(items.error || 'Erreur');
     coachFeedItems = items;
