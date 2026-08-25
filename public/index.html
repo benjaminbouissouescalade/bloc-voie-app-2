@@ -1,13 +1,24 @@
-<div id="auth-screen" style="position:fixed;inset:0;background-color:#f4f2ee;background-image:radial-gradient(#c9c9c4 1px,transparent 1px);background-size:22px 22px;display:flex;align-items:center;justify-content:center;z-index:200;font-family:system-ui,sans-serif">
-<div style="background:#fff;border-radius:16px;padding:40px;width:min(400px,90%);box-shadow:0 4px 24px rgba(0,0,0,.12)">
-<div style="font-family:'DM Serif Display',Georgia,serif;font-size:26px;font-weight:400;color:#2d5a3d;margin-bottom:4px">Digger</div>
-<div style="font-size:13px;color:#7a7566;margin-bottom:24px">Carnet escalade</div>
-<div id="ae" style="background:#fef3ec;color:#c4501a;border-radius:8px;padding:10px;font-size:13px;margin-bottom:12px;display:none"></div>
-<label style="font-size:11px;font-weight:600;color:#7a7566;display:block;margin-bottom:4px">EMAIL</label>
-<input id="le" type="email" placeholder="ton@email.com" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;margin-bottom:12px">
-<label style="font-size:11px;font-weight:600;color:#7a7566;display:block;margin-bottom:4px">MOT DE PASSE</label>
-<input id="lp" type="password" placeholder="••••••••" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;margin-bottom:20px">
-<button id="lb" style="width:100%;background:#2d5a3d;color:#fff;border:none;padding:12px;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer">Se connecter</button>
+<div id="auth-screen" style="position:fixed;inset:0;background-color:#f2efe7;background-image:radial-gradient(#dcd7c8 1px,transparent 1px);background-size:22px 22px;display:flex;align-items:center;justify-content:center;z-index:200;font-family:system-ui,sans-serif">
+<div style="background:#fbf9f4;border-radius:12px;padding:40px;width:min(400px,90%);box-shadow:0 6px 24px rgba(17,17,15,.10)">
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:24px">
+<svg width="26" height="26" viewBox="0 0 64 64" aria-hidden="true">
+<rect width="64" height="64" rx="14" fill="#1f5a45"/>
+<path d="M18,14 L38,14 L46,22 L46,42 L38,50 L18,50 Z" fill="#f2efe7"/>
+<path d="M26,22 L36,22 L40,26 L40,38 L36,42 L26,42 Z" fill="#1f5a45"/>
+<line x1="22" y1="46" x2="48" y2="18" stroke="#e94b1b" stroke-width="3" stroke-linecap="round"/>
+<path d="M48,18 L40,12 M48,18 L54,22" fill="none" stroke="#f2efe7" stroke-width="3" stroke-linecap="round"/>
+</svg>
+<div>
+<div style="font-family:'Oswald',sans-serif;font-size:15px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#11110f">Digger</div>
+<div style="font-size:10px;color:#6b665c;text-transform:uppercase;letter-spacing:.03em">Training log</div>
+</div>
+</div>
+<div id="ae" style="background:#fce9e0;color:#e94b1b;border-radius:8px;padding:10px;font-size:13px;margin-bottom:12px;display:none"></div>
+<label style="font-size:11px;font-weight:600;color:#6b665c;display:block;margin-bottom:4px">EMAIL</label>
+<input id="le" type="email" placeholder="ton@email.com" style="width:100%;padding:10px;border:1px solid #ddd6c4;border-radius:8px;font-size:14px;box-sizing:border-box;margin-bottom:12px">
+<label style="font-size:11px;font-weight:600;color:#6b665c;display:block;margin-bottom:4px">MOT DE PASSE</label>
+<input id="lp" type="password" placeholder="••••••••" style="width:100%;padding:10px;border:1px solid #ddd6c4;border-radius:8px;font-size:14px;box-sizing:border-box;margin-bottom:20px">
+<button id="lb" style="width:100%;background:#1f5a45;color:#fff;border:none;padding:12px;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer">Se connecter</button>
 </div></div>
 
 <div id="onboarding-screen" style="position:fixed;inset:0;background:#f4f2ee;display:none;align-items:center;justify-content:center;z-index:200;font-family:system-ui,sans-serif;padding:20px;box-sizing:border-box">
@@ -108,42 +119,46 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Digger — Carnet d'entraînement</title>
+<title>Digger — Training log</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <style>
 :root {
-  /* Identité d'origine Bloc & Voie — crème / vert forêt / DM Serif Display. */
-  --bg: #f4f2ee;
-  --surface: #ffffff;
-  --surface2: #f9f8f5;
-  --border: rgba(30,28,20,.1);
-  --border2: rgba(30,28,20,.18);
-  --text: #1e1c14;
-  --muted: #7a7566;
-  --accent: #2d5a3d;
-  --accent2: #e8f5ed;
-  --warm: #c4501a;
-  --warm2: #fef3ec;
-  --gold: #b07a10;
-  --gold2: #fdf6e3;
-  --blue: #1a4a7a;
-  --blue2: #e8f0fa;
-  --purple: #5a2d82;
-  --purple2: #f3edf8;
+  /* DA v2 — direction "premium / brut industriel" (80% premium contemporain, 20% mine/outil).
+     Palette imposée : charbon #11110F, crème/pierre #F2EFE7, vert forêt #1F5A45 (identité),
+     orange minerai #E94B1B (accent rare), gris pierre #AAA69B (décor/bordures, --stone).
+     --muted est une version assombrie du gris pierre pour rester lisible en texte secondaire. */
+  --bg: #f2efe7;
+  --surface: #fbf9f4;
+  --surface2: #eae6da;
+  --stone: #aaa69b;
+  --border: rgba(17,17,15,.1);
+  --border2: rgba(17,17,15,.2);
+  --text: #11110f;
+  --muted: #6b665c;
+  --accent: #1f5a45;
+  --accent2: #e4eee8;
+  --warm: #e94b1b;
+  --warm2: #fce9e0;
+  --gold: #a47a2e;
+  --gold2: #f5eedb;
+  --blue: #3a5f6b;
+  --blue2: #e7eef0;
+  --purple: #6b4f73;
+  --purple2: #f0e9ef;
 
-  /* Alias conservés pour compatibilité avec les composants ajoutés depuis — recolorés dans la famille d'origine. */
+  /* Alias conservés pour compatibilité avec les composants ajoutés depuis — recolorés dans la nouvelle famille. */
   --dg-black: var(--text);
-  --dg-anthracite: #3a362c;
-  --dg-charcoal: #4a4438;
+  --dg-anthracite: #2a2a26;
+  --dg-charcoal: #3d3b35;
   --dg-textgray: var(--muted);
-  --dg-lightgray: #e9e5da;
+  --dg-lightgray: #e3dfd2;
   --dg-offwhite: var(--bg);
   --dg-green: var(--accent);
-  --dg-green-dark: #245030;
-  --dg-green-deep: #1c3f2a;
+  --dg-green-dark: #174535;
+  --dg-green-deep: #123128;
   --dg-terra: var(--warm);
   --dg-mineral: var(--blue);
   --dg-sable: var(--gold);
@@ -152,13 +167,16 @@
   --mineral2: var(--blue2);
   --sable2: var(--gold2);
 
-  --radius: 16px;
-  --r-sm: 10px;
-  --r-xs: 6px;
+  --radius: 12px;
+  --r-sm: 8px;
+  --r-xs: 5px;
   --font: 'DM Sans', system-ui, sans-serif;
-  --serif: 'DM Serif Display', Georgia, serif;
-  --shadow: 0 2px 12px rgba(30,28,20,.07);
-  --shadow2: 0 8px 32px rgba(30,28,20,.12);
+  /* --serif porte désormais l'identité "condensée/massive/industrielle" (Oswald) au lieu du serif
+     d'origine — nom de variable conservé pour ne pas devoir toucher chaque site d'utilisation
+     (titres de page, valeurs de stats, logo) ; seul le rôle typographique change, pas la sémantique. */
+  --serif: 'Oswald', 'Arial Narrow', sans-serif;
+  --shadow: 0 1px 3px rgba(17,17,15,.05);
+  --shadow2: 0 6px 18px rgba(17,17,15,.09);
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; }
@@ -174,9 +192,10 @@ button, input, select, textarea { font-family: inherit; }
 .news-ticker-close { background: none; border: none; color: rgba(255,255,255,.7); cursor: pointer; font-size: 13px; flex-shrink: 0; line-height: 1; padding: 2px 4px; }
 .news-ticker-close:hover { color: #fff; }
 .sidebar { background: var(--surface); border-right: 1px solid var(--border); padding: 20px 0; position: sticky; top: 0; height: 100vh; overflow-y: auto; display: flex; flex-direction: column; }
-.logo { padding: 0 20px 24px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
-.logo h1 { font-family: var(--serif); font-size: 22px; color: var(--accent); letter-spacing: -.3px; }
-.logo p { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.logo { display: flex; align-items: center; gap: 10px; padding: 0 20px 18px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+.logo-mark { width: 26px; height: 26px; flex-shrink: 0; border-radius: 6px; }
+.logo h1 { font-family: var(--serif); font-weight: 600; font-size: 15px; text-transform: uppercase; letter-spacing: .04em; color: var(--text); }
+.logo p { font-size: 10px; color: var(--muted); margin-top: 1px; text-transform: uppercase; letter-spacing: .03em; }
 .nav-group { margin-bottom: 8px; }
 .nav-label { font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding: 0 20px 6px; }
 .nav-btn { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 20px; background: none; border: none; cursor: pointer; color: var(--muted); font-size: 14px; font-weight: 400; border-radius: 0; transition: all .15s; text-align: left; }
@@ -195,9 +214,9 @@ body.preview-mode .main { background: var(--surface2); box-shadow: inset 0 0 0 3
 body.preview-mode .sidebar { border-right: 2px solid var(--accent); }
 body.preview-mode #sidebar-user { color: var(--accent) !important; font-weight: 700; }
 
-/* Headers */
-.page-header { margin-bottom: 28px; }
-.page-header h2 { font-family: var(--serif); font-size: 32px; color: var(--text); letter-spacing: -.5px; }
+/* Headers — fine ligne technique en pied de titre, signature DA discrète répétée sur chaque page */
+.page-header { margin-bottom: 28px; padding-bottom: 14px; border-bottom: 2px solid var(--accent); }
+.page-header h2 { font-family: var(--serif); font-size: 32px; font-weight: 600; color: var(--text); letter-spacing: -.2px; text-transform: uppercase; }
 .page-header p { color: var(--muted); font-size: 14px; margin-top: 4px; }
 
 /* Stat cards — index discret + micro-ligne colorée tournante, plus de trait noir systématique */
@@ -208,11 +227,8 @@ body.preview-mode #sidebar-user { color: var(--accent) !important; font-weight: 
 .stat-card { position: relative; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 26px 18px 20px; counter-increment: statnum; box-shadow: var(--shadow); }
 .stat-card::before { content: counter(statnum, decimal-leading-zero); position: absolute; top: 12px; left: 18px; font-family: var(--serif); font-size: 10px; font-weight: 400; letter-spacing: .04em; color: var(--muted); opacity: .6; }
 .stat-card::after { content: ''; position: absolute; left: 18px; bottom: 12px; width: 20px; height: 2px; background: var(--dg-green); }
-.stat-card:nth-of-type(4n+2)::after { background: var(--dg-mineral); }
-.stat-card:nth-of-type(4n+3)::after { background: var(--dg-terra); }
-.stat-card:nth-of-type(4n+4)::after { background: var(--dg-sable); }
 .stat-label { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
-.stat-value { font-family: var(--serif); font-size: 34px; color: var(--text); line-height: 1; }
+.stat-value { font-family: var(--serif); font-size: 34px; font-weight: 600; color: var(--text); line-height: 1; }
 .stat-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
 .stat-card.accent { background: var(--accent2); border-color: rgba(45,90,61,.15); }
 .stat-card.accent::after { background: var(--dg-green); }
@@ -236,7 +252,7 @@ body.preview-mode #sidebar-user { color: var(--accent) !important; font-weight: 
 /* Panels */
 .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 20px; box-shadow: var(--shadow); }
 .panel-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
-.panel-title { font-weight: 600; font-size: 15px; }
+.panel-title { font-family: var(--serif); font-weight: 500; font-size: 15px; letter-spacing: .02em; text-transform: uppercase; }
 .panel-sub { font-size: 12px; color: var(--muted); }
 
 /* Two col */
@@ -269,7 +285,7 @@ body.preview-mode #sidebar-user { color: var(--accent) !important; font-weight: 
 /* Buttons */
 .btn { border: 1px solid var(--border2); background: var(--surface); color: var(--text); border-radius: var(--r-sm); padding: 9px 14px; cursor: pointer; font-size: 13px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; transition: all .12s; white-space: nowrap; }
 .btn:hover { background: var(--surface2); }
-.btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); border-radius: 0; clip-path: polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 0 100%); }
 .btn.primary:hover { background: #245030; }
 .btn.sm { padding: 6px 10px; font-size: 12px; border-radius: var(--r-xs); }
 .btn.danger { color: var(--warm); }
@@ -771,8 +787,17 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 <!-- Sidebar -->
 <aside class="sidebar">
   <div class="logo">
-    <h1>Digger</h1>
-    <p>Carnet d'entraînement</p>
+    <svg class="logo-mark" viewBox="0 0 64 64" aria-hidden="true">
+      <rect width="64" height="64" rx="14" fill="#1f5a45"/>
+      <path d="M18,14 L38,14 L46,22 L46,42 L38,50 L18,50 Z" fill="#f2efe7"/>
+      <path d="M26,22 L36,22 L40,26 L40,38 L36,42 L26,42 Z" fill="#1f5a45"/>
+      <line x1="22" y1="46" x2="48" y2="18" stroke="#e94b1b" stroke-width="3" stroke-linecap="round"/>
+      <path d="M48,18 L40,12 M48,18 L54,22" fill="none" stroke="#f2efe7" stroke-width="3" stroke-linecap="round"/>
+    </svg>
+    <div class="logo-text">
+      <h1>Digger</h1>
+      <p>Training log</p>
+    </div>
   </div>
 
   <!-- Climber switcher -->
@@ -5016,7 +5041,7 @@ function renderDashboard() {
         data:wData.map(w=>w.load),
         backgroundColor:wData.map(w=>{
           const c=cLevel(w.load);
-          return c.cls==='c1'?'rgba(45,90,61,.85)':c.cls==='c2'?'rgba(176,122,16,.8)':c.cls==='c3'?'rgba(196,80,26,.85)':'rgba(90,45,130,.9)';
+          return c.cls==='c1'?'rgba(31,90,69,.5)':c.cls==='c2'?'rgba(31,90,69,.9)':c.cls==='c3'?'rgba(107,102,92,.85)':'rgba(233,75,27,.9)';
         }),
         borderRadius:6,borderSkipped:false
       }]
@@ -5031,8 +5056,8 @@ function renderDashboard() {
       labels:wData.map(w=>w.label),
       datasets:[{
         data:wData.map(w=>w.avgInt||null),
-        borderColor:'#2d5a3d',backgroundColor:'rgba(45,90,61,.22)',tension:.4,fill:true,
-        pointBackgroundColor:'#2d5a3d',pointRadius:3,spanGaps:true
+        borderColor:'#1f5a45',backgroundColor:'rgba(31,90,69,.18)',tension:.4,fill:true,
+        pointBackgroundColor:'#1f5a45',pointRadius:3,spanGaps:true
       }]
     },
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{font:{size:10}}},y:{min:0,max:5,grid:{color:'rgba(0,0,0,.05)'},ticks:{font:{size:10},stepSize:1}}}}

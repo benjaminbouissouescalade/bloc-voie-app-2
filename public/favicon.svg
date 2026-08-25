@@ -1,4 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="14" fill="#2d5a3d"/>
-  <text x="32" y="44" text-anchor="middle" font-family="Georgia, 'DM Serif Display', serif" font-size="36" fill="#ffffff">D</text>
+  <rect width="64" height="64" rx="14" fill="#1f5a45"/>
+  <path d="M18,14 L38,14 L46,22 L46,42 L38,50 L18,50 Z" fill="#f2efe7"/>
+  <path d="M26,22 L36,22 L40,26 L40,38 L36,42 L26,42 Z" fill="#1f5a45"/>
+  <line x1="22" y1="46" x2="48" y2="18" stroke="#e94b1b" stroke-width="3" stroke-linecap="round"/>
+  <path d="M48,18 L40,12 M48,18 L54,22" fill="none" stroke="#f2efe7" stroke-width="3" stroke-linecap="round"/>
 </svg>
