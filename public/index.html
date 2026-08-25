@@ -817,7 +817,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   <!-- Bascule Mes données / Mon coach -->
   <div class="app-mode-switch" id="app-mode-switch">
     <button class="app-mode-btn active" data-mode="mine" onclick="setAppMode('mine')">Mes données</button>
-    <button class="app-mode-btn" data-mode="coach" onclick="setAppMode('coach')">Mon coach</button>
+    <button class="app-mode-btn" data-mode="coach" onclick="setAppMode('coach')">Coach</button>
   </div>
 
   <div class="nav-group mode-mine">
@@ -877,7 +877,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     </button>
   </div>
   <div class="nav-group mode-coach appmode-hidden">
-    <div class="nav-label">Mon coach</div>
+    <div class="nav-label">Coach</div>
     <button class="nav-btn coach-only-btn" data-page="coach-athletes">
       <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="9" r="3"/><circle cx="16" cy="9" r="3"/><path d="M2 20c0-3.5 2.7-6 6-6s6 2.5 6 6M10 20c0-3.5 2.7-6 6-6s6 2.5 6 6"/></svg>
       Mes athlètes
@@ -2449,12 +2449,32 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     <h2>Mes athlètes</h2>
     <p>Sélectionne un athlète pour consulter et piloter son entraînement — tu restes toujours coach, jamais l'athlète lui-même.</p>
   </div>
-  <div class="panel">
+  <div id="coach-athletes-grid" class="climber-card-grid"></div>
+  <p id="coach-athletes-empty" style="display:none;color:var(--muted);font-size:14px">Tu n'as pas encore d'athlète. Utilise "Inviter un athlète" dans "Gérer les grimpeurs" pour en ajouter un.</p>
+  <div class="panel" style="margin-top:20px">
     <div class="panel-header"><span class="panel-title">Activité récente</span></div>
     <div id="coach-feed-list"><p style="font-size:13px;color:var(--muted)">Chargement…</p></div>
   </div>
-  <div id="coach-athletes-grid" class="climber-card-grid"></div>
-  <p id="coach-athletes-empty" style="display:none;color:var(--muted);font-size:14px">Tu n'as pas encore d'athlète. Utilise "Inviter un athlète" dans "Gérer les grimpeurs" pour en ajouter un.</p>
+</div>
+
+<!-- Modal : détail d'un commentaire depuis le flux d'activité coach -->
+<div class="modal-backdrop" id="feed-comment-modal">
+  <div class="modal" style="width:min(480px,100%)">
+    <div class="modal-header">
+      <span class="modal-title">Commentaires</span>
+      <button class="btn sm" onclick="closeModal('feed-comment-modal')">Fermer</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="feed-comment-climber-id">
+      <input type="hidden" id="feed-comment-log-id">
+      <div id="feed-comment-summary" style="font-size:13px;color:var(--muted);background:var(--surface2);border-radius:8px;padding:10px 12px;margin-bottom:12px"></div>
+      <div id="feed-comment-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px"></div>
+      <div style="display:flex;gap:8px">
+        <input type="text" class="form-control" id="feed-comment-input" placeholder="Écrire un commentaire…" onkeydown="if(event.key==='Enter'){event.preventDefault();postFeedComment();}">
+        <button class="btn sm primary" onclick="postFeedComment()">Envoyer</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- ═══════════════ SALLES ═══════════════ -->
@@ -11390,43 +11410,39 @@ window.coachSetPlanningMode = coachSetPlanningMode;
 // voir sur mon tableau de bord quand un athlète valide une séance" sans avoir à ouvrir chaque
 // fiche individuellement. Clic sur une entrée → ouvre directement la séance (via l'espace
 // Coaching existant) pour lire/écrire un commentaire.
+// Cache en mémoire des entrées du flux (pour retrouver les détails d'une séance/ses commentaires
+// au clic sans re-sérialiser du JSON dans des attributs onclick, sensible aux apostrophes/guillemets
+// des messages).
+let coachFeedItems = [];
+
 async function renderCoachFeed() {
   const listEl = document.getElementById('coach-feed-list');
   if (!listEl) return;
   listEl.innerHTML = '<p style="font-size:13px;color:var(--muted)">Chargement…</p>';
   try {
-    const res = await fetch('/api/coach-feed/recent?limit=20', { headers: authHeaders() });
+    const res = await fetch('/api/coach-feed/recent?limit=12', { headers: authHeaders() });
     const items = await res.json();
     if (!res.ok) throw new Error(items.error || 'Erreur');
+    coachFeedItems = items;
     if (!items.length) {
       listEl.innerHTML = '<p style="font-size:13px;color:var(--muted)">Aucune séance récente de tes athlètes pour l\'instant.</p>';
       return;
     }
-    listEl.innerHTML = items.map(it => {
+    // Volontairement compact (une ligne) : le détail (note, commentaires) est réservé au clic —
+    // sur "Voir la séance" pour la fiche complète, sur l'icône 💬 pour une fenêtre dédiée aux
+    // commentaires (mini résumé + fil), sans avoir à ouvrir toute la fiche pour ça.
+    listEl.innerHTML = `<div style="max-height:280px;overflow-y:auto;display:flex;flex-direction:column;gap:4px">${items.map((it, i) => {
       const typeLabel = (SESSION_TYPES[it.type] || {}).label || it.type;
-      const notesPreview = it.notes ? esc(it.notes.length > 90 ? it.notes.slice(0, 90) + '…' : it.notes) : '';
-      const commentsBadge = it.commentsCount ? `<span class="tag" style="margin-left:6px">💬 ${it.commentsCount}</span>` : '';
-      // Le dernier commentaire est affiché directement ici, sans avoir à ouvrir la séance — sinon
-      // un commentaire d'athlète (ex: Lisa qui répond sur sa séance) passe inaperçu tant que le
-      // coach ne clique pas dessus. La séance remonte aussi en tête du flux dès qu'un commentaire
-      // y est ajouté (tri côté serveur par GREATEST(created_at, updated_at)).
-      const lc = it.lastComment;
-      const lastCommentHtml = lc ? `<div style="font-size:12px;background:var(--accent2);color:var(--accent);border-radius:6px;padding:6px 8px;margin-top:6px">💬 <strong>${esc(lc.authorName)}</strong> : ${esc(lc.message)}</div>` : '';
-      return `<div class="log-item" style="cursor:pointer" onclick="openCoachFeedItem('${it.climberId}','${it.id}')">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-          <div>
-            <span style="font-weight:600">${esc(it.climberName)}</span>
-            <span style="color:var(--muted);font-size:12px"> · ${esc(typeLabel)} · ${it.minutes||0} min</span>
-          </div>
-          <div style="display:flex;align-items:center">
-            <span style="font-size:12px;color:var(--muted)">${fmtDate(it.date)}</span>
-            ${commentsBadge}
-          </div>
+      const hasComments = it.commentsCount > 0;
+      const commentBtn = `<button class="btn sm${hasComments ? ' primary' : ''}" style="padding:3px 8px;font-size:11px" onclick="event.stopPropagation();openFeedCommentModal(${i})" title="Commentaires">💬${hasComments ? ' ' + it.commentsCount : ''}</button>`;
+      return `<div class="log-item" style="cursor:pointer;padding:8px 10px;display:flex;justify-content:space-between;align-items:center;gap:8px" onclick="openCoachFeedItem('${it.climberId}','${it.id}')">
+        <div style="font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+          <span style="font-weight:600">${esc(it.climberName)}</span>
+          <span style="color:var(--muted)"> · ${esc(typeLabel)} · ${it.minutes||0} min · ${fmtDate(it.date)}</span>
         </div>
-        ${notesPreview ? `<div style="font-size:12px;color:var(--muted);margin-top:4px">${notesPreview}</div>` : ''}
-        ${lastCommentHtml}
+        ${commentBtn}
       </div>`;
-    }).join('');
+    }).join('')}</div>`;
   } catch (e) {
     listEl.innerHTML = `<p style="font-size:13px;color:var(--warm)">Erreur de chargement : ${esc(e.message)}</p>`;
   }
@@ -11438,6 +11454,59 @@ function openCoachFeedItem(climberId, logId) {
   setTimeout(() => editSession(logId), 0);
 }
 window.openCoachFeedItem = openCoachFeedItem;
+
+// Fenêtre dédiée aux commentaires depuis le flux d'activité coach : mini résumé de la séance +
+// fil complet, sans quitter la page "Mes athlètes". Répond au besoin "je ne vois pas les
+// commentaires" — un bouton visible plutôt qu'un aperçu texte qui passait inaperçu.
+function openFeedCommentModal(index) {
+  const it = coachFeedItems[index];
+  if (!it) return;
+  document.getElementById('feed-comment-climber-id').value = it.climberId;
+  document.getElementById('feed-comment-log-id').value = it.id;
+  const typeLabel = (SESSION_TYPES[it.type] || {}).label || it.type;
+  document.getElementById('feed-comment-summary').innerHTML =
+    `<strong>${esc(it.climberName)}</strong> · ${esc(typeLabel)} · ${it.minutes||0} min · ${fmtDate(it.date)}` +
+    (it.notes ? `<div style="margin-top:4px">${esc(it.notes)}</div>` : '');
+  renderFeedCommentList(it.comments || []);
+  document.getElementById('feed-comment-input').value = '';
+  document.getElementById('feed-comment-modal').classList.add('open');
+}
+window.openFeedCommentModal = openFeedCommentModal;
+
+function renderFeedCommentList(comments) {
+  const listEl = document.getElementById('feed-comment-list');
+  listEl.innerHTML = comments.length ? comments.map(c => {
+    const roleLabel = isCoachRoleValue(c.authorRole) ? 'coach' : 'athlète';
+    return `<div style="padding:8px 10px;border-radius:8px;background:var(--surface2)">
+      <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:2px">${esc(c.authorName)} <span style="font-weight:400">· ${roleLabel} · ${new Date(c.createdAt).toLocaleDateString('fr-FR',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</span></div>
+      <div style="font-size:13px">${esc(c.message)}</div>
+    </div>`;
+  }).join('') : '<p style="font-size:12px;color:var(--muted)">Aucun commentaire pour l\'instant.</p>';
+}
+
+async function postFeedComment() {
+  const input = document.getElementById('feed-comment-input');
+  const message = (input?.value || '').trim();
+  const climberId = document.getElementById('feed-comment-climber-id').value;
+  const logId = document.getElementById('feed-comment-log-id').value;
+  if (!message || !climberId || !logId) return;
+  try {
+    const res = await fetch(`/api/logs/${climberId}/${logId}/comments`, {
+      method: 'POST', headers: authHeaders(),
+      body: JSON.stringify({ message })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erreur');
+    renderFeedCommentList(data.comments);
+    input.value = '';
+    // Rafraîchit le flux en arrière-plan pour remonter cette séance et mettre à jour le compteur,
+    // sans fermer la fenêtre en cours de lecture.
+    renderCoachFeed();
+  } catch (e) {
+    alert('Erreur : ' + e.message);
+  }
+}
+window.postFeedComment = postFeedComment;
 
 // Ouvre l'espace Coaching pour un athlète : réutilise les pages "Mon entraînement" existantes
 // (dashboard, calendrier, etc. — zéro risque, aucun rendu modifié) mais les affiche sous une
