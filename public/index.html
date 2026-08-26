@@ -991,16 +991,26 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     <div class="stat-card tint-mineral">
       <div class="stat-label">Charge 28 jours</div>
       <div class="stat-value" id="dash-load28">0</div>
-      <div class="stat-sub" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-        <span id="dash-clevel28">C1</span>
-        <span id="dash-load28-trend" style="display:none;align-items:center;gap:4px;font-size:12px;font-weight:700;padding:3px 10px;border-radius:99px"></span>
+      <div class="stat-sub" id="dash-clevel28">C1</div>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:10px;padding-top:10px;border-top:1px solid rgba(17,17,15,.1)">
+        <span id="dash-load28-trend" style="display:none;align-items:center;gap:5px;font-size:15px;font-weight:700;padding:5px 12px;border-radius:99px;flex-shrink:0"></span>
+        <div style="font-size:12px;color:var(--muted);line-height:1.35" id="dash-load28-trend-detail"></div>
       </div>
     </div>
     <div class="stat-card">
       <div class="stat-label">Séances ce mois</div>
       <div class="stat-value" id="dash-month-sessions">0</div>
       <div class="stat-sub" id="dash-month-minutes">0 min</div>
-      <div class="stat-sub" id="dash-month-compare" style="margin-top:2px"></div>
+      <div style="display:flex;gap:20px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+        <div>
+          <div style="font-size:19px;font-weight:700;line-height:1.1" id="dash-month-prev">—</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">Mois dernier</div>
+        </div>
+        <div>
+          <div style="font-size:19px;font-weight:700;line-height:1.1" id="dash-month-avg">—</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">Moyenne 12 mois</div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -5080,16 +5090,20 @@ function renderDashboard() {
   // Un chiffre brut de charge cumulée sur 28j ne dit rien seul (retour "cette donnée ne sert à
   // rien") — on affiche à la place la tendance vs les 4 semaines précédentes, même logique que le
   // second indicateur de la page Charge (loadTrendZone), pour donner un sens immédiat au nombre.
-  const trendPct = (() => { const prev28=getLoadRange(56)-l28; return prev28>0 ? Math.round(((l28-prev28)/prev28)*100) : null; })();
+  const prev28 = getLoadRange(56) - l28;
+  const trendPct = prev28>0 ? Math.round(((l28-prev28)/prev28)*100) : null;
   const load28TrendEl = document.getElementById('dash-load28-trend');
+  const load28TrendDetailEl = document.getElementById('dash-load28-trend-detail');
   if (load28TrendEl) {
-    if (trendPct===null) { load28TrendEl.style.display='none'; }
-    else {
+    if (trendPct===null) {
+      load28TrendEl.style.display='none';
+      if (load28TrendDetailEl) load28TrendDetailEl.textContent = 'Pas encore assez d\'historique pour comparer.';
+    } else {
       const tz = loadTrendZone(trendPct);
       load28TrendEl.style.display='inline-flex';
       load28TrendEl.style.background=tz.bg; load28TrendEl.style.color=tz.color;
       load28TrendEl.textContent = `${tz.emoji} ${trendPct>0?'+':''}${trendPct}%`;
-      load28TrendEl.title = 'vs les 4 semaines précédentes';
+      if (load28TrendDetailEl) load28TrendDetailEl.innerHTML = `vs 4 sem. précédentes<br><strong style="color:var(--text)">${prev28}</strong> → <strong style="color:var(--text)">${l28}</strong>`;
     }
   }
   const sparkEl = document.getElementById('dash-load7-spark');
@@ -5106,8 +5120,10 @@ function renderDashboard() {
   const cutoff365 = new Date(now); cutoff365.setDate(cutoff365.getDate()-365);
   const cutoff365Str = cutoff365.toISOString().slice(0,10);
   const avgPerMonth = Math.round(getLogs().filter(l=>!l.planned && l.date>=cutoff365Str).length/12);
-  const compareEl = document.getElementById('dash-month-compare');
-  if (compareEl) compareEl.textContent = `vs ${prevMonthCount} le mois dernier · moyenne 12 mois : ${avgPerMonth}`;
+  const prevMonthEl = document.getElementById('dash-month-prev');
+  const avgMonthEl = document.getElementById('dash-month-avg');
+  if (prevMonthEl) prevMonthEl.textContent = prevMonthCount;
+  if (avgMonthEl) avgMonthEl.textContent = avgPerMonth;
 
   // Weekly chart
   const wData=weeklyData(12);
