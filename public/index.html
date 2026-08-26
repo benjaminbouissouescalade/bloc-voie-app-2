@@ -1476,6 +1476,16 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
         <div style="font-size:12px;color:var(--muted);margin-top:5px" id="wl-acwr-detail"></div>
       </div>
     </div>
+    <!-- Tendance long terme : distincte du ratio aigu/chronique ci-dessus, qui reste "bon" même en
+         baisse continue tant que la dernière semaine est proche de la moyenne récente. Compare les
+         4 dernières semaines aux 4 précédentes pour voir la trajectoire globale du volume. -->
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px;padding-top:14px;border-top:1px solid var(--border)">
+      <div style="font-size:24px;line-height:1" id="wl-trend-emoji">➡️</div>
+      <div>
+        <span class="wl-acwr-pill" id="wl-trend-pill">—</span>
+        <div style="font-size:12px;color:var(--muted);margin-top:5px" id="wl-trend-detail"></div>
+      </div>
+    </div>
     <div class="wl-acwr-gauge">
       <div class="wl-acwr-zone" style="width:40%;background:#7ab8f5"></div>
       <div class="wl-acwr-zone" style="width:25%;background:#4da872"></div>
@@ -1490,7 +1500,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <span style="left:100%">Trop vite</span>
     </div>
     <p style="font-size:12.5px;color:var(--muted);margin:14px 0 0;line-height:1.55">
-      On compare ta charge des <strong>7 derniers jours</strong> à ton rythme habituel des <strong>4 dernières semaines</strong>, pour voir si tu accélères, tu tiens le rythme, ou tu lèves le pied. Une baisse après une semaine de repos, c'est normal et même bon signe — ça ne devient un signal à surveiller que si ça dure sans que ce soit voulu. À l'inverse, si tu montes trop vite par rapport à ce à quoi ton corps est habitué, le risque de blessure augmente.
+      On compare ta charge des <strong>7 derniers jours</strong> à ton rythme habituel des <strong>4 dernières semaines</strong>, pour voir si tu accélères, tu tiens le rythme, ou tu lèves le pied. Une baisse après une semaine de repos, c'est normal et même bon signe — ça ne devient un signal à surveiller que si ça dure sans que ce soit voulu. À l'inverse, si tu montes trop vite par rapport à ce à quoi ton corps est habitué, le risque de blessure augmente. <strong>Attention :</strong> cet indicateur ne dit rien de ta tendance sur plusieurs mois — s'il reste "bon" alors que ton volume baisse depuis des semaines, regarde la tendance ci-dessus, qui compare tes 4 dernières semaines aux 4 précédentes.
     </p>
   </div>
 
@@ -6172,6 +6182,30 @@ function renderAcwrGauge(l7, l28) {
   detailEl.textContent = `7 derniers jours : ${Math.round(l7)} · Ton rythme habituel : ${Math.round(chronic)}`;
   markerEl.style.left = Math.max(0, Math.min(100, (ratio/2)*100)) + '%';
 }
+// Tendance long terme : 4 dernières semaines vs les 4 précédentes — complète le ratio aigu/chronique
+// ci-dessus (qui ne capte pas une baisse progressive continue, cf. retour "mes semaines ne font que
+// descendre" alors que "Bon rythme" s'affichait). Seuil de ±15% pour éviter de basculer sur du bruit.
+function loadTrendZone(pct) {
+  if (pct===null) return { label:'Pas assez de données', emoji:'🤔', color:'var(--muted)', bg:'var(--surface2)' };
+  if (pct <= -15) return { label:'En baisse', emoji:'📉', color:'#fff', bg:'#3d7ab8' };
+  if (pct >= 15) return { label:'En hausse', emoji:'📈', color:'#fff', bg:'#2d7a4e' };
+  return { label:'Stable', emoji:'➡️', color:'#fff', bg:'#6b665c' };
+}
+function renderLoadTrend(l28, prev28) {
+  const emojiEl=document.getElementById('wl-trend-emoji');
+  const pillEl=document.getElementById('wl-trend-pill');
+  const detailEl=document.getElementById('wl-trend-detail');
+  if (!emojiEl||!pillEl||!detailEl) return;
+  const pct = prev28>0 ? Math.round(((l28-prev28)/prev28)*100) : null;
+  const zone = loadTrendZone(pct);
+  emojiEl.textContent = zone.emoji;
+  pillEl.textContent = zone.label;
+  pillEl.style.background = zone.bg;
+  pillEl.style.color = zone.color;
+  detailEl.textContent = pct===null
+    ? 'Pas encore assez d\'historique (8 semaines) pour calculer une tendance.'
+    : `4 dernières semaines : ${l28} · 4 semaines précédentes : ${prev28} (${pct>0?'+':''}${pct}%)`;
+}
 let wlShowIntensityOverlay = false;
 function toggleWlIntensityOverlay() {
   wlShowIntensityOverlay = !wlShowIntensityOverlay;
@@ -6190,6 +6224,7 @@ function renderWorkload() {
   document.getElementById('wl-ref-grade').textContent=getRefGrade();
 
   renderAcwrGauge(l7, l28);
+  renderLoadTrend(l28, getLoadRange(56) - l28);
 
   const wData=weeklyData(perfWeeksForRange(wlRange));
   const wlSub=document.getElementById('wl-vol-sub');
@@ -12498,7 +12533,12 @@ function buildAthleteActivityItems() {
 async function initNewsTicker() {
   const banner = document.getElementById('news-ticker-banner');
   if (!banner) return;
-  if (localStorage.getItem('bv_news_ticker_dismissed') === '1') { banner.classList.add('hidden'); return; }
+  // Le ✕ masquait le bandeau définitivement (flag localStorage sans expiration) — un simple clic
+  // curieux dessus le faisait disparaître pour de bon, ce qui ressemblait à un bug ("il y a plus
+  // les news"). On limite maintenant le masquage à 24h, comme un bandeau qu'on retrouve le
+  // lendemain plutôt qu'un réglage caché à réinitialiser manuellement.
+  const dismissedUntil = parseInt(localStorage.getItem('bv_news_ticker_dismissed_until') || '0', 10);
+  if (dismissedUntil > Date.now()) { banner.classList.add('hidden'); return; }
 
   const activityItems = buildAthleteActivityItems();
   let newsItems = [];
@@ -12539,7 +12579,7 @@ function renderNewsTickerItem() {
 }
 
 function dismissNewsTicker() {
-  localStorage.setItem('bv_news_ticker_dismissed', '1');
+  localStorage.setItem('bv_news_ticker_dismissed_until', String(Date.now() + 24 * 60 * 60 * 1000));
   document.getElementById('news-ticker-banner')?.classList.add('hidden');
   if (newsTickerTimer) clearInterval(newsTickerTimer);
 }
