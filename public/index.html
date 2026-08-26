@@ -991,12 +991,16 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     <div class="stat-card tint-mineral">
       <div class="stat-label">Charge 28 jours</div>
       <div class="stat-value" id="dash-load28">0</div>
-      <div class="stat-sub" id="dash-clevel28">C1</div>
+      <div class="stat-sub" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+        <span id="dash-clevel28">C1</span>
+        <span id="dash-load28-trend" style="display:none;align-items:center;gap:4px;font-size:12px;font-weight:700;padding:3px 10px;border-radius:99px"></span>
+      </div>
     </div>
     <div class="stat-card">
       <div class="stat-label">Séances ce mois</div>
       <div class="stat-value" id="dash-month-sessions">0</div>
       <div class="stat-sub" id="dash-month-minutes">0 min</div>
+      <div class="stat-sub" id="dash-month-compare" style="margin-top:2px"></div>
     </div>
   </div>
 
@@ -5073,12 +5077,37 @@ function renderDashboard() {
   document.getElementById('dash-clevel7').innerHTML=`<span class="clevel ${cLevel(l7).cls}" style="padding:2px 8px;font-size:11px">${cLevel(l7).label}</span>`;
   document.getElementById('dash-load28').textContent=l28;
   document.getElementById('dash-clevel28').innerHTML=`<span class="clevel ${cLevel(l28/4).cls}" style="padding:2px 8px;font-size:11px">${cLevel(l28/4).label}</span>`;
+  // Un chiffre brut de charge cumulée sur 28j ne dit rien seul (retour "cette donnée ne sert à
+  // rien") — on affiche à la place la tendance vs les 4 semaines précédentes, même logique que le
+  // second indicateur de la page Charge (loadTrendZone), pour donner un sens immédiat au nombre.
+  const trendPct = (() => { const prev28=getLoadRange(56)-l28; return prev28>0 ? Math.round(((l28-prev28)/prev28)*100) : null; })();
+  const load28TrendEl = document.getElementById('dash-load28-trend');
+  if (load28TrendEl) {
+    if (trendPct===null) { load28TrendEl.style.display='none'; }
+    else {
+      const tz = loadTrendZone(trendPct);
+      load28TrendEl.style.display='inline-flex';
+      load28TrendEl.style.background=tz.bg; load28TrendEl.style.color=tz.color;
+      load28TrendEl.textContent = `${tz.emoji} ${trendPct>0?'+':''}${trendPct}%`;
+      load28TrendEl.title = 'vs les 4 semaines précédentes';
+    }
+  }
   const sparkEl = document.getElementById('dash-load7-spark');
   if (sparkEl) sparkEl.innerHTML = miniSparkSvg(weeklyData(8).map(w=>w.load), '#c4501a');
   const now=new Date(), monthStr=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
   const monthLogs=getLogs().filter(l=>l.date.startsWith(monthStr) && !l.planned);
   document.getElementById('dash-month-sessions').textContent=monthLogs.length;
   document.getElementById('dash-month-minutes').textContent=monthLogs.reduce((s,l)=>s+(l.minutes||0),0)+' min';
+  // Comparaison demandée : mois en cours vs mois précédent vs moyenne des 12 derniers mois — un
+  // "16" seul ne dit pas si c'est beaucoup ou peu pour cet athlète.
+  const prevMonthDate = new Date(now.getFullYear(), now.getMonth()-1, 1);
+  const prevMonthStr = `${prevMonthDate.getFullYear()}-${String(prevMonthDate.getMonth()+1).padStart(2,'0')}`;
+  const prevMonthCount = getLogs().filter(l=>l.date.startsWith(prevMonthStr) && !l.planned).length;
+  const cutoff365 = new Date(now); cutoff365.setDate(cutoff365.getDate()-365);
+  const cutoff365Str = cutoff365.toISOString().slice(0,10);
+  const avgPerMonth = Math.round(getLogs().filter(l=>!l.planned && l.date>=cutoff365Str).length/12);
+  const compareEl = document.getElementById('dash-month-compare');
+  if (compareEl) compareEl.textContent = `vs ${prevMonthCount} le mois dernier · moyenne 12 mois : ${avgPerMonth}`;
 
   // Weekly chart
   const wData=weeklyData(12);
