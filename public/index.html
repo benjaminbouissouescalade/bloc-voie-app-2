@@ -1260,8 +1260,9 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
           </div>
         </div>
         <div class="form-group">
-          <label class="form-label">Notes</label>
-          <textarea class="form-control" id="s-notes" placeholder="Ressenti, objectifs, remarques…"></textarea>
+          <label class="form-label">Note du coach</label>
+          <textarea class="form-control" id="s-notes" placeholder="Retour, consignes pour la suite…"></textarea>
+          <p id="s-notes-locked-hint" style="display:none;font-size:11px;color:var(--muted);margin-top:4px">🔒 Réservé à ton coach — écris ton ressenti dans les commentaires ci-dessous.</p>
         </div>
       </div>
 
@@ -9173,6 +9174,20 @@ function applyPrescriptionLock(log) {
   });
   const badge = document.getElementById('s-prescribed-badge');
   if (badge) badge.style.display = locked ? '' : 'none';
+  applyNotesLock();
+}
+
+// La note de séance (#s-notes) est réservée au coach — le ressenti de l'athlète a désormais sa
+// place dans le fil "💬 Commentaires" (échange à double sens), pour ne pas mélanger un retour
+// pédagogique du coach avec le ressenti brut de l'athlète sur la même case. Un athlète voit donc
+// toujours cette case en lecture seule, quelle que soit la séance ; un coach/owner peut toujours
+// l'éditer, y compris en aperçu du profil d'un athlète.
+function applyNotesLock() {
+  const notesEl = document.getElementById('s-notes');
+  const hint = document.getElementById('s-notes-locked-hint');
+  const locked = !isCoachRoleValue(window.currentUser?.role);
+  if (notesEl) notesEl.disabled = locked;
+  if (hint) hint.style.display = locked ? '' : 'none';
 }
 
 function editSession(id){
