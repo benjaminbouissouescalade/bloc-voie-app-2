@@ -1001,14 +1001,18 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <div class="stat-label">Séances ce mois</div>
       <div class="stat-value" id="dash-month-sessions">0</div>
       <div class="stat-sub" id="dash-month-minutes">0 min</div>
-      <div style="display:flex;gap:20px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+      <div style="display:flex;gap:14px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
         <div>
           <div style="font-size:19px;font-weight:700;line-height:1.1" id="dash-month-prev">—</div>
           <div style="font-size:11px;color:var(--muted);margin-top:2px">Mois dernier</div>
         </div>
         <div>
-          <div style="font-size:19px;font-weight:700;line-height:1.1" id="dash-month-avg">—</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:2px">Moyenne 12 mois</div>
+          <div style="font-size:19px;font-weight:700;line-height:1.1" id="dash-month-avg3">—</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">Moyenne 3 mois</div>
+        </div>
+        <div>
+          <div style="font-size:19px;font-weight:700;line-height:1.1" id="dash-month-avg6">—</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">Moyenne 6 mois</div>
         </div>
       </div>
     </div>
@@ -5117,13 +5121,17 @@ function renderDashboard() {
   const prevMonthDate = new Date(now.getFullYear(), now.getMonth()-1, 1);
   const prevMonthStr = `${prevMonthDate.getFullYear()}-${String(prevMonthDate.getMonth()+1).padStart(2,'0')}`;
   const prevMonthCount = getLogs().filter(l=>l.date.startsWith(prevMonthStr) && !l.planned).length;
-  const cutoff365 = new Date(now); cutoff365.setDate(cutoff365.getDate()-365);
-  const cutoff365Str = cutoff365.toISOString().slice(0,10);
-  const avgPerMonth = Math.round(getLogs().filter(l=>!l.planned && l.date>=cutoff365Str).length/12);
+  const avgSessionsPerMonth = (nMonths) => {
+    const cutoff = new Date(now); cutoff.setDate(cutoff.getDate() - nMonths*30);
+    const cutoffStr = cutoff.toISOString().slice(0,10);
+    return Math.round(getLogs().filter(l=>!l.planned && l.date>=cutoffStr).length/nMonths);
+  };
   const prevMonthEl = document.getElementById('dash-month-prev');
-  const avgMonthEl = document.getElementById('dash-month-avg');
+  const avg3El = document.getElementById('dash-month-avg3');
+  const avg6El = document.getElementById('dash-month-avg6');
   if (prevMonthEl) prevMonthEl.textContent = prevMonthCount;
-  if (avgMonthEl) avgMonthEl.textContent = avgPerMonth;
+  if (avg3El) avg3El.textContent = avgSessionsPerMonth(3);
+  if (avg6El) avg6El.textContent = avgSessionsPerMonth(6);
 
   // Weekly chart
   const wData=weeklyData(12);
