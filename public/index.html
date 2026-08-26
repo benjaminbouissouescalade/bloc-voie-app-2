@@ -940,9 +940,12 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 
 <!-- ═══════════════ DASHBOARD ═══════════════ -->
 <div class="page active" id="page-dashboard">
-  <div class="page-header">
-    <h2>Tableau de bord</h2>
-    <p id="dashDate">—</p>
+  <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px">
+    <div>
+      <h2>Tableau de bord</h2>
+      <p id="dashDate">—</p>
+    </div>
+    <button class="btn primary" onclick="switchPage('new-session');newSession()">+ Rentrer une séance</button>
   </div>
 
   <div class="panel" id="dash-objectives-panel" style="margin-bottom:10px">
