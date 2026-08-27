@@ -109,33 +109,47 @@ router.delete('/:climberId/:logId', async (req, res) => {
   }
 });
 
-// POST /api/logs/:climberId/sync — sync complète (import JSON)
+// POST /api/logs/:climberId/sync — sync (upsert non destructif)
+//
+// ATTENTION — historique : cette route faisait auparavant un DELETE FROM logs WHERE
+// climber_id=$1 puis réinsérait tout ce que le client envoyait. syncToBackend() (frontend)
+// appelle cette route pour TOUS les grimpeurs connus du client à chaque saveDB(), c'est-à-dire
+// après quasi n'importe quelle action dans l'app, pas seulement quand on modifie ce grimpeur.
+// Si un client avait un état local incomplet ou périmé pour un grimpeur (onglet resté ouvert
+// longtemps, séance ajoutée entre-temps depuis un autre appareil ou par l'athlète lui-même,
+// etc.), le prochain resync — déclenché par une action totalement sans rapport — effaçait
+// silencieusement et DÉFINITIVEMENT les séances absentes de ce payload périmé. C'est la cause
+// confirmée du bug "une séance d'un athlète a été effacée".
+//
+// Fix : on ne supprime plus jamais rien ici. On fait un upsert par id (comme la route
+// POST /:climberId ci-dessus, appelée une par une). L'absence d'une séance dans le payload ne
+// veut plus dire "à supprimer" — la suppression passe exclusivement par l'appel explicite
+// DELETE /api/logs/:climberId/:logId (voir delete-session-btn / deletePlannedSession côté
+// frontend). La colonne comments n'apparaît pas dans le SET du DO UPDATE : elle n'est donc
+// jamais touchée par cette route, quel que soit l'état (potentiellement périmé) du tableau
+// comments renvoyé par le client — seul POST .../comments peut l'écrire.
 router.post('/:climberId/sync', async (req, res) => {
   const { logs } = req.body;
   if (!Array.isArray(logs)) return res.status(400).json({ error: 'logs[] requis' });
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    // Le client envoie son état local complet, qui ne connaît pas forcément les commentaires
-    // coach ↔ athlète ajoutés entre-temps (ex. depuis un autre appareil) — cette sync est
-    // déclenchée en continu par saveDB() sur quasi toute action de l'app, donc sans cette
-    // préservation un simple resync silencieux effacerait le fil de commentaires. On les
-    // capture avant le delete, puis on les réapplique après le reinsert.
-    const { rows: existing } = await client.query('SELECT id, comments FROM logs WHERE climber_id=$1', [req.params.climberId]);
-    const commentsById = {};
-    existing.forEach(r => { commentsById[r.id] = r.comments; });
-    await client.query('DELETE FROM logs WHERE climber_id=$1', [req.params.climberId]);
     for (const log of logs) {
+      if (!log.id || !log.date) continue;
       await client.query(
-        `INSERT INTO logs (id, climber_id, date, type, support, minutes, intensity, shape, location, notes, ascents, b_no_grade, planned, bank_ref, cycle_id, cycle_name, source, assigned_by_coach_id, flex_goal, objective_id, comments)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)`,
+        `INSERT INTO logs (id, climber_id, date, type, support, minutes, intensity, shape, location, notes, ascents, b_no_grade, planned, bank_ref, cycle_id, cycle_name, source, assigned_by_coach_id, flex_goal, objective_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+         ON CONFLICT (id) DO UPDATE SET
+           date=$3, type=$4, support=$5, minutes=$6, intensity=$7, shape=$8,
+           location=$9, notes=$10, ascents=$11, b_no_grade=$12, planned=$13, bank_ref=$14,
+           cycle_id=$15, cycle_name=$16, source=$17, assigned_by_coach_id=$18, flex_goal=$19,
+           objective_id=$20, updated_at=NOW()`,
         [log.id, req.params.climberId, log.date, log.type, log.support||'',
          log.minutes||90, log.intensity||3, log.shape||'normal',
          log.location||'', log.notes||'',
          JSON.stringify(log.ascents||[]), JSON.stringify(log.bNoGrade||{}),
          !!log.planned, log.bankRef||null, log.cycleId||null, log.cycleName||null,
-         log.source||'self', log.assignedByCoachId||null, log.flexGoal||null, log.objectiveId||null,
-         JSON.stringify(commentsById[log.id] || [])]
+         log.source||'self', log.assignedByCoachId||null, log.flexGoal||null, log.objectiveId||null]
       );
     }
     await client.query('COMMIT');
