@@ -9681,8 +9681,14 @@ document.getElementById('save-session-btn').onclick=()=>{
 };
 document.getElementById('delete-session-btn').onclick=()=>{
   if(!editingId||!confirm('Supprimer cette séance ?'))return;
+  const delClimberId=getActive().id, delLogId=editingId;
   getActive().logs=getActive().logs.filter(l=>l.id!==editingId);
-  saveDB();editingId=null;sessionAscents=[];switchPage('history');
+  saveDB();
+  // Suppression explicite côté serveur : depuis que /sync est un upsert non destructif (fix
+  // "séance effacée"), l'absence d'une séance dans le payload de sync ne suffit plus à la
+  // supprimer côté backend — il faut l'appel DELETE dédié.
+  if (authToken()) fetch(`/api/logs/${delClimberId}/${delLogId}`, {method:'DELETE', headers:authHeaders()}).catch(()=>{});
+  editingId=null;sessionAscents=[];switchPage('history');
 };
 
 // ═══════════════ DAY MODAL ═══════════════
@@ -9828,8 +9834,12 @@ function planPickerBackToList() {
 window.planPickerBackToList = planPickerBackToList;
 function deletePlannedSession(id, dateStr) {
   if (!confirm('Retirer cette séance prévue ?')) return;
+  const delClimberId = getActive().id;
   getActive().logs = (getActive().logs||[]).filter(l=>l.id!==id);
   saveDB();
+  // Cf. delete-session-btn : /sync est désormais un upsert non destructif, la suppression doit
+  // être explicite côté serveur.
+  if (authToken()) fetch(`/api/logs/${delClimberId}/${id}`, {method:'DELETE', headers:authHeaders()}).catch(()=>{});
   openDayModal(dateStr);
   if (document.getElementById('cal-grid')) renderCalendar();
   if (document.getElementById('cal2-grid')) renderSimpleCalendar();
