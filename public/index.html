@@ -768,13 +768,69 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   .stat-grid-4 { grid-template-columns: repeat(2, 1fr); }
   .three-col { grid-template-columns: 1fr 1fr; }
 }
+/* Barre mobile (hamburger) : masquée par défaut, affichée uniquement sous 860px — voir plus bas.
+   Le menu latéral devient alors un tiroir en position fixe qui glisse depuis la gauche, plutôt
+   que de s'empiler en barre horizontale (illisible avec le nombre de sections de l'app). */
+.mobile-topbar { display: none; }
+.mobile-nav-backdrop { display: none; }
 @media (max-width: 860px) {
   .app { grid-template-columns: 1fr; }
-  .sidebar { position: relative; height: auto; flex-direction: row; flex-wrap: wrap; padding: 12px; overflow: visible; border-right: none; border-bottom: 1px solid var(--border); }
-  .logo { padding-bottom: 12px; border-bottom: none; margin-bottom: 0; }
-  .nav-group { display: flex; flex-wrap: wrap; }
+  .mobile-topbar {
+    display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 150;
+    background: var(--surface); border-bottom: 1px solid var(--border); padding: 10px 14px;
+  }
+  .mobile-topbar-burger {
+    display: flex; flex-direction: column; justify-content: center; gap: 4px; width: 34px; height: 34px;
+    background: none; border: 1px solid var(--border2); border-radius: var(--r-xs); cursor: pointer; flex-shrink: 0;
+  }
+  .mobile-topbar-burger span { display: block; width: 16px; height: 2px; background: var(--text); margin: 0 auto; border-radius: 1px; }
+  .mobile-topbar-title { font-family: var(--serif); font-weight: 600; font-size: 14px; text-transform: uppercase; letter-spacing: .04em; color: var(--text); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mobile-nav-backdrop.open { display: block; position: fixed; inset: 0; background: rgba(20,18,12,.45); z-index: 190; }
+  .sidebar {
+    position: fixed; top: 0; left: 0; height: 100vh; width: min(280px, 84vw); z-index: 200;
+    flex-direction: column; flex-wrap: nowrap; border-right: 1px solid var(--border); border-bottom: none;
+    padding: 20px 0; overflow-y: auto; transform: translateX(-100%); transition: transform .22s ease;
+    box-shadow: none;
+  }
+  .sidebar.mobile-open { transform: translateX(0); box-shadow: var(--shadow2); }
+  .logo { padding-bottom: 18px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+  .nav-group { display: block; }
   .main { padding: 16px; }
   .two-col, .three-col { grid-template-columns: 1fr; }
+}
+@media (max-width: 480px) {
+  .stat-grid-4, .stat-grid-3, .stat-grid-2 { grid-template-columns: 1fr; }
+  /* Lignes de formulaire à 2/3 colonnes (date/minutes/intensité, tests, onboarding…) : les
+     colonnes fractionnaires (1fr 1fr[ 1fr]) tiennent déjà sur mobile mais deviennent trop
+     étroites pour rester lisibles sous 480px — on les empile. */
+  .form-row-2, .form-row-3 { grid-template-columns: 1fr; }
+}
+/* Ligne d'ascension (formulaire séance) : sur desktop c'est une grille à colonnes fixes en px
+   (voir le style inline généré par renderAscentsEditor — grade/statut/tentatives/%/charge/✕),
+   qui déborde sur un écran étroit. Sous 640px on bascule en flex-wrap : chaque champ garde une
+   largeur minimale lisible et repasse à la ligne plutôt que de se comprimer. L'inline style ne
+   définit que grid-template-columns/gap (jamais display), donc passer .ascent-row en
+   display:flex ici l'emporte proprement sans toucher au JS. */
+@media (max-width: 640px) {
+  .ascent-row { display: flex; flex-wrap: wrap; align-items: flex-end; }
+  .ascent-row > * { flex: 1 1 110px; min-width: 90px; }
+  .ascent-row > button.btn.sm.danger { flex: 0 0 auto; margin-left: auto; }
+  /* Tableaux/pyramides à colonnes fixes (stats par grade, comparatif de trips) : plutôt que de
+     les comprimer jusqu'à devenir illisibles, on les laisse défiler horizontalement dans leur
+     propre panneau (le reste de la page ne bouge pas, cf. .main { overflow-x:hidden }). */
+  #grade-stats-table { overflow-x: auto; }
+  .trip-compare-table { display: block; overflow-x: auto; }
+  /* Calendrier : 7 colonnes fractionnaires tiennent déjà sur mobile, mais le padding/police
+     desktop laisse trop peu de place au contenu (numéro + pastilles + badges planifié/dispo)
+     dans une cellule d'environ 45px de large sur un téléphone — on resserre tout. */
+  .cal-grid, .cal-header { gap: 3px; }
+  .cal-cell { min-height: 46px; padding: 4px 5px; }
+  .cal-day-label { font-size: 9px; padding: 2px; }
+  .cal-num { font-size: 11px; }
+  .cal-dots { gap: 2px; margin-top: 2px; }
+  .cal-dot { width: 5px; height: 5px; }
+  .cal-planned-badge { font-size: 11px; top: 2px; right: 2px; }
+  .cal-avail-badge { font-size: 9px; top: 2px; right: 14px; }
 }
 </style>
 </head>
@@ -785,6 +841,15 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   <button class="news-ticker-close" onclick="dismissNewsTicker()" title="Masquer le bandeau">✕</button>
 </div>
 <div class="app">
+
+<!-- Barre mobile : masquée en desktop (voir .mobile-topbar), affiche le tiroir de nav -->
+<div class="mobile-topbar">
+  <button class="mobile-topbar-burger" onclick="toggleMobileNav()" title="Menu" aria-label="Ouvrir le menu">
+    <span></span><span></span><span></span>
+  </button>
+  <div class="mobile-topbar-title" id="mobile-topbar-title">Digger</div>
+</div>
+<div class="mobile-nav-backdrop" id="mobile-nav-backdrop" onclick="closeMobileNav()"></div>
 
 <!-- Sidebar -->
 <aside class="sidebar">
@@ -4764,10 +4829,32 @@ function switchPage(name) {
   const nb = document.querySelector(`.nav-btn[data-page="${name}"]`);
   if(nb) nb.classList.add('active');
   renderPage(name);
+  closeMobileNav();
 }
 
 document.querySelectorAll('.nav-btn[data-page]').forEach(btn=>{
   btn.addEventListener('click',()=>switchPage(btn.dataset.page));
+});
+
+// Tiroir de navigation mobile (< 860px, voir .mobile-topbar/.sidebar dans le CSS) : le menu
+// latéral est en position fixe hors écran par défaut sur petit écran, ces deux fonctions le
+// font glisser en vue / le referment (bouton hamburger, clic sur le fond assombri, ou sélection
+// d'une page via switchPage ci-dessus).
+function toggleMobileNav() {
+  document.querySelector('.sidebar').classList.toggle('mobile-open');
+  document.getElementById('mobile-nav-backdrop').classList.toggle('open');
+}
+function closeMobileNav() {
+  document.querySelector('.sidebar').classList.remove('mobile-open');
+  document.getElementById('mobile-nav-backdrop').classList.remove('open');
+}
+window.toggleMobileNav = toggleMobileNav;
+window.closeMobileNav = closeMobileNav;
+// Referme aussi le tiroir pour les boutons du menu qui ne passent pas par switchPage (Profil,
+// changer de grimpeur, se déconnecter, bascule Mes données/Coach…) — sans quoi le tiroir reste
+// ouvert par-dessus la modal ou la page qu'on vient d'ouvrir.
+document.querySelector('.sidebar').addEventListener('click', (e) => {
+  if (e.target.closest('button')) closeMobileNav();
 });
 
 // ═══════════════ CHARTS (instances) ═══════════════
@@ -11328,6 +11415,8 @@ function renderSidebarStats(){
   avatarEl.style.backgroundSize = 'cover';
   avatarEl.style.backgroundPosition = 'center';
   document.getElementById('sidebar-name').textContent = c.name;
+  const mobileTitle = document.getElementById('mobile-topbar-title');
+  if (mobileTitle) mobileTitle.textContent = c.name;
   // Show: current level if available, else declared, else ref grade
   const displayGrade = stats.currentLvl || c.level || getRefGrade();
   const trendArrow = stats.trend ? (stats.trend.dir==='up'?' ↑':stats.trend.dir==='down'?' ↓':'') : '';
