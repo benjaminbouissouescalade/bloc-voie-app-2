@@ -2094,8 +2094,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <div class="th-title">Doigts</div>
       <div class="th-sub">Finger Profile, SmartBoard, suspension sur réglette</div>
     </div>
-    <div class="sb-card tests-hub-card disabled">
-      <span class="th-badge">Bientôt</span>
+    <div class="sb-card tests-hub-card" onclick="switchPage('tests-bras')">
       <span class="th-icon">💪</span>
       <div class="th-title">Bras</div>
       <div class="th-sub">Tractions, tirage, poussée</div>
@@ -2455,6 +2454,120 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   <div class="panel" id="eh-chart-panel" style="display:none">
     <div class="panel-header"><span class="panel-title">Évolution</span><span class="panel-sub" id="eh-chart-sub"></span></div>
     <div class="chart-wrap" style="height:220px"><canvas id="eh-evo-chart"></canvas></div>
+  </div>
+</div>
+
+<!-- ═══════════════ TESTS GÉNÉRAUX — BRAS (hub) ═══════════════ -->
+<div class="page" id="page-tests-bras">
+  <div class="page-header">
+    <div>
+      <div class="tests-breadcrumb" onclick="switchPage('tests-hub')">‹ Tests généraux</div>
+      <h2>Bras</h2>
+      <p>Force et endurance du haut du corps</p>
+    </div>
+  </div>
+  <div class="tests-hub-grid">
+    <div class="sb-card tests-hub-card" onclick="switchPage('tests-tractions')">
+      <span class="th-icon">🧗‍♂️</span>
+      <div class="th-title">Tractions</div>
+      <div class="th-sub">Répétitions max, lestées ou non</div>
+    </div>
+    <div class="sb-card tests-hub-card" onclick="switchPage('tests-tirage')">
+      <span class="th-icon">🏋️</span>
+      <div class="th-title">Tirage</div>
+      <div class="th-sub">Charge max</div>
+    </div>
+    <div class="sb-card tests-hub-card" onclick="switchPage('tests-poussee')">
+      <span class="th-icon">🤾</span>
+      <div class="th-title">Poussée</div>
+      <div class="th-sub">Répétitions max, lestées ou non</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ TESTS GÉNÉRAUX — TRACTIONS ═══════════════ -->
+<div class="page" id="page-tests-tractions">
+  <div class="page-header">
+    <div>
+      <div class="tests-breadcrumb" onclick="switchPage('tests-bras')">‹ Tests généraux / Bras</div>
+      <h2>Tractions</h2>
+      <p>Répétitions max, poids additionnel — <span id="ptr-athlete-name"></span></p>
+    </div>
+  </div>
+  <div class="panel" style="margin-bottom:20px">
+    <div class="panel-header"><span class="panel-title">Nouveau test</span></div>
+    <div class="form-row form-row-3">
+      <div class="form-group"><label class="form-label">Date</label><input class="form-control" type="date" id="ptr-date"></div>
+      <div class="form-group"><label class="form-label">Répétitions max</label><input class="form-control" type="number" step="1" min="0" id="ptr-reps"></div>
+      <div class="form-group"><label class="form-label">Poids additionnel (kg)</label><input class="form-control" type="number" step="0.5" id="ptr-weight" placeholder="0"></div>
+    </div>
+    <div class="form-group"><label class="form-label">Notes</label><textarea class="form-control" id="ptr-notes" rows="2"></textarea></div>
+    <button class="btn primary" onclick="ptrSaveTest()">Enregistrer le test</button>
+  </div>
+  <div class="panel" id="ptr-chart-panel" style="margin-bottom:20px;display:none">
+    <div class="panel-header"><span class="panel-title">Évolution</span></div>
+    <div class="chart-wrap" style="height:220px"><canvas id="ptr-evo-chart"></canvas></div>
+  </div>
+  <div class="panel">
+    <div class="panel-header"><span class="panel-title">Historique</span></div>
+    <div id="ptr-history-list"><p style="font-size:13px;color:var(--muted)">Chargement…</p></div>
+  </div>
+</div>
+
+<!-- ═══════════════ TESTS GÉNÉRAUX — TIRAGE ═══════════════ -->
+<div class="page" id="page-tests-tirage">
+  <div class="page-header">
+    <div>
+      <div class="tests-breadcrumb" onclick="switchPage('tests-bras')">‹ Tests généraux / Bras</div>
+      <h2>Tirage</h2>
+      <p>Charge maximale — <span id="ptg-athlete-name"></span></p>
+    </div>
+  </div>
+  <div class="panel" style="margin-bottom:20px">
+    <div class="panel-header"><span class="panel-title">Nouveau test</span></div>
+    <div class="form-row form-row-2">
+      <div class="form-group"><label class="form-label">Date</label><input class="form-control" type="date" id="ptg-date"></div>
+      <div class="form-group"><label class="form-label">Charge max (kg)</label><input class="form-control" type="number" step="0.5" min="0" id="ptg-load"></div>
+    </div>
+    <div class="form-group"><label class="form-label">Notes</label><textarea class="form-control" id="ptg-notes" rows="2"></textarea></div>
+    <button class="btn primary" onclick="ptgSaveTest()">Enregistrer le test</button>
+  </div>
+  <div class="panel" id="ptg-chart-panel" style="margin-bottom:20px;display:none">
+    <div class="panel-header"><span class="panel-title">Évolution</span></div>
+    <div class="chart-wrap" style="height:220px"><canvas id="ptg-evo-chart"></canvas></div>
+  </div>
+  <div class="panel">
+    <div class="panel-header"><span class="panel-title">Historique</span></div>
+    <div id="ptg-history-list"><p style="font-size:13px;color:var(--muted)">Chargement…</p></div>
+  </div>
+</div>
+
+<!-- ═══════════════ TESTS GÉNÉRAUX — POUSSÉE ═══════════════ -->
+<div class="page" id="page-tests-poussee">
+  <div class="page-header">
+    <div>
+      <div class="tests-breadcrumb" onclick="switchPage('tests-bras')">‹ Tests généraux / Bras</div>
+      <h2>Poussée</h2>
+      <p>Répétitions max, poids additionnel — <span id="pps-athlete-name"></span></p>
+    </div>
+  </div>
+  <div class="panel" style="margin-bottom:20px">
+    <div class="panel-header"><span class="panel-title">Nouveau test</span></div>
+    <div class="form-row form-row-3">
+      <div class="form-group"><label class="form-label">Date</label><input class="form-control" type="date" id="pps-date"></div>
+      <div class="form-group"><label class="form-label">Répétitions max</label><input class="form-control" type="number" step="1" min="0" id="pps-reps"></div>
+      <div class="form-group"><label class="form-label">Poids additionnel (kg)</label><input class="form-control" type="number" step="0.5" id="pps-weight" placeholder="0"></div>
+    </div>
+    <div class="form-group"><label class="form-label">Notes</label><textarea class="form-control" id="pps-notes" rows="2"></textarea></div>
+    <button class="btn primary" onclick="ppsSaveTest()">Enregistrer le test</button>
+  </div>
+  <div class="panel" id="pps-chart-panel" style="margin-bottom:20px;display:none">
+    <div class="panel-header"><span class="panel-title">Évolution</span></div>
+    <div class="chart-wrap" style="height:220px"><canvas id="pps-evo-chart"></canvas></div>
+  </div>
+  <div class="panel">
+    <div class="panel-header"><span class="panel-title">Historique</span></div>
+    <div id="pps-history-list"><p style="font-size:13px;color:var(--muted)">Chargement…</p></div>
   </div>
 </div>
 
@@ -4535,7 +4648,7 @@ function applyRoleUI() {
 }
 
 // ═══════════════ MODE MES DONNÉES / MON COACH ═══════════════
-const APPMODE_MINE_PAGES = ['dashboard','calendar','new-session','performance','workload','tests-hub','tests-doigts','finger-profile','tests-smartboard','tests-edgehang','badges','ai-coach','history','community'];
+const APPMODE_MINE_PAGES = ['dashboard','calendar','new-session','performance','workload','tests-hub','tests-doigts','finger-profile','tests-smartboard','tests-edgehang','tests-bras','tests-tractions','tests-tirage','tests-poussee','badges','ai-coach','history','community'];
 const APPMODE_COACH_PAGES = ['coach-athletes','planning','session-bank'];
 let appMode = 'mine';
 try { appMode = localStorage.getItem('appMode') || 'mine'; } catch (e) {}
@@ -4912,6 +5025,9 @@ function renderPage(name) {
   if(name==='finger-profile') renderFingerProfile();
   if(name==='tests-smartboard') renderSmartboard();
   if(name==='tests-edgehang') renderEdgeHang();
+  if(name==='tests-tractions') renderTractions();
+  if(name==='tests-tirage') renderTirage();
+  if(name==='tests-poussee') renderPoussee();
   if(name==='badges') renderBadges();
   if(name==='community') renderCommunityPage();
   if(name==='history') renderHistory();
@@ -7704,6 +7820,110 @@ async function ehDeleteTest(testId) {
   await ehFetchHistory();
 }
 window.ehDeleteTest = ehDeleteTest;
+
+// ═══════════════ TESTS GÉNÉRAUX — BRAS (Tractions / Tirage / Poussée) ═══════════════
+// Les 3 sous-tests de la catégorie Bras partagent exactement la même mécanique que
+// SmartBoard/Suspension (table générique general_tests, category='bras') : un formulaire simple
+// (juste des cases à remplir, pas de protocole guidé — cf. retour utilisateur), un historique, et
+// une courbe d'évolution sur l'année dès qu'il y a au moins 2 tests. Factorisé ici pour éviter de
+// tripler le même code, seuls les champs et le libellé changent d'un test à l'autre.
+const armTestCaches = {};
+function makeArmTestPage(cfg) {
+  // cfg: { prefix, testType, label, fields:[{id,key,default?}], chartKey, historyLine(payload) }
+  async function render() {
+    const climber = getActive();
+    const nameEl = document.getElementById(cfg.prefix + '-athlete-name');
+    if (nameEl) nameEl.textContent = climber?.name || '';
+    const dateEl = document.getElementById(cfg.prefix + '-date');
+    if (dateEl && !dateEl.value) dateEl.value = new Date().toISOString().slice(0, 10);
+    await fetchHistory();
+  }
+  async function fetchHistory() {
+    const climber = getActive();
+    if (!climber) return;
+    try {
+      const r = await fetch('/api/general-tests/' + climber.id + '?type=' + cfg.testType, { headers: authHeaders() });
+      armTestCaches[cfg.prefix] = r.ok ? await r.json() : [];
+    } catch (e) { armTestCaches[cfg.prefix] = []; }
+    renderHistory();
+    renderChart();
+  }
+  function renderHistory() {
+    const el = document.getElementById(cfg.prefix + '-history-list');
+    if (!el) return;
+    const list = armTestCaches[cfg.prefix] || [];
+    if (!list.length) { el.innerHTML = `<p style="font-size:13px;color:var(--muted)">Aucun test enregistré pour l'instant.</p>`; return; }
+    el.innerHTML = list.map(t => `<div class="fp-history-row" style="cursor:default">
+      <div style="flex:1">
+        <div style="font-size:14px;font-weight:600">${fmtDate(t.testDate)}</div>
+        <div style="font-size:12px;color:var(--muted)">${esc(cfg.historyLine(t.payload || {}))}</div>
+      </div>
+      <button class="btn" style="padding:4px 8px;font-size:11px" onclick="${cfg.prefix}DeleteTest('${t.id}')">Suppr.</button>
+    </div>`).join('');
+  }
+  function renderChart() {
+    const panel = document.getElementById(cfg.prefix + '-chart-panel');
+    if (!panel) return;
+    const list = (armTestCaches[cfg.prefix] || []).slice().sort((a, b) => a.testDate.localeCompare(b.testDate));
+    const pts = list.filter(t => t.payload?.[cfg.chartKey] != null);
+    if (pts.length < 2) { panel.style.display = 'none'; destroyChart(cfg.prefix + '-evo-chart'); return; }
+    panel.style.display = '';
+    makeChart(cfg.prefix + '-evo-chart', {
+      type: 'line',
+      data: { labels: pts.map(t => fmtDate(t.testDate)), datasets: [{ data: pts.map(t => t.payload[cfg.chartKey]), borderColor: '#2d7a4e', backgroundColor: '#2d7a4e22', tension: .3, pointRadius: 3, fill: true }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { font: { size: 9 } } }, y: { ticks: { font: { size: 9 } } } } }
+    });
+  }
+  async function saveTest() {
+    const climber = getActive();
+    if (!climber) return;
+    const date = document.getElementById(cfg.prefix + '-date').value;
+    if (!date) { alert('Renseigne une date.'); return; }
+    const payload = {};
+    cfg.fields.forEach(f => {
+      const v = parseFloat(document.getElementById(cfg.prefix + '-' + f.id).value);
+      payload[f.key] = Number.isNaN(v) ? (f.default !== undefined ? f.default : null) : v;
+    });
+    const body = {
+      id: 'gt_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+      category: 'bras', testType: cfg.testType, testDate: date, payload,
+      notes: document.getElementById(cfg.prefix + '-notes').value.trim()
+    };
+    try {
+      await fetch('/api/general-tests/' + climber.id, { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) });
+    } catch (e) { alert("Erreur lors de l'enregistrement."); return; }
+    cfg.fields.forEach(f => { const el = document.getElementById(cfg.prefix + '-' + f.id); if (el) el.value = ''; });
+    const notesEl = document.getElementById(cfg.prefix + '-notes'); if (notesEl) notesEl.value = '';
+    await fetchHistory();
+  }
+  async function deleteTest(testId) {
+    if (!confirm('Supprimer ce test ?')) return;
+    const climber = getActive();
+    try { await fetch('/api/general-tests/' + climber.id + '/' + testId, { method: 'DELETE', headers: authHeaders() }); } catch (e) { /* silencieux */ }
+    await fetchHistory();
+  }
+  window['render' + cfg.label] = render;
+  window[cfg.prefix + 'SaveTest'] = saveTest;
+  window[cfg.prefix + 'DeleteTest'] = deleteTest;
+}
+makeArmTestPage({
+  prefix: 'ptr', testType: 'tractions', label: 'Tractions',
+  fields: [{ id: 'reps', key: 'reps' }, { id: 'weight', key: 'addedWeight', default: 0 }],
+  chartKey: 'reps',
+  historyLine: p => `${p.reps ?? '–'} réps${p.addedWeight ? ' · +' + p.addedWeight + ' kg' : ''}`
+});
+makeArmTestPage({
+  prefix: 'ptg', testType: 'tirage', label: 'Tirage',
+  fields: [{ id: 'load', key: 'load' }],
+  chartKey: 'load',
+  historyLine: p => `${p.load ?? '–'} kg`
+});
+makeArmTestPage({
+  prefix: 'pps', testType: 'poussee', label: 'Poussee',
+  fields: [{ id: 'reps', key: 'reps' }, { id: 'weight', key: 'addedWeight', default: 0 }],
+  chartKey: 'reps',
+  historyLine: p => `${p.reps ?? '–'} réps${p.addedWeight ? ' · +' + p.addedWeight + ' kg' : ''}`
+});
 
 // ═══════════════ COMMUNAUTÉ / CREWS (mode jeu) ═══════════════
 // Choix d'emoji pour les kudos entre coéquipiers — même liste côté backend (crews.js KUDOS_EMOJIS).
