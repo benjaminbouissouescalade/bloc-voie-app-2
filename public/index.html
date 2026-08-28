@@ -1299,8 +1299,18 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
         </div>
         <div class="form-row form-row-3">
           <div class="form-group" style="margin:0">
-            <label class="form-label">Durée (min)</label>
-            <input class="form-control" type="number" id="s-minutes" value="90" min="1" oninput="updateLoadPreview()">
+            <label class="form-label">Durée</label>
+            <div style="display:flex;align-items:center;gap:5px">
+              <input class="form-control" type="number" id="s-duration-h" value="1" min="0" max="23" style="text-align:center;padding-left:4px;padding-right:4px" oninput="syncDurationFromHM()">
+              <span style="font-size:12px;color:var(--muted);flex-shrink:0">h</span>
+              <input class="form-control" type="number" id="s-duration-m" value="30" min="0" max="59" step="5" style="text-align:center;padding-left:4px;padding-right:4px" oninput="syncDurationFromHM()">
+              <span style="font-size:12px;color:var(--muted);flex-shrink:0">min</span>
+            </div>
+            <!-- Source de vérité en minutes totales, gardée cachée : tout le reste de l'app
+                 (calcul de charge, dashboard, fil coach, exports…) continue de lire ce champ tel
+                 quel, seule sa représentation visuelle change (cf. syncDurationFromHM/
+                 setDurationMinutes). -->
+            <input type="hidden" id="s-minutes" value="90">
           </div>
           <div class="form-group" style="margin:0">
             <label class="form-label">Intensité (1–5)</label>
@@ -1369,6 +1379,19 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
         </div>
       </div>
 
+      <!-- Commentaires juste sous la Note du coach : l'athlète voit son échange avec le coach
+           tout de suite, sans avoir à descendre en bas de la seconde colonne (retour : "il faut
+           que ce soit à côté des commentaires coach"). -->
+      <div class="panel" id="s-comments-panel" style="display:none">
+        <div class="panel-header"><span class="panel-title">💬 Commentaires</span></div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:8px">Échange entre l'athlète et son coach sur cette séance.</p>
+        <div id="s-comments-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px"></div>
+        <div style="display:flex;gap:8px">
+          <input type="text" class="form-control" id="s-comment-input" placeholder="Écrire un commentaire…" onkeydown="if(event.key==='Enter'){event.preventDefault();postSessionComment();}">
+          <button class="btn sm primary" onclick="postSessionComment()">Envoyer</button>
+        </div>
+      </div>
+
       <div class="panel" id="s-extra-panel">
         <!-- contenu dynamique selon le type de séance — rendu par updateSessionTypeUI() -->
       </div>
@@ -1415,16 +1438,6 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
         <div id="s-together-list" style="display:flex;flex-direction:column;gap:4px;margin-bottom:10px"></div>
         <button class="btn sm" onclick="saveSessionTogether()">Lier</button>
         <div id="s-together-status" style="margin-top:10px;font-size:12px"></div>
-      </div>
-
-      <div class="panel" id="s-comments-panel" style="display:none">
-        <div class="panel-header"><span class="panel-title">💬 Commentaires</span></div>
-        <p style="font-size:12px;color:var(--muted);margin-bottom:8px">Échange entre l'athlète et son coach sur cette séance.</p>
-        <div id="s-comments-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px"></div>
-        <div style="display:flex;gap:8px">
-          <input type="text" class="form-control" id="s-comment-input" placeholder="Écrire un commentaire…" onkeydown="if(event.key==='Enter'){event.preventDefault();postSessionComment();}">
-          <button class="btn sm primary" onclick="postSessionComment()">Envoyer</button>
-        </div>
       </div>
 
       <div style="display:flex;gap:8px;justify-content:flex-end">
@@ -3254,6 +3267,11 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     <div class="form-group">
       <label class="form-label">Description de la séance</label>
       <textarea class="form-control" id="sb-description" placeholder="Détaille le déroulé : échauffement, exercices, intensités, volumes, temps de repos…" style="min-height:100px"></textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">🎥 Lien vidéo YouTube <span style="font-weight:400;color:var(--muted)">(optionnel)</span></label>
+      <input class="form-control" type="url" id="sb-video-url" placeholder="https://www.youtube.com/watch?v=…">
+      <p style="font-size:11px;color:var(--muted);margin-top:4px">La vidéo s'affiche directement dans le détail de la fiche.</p>
     </div>
     <div class="form-group">
       <label class="form-label">Tags (styles travaillés)</label>
@@ -8015,7 +8033,7 @@ function copyPartnerSession(i) {
   switchPage('new-session');
   newSession();
   document.getElementById('s-type').value = log.type || 'bloc';
-  document.getElementById('s-minutes').value = log.minutes || 90;
+  setDurationMinutes(log.minutes || 90);
   document.getElementById('s-intensity').value = log.intensity || 3;
   document.getElementById('s-support').value = log.support || '';
   updateSessionTypeUI(log.bNoGrade || {});
@@ -9295,7 +9313,7 @@ function voiceApplyToForm(parsed, transcript) {
   document.getElementById('s-type').value = type;
   if (parsed?.date && /^\d{4}-\d{2}-\d{2}$/.test(parsed.date)) document.getElementById('s-date').value = parsed.date;
   const minutes = +parsed?.minutes;
-  if (Number.isFinite(minutes) && minutes > 0) document.getElementById('s-minutes').value = Math.round(minutes);
+  if (Number.isFinite(minutes) && minutes > 0) setDurationMinutes(minutes);
   const intensity = +parsed?.intensity;
   if (Number.isFinite(intensity)) document.getElementById('s-intensity').value = Math.min(5, Math.max(1, Math.round(intensity)));
   if (parsed?.location) document.getElementById('s-location').value = parsed.location;
@@ -9326,7 +9344,7 @@ function newSession(date=null){
   document.getElementById('session-form-title').textContent='Nouvelle séance';
   document.getElementById('s-date').value=date||new Date().toISOString().slice(0,10);
   document.getElementById('s-type').value='bloc';
-  document.getElementById('s-minutes').value=90;
+  setDurationMinutes(90);
   document.getElementById('s-intensity').value=3;
   document.getElementById('s-shape').value='normal';
   document.getElementById('s-location').value='';
@@ -9363,7 +9381,7 @@ function applyPrescriptionLock(log) {
   const locked = !!log && log.source === 'coach'
     && getActive()?.id === window.currentUser?.climberId
     && !isCoachRoleValue(window.currentUser?.role);
-  ['s-type','s-minutes','s-intensity','s-support'].forEach(id => {
+  ['s-type','s-minutes','s-duration-h','s-duration-m','s-intensity','s-support'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.disabled = locked;
   });
@@ -9395,7 +9413,7 @@ function editSession(id){
   document.getElementById('session-form-title').textContent='Modifier la séance';
   document.getElementById('s-date').value=log.date;
   document.getElementById('s-type').value=log.type||'bloc';
-  document.getElementById('s-minutes').value=log.minutes||90;
+  setDurationMinutes(log.minutes||90);
   document.getElementById('s-intensity').value=log.intensity||3;
   document.getElementById('s-shape').value=log.shape||'normal';
   document.getElementById('s-location').value=log.location||'';
@@ -9640,6 +9658,29 @@ function fieldStr(id, fallback='') {
   return el ? (el.value || fallback) : fallback;
 }
 
+// Durée de séance en h/min (formulaire) — #s-minutes reste la seule source de vérité (minutes
+// totales) pour tout le reste de l'app ; ces deux fonctions synchronisent les champs visibles
+// h/min avec ce total caché, dans les deux sens.
+function syncDurationFromHM() {
+  const h = fieldVal('s-duration-h', 0);
+  const m = fieldVal('s-duration-m', 0);
+  const total = Math.max(1, Math.round(h) * 60 + Math.round(m));
+  const minutesEl = document.getElementById('s-minutes');
+  if (minutesEl) minutesEl.value = total;
+  updateLoadPreview();
+}
+window.syncDurationFromHM = syncDurationFromHM;
+function setDurationMinutes(mins) {
+  const total = Math.max(0, Math.round(mins || 0));
+  const minutesEl = document.getElementById('s-minutes');
+  if (minutesEl) minutesEl.value = total;
+  const hEl = document.getElementById('s-duration-h');
+  const mEl = document.getElementById('s-duration-m');
+  if (hEl) hEl.value = Math.floor(total / 60);
+  if (mEl) mEl.value = total % 60;
+}
+window.setDurationMinutes = setDurationMinutes;
+
 function updateLoadPreview(){
   const ref = getRefGrade();
   const type = getCurrentSessionType();
@@ -9727,7 +9768,7 @@ document.getElementById('s-type').addEventListener('change', () => {
   const minutesEl = document.getElementById('s-minutes');
   const currentMinutes = +minutesEl.value;
   const knownDefaults = [90, 120, 180, 240, 300, 45, 50, 55, 60, 30]; // all default durations from SESSION_CONFIG
-  if (knownDefaults.includes(currentMinutes)) minutesEl.value = cfg.defaultMinutes;
+  if (knownDefaults.includes(currentMinutes)) setDurationMinutes(cfg.defaultMinutes);
   updateSessionTypeUI({});
   renderAscentsEditor();
 });
@@ -10733,6 +10774,25 @@ window.shareBankToCrew = shareBankToCrew;
 // Bloc d'infos réutilisable (tags, durée/intensité, description, tags libres) — partagé entre
 // le drawer de détail complet (sbOpenDetail) et l'aperçu rapide lors de la planification
 // (planPickerPreview), pour ne pas dupliquer le rendu à deux endroits.
+// Extrait l'ID vidéo (11 caractères) d'une URL YouTube dans ses formats usuels : watch?v=,
+// youtu.be/, embed/, shorts/ — avec ou sans paramètres supplémentaires (&t=, &list=…).
+function ytVideoId(url) {
+  if (!url) return null;
+  const m = String(url).match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+  return m ? m[1] : null;
+}
+window.ytVideoId = ytVideoId;
+// Lecteur intégré 16:9 responsive — retourne '' si l'URL n'est pas reconnue comme une vidéo
+// YouTube valide (fiche affichée normalement, sans bloc vidéo, dans ce cas).
+function ytEmbedHtml(url) {
+  const id = ytVideoId(url);
+  if (!id) return '';
+  return `<div style="position:relative;padding-top:56.25%;border-radius:var(--r-sm);overflow:hidden;background:#000;margin-bottom:14px">
+    <iframe src="https://www.youtube.com/embed/${id}" title="Vidéo YouTube" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen style="position:absolute;inset:0;width:100%;height:100%"></iframe>
+  </div>`;
+}
+window.ytEmbedHtml = ytEmbedHtml;
+
 function sbSessionSummaryHtml(s) {
   const t = SESSION_TYPES[s.type] || SESSION_TYPES.autre;
   const intDots = Array.from({length:5},(_,i) => `<span class="${i < (s.intensity||3) ? 'on' : ''}"></span>`).join('');
@@ -10744,6 +10804,7 @@ function sbSessionSummaryHtml(s) {
       <span class="sb-tag">${(s.contentType||'seance')==='exercice'?'Exercice':'Séance'}</span>
       ${s.source==='ai' ? `<span class="sb-tag">✦ IA</span>` : ''}
     </div>
+    ${ytEmbedHtml(s.videoUrl)}
     <div style="display:flex;align-items:center;gap:16px;margin-bottom:14px;font-size:13px;flex-wrap:wrap">
       <span>⏱️ ${s.duration||90} min</span>
       <span class="sb-intensity">${intDots}</span>
@@ -10836,6 +10897,8 @@ function sbEditCard(id) {
   document.getElementById('sb-intensity').value = s.intensity || 3;
   document.getElementById('sb-goal').value = s.goal || 'projet';
   document.getElementById('sb-description').value = s.description || '';
+  const sbVideoEl = document.getElementById('sb-video-url');
+  if (sbVideoEl) sbVideoEl.value = s.videoUrl || '';
   const sbSupportEl = document.getElementById('sb-support');
   if (sbSupportEl) sbSupportEl.value = s.support || '';
   // Tags
@@ -10878,6 +10941,7 @@ function sbNewCard() {
   document.getElementById('sb-intensity').value = 3;
   document.getElementById('sb-goal').value = 'projet';
   document.getElementById('sb-description').value = '';
+  const sbVideoEl2 = document.getElementById('sb-video-url'); if (sbVideoEl2) sbVideoEl2.value = '';
   const sbSupEl = document.getElementById('sb-support'); if (sbSupEl) sbSupEl.value = '';
   document.querySelectorAll('#sb-tags-picker input').forEach(el => el.checked = false);
   const sbCatEl2 = document.getElementById('sb-category');
@@ -10911,6 +10975,7 @@ function sbSave() {
     goal:        document.getElementById('sb-goal').value,
     support:     document.getElementById('sb-support')?.value || '',
     description: document.getElementById('sb-description').value.trim(),
+    videoUrl:    document.getElementById('sb-video-url')?.value.trim() || '',
     tags,
     category:    document.getElementById('sb-category')?.value || '',
     subcategory: document.getElementById('sb-subcategory')?.value || '',
