@@ -4614,6 +4614,12 @@ function refreshCurrentUser() {
   return window.currentUser;
 }
 var previewMode = false;
+// Règle temporelle planifier/loguer (retour : "on devrait pouvoir que planifier des séances quand
+// c'est une date future, et seulement rentrer une séance le jour même ou dans le passé") : une
+// même date-string YYYY-MM-DD se compare lexicalement comme une vraie date, donc une simple
+// comparaison de chaînes suffit ici — pas besoin de reconstruire des objets Date.
+function todayStr() { return new Date().toISOString().slice(0,10); }
+function isFutureDateStr(dateStr) { return dateStr > todayStr(); }
 // Modèle de rôles owner/coach/athlete (voir src/lib/roles.js côté backend) : 'admin' est l'ancien
 // nom unique du rôle coach, gardé en alias le temps que les JWT signés avant la migration expirent.
 function isOwnerRoleValue(role) { return role === 'owner' || role === 'admin'; }
@@ -6029,6 +6035,13 @@ function updateCoachSectionVisibility() {
 
 function addPlannedSessionFromBank(bankId, dateStr) {
   if (planningBlockedForMe()) { warnPlanningBlocked(); return; }
+  // Une séance "prévue" (pointillés) n'a de sens que pour une date qui n'est pas encore arrivée —
+  // sinon on ne peut jamais savoir si elle a été faite ou non. Pour aujourd'hui ou le passé, il
+  // faut logguer directement la séance réalisée (cf. règle symétrique dans save-session-btn).
+  if (!isFutureDateStr(dateStr)) {
+    alert('Tu ne peux planifier une séance que pour une date future. Pour aujourd\'hui ou une date passée, ajoute directement la séance réalisée (bouton "+ Ajouter une séance").');
+    return;
+  }
   const item = getBank().find(x => x.id === bankId);
   if (!item) return;
   const climber = getActive();
@@ -10236,6 +10249,21 @@ document.getElementById('save-session-btn').onclick=()=>{
     ...(existingLog?.cycleId ? { cycleId: existingLog.cycleId, cycleName: existingLog.cycleName } : {}),
     ...(existingLog?.bankRef ? { bankRef: existingLog.bankRef } : {})
   };
+  // Règle : une séance ne peut être marquée "faite" qu'à partir du jour même (retour : "on devrait
+  // pouvoir que planifier des séances quand c'est une date future, et seulement rentrer une séance
+  // le jour même ou dans le passé"). Ce formulaire (celui de "Nouvelle séance" / modification) ne
+  // crée jamais de séance "prévue" par lui-même — si on y complète une séance encore prévue dont la
+  // date n'est pas arrivée, on la garde prévue plutôt que de silencieusement la marquer faite ;
+  // sinon (nouvelle séance, ou séance déjà faite dont on pousserait la date dans le futur), on
+  // bloque plutôt que d'enregistrer une charge sur un jour qui n'a pas encore eu lieu.
+  if (isFutureDateStr(payload.date)) {
+    if (existingLog?.planned) {
+      payload.planned = true;
+    } else {
+      alert('Cette date est dans le futur : une séance ne peut être enregistrée comme faite qu\'à partir du jour même. Utilise "📅 Planifier une séance" pour une date à venir.');
+      return;
+    }
+  }
   const isNewCompletedSession = !editingId && !payload.planned;
   const newPRs = isNewCompletedSession ? detectNewPRs(payload) : [];
   const prevBadgeKeys = isNewCompletedSession
@@ -10294,20 +10322,31 @@ function openDayModal(dateStr){
   renderDayModalCycles(dateStr);
   const addBtn = document.getElementById('day-modal-add');
   const addPlanBtn = document.getElementById('day-modal-add-plan');
+  // Règle : on ne propose "Planifier" que pour une date future, et "Ajouter une séance" (= la
+  // marquer faite) que pour aujourd'hui ou le passé (retour : "on devrait pouvoir que planifier des
+  // séances quand c'est une date future, et seulement rentrer une séance le jour même ou dans le
+  // passé") — évite de proposer l'action qui échouera de toute façon (cf. garde-fous dans
+  // addPlannedSessionFromBank / save-session-btn).
+  const dateIsFuture = isFutureDateStr(dateStr);
   if (appMode === 'coach') {
+    // Pas d'équivalent "loguer pour l'athlète" côté Coach depuis cette fenêtre : pour une date
+    // déjà arrivée, on masque simplement le bouton plutôt que de proposer une planification qui
+    // serait bloquée à l'enregistrement.
+    addBtn.style.display = dateIsFuture ? '' : 'none';
     addBtn.textContent = '📅 Planifier une séance ce jour';
     addBtn.onclick = () => { closeModal('day-modal'); openPlanPicker(dateStr); };
     // Le bouton dédié "Planifier (prévisionnel)" n'a de sens que côté Carnet : en mode Coach,
     // le bouton principal fait déjà exactement ça.
     if (addPlanBtn) addPlanBtn.style.display = 'none';
   } else {
+    addBtn.style.display = dateIsFuture ? 'none' : '';
     addBtn.textContent = '+ Ajouter une séance ce jour';
     addBtn.onclick = () => { closeModal('day-modal'); newSession(dateStr); switchPage('new-session'); };
     // Retour athlète : "je veux répartir mes séances de la semaine en prévisionnel, en pointillés,
     // comme le fait mon coach" — même mécanisme (choix d'une fiche de la banque, une fois ou en
     // cycle) que côté Coach, mais appliqué par l'athlète à son propre Carnet.
     if (addPlanBtn) {
-      addPlanBtn.style.display = '';
+      addPlanBtn.style.display = dateIsFuture ? '' : 'none';
       addPlanBtn.onclick = () => {
         if (planningBlockedForMe()) { warnPlanningBlocked(); return; }
         closeModal('day-modal');
