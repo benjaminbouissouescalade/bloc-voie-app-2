@@ -429,7 +429,11 @@ textarea.form-control { min-height: 80px; resize: vertical; }
 select.form-control { appearance: auto; }
 
 /* Modal */
-.modal-backdrop { position: fixed; inset: 0; background: rgba(30,28,20,.45); display: none; align-items: center; justify-content: center; padding: 20px; z-index: 100; }
+/* z-index 250 : doit passer AU-DESSUS de la barre mobile (150), de son fond assombri (190) et du
+   tiroir de navigation (200, voir plus bas) — sinon sur mobile la barre hamburger reste affichée
+   par-dessus le haut de toute modal ouverte (ex. fiche "Séances du jour" du calendrier), ce qui
+   la rendait inutilisable au tactile. */
+.modal-backdrop { position: fixed; inset: 0; background: rgba(30,28,20,.45); display: none; align-items: center; justify-content: center; padding: 20px; z-index: 250; }
 .modal-backdrop.open { display: flex; }
 .modal { background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); box-shadow: var(--shadow2); width: min(720px, 100%); max-height: 90vh; overflow-y: auto; }
 .modal-header { padding: 20px 20px 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
@@ -797,6 +801,12 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   .nav-group { display: block; }
   .main { padding: 16px; }
   .two-col, .three-col { grid-template-columns: 1fr; }
+  /* Calendrier de Planification (coach) : le panneau "La Mine" à droite a une largeur fixe de
+     270px en style inline (grid-template-columns:1fr 270px), jamais adaptée au mobile — le
+     calendrier se retrouvait écrasé dans le "1fr" restant et ses colonnes de droite débordaient,
+     invisibles (cf. retour "il manque le 9, le 16, le 23, le 30 / le 8, 15, 22, 29 coupés en
+     deux"). Un style inline ne peut être surchargé que par une règle !important. */
+  .cal-plan-layout { grid-template-columns: 1fr !important; }
 }
 @media (max-width: 480px) {
   .stat-grid-4, .stat-grid-3, .stat-grid-2 { grid-template-columns: 1fr; }
@@ -2700,7 +2710,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   </div>
   <p id="cal-month-title" style="display:none">—</p>
 
-  <div style="display:grid;grid-template-columns:1fr 270px;gap:20px;align-items:start;margin-bottom:20px">
+  <div class="cal-plan-layout" style="display:grid;grid-template-columns:1fr 270px;gap:20px;align-items:start;margin-bottom:20px">
     <div class="panel" id="cal-month-view">
       <div class="cal-header">
         <div class="cal-day-label">Lun</div><div class="cal-day-label">Mar</div><div class="cal-day-label">Mer</div>
