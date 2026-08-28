@@ -335,7 +335,14 @@ body.preview-mode #sidebar-user { color: var(--accent) !important; font-weight: 
 .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
 .cal-header { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-bottom: 4px; }
 .cal-day-label { text-align: center; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); padding: 4px; }
-.cal-cell { border-radius: var(--r-sm); background: var(--surface2); border: 1px solid var(--border); min-height: 64px; padding: 6px 8px; cursor: pointer; transition: all .12s; position: relative; }
+/* min-width:0 + overflow:hidden : sans ça, un libellé de type de séance ("Musculation", "Voies
+   salle"…) écrit en white-space:nowrap dans une case impose sa propre largeur minimale à toute
+   la colonne de la grille (comportement par défaut d'un item de grid : min-width:auto = son
+   min-content). Sur desktop il y a assez de place pour que ça ne se voie jamais, mais sur un
+   téléphone où chaque colonne ne fait qu'environ 45-50px, ce texte pousse une ou plusieurs
+   colonnes bien plus larges que leur part de 1fr — la grille entière déborde alors du cadre et
+   sa dernière colonne (dimanche) disparaît carrément à droite, invisible. */
+.cal-cell { border-radius: var(--r-sm); background: var(--surface2); border: 1px solid var(--border); min-height: 64px; padding: 6px 8px; cursor: pointer; transition: all .12s; position: relative; min-width: 0; overflow: hidden; }
 .cal-cell:hover { border-color: var(--border2); background: var(--surface); }
 .cal-cell.today { border-color: var(--accent); }
 .cal-cell.other-month { opacity: .4; }
