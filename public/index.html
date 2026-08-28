@@ -4915,7 +4915,11 @@ function computeBadgeState(climber) {
 
 function getLoadRange(daysBack) {
   const cutoff = new Date(); cutoff.setDate(cutoff.getDate()-daysBack);
-  return Math.round(getLogs().filter(l=>new Date(l.date)>=cutoff).reduce((s,l)=>s+sessionLoad(l),0));
+  // Résultat "actuel" (charge 7j/28j, ACWR, contexte IA...) : on exclut les séances planifiées
+  // (planned:true) et toute date future, sinon une séance prévue dans la fenêtre gonflerait un
+  // chiffre censé refléter l'entraînement déjà réalisé.
+  const now = new Date();
+  return Math.round(getLogs().filter(l=>!l.planned && new Date(l.date)>=cutoff && new Date(l.date)<=now).reduce((s,l)=>s+sessionLoad(l),0));
 }
 
 // Charge hebdo "normale" du grimpeur : moyenne des semaines des ~12 dernières semaines (semaines à 0 exclues).
@@ -4949,6 +4953,7 @@ function weeklyData(nWeeks=16) {
   const rangeStart = weeks[0].start, rangeEnd = weeks[weeks.length-1].end;
   const msPerWeek = 7*24*3600*1000;
   getLogs().forEach(l=>{
+    if (l.planned) return; // séances prévues/futures : ne comptent pas dans les résultats actuels
     const d=new Date(l.date);
     if (d<rangeStart || d>=rangeEnd) return;
     const w = weeks[Math.floor((d-rangeStart)/msPerWeek)];
@@ -5509,9 +5514,11 @@ function cycleTagsHtmlForDate(ds, climberCycles) {
 function buildCalCell(ds, dayNum, isOther, todayStr, climberCycles) {
   const cell = document.createElement('div');
   const dayLogs = getLogs().filter(l => l.date === ds);
-  const load = dayLogs.reduce((s,l) => s + sessionLoad(l), 0);
   const doneLogsForCell = dayLogs.filter(l => !l.planned);
   const plannedLogsForCell = dayLogs.filter(l => l.planned);
+  // Charge affichée sur la case : uniquement les séances FAITES (jamais les séances planifiées/
+  // futures — retour : "ces scores doivent apparaître que si la séance est faite").
+  const load = doneLogsForCell.reduce((s,l) => s + sessionLoad(l), 0);
   const hasHard = doneLogsForCell.some(l => l.intensity >= 4);
   cell.className = 'cal-cell' + (isOther?' other-month':'') + (ds===todayStr?' today':'') + (doneLogsForCell.length&&!hasHard?' has-session':doneLogsForCell.length&&hasHard?' has-hard':'') + (plannedLogsForCell.length?' has-planned':'');
   const typeLabelHtml = dayLogs.length === 1
@@ -5523,7 +5530,7 @@ function buildCalCell(ds, dayNum, isOther, todayStr, climberCycles) {
   const availBadgeHtml = dayAvail.length
     ? `<div class="cal-avail-badge" title="Dispo déclarée : ${esc(dayAvail.map(a=>gymNameById(a.gymId)||'salle non précisée').join(', '))}">🏟</div>`
     : '';
-  cell.innerHTML = `${plannedLogsForCell.length?`<div class="cal-planned-badge" title="${plannedLogsForCell.length} séance${plannedLogsForCell.length>1?'s':''} prévue${plannedLogsForCell.length>1?'s':''}">📌</div>`:''}${availBadgeHtml}<div class="cal-num">${dayNum}</div><div class="cal-dots">${dayLogs.map(l=>`<div class="cal-dot${l.planned?' cal-dot-planned':''}" style="${l.planned?`border-color:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`:`background:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`}" title="${esc((SESSION_TYPES[l.type]||SESSION_TYPES.autre).label)}${l.planned?' (prévue)':''}"></div>`).join('')}</div>${typeLabelHtml}${cycleTagsHtmlForDate(ds, climberCycles)}${load?`<div style="font-size:14px;font-weight:700;color:var(--text);margin-top:3px">⚡ ${load}</div>`:''}`;
+  cell.innerHTML = `${plannedLogsForCell.length?`<div class="cal-planned-badge" title="${plannedLogsForCell.length} séance${plannedLogsForCell.length>1?'s':''} prévue${plannedLogsForCell.length>1?'s':''}">📌</div>`:''}${availBadgeHtml}<div class="cal-num">${dayNum}</div><div class="cal-dots">${dayLogs.map(l=>`<div class="cal-dot${l.planned?' cal-dot-planned':''}" style="${l.planned?`border-color:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`:`background:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`}" title="${esc((SESSION_TYPES[l.type]||SESSION_TYPES.autre).label)}${l.planned?' (prévue)':''}"></div>`).join('')}</div>${typeLabelHtml}${cycleTagsHtmlForDate(ds, climberCycles)}${load?`<div style="font-size:9px;font-weight:700;color:var(--muted);margin-top:3px">⚡ ${load}</div>`:''}`;
   cell.onclick = () => openDayModal(ds);
   cell.ondragover = (e) => { e.preventDefault(); cell.classList.add('drag-over'); };
   cell.ondragleave = () => cell.classList.remove('drag-over');
@@ -5559,7 +5566,7 @@ function renderCalendarMonth() {
     else{ds=`${y}-${String(m+1).padStart(2,'0')}-${String(dayNum).padStart(2,'0')}`;}
     const { cell, dayLogs, isOther: other } = buildCalCell(ds, dayNum, isOther, todayStr, monthClimberCycles);
     grid.appendChild(cell);
-    if(!other){const doneLogs=dayLogs.filter(l=>!l.planned);const load=dayLogs.reduce((s,l)=>s+sessionLoad(l),0);totalSessions+=doneLogs.length;totalMinutes+=doneLogs.reduce((s,l)=>s+(l.minutes||0),0);totalLoad+=load;totalAscents+=doneLogs.reduce((s,l)=>s+(l.ascents||[]).length,0);}
+    if(!other){const doneLogs=dayLogs.filter(l=>!l.planned);const load=doneLogs.reduce((s,l)=>s+sessionLoad(l),0);totalSessions+=doneLogs.length;totalMinutes+=doneLogs.reduce((s,l)=>s+(l.minutes||0),0);totalLoad+=load;totalAscents+=doneLogs.reduce((s,l)=>s+(l.ascents||[]).length,0);}
   }
   document.getElementById('cal-count').textContent=totalSessions;
   document.getElementById('cal-minutes').textContent=fmtHM(totalMinutes);
@@ -5589,7 +5596,7 @@ function renderCalendarWeek() {
     cell.style.minHeight = '110px';
     grid.appendChild(cell);
     const doneLogs = dayLogs.filter(l=>!l.planned);
-    const load = dayLogs.reduce((s,l)=>s+sessionLoad(l),0);
+    const load = doneLogs.reduce((s,l)=>s+sessionLoad(l),0);
     totalSessions+=doneLogs.length; totalMinutes+=doneLogs.reduce((s,l)=>s+(l.minutes||0),0); totalLoad+=load; totalAscents+=doneLogs.reduce((s,l)=>s+(l.ascents||[]).length,0);
   }
   document.getElementById('cal-count').textContent=totalSessions;
@@ -5734,7 +5741,8 @@ function renderCalendarYear() {
   grid.innerHTML = monthsInfo.map(({m, monthLogs, weekRows}) => {
     const doneLogs = monthLogs.filter(l=>!l.planned);
     const plannedLogs = monthLogs.filter(l=>l.planned);
-    const load = monthLogs.reduce((s,l)=>s+sessionLoad(l),0);
+    // Charge du mois (heatmap + total) : uniquement les séances faites, jamais les planifiées.
+    const load = doneLogs.reduce((s,l)=>s+sessionLoad(l),0);
     totalSessions+=doneLogs.length; totalMinutes+=doneLogs.reduce((s,l)=>s+(l.minutes||0),0); totalLoad+=load; totalAscents+=doneLogs.reduce((s,l)=>s+(l.ascents||[]).length,0);
     const intensity = Math.min(1, load/300);
     const monthName = new Date(y,m,1).toLocaleDateString('fr-FR',{month:'long'});
@@ -5828,9 +5836,11 @@ let cal2Date = new Date();
 function buildCal2Cell(ds, dayNum, isOther, todayStr, climberCycles) {
   const cell = document.createElement('div');
   const dayLogs = getLogs().filter(l => l.date === ds);
-  const load = dayLogs.reduce((s,l) => s + sessionLoad(l), 0);
   const doneLogsForCell = dayLogs.filter(l => !l.planned);
   const plannedLogsForCell = dayLogs.filter(l => l.planned);
+  // Charge affichée sur la case : uniquement les séances FAITES (jamais les séances planifiées/
+  // futures — retour : "ces scores doivent apparaître que si la séance est faite").
+  const load = doneLogsForCell.reduce((s,l) => s + sessionLoad(l), 0);
   const hasHard = doneLogsForCell.some(l => l.intensity >= 4);
   cell.className = 'cal-cell' + (isOther?' other-month':'') + (ds===todayStr?' today':'') + (doneLogsForCell.length&&!hasHard?' has-session':doneLogsForCell.length&&hasHard?' has-hard':'') + (plannedLogsForCell.length?' has-planned':'');
   const typeLabelHtml2 = dayLogs.length === 1
@@ -5842,7 +5852,7 @@ function buildCal2Cell(ds, dayNum, isOther, todayStr, climberCycles) {
   const availBadgeHtml2 = dayAvail2.length
     ? `<div class="cal-avail-badge" title="Dispo déclarée : ${esc(dayAvail2.map(a=>gymNameById(a.gymId)||'salle non précisée').join(', '))}">🏟</div>`
     : '';
-  cell.innerHTML = `${plannedLogsForCell.length?`<div class="cal-planned-badge" title="${plannedLogsForCell.length} séance${plannedLogsForCell.length>1?'s':''} prévue${plannedLogsForCell.length>1?'s':''}">📌</div>`:''}${availBadgeHtml2}<div class="cal-num">${dayNum}</div><div class="cal-dots">${dayLogs.map(l=>`<div class="cal-dot${l.planned?' cal-dot-planned':''}" style="${l.planned?`border-color:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`:`background:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`}" title="${esc((SESSION_TYPES[l.type]||SESSION_TYPES.autre).label)}${l.planned?' (prévue)':''}"></div>`).join('')}</div>${typeLabelHtml2}${cycleTagsHtmlForDate(ds, climberCycles)}${load?`<div style="font-size:14px;font-weight:700;color:var(--text);margin-top:3px">⚡ ${load}</div>`:''}`;
+  cell.innerHTML = `${plannedLogsForCell.length?`<div class="cal-planned-badge" title="${plannedLogsForCell.length} séance${plannedLogsForCell.length>1?'s':''} prévue${plannedLogsForCell.length>1?'s':''}">📌</div>`:''}${availBadgeHtml2}<div class="cal-num">${dayNum}</div><div class="cal-dots">${dayLogs.map(l=>`<div class="cal-dot${l.planned?' cal-dot-planned':''}" style="${l.planned?`border-color:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`:`background:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`}" title="${esc((SESSION_TYPES[l.type]||SESSION_TYPES.autre).label)}${l.planned?' (prévue)':''}"></div>`).join('')}</div>${typeLabelHtml2}${cycleTagsHtmlForDate(ds, climberCycles)}${load?`<div style="font-size:9px;font-weight:700;color:var(--muted);margin-top:3px">⚡ ${load}</div>`:''}`;
   cell.onclick = () => openDayModal(ds);
   return { cell, dayLogs, isOther };
 }
@@ -5868,7 +5878,7 @@ function renderSimpleCalendar() {
     else{ds=`${y}-${String(m+1).padStart(2,'0')}-${String(dayNum).padStart(2,'0')}`;}
     const { cell, dayLogs, isOther: other } = buildCal2Cell(ds, dayNum, isOther, todayStr, cal2ClimberCycles);
     gridEl.appendChild(cell);
-    if(!other){const doneLogs=dayLogs.filter(l=>!l.planned);const load=dayLogs.reduce((s,l)=>s+sessionLoad(l),0);totalSessions+=doneLogs.length;totalMinutes+=doneLogs.reduce((s,l)=>s+(l.minutes||0),0);totalLoad+=load;totalAscents+=doneLogs.reduce((s,l)=>s+(l.ascents||[]).length,0);}
+    if(!other){const doneLogs=dayLogs.filter(l=>!l.planned);const load=doneLogs.reduce((s,l)=>s+sessionLoad(l),0);totalSessions+=doneLogs.length;totalMinutes+=doneLogs.reduce((s,l)=>s+(l.minutes||0),0);totalLoad+=load;totalAscents+=doneLogs.reduce((s,l)=>s+(l.ascents||[]).length,0);}
   }
   document.getElementById('cal2-count').textContent=totalSessions;
   document.getElementById('cal2-minutes').textContent=fmtHM(totalMinutes);
@@ -6571,8 +6581,8 @@ function renderWorkload() {
     const s=new Date(now);s.setDate(s.getDate()-((now.getDay()||7)-1)-i*7);
     const e=new Date(s);e.setDate(e.getDate()+7);
     const s2=new Date(s);s2.setDate(s2.getDate()-84);const e2=new Date(s2);e2.setDate(e2.getDate()+7);
-    cc+=getLogs().filter(l=>{const d=new Date(l.date);return d>=s&&d<e;}).reduce((x,l)=>x+sessionLoad(l),0);
-    cp+=getLogs().filter(l=>{const d=new Date(l.date);return d>=s2&&d<e2;}).reduce((x,l)=>x+sessionLoad(l),0);
+    cc+=getLogs().filter(l=>{if(l.planned)return false;const d=new Date(l.date);return d>=s&&d<e;}).reduce((x,l)=>x+sessionLoad(l),0);
+    cp+=getLogs().filter(l=>{if(l.planned)return false;const d=new Date(l.date);return d>=s2&&d<e2;}).reduce((x,l)=>x+sessionLoad(l),0);
     cumCurrent.push(cc);cumPrev.push(cp);
   }
   makeChart('cumChart',{
@@ -6612,7 +6622,7 @@ function ascentPoints(a) {
 
 function tripStats(trip) {
   const logs = getLogs().filter(l => l.date >= trip.start && l.date <= trip.end);
-  const load = logs.reduce((s,l)=>s+sessionLoad(l),0);
+  const load = logs.filter(l=>!l.planned).reduce((s,l)=>s+sessionLoad(l),0);
   const ascents = logs.flatMap(l=>l.ascents||[]);
   const sent = ascents.filter(a=>a.status!=='try').length;
   const tries = ascents.filter(a=>a.status==='try').length;
