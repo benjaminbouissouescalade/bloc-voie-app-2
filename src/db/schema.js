@@ -99,6 +99,9 @@ async function initDB() {
       -- 'seance' (séance complète) ou 'exercice' (bloc de contenu court à intégrer) — permet
       -- de ne pas mélanger une séance de 90min et un exercice de 10min dans la même vue.
       ALTER TABLE session_bank ADD COLUMN IF NOT EXISTS content_type TEXT DEFAULT 'seance';
+      -- Lien vidéo (YouTube) optionnel illustrant la fiche — affiché en lecteur intégré dans le
+      -- détail de la séance côté athlète/coach.
+      ALTER TABLE session_bank ADD COLUMN IF NOT EXISTS video_url TEXT DEFAULT '';
       -- Favoris par utilisateur — la banque de séances reste globale/partagée, mais le statut
       -- favori est personnel au COMPTE connecté (pas à l'athlète actuellement affiché dans
       -- l'interface coach) : voir migration user_id ci-dessous.
