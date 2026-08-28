@@ -1790,30 +1790,6 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   </div>
 </div>
 
-<!-- Modal modification/suppression d'un cycle (fixe et/ou objectif libre) -->
-<div class="modal-backdrop" id="cycle-edit-modal">
-  <div class="modal" style="width:min(440px,100%)">
-    <div class="modal-header">
-      <span class="modal-title">Modifier le cycle</span>
-      <button class="btn sm" onclick="closeModal('cycle-edit-modal')">Fermer</button>
-    </div>
-    <div class="modal-body">
-      <input type="hidden" id="cycle-edit-id">
-      <input type="hidden" id="cycle-edit-return-date">
-      <div class="form-group">
-        <label class="form-label">Nom du cycle</label>
-        <input class="form-control" type="text" id="cycle-edit-name">
-      </div>
-      <p id="cycle-edit-fixed-info" style="font-size:12px;color:var(--muted);display:none;margin:0 0 10px"></p>
-      <div id="cycle-edit-objectives-list"></div>
-      <div style="display:flex;gap:8px;margin-top:6px">
-        <button class="btn primary" style="flex:1" onclick="saveCycleEdit()">Enregistrer</button>
-        <button class="btn" style="color:var(--warm)" onclick="deleteCycleFromModal()">🗑 Supprimer ce cycle</button>
-      </div>
-    </div>
-  </div>
-</div>
-
 <!-- Modal détail séance partenaire (Feed) -->
 <div class="modal-backdrop" id="partner-session-modal">
   <div class="modal" style="width:min(480px,100%)">
@@ -2007,11 +1983,13 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 <div class="modal-backdrop" id="cycle-modal">
   <div class="modal" style="width:min(680px,100%)">
     <div class="modal-header">
-      <span class="modal-title">Créer un cycle</span>
+      <span class="modal-title" id="cycle-modal-title">Créer un cycle</span>
       <button class="btn sm" onclick="closeModal('cycle-modal')">Fermer</button>
     </div>
     <div class="modal-body">
-      <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Choisis des séances de ta banque et répartis-les sur la période — le cycle les place automatiquement sur le calendrier. Tu peux créer plusieurs cycles différents (ex. un cycle "physique" + un cycle "escalade") : ils se superposent sur le calendrier sans s'écraser.</p>
+      <input type="hidden" id="cycle-modal-edit-id">
+      <input type="hidden" id="cycle-modal-return-date">
+      <p id="cycle-modal-intro" style="font-size:13px;color:var(--muted);margin-bottom:14px">Choisis des séances de ta banque et répartis-les sur la période — le cycle les place automatiquement sur le calendrier. Tu peux créer plusieurs cycles différents (ex. un cycle "physique" + un cycle "escalade") : ils se superposent sur le calendrier sans s'écraser.</p>
 
       <div class="form-group">
         <label class="form-label">Nom du cycle <span style="font-weight:400;color:var(--muted)">(affiché en couleur dans la vue Année)</span></label>
@@ -2084,7 +2062,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 
       <div id="cycle-error" style="background:var(--warm2);color:var(--warm);border-radius:8px;padding:10px;font-size:13px;margin-bottom:12px;display:none"></div>
       <div id="cycle-warning" style="background:#fdf6e3;color:#8a6a10;border:1px solid #e8d08a;border-radius:8px;padding:10px;font-size:13px;margin-bottom:12px;display:none"></div>
-      <button class="btn primary" style="width:100%" onclick="generateCycle()">Générer le cycle</button>
+      <button class="btn primary" style="width:100%" id="cycle-modal-submit-btn" onclick="generateCycle()">Générer le cycle</button>
     </div>
   </div>
 </div>
@@ -6098,12 +6076,32 @@ function setCycleMode(mode) {
 }
 window.setCycleMode = setCycleMode;
 
-function openCycleModal() {
+// editCycleId : si renseigné, ouvre la fenêtre en mode édition (pré-remplie avec le cycle
+// existant) au lieu de la remise à zéro habituelle — retour : "je veux revenir à la fenêtre
+// principale de création" pour modifier un cycle, plutôt qu'une mini-fenêtre séparée. returnToDate
+// permet de rouvrir la fenêtre "Séances du jour" d'où on vient une fois l'édition terminée.
+function openCycleModal(editCycleId, returnToDate) {
   if (planningBlockedForMe()) { warnPlanningBlocked(); return; }
+  closeModal('day-modal'); // cf. bug modal cachée : ne jamais laisser deux modal-backdrop "open"
   const c = getActive();
+  const editing = !!editCycleId;
+  const cycle = editing ? getClimberCycles(c).find(cy => cy.cycleId === editCycleId) : null;
+  if (editing && !cycle) return;
+
+  document.getElementById('cycle-modal-edit-id').value = editing ? editCycleId : '';
+  document.getElementById('cycle-modal-return-date').value = returnToDate || '';
+  document.getElementById('cycle-modal-title').textContent = editing ? 'Modifier le cycle' : 'Créer un cycle';
+  document.getElementById('cycle-modal-submit-btn').textContent = editing ? 'Enregistrer les modifications' : 'Générer le cycle';
+  const introEl = document.getElementById('cycle-modal-intro');
+  if (introEl) introEl.textContent = editing
+    ? "Ajuste le nom, la période ou les séances de ce cycle. Les séances déjà faites restent dans l'historique quoi que tu changes ici — seules les séances et objectifs encore à venir sont recalculés."
+    : 'Choisis des séances de ta banque et répartis-les sur la période — le cycle les place automatiquement sur le calendrier. Tu peux créer plusieurs cycles différents (ex. un cycle "physique" + un cycle "escalade") : ils se superposent sur le calendrier sans s\'écraser.';
+
+  // "Appliquer à plusieurs athlètes" n'a de sens qu'à la création — éditer reste scopé à l'athlète
+  // actuellement affiché, pour ne pas avoir à deviner comment répartir la modification entre eux.
   const targetsGroup = document.getElementById('cycle-targets-group');
   const targetsList = document.getElementById('cycle-targets-list');
-  if (targetsGroup) targetsGroup.style.display = isAdmin() ? '' : 'none';
+  if (targetsGroup) targetsGroup.style.display = (!editing && isAdmin()) ? '' : 'none';
   if (targetsList) {
     targetsList.innerHTML = (db.climbers || []).map(cl => `
       <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
@@ -6111,37 +6109,12 @@ function openCycleModal() {
         ${esc(cl.name)}
       </label>`).join('');
   }
-  const startEl = document.getElementById('cycle-start');
-  if (!startEl.value) startEl.value = new Date().toISOString().slice(0,10);
-  document.getElementById('cycle-weeks').value = 4;
-  document.getElementById('cycle-rest-hours').value = 24;
-  document.getElementById('cycle-name').value = '';
-  cycleItems = [];
-  cycleDetailedItems = [];
-  renderCycleItemsList();
-  renderCycleDetailedItemsList();
+
   document.getElementById('cycle-error').style.display = 'none';
   document.getElementById('cycle-warning').style.display = 'none';
-  setCycleMode('simple');
-  setCycleItemMode('fixed');
 
-  // Jours disponibles (mode simple)
-  const daysEl = document.getElementById('cycle-avail-days');
-  daysEl.innerHTML = CYCLE_DAY_LABELS.map(([v,label]) =>
-    `<label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer">
-      <input type="checkbox" value="${v}" checked style="width:16px;height:16px"> ${label}
-    </label>`
-  ).join('');
-
-  // Jours fixes (mode détaillé — rien coché par défaut, à choisir par séance)
-  const detDaysEl = document.getElementById('cycle-detailed-days');
-  detDaysEl.innerHTML = CYCLE_DAY_LABELS.map(([v,label]) =>
-    `<label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;padding:5px 10px;border:1px solid var(--border);border-radius:3px">
-      <input type="checkbox" class="cycle-detailed-day-cb" value="${v}" style="width:14px;height:14px"> ${label}
-    </label>`
-  ).join('');
-
-  // Sélecteurs de séances de la banque (les deux modes)
+  // Sélecteurs de séances de la banque (les deux modes) — remplis avant setCycleMode/les items
+  // pour que les <option> existent déjà quand on pré-sélectionne une valeur.
   const bank = getBank();
   const bankOptions = bank.length
     ? bank.map(s => `<option value="${s.id}">${esc(s.name)} (${s.duration||90} min)</option>`).join('')
@@ -6152,8 +6125,82 @@ function openCycleModal() {
   const flexGoalSel = document.getElementById('cycle-flex-goal-select');
   if (flexGoalSel) flexGoalSel.innerHTML = goalOptions;
 
+  // Le mode "détaillé" (jour par jour) ne se reconstruit pas fidèlement depuis les séances déjà
+  // générées (on ne sait plus, une fois créées, si c'était "détaillé" ou "simple" à l'origine) —
+  // l'édition repasse donc toujours par le mode simple, qui suffit à ajuster fréquence/séances/
+  // dates. Le mode détaillé reste disponible à la création.
+  const modePickerEl = document.getElementById('cycle-mode-picker');
+  if (modePickerEl) modePickerEl.style.display = editing ? 'none' : '';
+
+  if (editing) {
+    document.getElementById('cycle-name').value = cycle.displayName || cycle.cycleName || '';
+    document.getElementById('cycle-start').value = cycle.startDate || new Date().toISOString().slice(0,10);
+    const spanDays = cycle.startDate && cycle.endDate
+      ? Math.round((new Date(cycle.endDate) - new Date(cycle.startDate)) / 86400000) + 1
+      : 28;
+    document.getElementById('cycle-weeks').value = Math.max(1, Math.round(spanDays / 7));
+    document.getElementById('cycle-rest-hours').value = 24;
+    setCycleMode('simple');
+    setCycleItemMode('fixed');
+
+    // Reconstruit cycleItems depuis l'état ACTUEL du cycle : une entrée par fiche de banque
+    // (fréquence = total de séances déjà faites + encore planifiées pour cette fiche) et une par
+    // objectif libre (fréquence = objectif cible actuel). generateCycle() se chargera de ne
+    // recréer que ce qui manque par rapport à ce qui est déjà fait (cf. commentaires plus bas).
+    const fixedCounts = {};
+    cycle.fixedLogs.forEach(l => { if (l.bankRef) fixedCounts[l.bankRef] = (fixedCounts[l.bankRef]||0) + 1; });
+    cycleItems = Object.keys(fixedCounts).map(bankId => ({ key: 'b:'+bankId, bankId, freq: fixedCounts[bankId] }));
+    cycle.objectives.forEach(o => { cycleItems.push({ key: 'g:'+o.flexGoal, flexGoal: o.flexGoal, freq: o.targetCount || 1 }); });
+    cycleDetailedItems = [];
+    renderCycleItemsList();
+    renderCycleDetailedItemsList();
+
+    // Jours disponibles : coche les jours de la semaine réellement utilisés par les séances fixes
+    // existantes (approximation raisonnable — l'info exacte n'est pas conservée), ou tous les jours
+    // par défaut pour un cycle purement "objectif libre" (pas de jour à respecter).
+    const usedDows = new Set(cycle.fixedLogs.map(l => new Date(l.date+'T00:00:00').getDay()));
+    const daysEl = document.getElementById('cycle-avail-days');
+    daysEl.innerHTML = CYCLE_DAY_LABELS.map(([v,label]) =>
+      `<label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer">
+        <input type="checkbox" value="${v}" ${(!usedDows.size || usedDows.has(+v)) ? 'checked' : ''} style="width:16px;height:16px"> ${label}
+      </label>`
+    ).join('');
+    const detDaysEl = document.getElementById('cycle-detailed-days');
+    detDaysEl.innerHTML = CYCLE_DAY_LABELS.map(([v,label]) =>
+      `<label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;padding:5px 10px;border:1px solid var(--border);border-radius:3px">
+        <input type="checkbox" class="cycle-detailed-day-cb" value="${v}" style="width:14px;height:14px"> ${label}
+      </label>`
+    ).join('');
+  } else {
+    const startEl = document.getElementById('cycle-start');
+    if (!startEl.value) startEl.value = new Date().toISOString().slice(0,10);
+    document.getElementById('cycle-weeks').value = 4;
+    document.getElementById('cycle-rest-hours').value = 24;
+    document.getElementById('cycle-name').value = '';
+    cycleItems = [];
+    cycleDetailedItems = [];
+    renderCycleItemsList();
+    renderCycleDetailedItemsList();
+    setCycleMode('simple');
+    setCycleItemMode('fixed');
+
+    const daysEl = document.getElementById('cycle-avail-days');
+    daysEl.innerHTML = CYCLE_DAY_LABELS.map(([v,label]) =>
+      `<label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer">
+        <input type="checkbox" value="${v}" checked style="width:16px;height:16px"> ${label}
+      </label>`
+    ).join('');
+    const detDaysEl = document.getElementById('cycle-detailed-days');
+    detDaysEl.innerHTML = CYCLE_DAY_LABELS.map(([v,label]) =>
+      `<label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;padding:5px 10px;border:1px solid var(--border);border-radius:3px">
+        <input type="checkbox" class="cycle-detailed-day-cb" value="${v}" style="width:14px;height:14px"> ${label}
+      </label>`
+    ).join('');
+  }
+
   document.getElementById('cycle-modal').classList.add('open');
 }
+window.openCycleModal = openCycleModal;
 
 function addCycleItem() {
   const freq = +document.getElementById('cycle-freq').value || 1;
@@ -6235,6 +6282,8 @@ function generateCycle() {
   const warnEl = document.getElementById('cycle-warning');
   errEl.style.display = 'none';
   warnEl.style.display = 'none';
+  const editCycleId = document.getElementById('cycle-modal-edit-id').value || null;
+  const returnToDate = document.getElementById('cycle-modal-return-date').value || null;
   const start = document.getElementById('cycle-start').value;
   const weeks = Math.max(1, Math.min(16, +document.getElementById('cycle-weeks').value || 4));
   const restHours = Math.max(0, +document.getElementById('cycle-rest-hours').value || 0);
@@ -6243,16 +6292,39 @@ function generateCycle() {
   // indiscernables une fois affichés sur le calendrier (même texte partout). On inclut désormais la
   // date de début par défaut pour que chaque cycle ait au moins un libellé unique.
   const cycleName = (document.getElementById('cycle-name').value || '').trim() || ('Cycle du ' + fmtDate(start));
-  const cycleId = 'cyc_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
+  const cycleId = editCycleId || ('cyc_' + Date.now() + '_' + Math.random().toString(36).slice(2,6));
 
-  // Athlètes cibles : sélection multiple si coach, sinon uniquement le profil actif
-  let targetIds = isAdmin()
-    ? Array.from(document.querySelectorAll('.cycle-target-cb:checked')).map(el => el.value)
-    : [];
-  if (!targetIds.length) { const a = getActive(); if (a) targetIds = [a.id]; }
+  // En édition, on reste scopé au seul athlète dont le cycle est affiché — pas de sélection
+  // multiple, pour ne pas avoir à deviner comment répercuter la modification sur d'autres profils.
+  let targetIds;
+  if (editCycleId) {
+    const a = getActive();
+    targetIds = a ? [a.id] : [];
+  } else {
+    targetIds = isAdmin()
+      ? Array.from(document.querySelectorAll('.cycle-target-cb:checked')).map(el => el.value)
+      : [];
+    if (!targetIds.length) { const a = getActive(); if (a) targetIds = [a.id]; }
+  }
 
   if (!start) { errEl.textContent = 'Choisis une date de début.'; errEl.style.display = ''; return; }
   if (!targetIds.length) { errEl.textContent = 'Sélectionne au moins un athlète.'; errEl.style.display = ''; return; }
+
+  // Snapshot du cycle existant AVANT toute modification — sert à ne recréer que ce qui manque
+  // (séances/objectifs déjà faits jamais recomptés ni effacés) et à mettre à jour les objectifs
+  // libres EN PLACE (même id) pour ne pas faire "repartir à 0" une progression déjà entamée.
+  let doneCountByBankId = {};
+  let existingObjectivesByGoal = {};
+  if (editCycleId) {
+    const activeClimber = getActive();
+    const existingCycle = getClimberCycles(activeClimber).find(cy => cy.cycleId === editCycleId);
+    if (existingCycle) {
+      existingCycle.fixedLogs.filter(l => !l.planned).forEach(l => {
+        if (l.bankRef) doneCountByBankId[l.bankRef] = (doneCountByBankId[l.bankRef] || 0) + 1;
+      });
+      existingCycle.objectives.forEach(o => { existingObjectivesByGoal[o.flexGoal] = o; });
+    }
+  }
 
   const totalDays = weeks * 7;
   const startDate = new Date(start + 'T00:00:00');
@@ -6287,15 +6359,20 @@ function generateCycle() {
     }
     if (!eligibleDates.length) { errEl.textContent = 'Aucun jour disponible sur cette période.'; errEl.style.display = ''; return; }
     cycleItems.forEach(it => {
-      const n = Math.max(1, it.freq);
       if (it.flexGoal) {
         // Objectif libre : pas de jour imposé — juste un nombre de séances à faire sur la période,
         // l'athlète choisit lui-même quand et quoi (cf. renderCoachObjectivesPanel / fulfillObjective).
-        flexCycleItems.push({ flexGoal: it.flexGoal, freq: n });
+        // La fréquence saisie est l'OBJECTIF TOTAL (déjà faites incluses) — cf. mise à jour en place
+        // de l'objectif existant plus bas, qui n'y touche pas non plus.
+        flexCycleItems.push({ flexGoal: it.flexGoal, freq: Math.max(1, it.freq) });
         return;
       }
       const item = bank.find(s => s.id === it.bankId);
       if (!item) return;
+      // La fréquence saisie est le nombre TOTAL souhaité pour cette fiche sur la période (déjà
+      // faites incluses) : en édition, on ne recrée donc que ce qu'il manque par rapport à ce qui
+      // est déjà fait, jamais les occurrences déjà réalisées.
+      const n = editCycleId ? Math.max(0, it.freq - (doneCountByBankId[it.bankId] || 0)) : Math.max(1, it.freq);
       for (let i = 0; i < n; i++) {
         // Répartition régulière de chaque occurrence sur les jours éligibles
         const idx = Math.round((i + 0.5) * (eligibleDates.length / n)) % eligibleDates.length;
@@ -6308,6 +6385,7 @@ function generateCycle() {
   const minGapDays = restHours / 24;
   let created = 0;
   let objectivesCreated = 0;
+  let objectivesUpdated = 0;
   const targetNames = [];
   const conflicts = [];
 
@@ -6320,6 +6398,14 @@ function generateCycle() {
     // Source : 'coach' quand ce cycle est généré pour un AUTRE grimpeur par un coach/owner
     // (cf. addPlannedSessionFromBank pour la même logique appliquée aux séances individuelles).
     const isCoachPrescribing = climberId !== window.currentUser?.climberId && isCoachRoleValue(window.currentUser?.role);
+
+    if (editCycleId) {
+      // On retire les séances de ce cycle encore PLANIFIÉES (pas faites) : elles vont être
+      // régénérées juste après avec les nouveaux paramètres. Les séances déjà faites ne sont
+      // jamais touchées, et le nom du cycle est répercuté dessus si renommé.
+      climber.logs = climber.logs.filter(l => !(l.cycleId === cycleId && l.planned));
+      climber.logs.forEach(l => { if (l.cycleId === cycleId) l.cycleName = cycleName; });
+    }
 
     // Dates déjà occupées sur la période (séances existantes d'autres cycles, prévues ou faites)
     const periodEndDate = new Date(startDate.getTime() + totalDays * 86400000);
@@ -6362,46 +6448,74 @@ function generateCycle() {
     });
 
     // Objectifs libres : un objectif de période par item flex, sans créneau daté — l'athlète
-    // pioche dans la banque (même goal) quand il veut, ce qui crée la séance réelle.
+    // pioche dans la banque (même goal) quand il veut, ce qui crée la séance réelle. En édition,
+    // on met à jour l'objectif existant EN PLACE (même id) plutôt que d'en recréer un nouveau, pour
+    // que les séances déjà faites (qui pointent vers cet id) continuent de compter dans sa progression.
     flexCycleItems.forEach(it => {
-      climber.cycleObjectives.push({
-        id: 'obj_' + Date.now() + '_' + Math.random().toString(36).slice(2,6) + '_' + climberId.slice(-4),
-        flexGoal: it.flexGoal,
-        targetCount: it.freq,
-        startDate: start,
-        endDate: cycleEndDateStr,
-        cycleId,
-        cycleName,
-        source: isCoachPrescribing ? 'coach' : 'self',
-        assignedByCoachId: isCoachPrescribing ? window.currentUser.id : null
-      });
-      objectivesCreated++;
+      const existing = editCycleId ? existingObjectivesByGoal[it.flexGoal] : null;
+      if (existing) {
+        existing.targetCount = it.freq;
+        existing.cycleName = cycleName;
+        existing.startDate = start;
+        existing.endDate = cycleEndDateStr;
+        objectivesUpdated++;
+      } else {
+        climber.cycleObjectives.push({
+          id: 'obj_' + Date.now() + '_' + Math.random().toString(36).slice(2,6) + '_' + climberId.slice(-4),
+          flexGoal: it.flexGoal,
+          targetCount: it.freq,
+          startDate: start,
+          endDate: cycleEndDateStr,
+          cycleId,
+          cycleName,
+          source: isCoachPrescribing ? 'coach' : 'self',
+          assignedByCoachId: isCoachPrescribing ? window.currentUser.id : null
+        });
+        objectivesCreated++;
+      }
     });
+
+    // Objectifs de ce cycle retirés du formulaire pendant l'édition : plus voulus, on les annule
+    // (les séances déjà faites gardent leur objectiveId, qui pointera vers un objectif disparu —
+    // même logique que la suppression complète d'un cycle, cf. deleteCycle).
+    if (editCycleId) {
+      const keptGoals = new Set(flexCycleItems.map(it => it.flexGoal));
+      climber.cycleObjectives = climber.cycleObjectives.filter(o => o.cycleId !== cycleId || keptGoals.has(o.flexGoal));
+    }
   });
 
   saveDB();
   closeModal('cycle-modal');
+  if (returnToDate) openDayModal(returnToDate);
   renderCalendar();
+  if (document.getElementById('cal2-grid')) renderSimpleCalendar();
   renderDashboard();
   if (document.getElementById('page-planning')?.classList.contains('active')) renderPlanning();
+  renderCoachObjectivesPanel('dash-cycle-objectives-panel', 'dash-cycle-objectives-list');
+  renderCoachObjectivesPanel('plan-cycle-objectives-panel', 'plan-cycle-objectives-list');
 
-  // Notifie les crews (communauté) si la personne connectée lance un cycle pour elle-même
-  const cycleTypeCounts = {};
-  plannedEntries.forEach(e => { const item = bank.find(s => s.id === e.bankId); if (item) { const t = item.type || 'autre'; cycleTypeCounts[t] = (cycleTypeCounts[t] || 0) + 1; } });
-  const dominantCycleType = Object.entries(cycleTypeCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'autre';
-  if (targetIds.includes(window.currentUser?.climberId)) {
-    crewPostCycleStartedBestEffort(cycleName, dominantCycleType);
+  // Notifie les crews (communauté) uniquement à la création d'un nouveau cycle pour soi-même —
+  // une simple modification d'un cycle existant n'a pas à repasser dans le fil d'activité.
+  if (!editCycleId) {
+    const cycleTypeCounts = {};
+    plannedEntries.forEach(e => { const item = bank.find(s => s.id === e.bankId); if (item) { const t = item.type || 'autre'; cycleTypeCounts[t] = (cycleTypeCounts[t] || 0) + 1; } });
+    const dominantCycleType = Object.entries(cycleTypeCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'autre';
+    if (targetIds.includes(window.currentUser?.climberId)) {
+      crewPostCycleStartedBestEffort(cycleName, dominantCycleType);
+    }
   }
 
   const perAthleteSessions = Math.round(created / targetIds.length);
-  const perAthleteObjectives = Math.round(objectivesCreated / targetIds.length);
+  const perAthleteObjectives = Math.round((objectivesCreated + objectivesUpdated) / targetIds.length);
   let parts = [];
-  if (perAthleteSessions) parts.push(`${perAthleteSessions} séance${perAthleteSessions>1?'s':''} programmée${perAthleteSessions>1?'s':''}`);
-  if (perAthleteObjectives) parts.push(`${perAthleteObjectives} objectif${perAthleteObjectives>1?'s':''} libre${perAthleteObjectives>1?'s':''} proposé${perAthleteObjectives>1?'s':''}`);
-  let msg = `${parts.join(' et ')} chacun pour ${targetNames.join(', ')}, du ${fmtDate(start)} au ${fmtDate(cycleEndDateStr)}.`;
+  if (perAthleteSessions) parts.push(`${perAthleteSessions} séance${perAthleteSessions>1?'s':''} ${editCycleId?'reprogrammée':'programmée'}${perAthleteSessions>1?'s':''}`);
+  if (perAthleteObjectives) parts.push(`${perAthleteObjectives} objectif${perAthleteObjectives>1?'s':''} libre${perAthleteObjectives>1?'s':''} ${editCycleId?'mis à jour':'proposé'}${perAthleteObjectives>1?'s':''}`);
+  let msg = parts.length
+    ? `${parts.join(' et ')} chacun pour ${targetNames.join(', ')}, du ${fmtDate(start)} au ${fmtDate(cycleEndDateStr)}.`
+    : `Cycle mis à jour pour ${targetNames.join(', ')}.`;
   if (conflicts.length) {
     const uniq = [...new Set(conflicts)].slice(0, 5);
-    msg += `\n\n⚠️ Repos minimum de ${restHours}h non respecté sur certaines séances (le cycle a quand même été créé, ajuste manuellement si besoin) :\n` + uniq.join('\n')
+    msg += `\n\n⚠️ Repos minimum de ${restHours}h non respecté sur certaines séances (le cycle a quand même été ${editCycleId?'mis à jour':'créé'}, ajuste manuellement si besoin) :\n` + uniq.join('\n')
       + (conflicts.length > 5 ? `\n… et ${conflicts.length - 5} autre(s).` : '');
   }
   alert(msg);
@@ -6864,7 +6978,7 @@ function renderCoachObjectivesPanel(panelId, listId) {
         </div>
         <div style="display:flex;align-items:center;gap:6px">
           <span style="font-size:11px;color:var(--muted)">${cy.done}/${cy.total} faites${overdue?' — échéance dépassée':''}</span>
-          <button class="btn sm" style="padding:1px 6px" title="Modifier ce cycle" onclick="openCycleEditModal('${jsAttr(cy.cycleId)}','')">✏️</button>
+          <button class="btn sm" style="padding:1px 6px" title="Modifier ce cycle" onclick="openCycleModal('${jsAttr(cy.cycleId)}','')">✏️</button>
           <button class="btn sm" style="padding:1px 6px;color:var(--warm)" title="Supprimer ce cycle" onclick="deleteCycle('${jsAttr(cy.cycleId)}','')">🗑</button>
         </div>
       </div>
@@ -10216,7 +10330,7 @@ function renderDayModalCycles(dateStr) {
         <span style="font-weight:600;font-size:13px">🔁 ${esc(c.displayName)}</span>
         <div style="display:flex;align-items:center;gap:8px">
           <span style="font-size:11px;color:var(--muted)">${c.done}/${c.total} séances${remaining?` · ${remaining} restante${remaining>1?'s':''}`:' · terminé'}</span>
-          <button class="btn sm" style="padding:2px 7px" title="Modifier ce cycle" onclick="openCycleEditModal('${jsAttr(c.cycleId)}','${jsAttr(dateStr)}')">✏️</button>
+          <button class="btn sm" style="padding:2px 7px" title="Modifier ce cycle" onclick="openCycleModal('${jsAttr(c.cycleId)}','${jsAttr(dateStr)}')">✏️</button>
           <button class="btn sm" style="padding:2px 7px;color:var(--warm)" title="Supprimer ce cycle" onclick="deleteCycle('${jsAttr(c.cycleId)}','${jsAttr(dateStr)}')">🗑</button>
         </div>
       </div>
@@ -10227,68 +10341,10 @@ function renderDayModalCycles(dateStr) {
     </div>`;
   }).join('');
 }
-// Retour : "je n'arrive pas à modifier un cycle libre, je n'ai pas la proposition modifié ou
-// supprimé" — un cycle (fixe et/ou objectif libre) n'avait jusqu'ici AUCUNE action de modification
-// ou de suppression globale (seulement séance par séance). openCycleEditModal/deleteCycle
-// ajoutent ces deux actions, réutilisées ici (case calendrier) et dans le panneau "Cycles en
-// cours" (renderCoachObjectivesPanel).
-function openCycleEditModal(cycleId, returnToDate) {
-  const climber = getActive();
-  const cycle = getClimberCycles(climber).find(c => c.cycleId === cycleId);
-  if (!cycle) return;
-  document.getElementById('cycle-edit-id').value = cycleId;
-  document.getElementById('cycle-edit-return-date').value = returnToDate || '';
-  document.getElementById('cycle-edit-name').value = cycle.displayName || cycle.cycleName || '';
-  const fixedInfoEl = document.getElementById('cycle-edit-fixed-info');
-  if (fixedInfoEl) {
-    fixedInfoEl.style.display = cycle.fixedTotal ? '' : 'none';
-    fixedInfoEl.textContent = cycle.fixedTotal
-      ? `${cycle.fixedDone}/${cycle.fixedTotal} séances fixes déjà programmées — à modifier une par une depuis le calendrier.`
-      : '';
-  }
-  const objList = document.getElementById('cycle-edit-objectives-list');
-  if (objList) {
-    objList.innerHTML = cycle.objectives.map(o => {
-      const doneCount = (climber.logs || []).filter(l => l.objectiveId === o.id).length;
-      return `<div class="form-row form-row-2" style="align-items:end;margin-bottom:8px">
-        <div class="form-group" style="margin:0">
-          <label class="form-label">${esc(SB_GOAL_LABELS[o.flexGoal] || o.flexGoal)}</label>
-          <span style="font-size:11px;color:var(--muted)">${doneCount} déjà faite${doneCount>1?'s':''}</span>
-        </div>
-        <div class="form-group" style="margin:0">
-          <label class="form-label">Objectif (nombre)</label>
-          <input class="form-control cycle-edit-objective-target" type="number" min="${doneCount}" value="${o.targetCount||1}" data-objective-id="${o.id}">
-        </div>
-      </div>`;
-    }).join('');
-  }
-  document.getElementById('cycle-edit-modal').classList.add('open');
-}
-window.openCycleEditModal = openCycleEditModal;
-function saveCycleEdit() {
-  const cycleId = document.getElementById('cycle-edit-id').value;
-  const returnToDate = document.getElementById('cycle-edit-return-date').value;
-  const name = document.getElementById('cycle-edit-name').value.trim();
-  const climber = getActive();
-  if (!climber || !cycleId) return;
-  if (name) {
-    (climber.logs || []).forEach(l => { if (l.cycleId === cycleId) l.cycleName = name; });
-    (climber.cycleObjectives || []).forEach(o => { if (o.cycleId === cycleId) o.cycleName = name; });
-  }
-  document.querySelectorAll('.cycle-edit-objective-target').forEach(input => {
-    const obj = (climber.cycleObjectives || []).find(o => o.id === input.dataset.objectiveId);
-    const val = parseInt(input.value, 10);
-    if (obj && val > 0) obj.targetCount = val;
-  });
-  saveDB();
-  closeModal('cycle-edit-modal');
-  if (returnToDate) openDayModal(returnToDate);
-  renderCoachObjectivesPanel('dash-cycle-objectives-panel', 'dash-cycle-objectives-list');
-  renderCoachObjectivesPanel('plan-cycle-objectives-panel', 'plan-cycle-objectives-list');
-  if (document.getElementById('cal-grid')) renderCalendar();
-  if (document.getElementById('cal2-grid')) renderSimpleCalendar();
-}
-window.saveCycleEdit = saveCycleEdit;
+// Retour : "je n'arrive pas à modifier un cycle libre... je veux revenir à la fenêtre principale
+// de création" — modifier un cycle rouvre désormais openCycleModal() (la fenêtre "Créer un
+// cycle") pré-remplie et en mode édition, plutôt qu'une mini-fenêtre séparée (cf. openCycleModal
+// plus haut). deleteCycle reste une action directe (avec confirmation), inchangée.
 // Supprime un cycle : retire les séances encore PLANIFIÉES (les séances déjà faites restent dans
 // l'historique, on ne réécrit jamais le passé) et les objectifs libres restants de ce cycle. Une
 // confirmation est demandée (cf. retour précédent sur les confirmations de suppression).
@@ -10312,13 +10368,6 @@ function deleteCycle(cycleId, returnToDate) {
   if (document.getElementById('cal2-grid')) renderSimpleCalendar();
 }
 window.deleteCycle = deleteCycle;
-function deleteCycleFromModal() {
-  const cycleId = document.getElementById('cycle-edit-id').value;
-  const returnToDate = document.getElementById('cycle-edit-return-date').value;
-  closeModal('cycle-edit-modal');
-  deleteCycle(cycleId, returnToDate);
-}
-window.deleteCycleFromModal = deleteCycleFromModal;
 let planPickerDate = null;
 function openPlanPicker(dateStr) {
   planPickerDate = dateStr;
