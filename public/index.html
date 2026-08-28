@@ -3234,10 +3234,18 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <div class="form-group" style="margin:0">
         <label class="form-label">📁 Dossier</label>
         <select class="form-control" id="sb-category"></select>
+        <div id="sb-category-new-row" style="display:none;gap:6px;margin-top:6px">
+          <input class="form-control" type="text" id="sb-category-new-input" placeholder="Nom du nouveau dossier (ex. Footing)" style="flex:1">
+          <button type="button" class="btn sm primary" onclick="sbCreateNewCategory()">Créer</button>
+        </div>
       </div>
       <div class="form-group" style="margin:0">
         <label class="form-label">Sous-dossier</label>
         <select class="form-control" id="sb-subcategory"></select>
+        <div id="sb-subcategory-new-row" style="display:none;gap:6px;margin-top:6px">
+          <input class="form-control" type="text" id="sb-subcategory-new-input" placeholder="Nom du nouveau sous-dossier (ex. Vélo)" style="flex:1">
+          <button type="button" class="btn sm primary" onclick="sbCreateNewSubcategory()">Créer</button>
+        </div>
       </div>
     </div>
     <div class="form-group" style="margin:0 0 14px">
@@ -5951,6 +5959,29 @@ async function loadMyPlanningMode() {
     const res = await fetch('/api/auth/my-planning-mode', { headers: authHeaders() });
     if (res.ok) myPlanningMode = await res.json();
   } catch (e) {}
+}
+
+// Dossiers/sous-dossiers ajoutés à la volée (bouton "+ Nouveau…" dans l'éditeur de fiche) —
+// fusionnés dans BANK_TAXONOMY (mutation du contenu, pas de la constante elle-même) pour que le
+// navigateur de dossiers et les select catégorie/sous-catégorie les affichent comme des dossiers
+// normaux, indiscernables des dossiers d'origine. Chargé au démarrage, et re-fusionné après
+// chaque création pour tout compte déjà ouvert.
+async function loadBankTaxonomyCustom() {
+  if (!authToken()) return;
+  try {
+    const res = await fetch('/api/bank-taxonomy', { headers: authHeaders() });
+    if (!res.ok) return;
+    const extra = await res.json();
+    mergeBankTaxonomyCustom(extra);
+  } catch (e) {}
+}
+function mergeBankTaxonomyCustom(extra) {
+  Object.keys(extra || {}).forEach(cat => {
+    if (!BANK_TAXONOMY[cat]) BANK_TAXONOMY[cat] = [];
+    (extra[cat] || []).forEach(sub => {
+      if (sub && !BANK_TAXONOMY[cat].includes(sub)) BANK_TAXONOMY[cat].push(sub);
+    });
+  });
 }
 // Vrai seulement quand un ATHLÈTE (pas son coach) tente de planifier sur SON PROPRE profil en
 // mode coach_only. Un coach/owner qui planifie pour un athlète depuis l'espace Coaching n'est
@@ -10844,9 +10875,9 @@ function renderSessionBank() {
   // Sélecteur de dossier dans l'éditeur
   const catSel = document.getElementById('sb-category');
   if (catSel && !catSel.dataset.filled) {
-    catSel.innerHTML = `<option value="">— Aucun —</option>` + Object.keys(BANK_TAXONOMY).map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+    sbRefillCategorySelect();
     catSel.dataset.filled = '1';
-    catSel.onchange = sbUpdateSubcategoryOptions;
+    catSel.onchange = sbOnCategoryChange;
   }
   const searchMain = document.getElementById('sb-search-main');
   if (searchMain && !searchMain.dataset.wired) {
@@ -10867,9 +10898,81 @@ function sbUpdateSubcategoryOptions(preselect) {
   if (!catSel || !subSel) return;
   const cat = catSel.value;
   const subs = BANK_TAXONOMY[cat] || [];
-  subSel.innerHTML = `<option value="">— Aucun —</option>` + subs.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
+  subSel.innerHTML = `<option value="">— Aucun —</option>` + subs.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('')
+    + (cat && cat !== '__new_cat__' ? `<option value="__new_sub__">+ Nouvelle sous-catégorie…</option>` : '');
   if (preselect && subs.includes(preselect)) subSel.value = preselect;
+  subSel.onchange = sbOnSubcategoryChange;
+  const newRow = document.getElementById('sb-subcategory-new-row');
+  if (newRow) newRow.style.display = 'none';
 }
+// Repeuple le select #sb-category depuis BANK_TAXONOMY (+ option "+ Nouveau dossier…") — appelé
+// au premier rendu et après la création d'un nouveau dossier pour que celui-ci apparaisse aussitôt.
+function sbRefillCategorySelect(selectValue) {
+  const catSel = document.getElementById('sb-category');
+  if (!catSel) return;
+  catSel.innerHTML = `<option value="">— Aucun —</option>` + Object.keys(BANK_TAXONOMY).map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('')
+    + `<option value="__new_cat__">+ Nouveau dossier…</option>`;
+  if (selectValue !== undefined) catSel.value = selectValue;
+}
+// Retour : "il faudrait qu'il y ait une case Autre pour rajouter [un dossier] et que ce nouveau
+// titre devienne un titre pour toujours dans la banque" — la case "+ Nouveau dossier…" révèle un
+// champ texte ; sbCreateNewCategory() envoie le nom choisi au backend (table bank_taxonomy_custom,
+// partagée par tous les comptes comme la banque elle-même) pour qu'il réapparaisse en permanence,
+// pour tout le monde, dans le navigateur de dossiers et ce même select.
+function sbOnCategoryChange() {
+  const catSel = document.getElementById('sb-category');
+  const newRow = document.getElementById('sb-category-new-row');
+  if (catSel.value === '__new_cat__') {
+    if (newRow) { newRow.style.display = 'flex'; document.getElementById('sb-category-new-input')?.focus(); }
+    document.getElementById('sb-subcategory').innerHTML = `<option value="">— Aucun —</option>`;
+    return;
+  }
+  if (newRow) newRow.style.display = 'none';
+  sbUpdateSubcategoryOptions();
+}
+window.sbOnCategoryChange = sbOnCategoryChange;
+async function sbCreateNewCategory() {
+  const input = document.getElementById('sb-category-new-input');
+  const name = (input?.value || '').trim();
+  if (!name) return;
+  if (!BANK_TAXONOMY[name]) BANK_TAXONOMY[name] = [];
+  try {
+    if (authToken()) await fetch('/api/bank-taxonomy', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ category: name }) });
+  } catch (e) {}
+  if (input) input.value = '';
+  const newRow = document.getElementById('sb-category-new-row');
+  if (newRow) newRow.style.display = 'none';
+  sbRefillCategorySelect(name);
+  sbUpdateSubcategoryOptions();
+  sbRenderCategoryNav();
+}
+window.sbCreateNewCategory = sbCreateNewCategory;
+function sbOnSubcategoryChange() {
+  const subSel = document.getElementById('sb-subcategory');
+  const newRow = document.getElementById('sb-subcategory-new-row');
+  if (!subSel || !newRow) return;
+  newRow.style.display = subSel.value === '__new_sub__' ? 'flex' : 'none';
+  if (subSel.value === '__new_sub__') document.getElementById('sb-subcategory-new-input')?.focus();
+}
+window.sbOnSubcategoryChange = sbOnSubcategoryChange;
+async function sbCreateNewSubcategory() {
+  const cat = document.getElementById('sb-category')?.value;
+  if (!cat || cat === '__new_cat__') { alert('Choisis d\'abord un dossier (ou crée-le).'); return; }
+  const input = document.getElementById('sb-subcategory-new-input');
+  const name = (input?.value || '').trim();
+  if (!name) return;
+  if (!BANK_TAXONOMY[cat]) BANK_TAXONOMY[cat] = [];
+  if (!BANK_TAXONOMY[cat].includes(name)) BANK_TAXONOMY[cat].push(name);
+  try {
+    if (authToken()) await fetch('/api/bank-taxonomy', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ category: cat, subcategory: name }) });
+  } catch (e) {}
+  if (input) input.value = '';
+  const newRow = document.getElementById('sb-subcategory-new-row');
+  if (newRow) newRow.style.display = 'none';
+  sbUpdateSubcategoryOptions(name);
+  sbRenderCategoryNav();
+}
+window.sbCreateNewSubcategory = sbCreateNewSubcategory;
 
 function sbRenderGrid() {
   sbRenderCategoryNav();
@@ -13001,6 +13104,7 @@ window.initAppData = async function() {
   initNewsTicker();
   await loadMyPlanningMode();
   updateCoachSectionVisibility();
+  await loadBankTaxonomyCustom();
 };
 
 // ═══════════════ BANDEAU NEWS + ACTIVITÉ DES ATHLÈTES ═══════════════
