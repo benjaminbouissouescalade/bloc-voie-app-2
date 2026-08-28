@@ -1790,6 +1790,30 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   </div>
 </div>
 
+<!-- Modal modification/suppression d'un cycle (fixe et/ou objectif libre) -->
+<div class="modal-backdrop" id="cycle-edit-modal">
+  <div class="modal" style="width:min(440px,100%)">
+    <div class="modal-header">
+      <span class="modal-title">Modifier le cycle</span>
+      <button class="btn sm" onclick="closeModal('cycle-edit-modal')">Fermer</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="cycle-edit-id">
+      <input type="hidden" id="cycle-edit-return-date">
+      <div class="form-group">
+        <label class="form-label">Nom du cycle</label>
+        <input class="form-control" type="text" id="cycle-edit-name">
+      </div>
+      <p id="cycle-edit-fixed-info" style="font-size:12px;color:var(--muted);display:none;margin:0 0 10px"></p>
+      <div id="cycle-edit-objectives-list"></div>
+      <div style="display:flex;gap:8px;margin-top:6px">
+        <button class="btn primary" style="flex:1" onclick="saveCycleEdit()">Enregistrer</button>
+        <button class="btn" style="color:var(--warm)" onclick="deleteCycleFromModal()">🗑 Supprimer ce cycle</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Modal détail séance partenaire (Feed) -->
 <div class="modal-backdrop" id="partner-session-modal">
   <div class="modal" style="width:min(480px,100%)">
@@ -6838,7 +6862,11 @@ function renderCoachObjectivesPanel(panelId, listId) {
           <span style="font-weight:600;font-size:12px">${esc(cy.displayName)}</span>
           ${period ? `<span style="font-size:11px;color:var(--muted)">${period}</span>` : ''}
         </div>
-        <span style="font-size:11px;color:var(--muted)">${cy.done}/${cy.total} faites${overdue?' — échéance dépassée':''}</span>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="font-size:11px;color:var(--muted)">${cy.done}/${cy.total} faites${overdue?' — échéance dépassée':''}</span>
+          <button class="btn sm" style="padding:1px 6px" title="Modifier ce cycle" onclick="openCycleEditModal('${jsAttr(cy.cycleId)}','')">✏️</button>
+          <button class="btn sm" style="padding:1px 6px;color:var(--warm)" title="Supprimer ce cycle" onclick="deleteCycle('${jsAttr(cy.cycleId)}','')">🗑</button>
+        </div>
       </div>
       <div class="prog-bar-bg" style="height:5px"><div class="prog-bar-fill" style="width:${pct}%"></div></div>
       ${pendingObjectives.length ? `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px">${pendingObjectives.map(o => {
@@ -10186,7 +10214,11 @@ function renderDayModalCycles(dateStr) {
     return `<div style="border-left:3px solid ${col};background:var(--surface2);border-radius:3px;padding:8px 10px;margin-bottom:8px">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
         <span style="font-weight:600;font-size:13px">🔁 ${esc(c.displayName)}</span>
-        <span style="font-size:11px;color:var(--muted)">${c.done}/${c.total} séances${remaining?` · ${remaining} restante${remaining>1?'s':''}`:' · terminé'}</span>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:11px;color:var(--muted)">${c.done}/${c.total} séances${remaining?` · ${remaining} restante${remaining>1?'s':''}`:' · terminé'}</span>
+          <button class="btn sm" style="padding:2px 7px" title="Modifier ce cycle" onclick="openCycleEditModal('${jsAttr(c.cycleId)}','${jsAttr(dateStr)}')">✏️</button>
+          <button class="btn sm" style="padding:2px 7px;color:var(--warm)" title="Supprimer ce cycle" onclick="deleteCycle('${jsAttr(c.cycleId)}','${jsAttr(dateStr)}')">🗑</button>
+        </div>
       </div>
       ${pendingObjectives.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">${pendingObjectives.map(o => {
         const doneCount = (climber.logs||[]).filter(l => l.objectiveId === o.id).length;
@@ -10195,6 +10227,98 @@ function renderDayModalCycles(dateStr) {
     </div>`;
   }).join('');
 }
+// Retour : "je n'arrive pas à modifier un cycle libre, je n'ai pas la proposition modifié ou
+// supprimé" — un cycle (fixe et/ou objectif libre) n'avait jusqu'ici AUCUNE action de modification
+// ou de suppression globale (seulement séance par séance). openCycleEditModal/deleteCycle
+// ajoutent ces deux actions, réutilisées ici (case calendrier) et dans le panneau "Cycles en
+// cours" (renderCoachObjectivesPanel).
+function openCycleEditModal(cycleId, returnToDate) {
+  const climber = getActive();
+  const cycle = getClimberCycles(climber).find(c => c.cycleId === cycleId);
+  if (!cycle) return;
+  document.getElementById('cycle-edit-id').value = cycleId;
+  document.getElementById('cycle-edit-return-date').value = returnToDate || '';
+  document.getElementById('cycle-edit-name').value = cycle.displayName || cycle.cycleName || '';
+  const fixedInfoEl = document.getElementById('cycle-edit-fixed-info');
+  if (fixedInfoEl) {
+    fixedInfoEl.style.display = cycle.fixedTotal ? '' : 'none';
+    fixedInfoEl.textContent = cycle.fixedTotal
+      ? `${cycle.fixedDone}/${cycle.fixedTotal} séances fixes déjà programmées — à modifier une par une depuis le calendrier.`
+      : '';
+  }
+  const objList = document.getElementById('cycle-edit-objectives-list');
+  if (objList) {
+    objList.innerHTML = cycle.objectives.map(o => {
+      const doneCount = (climber.logs || []).filter(l => l.objectiveId === o.id).length;
+      return `<div class="form-row form-row-2" style="align-items:end;margin-bottom:8px">
+        <div class="form-group" style="margin:0">
+          <label class="form-label">${esc(SB_GOAL_LABELS[o.flexGoal] || o.flexGoal)}</label>
+          <span style="font-size:11px;color:var(--muted)">${doneCount} déjà faite${doneCount>1?'s':''}</span>
+        </div>
+        <div class="form-group" style="margin:0">
+          <label class="form-label">Objectif (nombre)</label>
+          <input class="form-control cycle-edit-objective-target" type="number" min="${doneCount}" value="${o.targetCount||1}" data-objective-id="${o.id}">
+        </div>
+      </div>`;
+    }).join('');
+  }
+  document.getElementById('cycle-edit-modal').classList.add('open');
+}
+window.openCycleEditModal = openCycleEditModal;
+function saveCycleEdit() {
+  const cycleId = document.getElementById('cycle-edit-id').value;
+  const returnToDate = document.getElementById('cycle-edit-return-date').value;
+  const name = document.getElementById('cycle-edit-name').value.trim();
+  const climber = getActive();
+  if (!climber || !cycleId) return;
+  if (name) {
+    (climber.logs || []).forEach(l => { if (l.cycleId === cycleId) l.cycleName = name; });
+    (climber.cycleObjectives || []).forEach(o => { if (o.cycleId === cycleId) o.cycleName = name; });
+  }
+  document.querySelectorAll('.cycle-edit-objective-target').forEach(input => {
+    const obj = (climber.cycleObjectives || []).find(o => o.id === input.dataset.objectiveId);
+    const val = parseInt(input.value, 10);
+    if (obj && val > 0) obj.targetCount = val;
+  });
+  saveDB();
+  closeModal('cycle-edit-modal');
+  if (returnToDate) openDayModal(returnToDate);
+  renderCoachObjectivesPanel('dash-cycle-objectives-panel', 'dash-cycle-objectives-list');
+  renderCoachObjectivesPanel('plan-cycle-objectives-panel', 'plan-cycle-objectives-list');
+  if (document.getElementById('cal-grid')) renderCalendar();
+  if (document.getElementById('cal2-grid')) renderSimpleCalendar();
+}
+window.saveCycleEdit = saveCycleEdit;
+// Supprime un cycle : retire les séances encore PLANIFIÉES (les séances déjà faites restent dans
+// l'historique, on ne réécrit jamais le passé) et les objectifs libres restants de ce cycle. Une
+// confirmation est demandée (cf. retour précédent sur les confirmations de suppression).
+function deleteCycle(cycleId, returnToDate) {
+  const climber = getActive();
+  if (!climber) return;
+  if (!confirm('Supprimer ce cycle ? Les séances déjà faites restent dans ton historique ; les séances et objectifs encore à venir seront retirés.')) return;
+  const toDeleteIds = (climber.logs || []).filter(l => l.cycleId === cycleId && l.planned).map(l => l.id);
+  climber.logs = (climber.logs || []).filter(l => !(l.cycleId === cycleId && l.planned));
+  climber.cycleObjectives = (climber.cycleObjectives || []).filter(o => o.cycleId !== cycleId);
+  saveDB();
+  if (authToken()) {
+    toDeleteIds.forEach(id => {
+      fetch(`/api/logs/${climber.id}/${id}`, { method: 'DELETE', headers: authHeaders() }).catch(() => {});
+    });
+  }
+  if (returnToDate) openDayModal(returnToDate);
+  renderCoachObjectivesPanel('dash-cycle-objectives-panel', 'dash-cycle-objectives-list');
+  renderCoachObjectivesPanel('plan-cycle-objectives-panel', 'plan-cycle-objectives-list');
+  if (document.getElementById('cal-grid')) renderCalendar();
+  if (document.getElementById('cal2-grid')) renderSimpleCalendar();
+}
+window.deleteCycle = deleteCycle;
+function deleteCycleFromModal() {
+  const cycleId = document.getElementById('cycle-edit-id').value;
+  const returnToDate = document.getElementById('cycle-edit-return-date').value;
+  closeModal('cycle-edit-modal');
+  deleteCycle(cycleId, returnToDate);
+}
+window.deleteCycleFromModal = deleteCycleFromModal;
 let planPickerDate = null;
 function openPlanPicker(dateStr) {
   planPickerDate = dateStr;
