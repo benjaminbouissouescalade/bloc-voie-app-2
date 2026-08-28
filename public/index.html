@@ -12133,7 +12133,7 @@ function renderClimberCards() {
       <div class="cc-actions" style="margin-top:8px;flex-wrap:wrap">
         ${selectBtn}
         <button class="btn sm" onclick="editClimberForm('${c.id}')">Modifier</button>
-        ${isAdmin() ? `<button class="btn sm" onclick="openProfileDetailModal('${c.id}')" title="Niveau, matériel, temps dispo, objectifs">📋 Profil détaillé</button>` : ''}
+        ${isAdmin() ? `<button class="btn sm" onclick="openProfileDetailModal('${c.id}')" title="Niveau, matériel, temps dispo, objectifs">📋 Modifier profil</button>` : ''}
         ${db.climbers.length > 1 ? `<button class="btn sm danger" onclick="deleteClimber('${c.id}')" title="Supprimer ce grimpeur">✕</button>` : ''}
       </div>
       ${(isAdmin() && c.id !== window.currentUser?.climberId) ? `<button class="btn sm" style="width:100%;margin-top:6px;font-size:11px" onclick="makePrimaryClimber('${c.id}')" title="Relier ton compte de connexion à ce profil">🔗 Faire de ce profil mon compte</button>` : ''}
