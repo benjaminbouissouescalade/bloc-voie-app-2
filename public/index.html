@@ -3779,6 +3779,7 @@ Utilise les raccourcis ci-dessus ou pose-moi directement une question. Par exemp
     <div class="modal-body" id="day-modal-body"></div>
     <div class="modal-footer" style="gap:8px;flex-wrap:wrap">
       <button class="btn primary" id="day-modal-add">+ Ajouter une séance ce jour</button>
+      <button class="btn" id="day-modal-add-plan">📌 Planifier (prévisionnel)</button>
       <button class="btn" id="day-modal-add-cycle">🔁 Planifier un cycle</button>
       <button class="btn" id="day-modal-add-avail">🏟 Déclarer ma disponibilité</button>
     </div>
@@ -10094,12 +10095,27 @@ function openDayModal(dateStr){
   }).join(''):'<p style="color:var(--muted);text-align:center;padding:20px">Aucune séance ce jour</p>';
   renderDayModalCycles(dateStr);
   const addBtn = document.getElementById('day-modal-add');
+  const addPlanBtn = document.getElementById('day-modal-add-plan');
   if (appMode === 'coach') {
     addBtn.textContent = '📅 Planifier une séance ce jour';
     addBtn.onclick = () => { closeModal('day-modal'); openPlanPicker(dateStr); };
+    // Le bouton dédié "Planifier (prévisionnel)" n'a de sens que côté Carnet : en mode Coach,
+    // le bouton principal fait déjà exactement ça.
+    if (addPlanBtn) addPlanBtn.style.display = 'none';
   } else {
     addBtn.textContent = '+ Ajouter une séance ce jour';
     addBtn.onclick = () => { closeModal('day-modal'); newSession(dateStr); switchPage('new-session'); };
+    // Retour athlète : "je veux répartir mes séances de la semaine en prévisionnel, en pointillés,
+    // comme le fait mon coach" — même mécanisme (choix d'une fiche de la banque, une fois ou en
+    // cycle) que côté Coach, mais appliqué par l'athlète à son propre Carnet.
+    if (addPlanBtn) {
+      addPlanBtn.style.display = '';
+      addPlanBtn.onclick = () => {
+        if (planningBlockedForMe()) { warnPlanningBlocked(); return; }
+        closeModal('day-modal');
+        openPlanPicker(dateStr);
+      };
+    }
   }
   // Bouton "Planifier un cycle" : ouvre le même modal de cycle que le bouton "🔁 Créer un
   // cycle" du calendrier, avec la date cliquée déjà pré-remplie comme date de début (même
