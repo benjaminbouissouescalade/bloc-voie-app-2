@@ -20,6 +20,7 @@ app.use('/api/auth',     require('./routes/auth'));
 app.use('/api/climbers', require('./routes/climbers'));
 app.use('/api/logs',     require('./routes/logs'));
 app.use('/api/bank',     require('./routes/bank'));
+app.use('/api/bank-taxonomy', require('./routes/bankTaxonomy'));
 app.use('/api/plans',    require('./routes/plans'));
 app.use('/api/ai',       require('./routes/ai'));
 app.use('/api/news',     require('./routes/news'));
