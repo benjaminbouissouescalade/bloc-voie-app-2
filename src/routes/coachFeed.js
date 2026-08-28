@@ -24,15 +24,16 @@ router.get('/recent', async (req, res) => {
   const ownClimberId = req.user.climberId || null;
   try {
     let query, params;
-    // Tri : les séances commentées passent TOUJOURS avant celles qui ne le sont pas (peu importe
-    // leur ancienneté), sinon un commentaire posté sur une séance un peu plus vieille pouvait être
-    // évincé du LIMIT par des séances plus récentes mais sans intérêt particulier — cf. retour
-    // "certaines séances avec commentaire n'apparaissent pas". Dans chaque groupe, la plus
-    // récente activité (création ou dernier commentaire) d'abord.
-    const orderClause = `ORDER BY (jsonb_array_length(COALESCE(l.comments,'[]'::jsonb)) > 0) DESC, GREATEST(l.created_at, l.updated_at) DESC LIMIT $1`;
+    // Tri : les séances avec une petite blessure signalée passent en tout premier (le coach doit
+    // les voir sans avoir à chercher), puis les séances commentées passent TOUJOURS avant celles
+    // qui ne le sont pas (peu importe leur ancienneté), sinon un commentaire posté sur une séance
+    // un peu plus vieille pouvait être évincé du LIMIT par des séances plus récentes mais sans
+    // intérêt particulier — cf. retour "certaines séances avec commentaire n'apparaissent pas".
+    // Dans chaque groupe, la plus récente activité (création ou dernier commentaire) d'abord.
+    const orderClause = `ORDER BY l.injury DESC, (jsonb_array_length(COALESCE(l.comments,'[]'::jsonb)) > 0) DESC, GREATEST(l.created_at, l.updated_at) DESC LIMIT $1`;
     if (isOwnerRole(req.user.role)) {
       query = `SELECT l.id, l.climber_id, l.date, l.type, l.support, l.minutes, l.intensity, l.notes,
-                      l.comments, l.created_at, l.updated_at, c.name AS climber_name, c.color AS climber_color
+                      l.comments, l.injury, l.injury_note, l.created_at, l.updated_at, c.name AS climber_name, c.color AS climber_color
                FROM logs l JOIN climbers c ON c.id = l.climber_id
                WHERE l.planned = false
                  AND l.climber_id IS DISTINCT FROM $2
@@ -40,7 +41,7 @@ router.get('/recent', async (req, res) => {
       params = [limit, ownClimberId];
     } else {
       query = `SELECT l.id, l.climber_id, l.date, l.type, l.support, l.minutes, l.intensity, l.notes,
-                      l.comments, l.created_at, l.updated_at, c.name AS climber_name, c.color AS climber_color
+                      l.comments, l.injury, l.injury_note, l.created_at, l.updated_at, c.name AS climber_name, c.color AS climber_color
                FROM logs l JOIN climbers c ON c.id = l.climber_id
                WHERE l.planned = false
                  AND l.climber_id IN (SELECT climber_id FROM coach_athletes WHERE coach_id=$2)
@@ -64,6 +65,8 @@ router.get('/recent', async (req, res) => {
         notes: r.notes,
         comments,
         commentsCount: comments.length,
+        injury: !!r.injury,
+        injuryNote: r.injury_note || '',
         createdAt: r.created_at
       };
     }));
