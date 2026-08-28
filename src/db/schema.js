@@ -395,6 +395,19 @@ async function initDB() {
         updated_at  TIMESTAMPTZ DEFAULT NOW()
       );
       CREATE INDEX IF NOT EXISTS idx_availability_climber_date ON availability(climber_id, date);
+
+      -- Dossiers/sous-dossiers ajoutés à la volée (bouton "+ Nouveau…" dans le formulaire de
+      -- création de fiche) en plus de la taxonomie fixe BANK_TAXONOMY côté frontend. Table globale
+      -- (comme session_bank) : un nouveau dossier créé par un coach devient disponible pour tout le
+      -- monde, en permanence — cf. retour "que ce nouveau titre devienne un titre pour toujours
+      -- dans la banque". subcategory NULL = juste un nouveau dossier (sans sous-dossier pour l'instant).
+      CREATE TABLE IF NOT EXISTS bank_taxonomy_custom (
+        id          SERIAL PRIMARY KEY,
+        category    TEXT NOT NULL,
+        subcategory TEXT,
+        created_at  TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(category, subcategory)
+      );
     `);
     console.log('✅ Base de données initialisée');
   } catch (err) {
