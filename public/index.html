@@ -960,9 +960,12 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   </div>
   <div class="nav-group mode-coach appmode-hidden">
     <div class="nav-label">Coach</div>
-    <button class="nav-btn coach-only-btn" data-page="coach-athletes">
+    <button class="nav-btn coach-only-btn" data-page="coach-athletes" style="position:relative">
       <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="9" r="3"/><circle cx="16" cy="9" r="3"/><path d="M2 20c0-3.5 2.7-6 6-6s6 2.5 6 6M10 20c0-3.5 2.7-6 6-6s6 2.5 6 6"/></svg>
       Mes athlètes
+      <!-- Notification visible : nombre de bobos signalés récemment par les athlètes coachés, tant
+           qu'ils n'ont pas été consultés dans le fil "Activité récente" (cf. renderCoachFeed). -->
+      <span id="nav-injury-badge" style="display:none;position:absolute;top:4px;right:10px;background:var(--warm);color:#fff;font-size:10px;font-weight:700;line-height:1;padding:2px 5px;border-radius:9px" title="Petites blessures signalées récemment">🩹</span>
     </button>
     <button class="nav-btn" data-page="planning">
       <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
@@ -1364,6 +1367,19 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
               </optgroup>
               <option value="autre_support">Autre</option>
             </select>
+          </div>
+        </div>
+        <!-- Petit suivi de bobo : coché par l'athlète (ou le coach) à la fin d'une séance quand une
+             petite douleur est apparue. Pas un diagnostic médical, juste un signal discret — une
+             ligne sur le calendrier + une remontée dans le fil d'activité du coach (voir
+             renderCoachFeed / buildCalCell). La note reste facultative. -->
+        <div class="form-group">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;cursor:pointer">
+            <input type="checkbox" id="s-injury" onchange="document.getElementById('s-injury-note-row').style.display=this.checked?'':'none'" style="width:16px;height:16px">
+            🩹 Petite douleur / bobo pendant ou après cette séance
+          </label>
+          <div id="s-injury-note-row" style="display:none;margin-top:8px">
+            <textarea class="form-control" id="s-injury-note" placeholder="Où, depuis quand, ça fait quoi… (facultatif)" rows="2"></textarea>
           </div>
         </div>
         <div class="form-group">
@@ -2688,7 +2704,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   <div id="coach-athletes-grid" class="climber-card-grid"></div>
   <p id="coach-athletes-empty" style="display:none;color:var(--muted);font-size:14px">Tu n'as pas encore d'athlète. Utilise "Inviter un athlète" dans "Gérer les grimpeurs" pour en ajouter un.</p>
   <div class="panel" style="margin-top:20px">
-    <div class="panel-header"><span class="panel-title">Activité récente</span></div>
+    <div class="panel-header"><span class="panel-title">Activité récente</span><span id="coach-feed-injury-badge" style="display:none;background:var(--warm);color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:9px;margin-left:8px"></span></div>
     <div id="coach-feed-list"><p style="font-size:13px;color:var(--muted)">Chargement…</p></div>
   </div>
 </div>
@@ -5525,6 +5541,9 @@ function buildCalCell(ds, dayNum, isOther, todayStr, climberCycles) {
   // futures — retour : "ces scores doivent apparaître que si la séance est faite").
   const load = doneLogsForCell.reduce((s,l) => s + sessionLoad(l), 0);
   const hasHard = doneLogsForCell.some(l => l.intensity >= 4);
+  // Petite ligne "bobo" : uniquement sur les séances FAITES (une séance planifiée n'a pas encore
+  // eu lieu, une douleur ne peut donc pas y être associée) — même principe que le badge de charge.
+  const hasInjury = doneLogsForCell.some(l => l.injury);
   cell.className = 'cal-cell' + (isOther?' other-month':'') + (ds===todayStr?' today':'') + (doneLogsForCell.length&&!hasHard?' has-session':doneLogsForCell.length&&hasHard?' has-hard':'') + (plannedLogsForCell.length?' has-planned':'');
   const typeLabelHtml = dayLogs.length === 1
     ? `<div style="font-size:9px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc((SESSION_TYPES[dayLogs[0].type]||SESSION_TYPES.autre).label)}</div>`
@@ -5535,7 +5554,7 @@ function buildCalCell(ds, dayNum, isOther, todayStr, climberCycles) {
   const availBadgeHtml = dayAvail.length
     ? `<div class="cal-avail-badge" title="Dispo déclarée : ${esc(dayAvail.map(a=>gymNameById(a.gymId)||'salle non précisée').join(', '))}">🏟</div>`
     : '';
-  cell.innerHTML = `${plannedLogsForCell.length?`<div class="cal-planned-badge" title="${plannedLogsForCell.length} séance${plannedLogsForCell.length>1?'s':''} prévue${plannedLogsForCell.length>1?'s':''}">📌</div>`:''}${availBadgeHtml}<div class="cal-num">${dayNum}</div><div class="cal-dots">${dayLogs.map(l=>`<div class="cal-dot${l.planned?' cal-dot-planned':''}" style="${l.planned?`border-color:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`:`background:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`}" title="${esc((SESSION_TYPES[l.type]||SESSION_TYPES.autre).label)}${l.planned?' (prévue)':''}"></div>`).join('')}</div>${typeLabelHtml}${cycleTagsHtmlForDate(ds, climberCycles)}${load?`<div style="font-size:9px;font-weight:700;color:var(--muted);margin-top:3px">⚡ ${load}</div>`:''}`;
+  cell.innerHTML = `${plannedLogsForCell.length?`<div class="cal-planned-badge" title="${plannedLogsForCell.length} séance${plannedLogsForCell.length>1?'s':''} prévue${plannedLogsForCell.length>1?'s':''}">📌</div>`:''}${availBadgeHtml}<div class="cal-num">${dayNum}</div><div class="cal-dots">${dayLogs.map(l=>`<div class="cal-dot${l.planned?' cal-dot-planned':''}" style="${l.planned?`border-color:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`:`background:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`}" title="${esc((SESSION_TYPES[l.type]||SESSION_TYPES.autre).label)}${l.planned?' (prévue)':''}"></div>`).join('')}</div>${typeLabelHtml}${cycleTagsHtmlForDate(ds, climberCycles)}${load?`<div style="font-size:9px;font-weight:700;color:var(--muted);margin-top:3px">⚡ ${load}</div>`:''}${hasInjury?`<div style="font-size:9px;font-weight:700;color:var(--warm);margin-top:2px">🩹 bobo</div>`:''}`;
   cell.onclick = () => openDayModal(ds);
   cell.ondragover = (e) => { e.preventDefault(); cell.classList.add('drag-over'); };
   cell.ondragleave = () => cell.classList.remove('drag-over');
@@ -5847,6 +5866,9 @@ function buildCal2Cell(ds, dayNum, isOther, todayStr, climberCycles) {
   // futures — retour : "ces scores doivent apparaître que si la séance est faite").
   const load = doneLogsForCell.reduce((s,l) => s + sessionLoad(l), 0);
   const hasHard = doneLogsForCell.some(l => l.intensity >= 4);
+  // Petite ligne "bobo" : uniquement sur les séances FAITES (une séance planifiée n'a pas encore
+  // eu lieu, une douleur ne peut donc pas y être associée) — même principe que le badge de charge.
+  const hasInjury = doneLogsForCell.some(l => l.injury);
   cell.className = 'cal-cell' + (isOther?' other-month':'') + (ds===todayStr?' today':'') + (doneLogsForCell.length&&!hasHard?' has-session':doneLogsForCell.length&&hasHard?' has-hard':'') + (plannedLogsForCell.length?' has-planned':'');
   const typeLabelHtml2 = dayLogs.length === 1
     ? `<div style="font-size:9px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc((SESSION_TYPES[dayLogs[0].type]||SESSION_TYPES.autre).label)}</div>`
@@ -5857,7 +5879,7 @@ function buildCal2Cell(ds, dayNum, isOther, todayStr, climberCycles) {
   const availBadgeHtml2 = dayAvail2.length
     ? `<div class="cal-avail-badge" title="Dispo déclarée : ${esc(dayAvail2.map(a=>gymNameById(a.gymId)||'salle non précisée').join(', '))}">🏟</div>`
     : '';
-  cell.innerHTML = `${plannedLogsForCell.length?`<div class="cal-planned-badge" title="${plannedLogsForCell.length} séance${plannedLogsForCell.length>1?'s':''} prévue${plannedLogsForCell.length>1?'s':''}">📌</div>`:''}${availBadgeHtml2}<div class="cal-num">${dayNum}</div><div class="cal-dots">${dayLogs.map(l=>`<div class="cal-dot${l.planned?' cal-dot-planned':''}" style="${l.planned?`border-color:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`:`background:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`}" title="${esc((SESSION_TYPES[l.type]||SESSION_TYPES.autre).label)}${l.planned?' (prévue)':''}"></div>`).join('')}</div>${typeLabelHtml2}${cycleTagsHtmlForDate(ds, climberCycles)}${load?`<div style="font-size:9px;font-weight:700;color:var(--muted);margin-top:3px">⚡ ${load}</div>`:''}`;
+  cell.innerHTML = `${plannedLogsForCell.length?`<div class="cal-planned-badge" title="${plannedLogsForCell.length} séance${plannedLogsForCell.length>1?'s':''} prévue${plannedLogsForCell.length>1?'s':''}">📌</div>`:''}${availBadgeHtml2}<div class="cal-num">${dayNum}</div><div class="cal-dots">${dayLogs.map(l=>`<div class="cal-dot${l.planned?' cal-dot-planned':''}" style="${l.planned?`border-color:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`:`background:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`}" title="${esc((SESSION_TYPES[l.type]||SESSION_TYPES.autre).label)}${l.planned?' (prévue)':''}"></div>`).join('')}</div>${typeLabelHtml2}${cycleTagsHtmlForDate(ds, climberCycles)}${load?`<div style="font-size:9px;font-weight:700;color:var(--muted);margin-top:3px">⚡ ${load}</div>`:''}${hasInjury?`<div style="font-size:9px;font-weight:700;color:var(--warm);margin-top:2px">🩹 bobo</div>`:''}`;
   cell.onclick = () => openDayModal(ds);
   return { cell, dayLogs, isOther };
 }
@@ -9748,6 +9770,9 @@ function newSession(date=null){
   document.getElementById('s-location').value='';
   document.getElementById('s-support').value='';
   document.getElementById('s-notes').value='';
+  document.getElementById('s-injury').checked=false;
+  document.getElementById('s-injury-note').value='';
+  document.getElementById('s-injury-note-row').style.display='none';
   document.getElementById('delete-session-btn').style.display='none';
   document.getElementById('s-together-panel').style.display='none';
   document.getElementById('s-comments-panel').style.display='none';
@@ -9817,6 +9842,9 @@ function editSession(id){
   document.getElementById('s-location').value=log.location||'';
   document.getElementById('s-support').value=log.support||'';
   document.getElementById('s-notes').value=log.notes||'';
+  document.getElementById('s-injury').checked=!!log.injury;
+  document.getElementById('s-injury-note').value=log.injuryNote||'';
+  document.getElementById('s-injury-note-row').style.display=log.injury?'':'none';
   document.getElementById('delete-session-btn').style.display='';
   switchPage('new-session');
   updateSessionTypeUI(log.bNoGrade||{});
@@ -10201,6 +10229,8 @@ document.getElementById('save-session-btn').onclick=()=>{
     location:fieldStr('s-location'),
     support:fieldStr('s-support'),
     notes:fieldStr('s-notes'),
+    injury:!!document.getElementById('s-injury').checked,
+    injuryNote:fieldStr('s-injury-note'),
     ascents:JSON.parse(JSON.stringify(sessionAscents)),
     bNoGrade,
     ...(existingLog?.cycleId ? { cycleId: existingLog.cycleId, cycleName: existingLog.cycleName } : {}),
@@ -10250,12 +10280,13 @@ function openDayModal(dateStr){
     return `<div class="log-item" style="${l.planned?'border-style:dashed':''}" onclick="closeModal('day-modal');editSession('${l.id}')">
       <div class="log-item-header">
         <div>
-          <div class="log-date" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="sess-dot" style="background:${t.color}"></span>${t.label}${l.planned?' <span class="tag" style="border-color:var(--accent);color:var(--accent)">📌 Prévue</span>':''}${l.flexGoal?` <span class="tag" style="border-color:#b07a10;color:#b07a10">🎯 ${l.bankRef?'Objectif':'À choisir'} : ${esc(SB_GOAL_LABELS[l.flexGoal]||l.flexGoal)}</span>`:''}${cycleLabel?` <span class="tag" style="border-color:${colorForCycleId(l.cycleId)};color:${colorForCycleId(l.cycleId)}">🔁 ${esc(cycleLabel)}</span>`:''}</div>
+          <div class="log-date" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="sess-dot" style="background:${t.color}"></span>${t.label}${l.planned?' <span class="tag" style="border-color:var(--accent);color:var(--accent)">📌 Prévue</span>':''}${l.flexGoal?` <span class="tag" style="border-color:#b07a10;color:#b07a10">🎯 ${l.bankRef?'Objectif':'À choisir'} : ${esc(SB_GOAL_LABELS[l.flexGoal]||l.flexGoal)}</span>`:''}${cycleLabel?` <span class="tag" style="border-color:${colorForCycleId(l.cycleId)};color:${colorForCycleId(l.cycleId)}">🔁 ${esc(cycleLabel)}</span>`:''}${!l.planned&&l.injury?` <span class="tag" style="border-color:var(--warm);color:var(--warm)" title="${esc(l.injuryNote||'')}">🩹 Petite blessure</span>`:''}</div>
           <div class="log-meta">${l.minutes||0} min · intensité ${l.intensity||'—'}${l.planned?'':` · charge ${load}`}${l.location?` · ${l.location}`:''}${l.support&&SUPPORTS[l.support]?` · <span style="font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:3px;padding:1px 7px">${SUPPORTS[l.support].icon} ${SUPPORTS[l.support].label}</span>`:''}</div>
         </div>
         ${l.planned?`<button class="btn sm danger" onclick="event.stopPropagation();deletePlannedSession('${l.id}','${dateStr}')" title="Retirer cette séance prévue">✕</button>`:''}
       </div>
       ${(l.ascents||[]).length?`<div class="log-tags" style="margin-top:8px">${(l.ascents||[]).map(a=>`<span class="chip">${a.grade} · ${statusLabel(a.status)}</span>`).join('')}</div>`:''}
+      ${!l.planned&&l.injury&&l.injuryNote?`<div style="font-size:12px;color:var(--warm);margin-top:6px">🩹 ${esc(l.injuryNote)}</div>`:''}
       ${l.planned&&l.notes?`<div style="font-size:12px;color:var(--muted);margin-top:6px">${esc(l.notes.length>140?l.notes.slice(0,140)+'…':l.notes)}</div>`:''}
       ${l.planned&&l.bankRef&&getBank().find(b=>b.id===l.bankRef)?`<button class="btn sm" style="margin-top:8px" onclick="event.stopPropagation();closeModal('day-modal');switchPage('session-bank');sbEditCard('${l.bankRef}')">📋 Voir la fiche complète</button>`:''}
     </div>`;
@@ -12227,23 +12258,34 @@ async function renderCoachFeed() {
     const items = await res.json();
     if (!res.ok) throw new Error(items.error || 'Erreur');
     coachFeedItems = items;
+    // Notification visible : nombre de bobos dans le fil actuel (déjà trié bobos-en-tête côté
+    // backend, cf. coachFeed.js) — badge sur le nav "Mes athlètes" et sur le titre du panneau, tant
+    // qu'ils sont présents dans les 30 dernières séances. Pas de "vu/pas vu" persistant : le badge
+    // reflète simplement ce qu'il y a à voir maintenant.
+    updateInjuryBadges(items.filter(it => it.injury).length);
     if (!items.length) {
       listEl.innerHTML = '<p style="font-size:13px;color:var(--muted)">Aucune séance récente de tes athlètes pour l\'instant.</p>';
       return;
     }
     // Volontairement compact (une ligne) : le détail (note, commentaires) est réservé au clic —
     // sur "Voir la séance" pour la fiche complète, sur l'icône 💬 pour une fenêtre dédiée aux
-    // commentaires (mini résumé + fil), sans avoir à ouvrir toute la fiche pour ça.
+    // commentaires (mini résumé + fil), sans avoir à ouvrir toute la fiche pour ça. Une séance avec
+    // un bobo signalé ressort en rouge, avec la note en clair si elle existe (retour coach : besoin
+    // d'une "notification visible" quand un athlète signale une petite blessure).
     listEl.innerHTML = `<div style="max-height:280px;overflow-y:auto;display:flex;flex-direction:column;gap:4px">${items.map((it, i) => {
       const typeLabel = (SESSION_TYPES[it.type] || {}).label || it.type;
       const hasComments = it.commentsCount > 0;
       const commentBtn = hasComments ? `<button class="btn sm primary" style="padding:3px 8px;font-size:11px" onclick="event.stopPropagation();openFeedCommentModal(${i})" title="Commentaires">💬 ${it.commentsCount}</button>` : '';
-      return `<div class="log-item" style="cursor:pointer;padding:8px 10px;display:flex;justify-content:space-between;align-items:center;gap:8px" onclick="openCoachFeedItem('${it.climberId}','${it.id}')">
-        <div style="font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
-          <span style="font-weight:600">${esc(it.climberName)}</span>
-          <span style="color:var(--muted)"> · ${esc(typeLabel)} · ${it.minutes||0} min · ${fmtDate(it.date)}</span>
+      const injuryTag = it.injury ? `<span class="tag" style="border-color:var(--warm);color:var(--warm);flex-shrink:0">🩹 Bobo</span>` : '';
+      return `<div class="log-item" style="cursor:pointer;padding:8px 10px;display:flex;flex-direction:column;gap:4px;${it.injury?'border-color:var(--warm);background:color-mix(in srgb, var(--warm) 8%, var(--surface2))':''}" onclick="openCoachFeedItem('${it.climberId}','${it.id}')">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div style="font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+            <span style="font-weight:600">${esc(it.climberName)}</span>
+            <span style="color:var(--muted)"> · ${esc(typeLabel)} · ${it.minutes||0} min · ${fmtDate(it.date)}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">${injuryTag}${commentBtn}</div>
         </div>
-        ${commentBtn}
+        ${it.injury && it.injuryNote ? `<div style="font-size:12px;color:var(--warm)">🩹 ${esc(it.injuryNote)}</div>` : ''}
       </div>`;
     }).join('')}</div>`;
   } catch (e) {
@@ -12251,6 +12293,19 @@ async function renderCoachFeed() {
   }
 }
 window.renderCoachFeed = renderCoachFeed;
+
+// Met à jour les deux badges de notification "bobo" (nav "Mes athlètes" + titre du panneau
+// "Activité récente") à partir du nombre de séances avec injury=true dans le fil courant.
+function updateInjuryBadges(count) {
+  const navBadge = document.getElementById('nav-injury-badge');
+  if (navBadge) navBadge.style.display = count > 0 ? '' : 'none';
+  const panelBadge = document.getElementById('coach-feed-injury-badge');
+  if (panelBadge) {
+    panelBadge.style.display = count > 0 ? '' : 'none';
+    panelBadge.textContent = count > 0 ? `🩹 ${count}` : '';
+  }
+}
+window.updateInjuryBadges = updateInjuryBadges;
 
 function openCoachFeedItem(climberId, logId) {
   openCoachingView(climberId);
@@ -13272,6 +13327,12 @@ window.initAppData = async function() {
   await loadMyPlanningMode();
   updateCoachSectionVisibility();
   await loadBankTaxonomyCustom();
+  // Charge le fil coach dès le démarrage (pas seulement à l'ouverture de "Mes athlètes") pour que
+  // le badge "🩹 bobo" du nav soit une vraie notification visible dès la connexion, et pas quelque
+  // chose que le coach ne voit qu'en pensant à cliquer sur la page.
+  if (isCoachRoleValue(window.currentUser?.role)) {
+    renderCoachFeed();
+  }
 };
 
 // ═══════════════ BANDEAU NEWS + ACTIVITÉ DES ATHLÈTES ═══════════════
