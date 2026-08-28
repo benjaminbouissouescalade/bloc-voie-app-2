@@ -1165,7 +1165,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     <div class="panel-header"><span class="panel-title">Séances du mois</span></div>
     <div class="stat-grid stat-grid-4" style="margin-bottom:0">
       <div class="stat-card"><div class="stat-label">🧗 Séances</div><div class="stat-value" id="cal2-count">0</div></div>
-      <div class="stat-card"><div class="stat-label">⏱ Minutes</div><div class="stat-value" id="cal2-minutes">0</div></div>
+      <div class="stat-card"><div class="stat-label">⏱ Temps</div><div class="stat-value" id="cal2-minutes">0</div></div>
       <div class="stat-card"><div class="stat-label">⚡ Charge totale</div><div class="stat-value" id="cal2-load">0</div></div>
       <div class="stat-card"><div class="stat-label">🏅 Ascensions cotées</div><div class="stat-value" id="cal2-ascents">0</div></div>
     </div>
@@ -2758,7 +2758,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     <div class="panel-header"><span class="panel-title">Séances du mois</span></div>
     <div class="stat-grid stat-grid-4" style="margin-bottom:0">
       <div class="stat-card"><div class="stat-label">🧗 Séances</div><div class="stat-value" id="cal-count">0</div></div>
-      <div class="stat-card"><div class="stat-label">⏱ Minutes</div><div class="stat-value" id="cal-minutes">0</div></div>
+      <div class="stat-card"><div class="stat-label">⏱ Temps</div><div class="stat-value" id="cal-minutes">0</div></div>
       <div class="stat-card"><div class="stat-label">⚡ Charge totale</div><div class="stat-value" id="cal-load">0</div></div>
       <div class="stat-card"><div class="stat-label">🏅 Ascensions cotées</div><div class="stat-value" id="cal-ascents">0</div></div>
     </div>
@@ -5237,7 +5237,7 @@ function renderDashboard() {
   const now=new Date(), monthStr=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
   const monthLogs=getLogs().filter(l=>l.date.startsWith(monthStr) && !l.planned);
   document.getElementById('dash-month-sessions').textContent=monthLogs.length;
-  document.getElementById('dash-month-minutes').textContent=monthLogs.reduce((s,l)=>s+(l.minutes||0),0)+' min';
+  document.getElementById('dash-month-minutes').textContent=fmtHM(monthLogs.reduce((s,l)=>s+(l.minutes||0),0));
   // Comparaison demandée : mois en cours vs mois précédent vs moyenne des 12 derniers mois — un
   // "16" seul ne dit pas si c'est beaucoup ou peu pour cet athlète.
   const prevMonthDate = new Date(now.getFullYear(), now.getMonth()-1, 1);
@@ -5446,7 +5446,7 @@ function renderCalendarMonth() {
     if(!other){const doneLogs=dayLogs.filter(l=>!l.planned);const load=dayLogs.reduce((s,l)=>s+sessionLoad(l),0);totalSessions+=doneLogs.length;totalMinutes+=doneLogs.reduce((s,l)=>s+(l.minutes||0),0);totalLoad+=load;totalAscents+=doneLogs.reduce((s,l)=>s+(l.ascents||[]).length,0);}
   }
   document.getElementById('cal-count').textContent=totalSessions;
-  document.getElementById('cal-minutes').textContent=totalMinutes;
+  document.getElementById('cal-minutes').textContent=fmtHM(totalMinutes);
   document.getElementById('cal-load').textContent=totalLoad;
   document.getElementById('cal-ascents').textContent=totalAscents;
 }
@@ -5477,7 +5477,7 @@ function renderCalendarWeek() {
     totalSessions+=doneLogs.length; totalMinutes+=doneLogs.reduce((s,l)=>s+(l.minutes||0),0); totalLoad+=load; totalAscents+=doneLogs.reduce((s,l)=>s+(l.ascents||[]).length,0);
   }
   document.getElementById('cal-count').textContent=totalSessions;
-  document.getElementById('cal-minutes').textContent=totalMinutes;
+  document.getElementById('cal-minutes').textContent=fmtHM(totalMinutes);
   document.getElementById('cal-load').textContent=totalLoad;
   document.getElementById('cal-ascents').textContent=totalAscents;
 }
@@ -5665,7 +5665,7 @@ function renderCalendarYear() {
     </div>`;
   }).join('');
   document.getElementById('cal-count').textContent=totalSessions;
-  document.getElementById('cal-minutes').textContent=totalMinutes;
+  document.getElementById('cal-minutes').textContent=fmtHM(totalMinutes);
   document.getElementById('cal-load').textContent=totalLoad;
   document.getElementById('cal-ascents').textContent=totalAscents;
 }
@@ -5755,7 +5755,7 @@ function renderSimpleCalendar() {
     if(!other){const doneLogs=dayLogs.filter(l=>!l.planned);const load=dayLogs.reduce((s,l)=>s+sessionLoad(l),0);totalSessions+=doneLogs.length;totalMinutes+=doneLogs.reduce((s,l)=>s+(l.minutes||0),0);totalLoad+=load;totalAscents+=doneLogs.reduce((s,l)=>s+(l.ascents||[]).length,0);}
   }
   document.getElementById('cal2-count').textContent=totalSessions;
-  document.getElementById('cal2-minutes').textContent=totalMinutes;
+  document.getElementById('cal2-minutes').textContent=fmtHM(totalMinutes);
   document.getElementById('cal2-load').textContent=totalLoad;
   document.getElementById('cal2-ascents').textContent=totalAscents;
   triggerAvailabilityLoad(getActive()?.id, renderSimpleCalendar);
@@ -12481,6 +12481,18 @@ document.getElementById('cf-delete-btn').onclick = () => {
 // ═══════════════ HELPERS ═══════════════
 function esc(s=''){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function fmtDate(ds){return new Date(ds+'T00:00:00').toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'});}
+// Formate un total de minutes en "9h28" (ou "9h" si rond, "45 min" si < 1h) — utilisé partout où
+// on affiche un CUMUL de minutes sur une période (mois, semaine…), par cohérence avec la saisie
+// de durée en h/min du formulaire de séance.
+function fmtHM(mins) {
+  const total = Math.max(0, Math.round(mins || 0));
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  if (h <= 0) return `${m} min`;
+  if (m === 0) return `${h}h`;
+  return `${h}h${String(m).padStart(2,'0')}`;
+}
+window.fmtHM = fmtHM;
 function gradeClass(g){const i=GRADE_IDX[g]||0;return i<16?'g-easy':i<22?'g-mid':i<28?'g-hard':'g-elite';}
 function statusLabel(s){return {tete:'Tête',moulinette:'Moulinette',av:'À vue',flash:'Flash',try:'Essai'}[s]||s;}
 // Nombre de semaines à afficher dans le graphe "Évolution des meilleures cotations" selon la période sélectionnée
