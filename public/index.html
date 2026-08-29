@@ -1202,6 +1202,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     </div>
     <div class="modal-body">
       <p style="font-size:13px;color:var(--muted);margin-bottom:10px">Choisis une fiche dans la banque de séances à programmer pour l'athlète.</p>
+      <button type="button" class="btn sm" style="width:100%;margin-bottom:10px;justify-content:center" onclick="planPickerFreeChoice()">🎯 Séance libre — l'athlète choisira le jour venu</button>
       <input class="form-control" style="margin-bottom:10px" id="plan-picker-search" placeholder="Rechercher…" oninput="renderPlanPickerList()">
       <div id="plan-picker-list" style="display:flex;flex-direction:column;gap:6px;max-height:340px;overflow-y:auto"></div>
     </div>
@@ -2105,7 +2106,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <button class="btn sm" onclick="closeModal('flex-choice-modal')">Fermer</button>
     </div>
     <div class="modal-body">
-      <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Objectif fixé par ton coach : <strong id="flex-choice-goal-label"></strong>. Choisis la séance de la banque qui correspond le mieux à ce dont tu disposes aujourd'hui.</p>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:14px"><span id="flex-choice-prefix">Objectif fixé par ton coach : </span><strong id="flex-choice-goal-label"></strong><span id="flex-choice-suffix">. Choisis la séance de la banque qui correspond le mieux à ce dont tu disposes aujourd'hui.</span></p>
       <div id="flex-choice-list"></div>
     </div>
   </div>
@@ -6081,6 +6082,54 @@ function addPlannedSessionFromBank(bankId, dateStr) {
   openDayModal(dateStr);
 }
 
+// Planifie une case "🎯 Séance libre" pour un jour donné, sans imposer de fiche ni de thème —
+// retour : "possibilité de création d'une séance de son choix à l'athlète" quand on planifie.
+// Réutilise tel quel le mécanisme du créneau "objectif libre" (flexGoal='libre', cf. SB_GOAL_LABELS)
+// déjà utilisé par les cycles "thème + jour fixe" : au jour J, l'athlète ouvre la case et choisit
+// n'importe quelle fiche de SA banque via openFlexChoiceModal (renderFlexChoiceList traite 'libre'
+// comme "toute la banque", pas un tag précis) — voir fulfillFlexSession pour la résolution.
+function addPlannedFlexSession(dateStr) {
+  if (planningBlockedForMe()) { warnPlanningBlocked(); return; }
+  if (!isFutureDateStr(dateStr)) {
+    alert('Tu ne peux planifier une séance que pour une date future. Pour aujourd\'hui ou une date passée, ajoute directement la séance réalisée (bouton "+ Ajouter une séance").');
+    return;
+  }
+  const climber = getActive();
+  const isCoachPrescribing = climber?.id !== window.currentUser?.climberId && isCoachRoleValue(window.currentUser?.role);
+  const payload = {
+    id: 'log_' + Date.now() + '_' + Math.random().toString(36).slice(2,6),
+    date: dateStr,
+    type: 'autre',
+    minutes: 60,
+    intensity: 3,
+    shape: 'normal',
+    location: '',
+    support: '',
+    notes: '',
+    ascents: [],
+    bNoGrade: {},
+    planned: true,
+    bankRef: null,
+    flexGoal: 'libre',
+    source: isCoachPrescribing ? 'coach' : 'self',
+    assignedByCoachId: isCoachPrescribing ? window.currentUser.id : null
+  };
+  if (!climber.logs) climber.logs = [];
+  climber.logs.push(payload);
+  saveDB();
+  renderCalendar();
+  openDayModal(dateStr);
+}
+window.addPlannedFlexSession = addPlannedFlexSession;
+// Bouton "🎯 Séance libre" du picker (plan-picker-modal) : même point d'entrée que le choix d'une
+// fiche précise (choosePlanPickerBank), mais sans fiche imposée.
+function planPickerFreeChoice() {
+  if (!planPickerDate) return;
+  closeModal('plan-picker-modal');
+  addPlannedFlexSession(planPickerDate);
+}
+window.planPickerFreeChoice = planPickerFreeChoice;
+
 // ═══════════════ CYCLE (fréquence de séances sur une période, ou jour par jour) ═══════════════
 // cycleItems (mode simple) : deux axes indépendants et combinables (retour : "il faut la
 // possibilité de choisir une séance dans le thème, mais il faut aussi que l'athlète puisse choisir
@@ -9892,7 +9941,9 @@ function updateFlexChangeButton(log) {
   if (!btn) return;
   if (log && log.flexGoal) {
     btn.style.display = '';
-    btn.textContent = `🔁 Changer de séance (objectif : ${SB_GOAL_LABELS[log.flexGoal] || log.flexGoal})`;
+    btn.textContent = log.flexGoal === 'libre'
+      ? '🔁 Choisir ma séance'
+      : `🔁 Changer de séance (objectif : ${SB_GOAL_LABELS[log.flexGoal] || log.flexGoal})`;
   } else {
     btn.style.display = 'none';
   }
@@ -10011,12 +10062,25 @@ let flexChoiceLogId = null;
 let flexChoiceObjectiveId = null;
 
 function renderFlexChoiceList(goal) {
+  const isFree = goal === 'libre';
   const goalLabel = SB_GOAL_LABELS[goal] || goal;
-  document.getElementById('flex-choice-goal-label').textContent = goalLabel;
-  const candidates = getBank().filter(s => s.goal === goal);
+  const prefixEl = document.getElementById('flex-choice-prefix');
+  const labelEl = document.getElementById('flex-choice-goal-label');
+  const suffixEl = document.getElementById('flex-choice-suffix');
+  if (prefixEl) prefixEl.style.display = isFree ? 'none' : '';
+  if (labelEl) { labelEl.style.display = isFree ? 'none' : ''; labelEl.textContent = goalLabel; }
+  if (suffixEl) suffixEl.textContent = isFree
+    ? "Choisis la séance de la banque qui te convient le mieux aujourd'hui."
+    : ". Choisis la séance de la banque qui correspond le mieux à ce dont tu disposes aujourd'hui.";
+  // "libre" (séance planifiée sans thème imposé, cf. addPlannedFlexSession) : aucune fiche n'a ce
+  // tag, donc on montre toute la banque plutôt que de filtrer sur s.goal===goal comme pour un vrai
+  // objectif fixé par le coach.
+  const candidates = isFree ? getBank().slice() : getBank().filter(s => s.goal === goal);
   const listEl = document.getElementById('flex-choice-list');
   if (!candidates.length) {
-    listEl.innerHTML = `<div class="empty-state" style="padding:20px"><p>Aucune séance de la banque n'est taguée "${esc(goalLabel)}" pour l'instant. Demande à ton coach d'en ajouter une, ou enregistre une séance normale depuis "Nouvelle séance".</p></div>`;
+    listEl.innerHTML = isFree
+      ? `<div class="empty-state" style="padding:20px"><p>Ta banque de séances est vide — crée une fiche dans "La Mine" avant de pouvoir choisir.</p></div>`
+      : `<div class="empty-state" style="padding:20px"><p>Aucune séance de la banque n'est taguée "${esc(goalLabel)}" pour l'instant. Demande à ton coach d'en ajouter une, ou enregistre une séance normale depuis "Nouvelle séance".</p></div>`;
     return;
   }
   listEl.innerHTML = candidates.map(s => {
@@ -10715,7 +10779,13 @@ const SB_GOAL_LABELS = {
   volume:'Volume endurance', resi:'Résistance', arc:'ARC training', circuit:'Circuit / continuité',
   technique:'Technique pure', dalle:'Travail dalle', devers:'Dévers / compression', coordination:'Coordination / dynos', flasher:'Flash / lecture',
   comp_simulation:'Simulation compét.', onsight:'Onsight / A vue', peaking:'Pic de forme',
-  recuperation:'Récupération', prevention:'Prévention blessures', retour_blessure:'Retour blessure'
+  recuperation:'Récupération', prevention:'Prévention blessures', retour_blessure:'Retour blessure',
+  // Pas un vrai tag d'objectif (aucune fiche de banque n'a goal:'libre') — sentinelle réservée à
+  // "Planifier une séance" (retour : "possibilité de création d'une séance de son choix à
+  // l'athlète") : réutilise tout le mécanisme existant du créneau "objectif libre" (flexGoal +
+  // openFlexChoiceModal/updateFlexChangeButton), mais renderFlexChoiceList affiche TOUTE la banque
+  // au lieu de filtrer par tag puisqu'il n'y a justement aucun tag imposé.
+  libre:'Séance libre'
 };
 const SB_LEVEL_LABELS = {debutant:'Débutant', intermediaire:'Intermédiaire', confirme:'Confirmé', expert:'Expert'};
 const SB_TYPE_TAG_CLASS = {bloc:'type-bloc', voies:'type-voies', falaise:'type-falaise', ppg:'type-ppg', mobilite:'type-mobilite'};
