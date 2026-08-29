@@ -8012,6 +8012,35 @@ async function fpDeleteTest(testId) {
 }
 window.fpDeleteTest = fpDeleteTest;
 
+// ═══════════════ TESTS GÉNÉRAUX → AUTO-LOG CALENDRIER ═══════════════
+// Quand un test (SmartBoard, suspension sur réglette, bras) est enregistré, on crée aussi une
+// entrée dans le carnet/calendrier avec une charge estimée (retour : "que le test s'inscrive
+// automatiquement dans le calendrier avec aussi une charge"). Le test ne dure en réalité que
+// quelques minutes : durée et intensité sont donc fixées par défaut (effort court, proche du
+// max) plutôt que basées sur un vrai chronométrage — la charge se calcule ensuite normalement
+// via la formule session-RPE (durée × intensité), comme n'importe quelle séance "hors escalade".
+// Le tag posé dans les notes sert de clé anti-doublon (persistant après sync, contrairement à un
+// flag client volatile) : un seul log auto par test/jour même si on enregistre plusieurs mesures.
+const TEST_AUTOLOG_MINUTES = 15;
+const TEST_AUTOLOG_INTENSITY = 4;
+function autoLogTestToCalendar(date, logType, label) {
+  const climber = getActive();
+  if (!climber || !date) return;
+  if (!climber.logs) climber.logs = [];
+  const noteTag = `Test ${label} (auto)`;
+  const dup = climber.logs.find(l => l.date === date && l.type === logType && l.notes === noteTag && !l.planned);
+  if (dup) return;
+  climber.logs.push({
+    id: 'log_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+    date, type: logType, minutes: TEST_AUTOLOG_MINUTES, intensity: TEST_AUTOLOG_INTENSITY,
+    shape: 'normal', location: '', support: '', notes: noteTag,
+    ascents: [], bNoGrade: {}, planned: false, source: 'self'
+  });
+  saveDB();
+  if (typeof renderDashboard === 'function') renderDashboard();
+  if (typeof renderCalendar === 'function') renderCalendar();
+}
+
 // ═══════════════ TESTS GÉNÉRAUX — SMARTBOARD ═══════════════
 // Utilise la table générique general_tests (category='doigts', testType='smartboard') — chaque
 // test est une ligne d'historique conservée, jamais écrasée (cf. Finger Profile côté conception).
@@ -8075,6 +8104,7 @@ async function smbSaveTest() {
   try {
     await fetch('/api/general-tests/' + climber.id, { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) });
   } catch (e) { alert("Erreur lors de l'enregistrement."); return; }
+  autoLogTestToCalendar(date, 'doigts', 'SmartBoard');
   ['smb-edge', 'smb-weight', 'smb-max-force', 'smb-ratio', 'smb-imbalance', 'smb-notes'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   await smbFetchHistory();
 }
@@ -8201,6 +8231,7 @@ async function ehSaveTest() {
   try {
     await fetch('/api/general-tests/' + climber.id, { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) });
   } catch (e) { alert("Erreur lors de l'enregistrement."); return; }
+  autoLogTestToCalendar(date, 'doigts', 'Suspension sur réglette');
   ['eh-edge-mm', 'eh-pct-bw', 'eh-notes'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   await ehFetchHistory();
 }
@@ -8287,6 +8318,7 @@ function makeArmTestPage(cfg) {
     try {
       await fetch('/api/general-tests/' + climber.id, { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) });
     } catch (e) { alert("Erreur lors de l'enregistrement."); return; }
+    autoLogTestToCalendar(date, 'musculation', cfg.displayLabel || cfg.label);
     cfg.fields.forEach(f => { const el = document.getElementById(cfg.prefix + '-' + f.id); if (el) el.value = ''; });
     const notesEl = document.getElementById(cfg.prefix + '-notes'); if (notesEl) notesEl.value = '';
     await fetchHistory();
@@ -8314,7 +8346,7 @@ makeArmTestPage({
   historyLine: p => `${p.load ?? '–'} kg`
 });
 makeArmTestPage({
-  prefix: 'pps', testType: 'poussee', label: 'Poussee',
+  prefix: 'pps', testType: 'poussee', label: 'Poussee', displayLabel: 'Poussée',
   fields: [{ id: 'reps', key: 'reps' }, { id: 'weight', key: 'addedWeight', default: 0 }],
   chartKey: 'reps',
   historyLine: p => `${p.reps ?? '–'} réps${p.addedWeight ? ' · +' + p.addedWeight + ' kg' : ''}`
