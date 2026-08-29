@@ -83,6 +83,11 @@ async function initDB() {
       -- médical, juste un signal pour que le coach en tienne compte dans la suite du plan.
       ALTER TABLE logs ADD COLUMN IF NOT EXISTS injury BOOLEAN DEFAULT false;
       ALTER TABLE logs ADD COLUMN IF NOT EXISTS injury_note TEXT DEFAULT '';
+      -- Nom libre pour une séance de type "Autre" (retour : "quand on met autre il faudrait pouvoir
+      -- nommer la séance et que le nom soit visible dans le calendrier") — affiché à la place du
+      -- libellé générique "Autre" partout où on montre une séance individuelle (cf.
+      -- sessionDisplayLabel() côté frontend). Vide/non pertinent pour les autres types.
+      ALTER TABLE logs ADD COLUMN IF NOT EXISTS custom_name TEXT DEFAULT '';
       CREATE INDEX IF NOT EXISTS idx_logs_climber_date ON logs(climber_id, date DESC);
       CREATE TABLE IF NOT EXISTS session_bank (
         id          TEXT PRIMARY KEY,
