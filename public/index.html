@@ -291,6 +291,12 @@ body.preview-mode #sidebar-user { color: var(--accent) !important; font-weight: 
 .btn.primary:hover { background: #245030; }
 .btn.sm { padding: 6px 10px; font-size: 12px; border-radius: var(--r-xs); }
 .btn.danger { color: var(--warm); }
+/* Bouton "toggle" sélectionné (ex. Séance précise/Thème, Jour fixe/libre du cycle, champs
+   guidés/libres de l'IA banque…) : la classe .active était posée par le JS mais jamais stylée pour
+   .btn — les deux options d'un choix à bascule étaient donc visuellement indiscernables. Même
+   traitement que .time-filter-btn.active pour rester cohérent avec le reste de l'appli. */
+.btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn.active:hover { background: var(--accent); }
 .btn.danger:hover { background: var(--warm2); }
 
 /* Grade badge */
