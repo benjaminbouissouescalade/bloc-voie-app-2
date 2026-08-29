@@ -4868,9 +4868,10 @@ function sessionLoad(log) {
   const ref = getRefGrade();
   const al = (log.ascents||[]).reduce((s,a)=>s+ascentLoad(a,ref),0);
   const bl = boulderLoad(log.bNoGrade||{}, ref);
-  // Séances hors escalade (pas d'ascensions/blocs saisis) : charge = durée × intensité (méthode session-RPE)
+  // Séances hors escalade (pas d'ascensions/blocs saisis), dont footing : charge = durée × intensité
+  // (méthode session-RPE) — la distance (km) du footing est juste informative dans b_no_grade.
   const cfg = SESSION_CONFIG[log.type] || SESSION_CONFIG.autre;
-  const srpe = (cfg.extraPanel === 'ppg') ? (log.minutes||0) * (log.intensity||3) * SESSION_RPE_MULT : 0;
+  const srpe = (cfg.extraPanel === 'ppg' || cfg.extraPanel === 'footing') ? (log.minutes||0) * (log.intensity||3) * SESSION_RPE_MULT : 0;
   return Math.round(al+bl+srpe);
 }
 
@@ -9608,7 +9609,7 @@ const SESSION_CONFIG = {
   prehension:    { showAscents: false, extraPanel: 'ppg',    defaultMinutes: 60,  loadLabel: '' },
   musculation:   { showAscents: false, extraPanel: 'ppg',    defaultMinutes: 60,  loadLabel: '' },
   cardio:        { showAscents: false, extraPanel: 'ppg',    defaultMinutes: 45,  loadLabel: '' },
-  footing:       { showAscents: false, extraPanel: 'ppg',    defaultMinutes: 40,  loadLabel: '' },
+  footing:       { showAscents: false, extraPanel: 'footing',defaultMinutes: 40,  loadLabel: '' },
   // ── Récupération ──
   mobilite:      { showAscents: false, extraPanel: 'ppg',    defaultMinutes: 30,  loadLabel: '' },
   yoga:          { showAscents: false, extraPanel: 'ppg',    defaultMinutes: 60,  loadLabel: '' },
@@ -9641,7 +9642,7 @@ function updateSessionTypeUI(savedBNoGrade) {
   // ── Boulder card label ──
   const bLabel = document.getElementById('s-load-boulder-label');
   const bCard = document.getElementById('s-load-boulder-card');
-  if (bCard) bCard.style.display = cfg.extraPanel === 'ppg' ? 'none' : '';
+  if (bCard) bCard.style.display = (cfg.extraPanel === 'ppg' || cfg.extraPanel === 'footing') ? 'none' : '';
   if (bLabel) bLabel.textContent = cfg.loadLabel || 'Charge complémentaire';
 
   // ── Extra panel content ──
@@ -9651,6 +9652,23 @@ function updateSessionTypeUI(savedBNoGrade) {
     panel.innerHTML = `
       <div class="panel-header"><span class="panel-title">Séance hors escalade</span></div>
       <p style="font-size:13px;color:var(--muted);margin-bottom:12px">PPG, mobilité, musculation… pas d'ascensions à saisir. La charge se calcule automatiquement à partir de la durée × l'intensité renseignées ci-dessus — rien d'autre à remplir.</p>
+      <div class="form-group" style="margin:0">
+        <label class="form-label">Charge estimée séance</label>
+        <input class="form-control" id="s-b-preview" disabled value="—">
+      </div>`;
+  } else if (cfg.extraPanel === 'footing') {
+    // Footing : mêmes bases que "hors escalade" (charge = durée × intensité, déjà saisies plus
+    // haut dans le formulaire) + un champ distance propre à la course à pied (retour : "rajoute
+    // temps et km pour footing" — le temps existe déjà via le champ Durée générique, seul le km
+    // manquait). Stocké dans b_no_grade.distanceKm comme les autres panneaux complémentaires.
+    const distanceKm = bData.distanceKm !== undefined ? bData.distanceKm : '';
+    panel.innerHTML = `
+      <div class="panel-header"><span class="panel-title">Footing</span></div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px">Pas d'ascensions à saisir. La charge se calcule automatiquement à partir de la durée × l'intensité renseignées ci-dessus.</p>
+      <div class="form-group">
+        <label class="form-label">Distance parcourue (km)</label>
+        <input class="form-control" type="number" step="0.1" min="0" id="s-b-distance-km" value="${esc(String(distanceKm))}" placeholder="Ex. 8.5">
+      </div>
       <div class="form-group" style="margin:0">
         <label class="form-label">Charge estimée séance</label>
         <input class="form-control" id="s-b-preview" disabled value="—">
@@ -10303,8 +10321,10 @@ function updateLoadPreview(){
 
   // Panneau complémentaire (bloc non coté / volume additionnel / séance hors escalade)
   let bLoad;
-  if (cfg.extraPanel === 'ppg') {
-    // Séance hors escalade : charge = durée × intensité (méthode session-RPE), pas de saisie manuelle
+  if (cfg.extraPanel === 'ppg' || cfg.extraPanel === 'footing') {
+    // Séance hors escalade (dont footing) : charge = durée × intensité (méthode session-RPE),
+    // pas de saisie manuelle — la distance (km) du footing est informative, elle n'entre pas
+    // dans le calcul de charge.
     const minutes = fieldVal('s-minutes', 0);
     const intensity = fieldVal('s-intensity', 3);
     bLoad = Math.round(minutes * intensity * SESSION_RPE_MULT);
@@ -10394,7 +10414,9 @@ document.getElementById('save-session-btn').onclick=()=>{
     moyenSent:       fieldVal('s-b-moyen', 0),
     travailSent:     fieldVal('s-b-travail', 0),
     travailTries:    fieldVal('s-b-travail-tries', 0)
-  } : sCfg.extraPanel === 'ppg' ? {} : {
+  } : sCfg.extraPanel === 'ppg' ? {} : sCfg.extraPanel === 'footing' ? {
+    distanceKm: fieldVal('s-b-distance-km', 0)
+  } : {
     sent:fieldVal('s-b-sent', 0),
     tries:fieldVal('s-b-tries', 0),
     progress:fieldVal('s-b-progress', 60),
