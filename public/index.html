@@ -2414,6 +2414,18 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
         <input class="form-control" type="number" step="0.1" id="smb-weight">
       </div>
     </div>
+    <!-- Type de préhension (retour : "il faut pouvoir choisir et trier les résultats par
+         préhension") : détermine fortement la force produite, donc indispensable pour comparer des
+         tests entre eux (voir smbRenderFilters / filtre d'historique). -->
+    <div class="form-group">
+      <label class="form-label">Type de préhension</label>
+      <select class="form-control" id="smb-grip">
+        <option value="">— Non précisé —</option>
+        <option value="tendu">Tendu</option>
+        <option value="semi_arque">Semi-arqué</option>
+        <option value="arque">Arqué</option>
+      </select>
+    </div>
     <!-- Les 3 champs suivants sont lus directement sur l'écran de l'appli SmartBoard après le test
          (retour : "voici les données que je veux que l'on rentre : poids, force max en N, rapport
          force poids, déséquilibre") — pas de calcul de notre côté, on recopie ce qu'affiche l'appli. -->
@@ -2441,6 +2453,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   <div class="panel">
     <div class="panel-header">
       <span class="panel-title">Historique</span>
+      <span class="panel-sub" id="smb-filter-wrap"></span>
     </div>
     <div id="smb-history-list"><p style="font-size:13px;color:var(--muted)">Chargement…</p></div>
   </div>
@@ -2474,6 +2487,17 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
         <input class="form-control" type="number" step="0.1" id="eh-pct-bw">
       </div>
     </div>
+    <!-- Type de préhension (retour : "il faut pouvoir choisir et trier les résultats par
+         préhension") : filtrable dans l'historique via ehSetGripFilter(). -->
+    <div class="form-group">
+      <label class="form-label">Type de préhension</label>
+      <select class="form-control" id="eh-grip">
+        <option value="">— Non précisé —</option>
+        <option value="tendu">Tendu</option>
+        <option value="semi_arque">Semi-arqué</option>
+        <option value="arque">Arqué</option>
+      </select>
+    </div>
     <div class="form-group">
       <label class="form-label">Notes</label>
       <textarea class="form-control" id="eh-notes" rows="2"></textarea>
@@ -2485,6 +2509,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     <div class="panel-header">
       <span class="panel-title">Historique</span>
       <span class="panel-sub" id="eh-filter-wrap"></span>
+      <span class="panel-sub" id="eh-grip-filter-wrap"></span>
     </div>
     <div id="eh-history-list"><p style="font-size:13px;color:var(--muted)">Chargement…</p></div>
   </div>
@@ -8026,6 +8051,10 @@ window.fpDeleteTest = fpDeleteTest;
 // flag client volatile) : un seul log auto par test/jour même si on enregistre plusieurs mesures.
 const TEST_AUTOLOG_MINUTES = 15;
 const TEST_AUTOLOG_INTENSITY = 4;
+// Type de préhension (retour : "il faut pouvoir choisir et trier les résultats par préhension,
+// Tendu, semi arqué et arqué") — partagé entre SmartBoard et Suspension sur réglette, les deux
+// tests de force doigts où la position des doigts change fortement la force produite.
+const GRIP_TYPES = { tendu: 'Tendu', semi_arque: 'Semi-arqué', arque: 'Arqué' };
 function autoLogTestToCalendar(date, logType, label) {
   const climber = getActive();
   if (!climber || !date) return;
@@ -8048,6 +8077,7 @@ function autoLogTestToCalendar(date, logType, label) {
 // Utilise la table générique general_tests (category='doigts', testType='smartboard') — chaque
 // test est une ligne d'historique conservée, jamais écrasée (cf. Finger Profile côté conception).
 let smbHistoryCache = [];
+let smbFilterGrip = 'all';
 
 async function renderSmartboard() {
   const climber = getActive();
@@ -8055,6 +8085,7 @@ async function renderSmartboard() {
   if (nameEl) nameEl.textContent = climber?.name || '';
   const dateEl = document.getElementById('smb-date');
   if (dateEl && !dateEl.value) dateEl.value = new Date().toISOString().slice(0, 10);
+  smbFilterGrip = 'all';
   await smbFetchHistory();
 }
 
@@ -8065,18 +8096,47 @@ async function smbFetchHistory() {
     const r = await fetch('/api/general-tests/' + climber.id + '?type=smartboard', { headers: authHeaders() });
     smbHistoryCache = r.ok ? await r.json() : [];
   } catch (e) { smbHistoryCache = []; }
+  smbRenderFilters();
   smbRenderHistory();
+}
+
+function smbGripTypes() {
+  return [...new Set(smbHistoryCache.map(t => t.payload?.gripType).filter(v => v))];
+}
+
+function smbRenderFilters() {
+  const wrap = document.getElementById('smb-filter-wrap');
+  if (!wrap) return;
+  const grips = smbGripTypes();
+  if (!grips.length) { wrap.innerHTML = ''; return; }
+  wrap.innerHTML = `<select class="form-control" style="display:inline-block;width:auto;padding:2px 6px;font-size:12px" onchange="smbSetGripFilter(this.value)">
+    <option value="all"${smbFilterGrip === 'all' ? ' selected' : ''}>Toutes préhensions</option>
+    ${grips.map(g => `<option value="${g}"${smbFilterGrip === g ? ' selected' : ''}>${GRIP_TYPES[g] || g}</option>`).join('')}
+  </select>`;
+}
+
+function smbSetGripFilter(v) {
+  smbFilterGrip = v;
+  smbRenderHistory();
+}
+window.smbSetGripFilter = smbSetGripFilter;
+
+function smbFilteredList() {
+  if (smbFilterGrip === 'all') return smbHistoryCache;
+  return smbHistoryCache.filter(t => t.payload?.gripType === smbFilterGrip);
 }
 
 function smbRenderHistory() {
   const el = document.getElementById('smb-history-list');
   if (!el) return;
-  if (!smbHistoryCache.length) { el.innerHTML = `<p style="font-size:13px;color:var(--muted)">Aucun test enregistré pour l'instant.</p>`; return; }
-  el.innerHTML = smbHistoryCache.map(t => {
+  const list = smbFilteredList();
+  if (!list.length) { el.innerHTML = `<p style="font-size:13px;color:var(--muted)">Aucun test enregistré pour l'instant.</p>`; return; }
+  el.innerHTML = list.map(t => {
     const p = t.payload || {};
+    const gripLabel = p.gripType ? GRIP_TYPES[p.gripType] || p.gripType : '';
     return `<div class="fp-history-row" style="cursor:default">
       <div style="flex:1">
-        <div style="font-size:14px;font-weight:600">${fmtDate(t.testDate)}${p.edge ? ' · ' + esc(p.edge) : ''}</div>
+        <div style="font-size:14px;font-weight:600">${fmtDate(t.testDate)}${p.edge ? ' · ' + esc(p.edge) : ''}${gripLabel ? ' · ' + esc(gripLabel) : ''}</div>
         <div style="font-size:12px;color:var(--muted)">${p.maxForceN != null ? p.maxForceN + ' N' : '–'}${p.weightKg != null ? ' · ' + p.weightKg + ' kg' : ''}${p.ratio != null ? ' · ratio ' + p.ratio : ''}${p.imbalancePct != null ? ' · déséq. ' + p.imbalancePct + '%' : ''}</div>
       </div>
       <button class="btn" style="padding:4px 8px;font-size:11px" onclick="smbDeleteTest('${t.id}')">Suppr.</button>
@@ -8091,6 +8151,7 @@ async function smbSaveTest() {
   if (!date) { alert('Renseigne une date.'); return; }
   const payload = {
     edge: document.getElementById('smb-edge').value.trim(),
+    gripType: document.getElementById('smb-grip').value || null,
     weightKg: parseFloat(document.getElementById('smb-weight').value) || null,
     maxForceN: parseFloat(document.getElementById('smb-max-force').value) || null,
     ratio: parseFloat(document.getElementById('smb-ratio').value) || null,
@@ -8108,7 +8169,7 @@ async function smbSaveTest() {
     await fetch('/api/general-tests/' + climber.id, { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) });
   } catch (e) { alert("Erreur lors de l'enregistrement."); return; }
   autoLogTestToCalendar(date, 'doigts', 'SmartBoard');
-  ['smb-edge', 'smb-weight', 'smb-max-force', 'smb-ratio', 'smb-imbalance', 'smb-notes'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  ['smb-edge', 'smb-grip', 'smb-weight', 'smb-max-force', 'smb-ratio', 'smb-imbalance', 'smb-notes'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   await smbFetchHistory();
 }
 window.smbSaveTest = smbSaveTest;
@@ -8129,6 +8190,7 @@ window.smbDeleteTest = smbDeleteTest;
 // entre réglettes de tailles différentes n'a pas de sens physiologique direct).
 let ehHistoryCache = [];
 let ehFilterEdge = 'all';
+let ehFilterGrip = 'all';
 
 async function renderEdgeHang() {
   const climber = getActive();
@@ -8137,6 +8199,7 @@ async function renderEdgeHang() {
   const dateEl = document.getElementById('eh-date');
   if (dateEl && !dateEl.value) dateEl.value = new Date().toISOString().slice(0, 10);
   ehFilterEdge = 'all';
+  ehFilterGrip = 'all';
   await ehFetchHistory();
 }
 
@@ -8148,12 +8211,17 @@ async function ehFetchHistory() {
     ehHistoryCache = r.ok ? await r.json() : [];
   } catch (e) { ehHistoryCache = []; }
   ehRenderFilters();
+  ehRenderGripFilter();
   ehRenderHistory();
   ehRenderChart();
 }
 
 function ehEdgeSizes() {
   return [...new Set(ehHistoryCache.map(t => t.payload?.edgeMm).filter(v => v != null))].sort((a, b) => a - b);
+}
+
+function ehGripTypes() {
+  return [...new Set(ehHistoryCache.map(t => t.payload?.gripType).filter(v => v))];
 }
 
 function ehRenderFilters() {
@@ -8167,6 +8235,26 @@ function ehRenderFilters() {
   </select>`;
 }
 
+// Filtre par type de préhension (retour : "il faut pouvoir choisir et trier les résultats par
+// préhension") — indépendant du filtre par taille de réglette ci-dessus, les deux se combinent.
+function ehRenderGripFilter() {
+  const wrap = document.getElementById('eh-grip-filter-wrap');
+  if (!wrap) return;
+  const grips = ehGripTypes();
+  if (!grips.length) { wrap.innerHTML = ''; return; }
+  wrap.innerHTML = `<select class="form-control" style="display:inline-block;width:auto;padding:2px 6px;font-size:12px" onchange="ehSetGripFilter(this.value)">
+    <option value="all"${ehFilterGrip === 'all' ? ' selected' : ''}>Toutes préhensions</option>
+    ${grips.map(g => `<option value="${g}"${ehFilterGrip === g ? ' selected' : ''}>${GRIP_TYPES[g] || g}</option>`).join('')}
+  </select>`;
+}
+
+function ehSetGripFilter(v) {
+  ehFilterGrip = v;
+  ehRenderHistory();
+  ehRenderChart();
+}
+window.ehSetGripFilter = ehSetGripFilter;
+
 function ehSetFilter(v) {
   ehFilterEdge = v;
   ehRenderHistory();
@@ -8175,8 +8263,11 @@ function ehSetFilter(v) {
 window.ehSetFilter = ehSetFilter;
 
 function ehFilteredList() {
-  if (ehFilterEdge === 'all') return ehHistoryCache;
-  return ehHistoryCache.filter(t => String(t.payload?.edgeMm) === String(ehFilterEdge));
+  return ehHistoryCache.filter(t => {
+    if (ehFilterEdge !== 'all' && String(t.payload?.edgeMm) !== String(ehFilterEdge)) return false;
+    if (ehFilterGrip !== 'all' && t.payload?.gripType !== ehFilterGrip) return false;
+    return true;
+  });
 }
 
 function ehRenderHistory() {
@@ -8186,9 +8277,10 @@ function ehRenderHistory() {
   if (!list.length) { el.innerHTML = `<p style="font-size:13px;color:var(--muted)">Aucun test enregistré pour l'instant.</p>`; return; }
   el.innerHTML = list.map(t => {
     const p = t.payload || {};
+    const gripLabel = p.gripType ? GRIP_TYPES[p.gripType] || p.gripType : '';
     return `<div class="fp-history-row" style="cursor:default">
       <div style="flex:1">
-        <div style="font-size:14px;font-weight:600">${fmtDate(t.testDate)}${p.edgeMm != null ? ' · ' + p.edgeMm + ' mm' : ''}</div>
+        <div style="font-size:14px;font-weight:600">${fmtDate(t.testDate)}${p.edgeMm != null ? ' · ' + p.edgeMm + ' mm' : ''}${gripLabel ? ' · ' + esc(gripLabel) : ''}</div>
         <div style="font-size:12px;color:var(--muted)">${p.pctBw != null ? p.pctBw + '% du poids de corps' : ''}</div>
       </div>
       <button class="btn" style="padding:4px 8px;font-size:11px" onclick="ehDeleteTest('${t.id}')">Suppr.</button>
@@ -8228,14 +8320,14 @@ async function ehSaveTest() {
     category: 'doigts',
     testType: 'edge_hang',
     testDate: date,
-    payload: { edgeMm, pctBw },
+    payload: { edgeMm, pctBw, gripType: document.getElementById('eh-grip').value || null },
     notes: document.getElementById('eh-notes').value.trim()
   };
   try {
     await fetch('/api/general-tests/' + climber.id, { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) });
   } catch (e) { alert("Erreur lors de l'enregistrement."); return; }
   autoLogTestToCalendar(date, 'doigts', 'Suspension sur réglette');
-  ['eh-edge-mm', 'eh-pct-bw', 'eh-notes'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  ['eh-edge-mm', 'eh-pct-bw', 'eh-grip', 'eh-notes'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   await ehFetchHistory();
 }
 window.ehSaveTest = ehSaveTest;
