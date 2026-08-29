@@ -2674,29 +2674,13 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   </div>
 
   <!-- ─── CREW ─── -->
+  <!-- Le crew n'a plus de création/code à part : il se compose automatiquement de tes partenaires
+       (onglet Feed) — retour athlète "trop de manipulation" pour connecter la même personne deux
+       fois. Voir ensureAutoCrew() côté backend (src/routes/crews.js), appelée dès qu'un partenaire
+       est ajouté/retiré et à chaque chargement de cet onglet. -->
   <div class="community-subpage" id="community-tab-crew" style="display:none">
-    <div class="panel">
-      <div class="panel-header"><span class="panel-title">Rejoindre ou créer un crew</span></div>
-      <div class="form-row form-row-2">
-        <div class="form-group">
-          <label class="form-label">Créer un nouveau crew</label>
-          <div style="display:flex;gap:8px">
-            <input class="form-control" type="text" id="crew-new-name" placeholder="Ex. Les Grimpeurs du Mardi">
-            <button class="btn primary" onclick="crewCreate()">Créer</button>
-          </div>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Rejoindre avec un code</label>
-          <div style="display:flex;gap:8px">
-            <input class="form-control" type="text" id="crew-join-code" placeholder="Ex. AB3D9K" style="text-transform:uppercase">
-            <button class="btn primary" onclick="crewJoin()">Rejoindre</button>
-          </div>
-        </div>
-      </div>
-      <div id="crew-action-error" style="display:none;background:var(--warm2);color:var(--warm);border-radius:8px;padding:10px;font-size:13px"></div>
-      <div id="crew-action-success" style="display:none;background:var(--accent2);color:var(--accent);border-radius:8px;padding:10px;font-size:13px"></div>
-    </div>
-
+    <div id="crew-action-error" style="display:none;background:var(--warm2);color:var(--warm);border-radius:8px;padding:10px;font-size:13px;margin-bottom:12px"></div>
+    <div id="crew-action-success" style="display:none;background:var(--accent2);color:var(--accent);border-radius:8px;padding:10px;font-size:13px;margin-bottom:12px"></div>
     <div id="crew-list-container"></div>
   </div>
 
@@ -8885,17 +8869,19 @@ async function renderCommunity() {
     if (!r.ok) { container.innerHTML = `<p style="color:var(--warm);font-size:13px">${esc(crews.error || 'Erreur de chargement')}</p>`; return; }
     crewCache = crews;
     if (!crews.length) {
-      container.innerHTML = `<div class="panel"><p style="font-size:13px;color:var(--muted)">Tu ne fais partie d'aucun crew pour l'instant — crée-en un ou rejoins celui d'un(e) coéquipier(ère) avec son code ci-dessus.</p></div>`;
+      container.innerHTML = `<div class="panel"><p style="font-size:13px;color:var(--muted)">Ton crew se remplit automatiquement avec tes partenaires — connecte-toi à un(e) coéquipier(ère) dans l'onglet Feed pour le voir apparaître ici.</p></div>`;
       return;
     }
     container.innerHTML = crews.map(c => `
       <div class="crew-card">
         <div class="panel-header">
-          <span class="panel-title">${esc(c.name)}</span>
-          <div style="display:flex;gap:8px">
-            <button class="btn sm" onclick="crewGenerateInvite('${c.id}')">+ Inviter</button>
-            <button class="btn sm danger" onclick="crewLeaveConfirm('${c.id}')">Quitter</button>
-          </div>
+          <span class="panel-title">${c.auto ? '👥 Mon crew' : esc(c.name)}</span>
+          ${c.auto
+            ? `<span style="font-size:12px;color:var(--muted)">= tes partenaires</span>`
+            : `<div style="display:flex;gap:8px">
+                 <button class="btn sm" onclick="crewGenerateInvite('${c.id}')">+ Inviter</button>
+                 <button class="btn sm danger" onclick="crewLeaveConfirm('${c.id}')">Quitter</button>
+               </div>`}
         </div>
         <div id="crew-board-${c.id}"><p style="font-size:13px;color:var(--muted)">Chargement…</p></div>
         <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px">
