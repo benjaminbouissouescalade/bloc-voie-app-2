@@ -1264,6 +1264,11 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <div class="panel">
         <div class="panel-header"><span class="panel-title">Informations générales</span></div>
         <input type="hidden" id="edit-log-id">
+        <!-- Rappel affiché uniquement tant que la séance est encore planifiée pour une date future
+             (retour : "le coach devrait pas avoir ça [bobo, ascensions, charge...] quand c'est de
+             la planification") — cf. applyPlanningView(). Les champs de compte-rendu réapparaissent
+             d'eux-mêmes le jour même. -->
+        <p id="s-planning-hint" style="display:none;font-size:12px;color:var(--muted);background:var(--surface2);border-radius:var(--r-sm);padding:8px 12px;margin:0 0 14px">📅 Séance planifiée — les champs de compte-rendu (bobo, ascensions, charge) apparaîtront à l'ouverture le jour même.</p>
         <div class="form-row form-row-2">
           <div class="form-group" style="margin:0">
             <label class="form-label">Date</label>
@@ -1391,7 +1396,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
              petite douleur est apparue. Pas un diagnostic médical, juste un signal discret — une
              ligne sur le calendrier + une remontée dans le fil d'activité du coach (voir
              renderCoachFeed / buildCalCell). La note reste facultative. -->
-        <div class="form-group">
+        <div class="form-group" id="s-injury-group">
           <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;cursor:pointer">
             <input type="checkbox" id="s-injury" onchange="document.getElementById('s-injury-note-row').style.display=this.checked?'':'none'" style="width:16px;height:16px">
             🩹 Petite douleur / bobo pendant ou après cette séance
@@ -1438,7 +1443,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
         </div>
         <div id="s-checklist-fill-list" style="display:flex;flex-direction:column;gap:6px"></div>
       </div>
-      <div class="panel">
+      <div class="panel" id="s-ascents-panel">
         <div class="panel-header">
           <span class="panel-title">Ascensions cotées</span>
           <button class="btn sm primary" id="add-ascent-btn">+ Ascension</button>
@@ -1449,7 +1454,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
         </div>
       </div>
 
-      <div class="panel">
+      <div class="panel" id="s-charge-panel">
         <div class="panel-header"><span class="panel-title">Récapitulatif charge</span></div>
 
         <!-- Charge totale — toujours visible -->
@@ -10008,6 +10013,7 @@ function newSession(date=null){
   document.getElementById('s-together-panel').style.display='none';
   renderSessionComments(null);
   renderChecklistFill(null, null);
+  applyPlanningView(null);
   updateSessionTypeUI({});
   renderAscentsEditor();
   if (date) sNewSessionDateLocked = true;
@@ -10090,6 +10096,29 @@ function editSession(id){
   updateFlexChangeButton(log);
   renderSessionComments(log);
   renderChecklistFill(log.bankRef ? getBank().find(b=>b.id===log.bankRef) : null, log);
+  applyPlanningView(log);
+}
+
+// Une séance encore PLANIFIÉE pour une date FUTURE n'a par définition pas encore eu lieu : les
+// champs de compte-rendu (bobo, ascensions cotées, charge, dictée vocale, checklist à cocher)
+// n'ont donc rien à afficher et n'induisent qu'en erreur celui qui prépare/consulte l'assignation
+// (retour : "le coach devrait pas avoir ça quand c'est de la planification"). Dès que la date
+// arrive (ou si la séance n'est plus "planned"), saveCurrentSession() la fait basculer "faite" et
+// ce même formulaire redevient la vue complète de compte-rendu — même log, même écran, seule la
+// date tranche.
+function isPlanningView(log) { return !!(log && log.planned && isFutureDateStr(log.date)); }
+function applyPlanningView(log) {
+  const planning = isPlanningView(log);
+  ['s-injury-group', 's-ascents-panel', 's-charge-panel', 's-voice-panel'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = planning ? 'none' : '';
+  });
+  if (planning) {
+    const chk = document.getElementById('s-checklist-panel');
+    if (chk) chk.style.display = 'none';
+  }
+  const hint = document.getElementById('s-planning-hint');
+  if (hint) hint.style.display = planning ? '' : 'none';
 }
 
 // Fil de commentaires coach ↔ athlète. Masqué uniquement pour une séance déjà existante mais
