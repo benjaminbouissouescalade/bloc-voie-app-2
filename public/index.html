@@ -1426,6 +1426,18 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     </div>
 
     <div>
+      <!-- Checklist d'une fiche banque type "Voies par niveau" / "Bloc par couleur" — visible
+           uniquement si la séance référence une fiche (bankRef) qui a une checklist non vide. La
+           progression (quelles lignes sont cochées) est propre à CETTE instance de séance, stockée
+           sur le log (checklistDone), pas sur la fiche elle-même. Rendu par renderChecklistFill(),
+           appelé depuis editSession()/newSession(). -->
+      <div class="panel" id="s-checklist-panel" style="display:none">
+        <div class="panel-header">
+          <span class="panel-title">🎯 Checklist de la séance</span>
+          <span style="font-size:12px;color:var(--muted)" id="s-checklist-progress"></span>
+        </div>
+        <div id="s-checklist-fill-list" style="display:flex;flex-direction:column;gap:6px"></div>
+      </div>
       <div class="panel">
         <div class="panel-header">
           <span class="panel-title">Ascensions cotées</span>
@@ -3431,6 +3443,20 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <label class="form-label">🏷️ Filtres transversaux <span style="font-weight:400;color:var(--muted)">(optionnel, plusieurs possibles)</span></label>
       <div id="sb-crosstag-picker" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px"></div>
     </div>
+    <!-- Checklist de voies/blocs à valider un par un — visible seulement pour une fiche de type
+         "Voies salle" ou "Bloc salle" (retour : "créer 2 séances, une voie l'autre bloc, où l'on
+         pourrait indiquer des voies ou bloc par niveau que l'athlète devra faire, et il cochera
+         pour valider"). Une ligne = une voie/bloc à faire ; répéter la même cotation/couleur pour
+         plusieurs voies/blocs au même niveau (cf. sbChecklistItems / sbChecklistAddItem). -->
+    <div class="form-group" id="sb-checklist-group" style="display:none">
+      <label class="form-label">🎯 Checklist à valider (voies ou blocs, un par un)</label>
+      <p style="font-size:11px;color:var(--muted);margin:0 0 8px">L'athlète cochera chaque ligne au fur et à mesure. Ajoute une ligne par voie/bloc — répète le même niveau autant de fois que nécessaire (ex. deux fois "7a" pour deux voies à ce niveau).</p>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+        <select class="form-control" id="sb-checklist-add-select" style="max-width:200px"></select>
+        <button type="button" class="btn sm primary" onclick="sbChecklistAddItem()">+ Ajouter</button>
+      </div>
+      <div id="sb-checklist-list" style="display:flex;flex-direction:column;gap:6px"></div>
+    </div>
     <div class="form-group coach-only-btn" id="sb-ai-review-group">
       <label class="form-label" style="margin-bottom:6px">✦ Avis de l'IA sur cette fiche</label>
       <div class="sb-ai-chat">
@@ -3856,6 +3882,18 @@ Utilise les raccourcis ci-dessus ou pose-moi directement une question. Par exemp
 // ═══════════════ DATA & CONSTANTS ═══════════════
 const GRADES = ["4a","4a+","4b","4b+","4c","4c+","5a","5a+","5b","5b+","5c","5c+","6a","6a+","6b","6b+","6c","6c+","7a","7a+","7b","7b+","7c","7c+","8a","8a+","8b","8b+","8c","8c+","9a","9a+"];
 const GRADE_IDX = Object.fromEntries(GRADES.map((g,i)=>[g,i]));
+// Système de couleurs classique des salles de bloc (facile → dur). Utilisé par la checklist de
+// fiche "Bloc par couleur" (cf. sbChecklistItems) — chaque salle mappe ses prises à sa façon, donc
+// on ne prétend pas donner un niveau universel, juste un jeu de couleurs standard à cocher.
+const BLOC_COLORS = [
+  { key: 'jaune',  label: 'Jaune',  hex: '#e8c400' },
+  { key: 'orange', label: 'Orange', hex: '#e8821c' },
+  { key: 'vert',   label: 'Vert',   hex: '#2f9e44' },
+  { key: 'bleu',   label: 'Bleu',   hex: '#1c7ed6' },
+  { key: 'rouge',  label: 'Rouge',  hex: '#e03131' },
+  { key: 'noir',   label: 'Noir',   hex: '#212529' },
+  { key: 'violet', label: 'Violet', hex: '#7048e8' }
+];
 const CLIMBER_COLORS = ['#2d5a3d','#1a4a7a','#b07a10','#c4501a','#5a2d82','#7a1a3d','#1a6a7a','#4a5a1a','#7a3a1a','#2a2a7a'];
 
 const SESSION_TYPES = {
@@ -9969,6 +10007,7 @@ function newSession(date=null){
   document.getElementById('delete-session-btn').style.display='none';
   document.getElementById('s-together-panel').style.display='none';
   renderSessionComments(null);
+  renderChecklistFill(null, null);
   updateSessionTypeUI({});
   renderAscentsEditor();
   if (date) sNewSessionDateLocked = true;
@@ -10050,6 +10089,7 @@ function editSession(id){
   applyPrescriptionLock(log);
   updateFlexChangeButton(log);
   renderSessionComments(log);
+  renderChecklistFill(log.bankRef ? getBank().find(b=>b.id===log.bankRef) : null, log);
 }
 
 // Fil de commentaires coach ↔ athlète. Masqué uniquement pour une séance déjà existante mais
@@ -10076,6 +10116,42 @@ function renderSessionComments(log) {
     </div>`;
   }).join('') : '<p style="font-size:12px;color:var(--muted)">Aucun commentaire pour l\'instant.</p>';
 }
+
+// Checklist d'une fiche banque type "Voies par niveau" / "Bloc par couleur" (cf. sb-checklist-*
+// dans l'éditeur de fiche). N'apparaît que si la séance référence une fiche (bankRef) qui a
+// effectivement une checklist — la plupart des fiches n'en ont pas. La progression est stockée
+// sur le LOG (checklistDone: [ids cochés]), pas sur la fiche : une même fiche réutilisée par
+// plusieurs athlètes ou plusieurs fois repart à zéro à chaque fois.
+function renderChecklistFill(bankCard, log) {
+  const panel = document.getElementById('s-checklist-panel');
+  const listEl = document.getElementById('s-checklist-fill-list');
+  const progEl = document.getElementById('s-checklist-progress');
+  if (!panel || !listEl) return;
+  const items = bankCard?.checklist || [];
+  if (!items.length) { panel.style.display = 'none'; return; }
+  panel.style.display = '';
+  const done = new Set(log?.checklistDone || []);
+  if (progEl) progEl.textContent = `${done.size}/${items.length} validées`;
+  listEl.innerHTML = items.map((it, idx) => {
+    const checked = done.has(it.id);
+    return `<label style="display:flex;align-items:center;gap:10px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:${checked?'var(--accent2)':'var(--surface2)'};cursor:pointer">
+      <input type="checkbox" ${checked?'checked':''} onchange="toggleChecklistItem('${it.id}')" style="width:16px;height:16px;accent-color:var(--accent);flex-shrink:0">
+      <span style="font-size:13px">${idx+1}. ${checklistItemLabelHtml(it, bankCard.type)}</span>
+    </label>`;
+  }).join('');
+}
+function toggleChecklistItem(itemId) {
+  if (!editingId) return;
+  const log = (getActive().logs||[]).find(l => l.id === editingId);
+  if (!log) return;
+  const doneSet = new Set(log.checklistDone || []);
+  if (doneSet.has(itemId)) doneSet.delete(itemId); else doneSet.add(itemId);
+  log.checklistDone = Array.from(doneSet);
+  saveDB();
+  const bankCard = log.bankRef ? getBank().find(b=>b.id===log.bankRef) : null;
+  renderChecklistFill(bankCard, log);
+}
+window.toggleChecklistItem = toggleChecklistItem;
 
 // Si la séance n'existe pas encore côté client (editingId vide, formulaire "Nouvelle séance"
 // jamais enregistré), l'enregistre d'abord silencieusement — via saveCurrentSession(), la même
@@ -10507,6 +10583,10 @@ function saveCurrentSession() {
     ...(existingLog?.cycleId ? { cycleId: existingLog.cycleId, cycleName: existingLog.cycleName } : {}),
     ...(existingLog?.bankRef ? { bankRef: existingLog.bankRef } : {}),
     ...(existingLog?.comments ? { comments: existingLog.comments } : {}),
+    // Idem pour la progression de checklist (cf. toggleChecklistItem) : ce formulaire n'a pas de
+    // champ dédié, donc sans ça chaque sauvegarde via "Enregistrer" effacerait les cases déjà
+    // cochées par l'athlète.
+    ...(existingLog?.checklistDone ? { checklistDone: existingLog.checklistDone } : {}),
     // Préserve aussi source/assignedByCoachId (séance prescrite par un coach) et flexGoal/
     // objectiveId (créneau à thème / objectif de période) — ce formulaire générique n'a pas non
     // plus de champ pour ça, et les reconstruire à vide à chaque sauvegarde effaçait silencieusement
@@ -11782,6 +11862,64 @@ async function sbDeleteFromDetail(id) {
 }
 window.sbDeleteFromDetail = sbDeleteFromDetail;
 
+// Checklist de fiche (voies par cotation / blocs par couleur) : état de l'éditeur, séparé de
+// sbChecklistItems ne persiste que via sbSave() (payload.checklist), et n'a de sens que pour les
+// fiches type 'voies' ou 'bloc' — cf. panneau #sb-checklist-group. Pattern d'ajout/suppression de
+// ligne calqué sur cycleItems/addCycleItem plus haut dans le fichier.
+let sbChecklistItems = [];
+function sbChecklistTypeApplicable(type) { return type === 'voies' || type === 'bloc'; }
+function sbRenderChecklistAddSelect(type) {
+  const sel = document.getElementById('sb-checklist-add-select');
+  if (!sel) return;
+  sel.innerHTML = type === 'bloc'
+    ? BLOC_COLORS.map(c => `<option value="${c.key}">${esc(c.label)}</option>`).join('')
+    : GRADES.map(g => `<option value="${g}">${g}</option>`).join('');
+}
+// Partagé entre l'éditeur de fiche (sbRenderChecklistList, type = sb-type courant) et le
+// formulaire de séance (renderChecklistFill, type = celui de la fiche référencée par bankRef) —
+// d'où le paramètre `type` explicite plutôt qu'une lecture directe du DOM de l'éditeur.
+function checklistItemLabelHtml(item, type) {
+  if (type === 'bloc') {
+    const c = BLOC_COLORS.find(x => x.key === item.level);
+    if (!c) return esc(item.level);
+    return `<span style="display:inline-flex;align-items:center;gap:7px"><span style="width:13px;height:13px;border-radius:3px;background:${c.hex};border:1px solid rgba(0,0,0,.25);display:inline-block;flex-shrink:0"></span>${esc(c.label)}</span>`;
+  }
+  return esc(item.level);
+}
+function sbRenderChecklistList() {
+  const listEl = document.getElementById('sb-checklist-list');
+  if (!listEl) return;
+  const type = document.getElementById('sb-type')?.value;
+  listEl.innerHTML = sbChecklistItems.length
+    ? sbChecklistItems.map((it, idx) => `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2)">
+        <span style="font-size:13px">${idx+1}. ${checklistItemLabelHtml(it, type)}</span>
+        <button type="button" class="btn sm danger" onclick="sbChecklistRemoveItem('${it.id}')">✕</button>
+      </div>`).join('')
+    : `<p style="font-size:12px;color:var(--muted);margin:0">Aucune ligne pour l'instant — ajoute une voie ou un bloc ci-dessus.</p>`;
+}
+function sbRenderChecklistSection() {
+  const type = document.getElementById('sb-type')?.value;
+  const group = document.getElementById('sb-checklist-group');
+  const applicable = sbChecklistTypeApplicable(type);
+  if (group) group.style.display = applicable ? '' : 'none';
+  if (applicable) sbRenderChecklistAddSelect(type);
+  sbRenderChecklistList();
+}
+function sbChecklistAddItem() {
+  const type = document.getElementById('sb-type')?.value;
+  const sel = document.getElementById('sb-checklist-add-select');
+  if (!sel || !sel.value) return;
+  sbChecklistItems.push({ id: 'chk_' + Date.now() + '_' + Math.random().toString(36).slice(2,6), level: sel.value });
+  sbRenderChecklistList();
+}
+window.sbChecklistAddItem = sbChecklistAddItem;
+function sbChecklistRemoveItem(id) {
+  sbChecklistItems = sbChecklistItems.filter(it => it.id !== id);
+  sbRenderChecklistList();
+}
+window.sbChecklistRemoveItem = sbChecklistRemoveItem;
+document.getElementById('sb-type')?.addEventListener('change', sbRenderChecklistSection);
+
 function sbEditCard(id) {
   const s = getBank().find(x => x.id === id);
   if (!s) return;
@@ -11811,6 +11949,8 @@ function sbEditCard(id) {
   document.querySelectorAll('.sb-crosstag-cb').forEach(el => {
     el.checked = (s.crossTags||[]).includes(el.value);
   });
+  sbChecklistItems = JSON.parse(JSON.stringify(s.checklist || []));
+  sbRenderChecklistSection();
   sbAiReviewHistory = [];
   sbRenderAiReviewMessages();
   document.getElementById('sb-delete-btn').style.display = '';
@@ -11846,6 +11986,8 @@ function sbNewCard() {
   const sbCatEl2 = document.getElementById('sb-category');
   if (sbCatEl2) { sbCatEl2.value = ''; sbUpdateSubcategoryOptions(''); }
   document.querySelectorAll('.sb-crosstag-cb').forEach(el => el.checked = false);
+  sbChecklistItems = [];
+  sbRenderChecklistSection();
   sbAiReviewHistory = [];
   sbRenderAiReviewMessages();
   document.getElementById('sb-delete-btn').style.display = 'none';
@@ -11879,6 +12021,7 @@ function sbSave() {
     category:    document.getElementById('sb-category')?.value || '',
     subcategory: document.getElementById('sb-subcategory')?.value || '',
     crossTags,
+    checklist:   sbChecklistTypeApplicable(document.getElementById('sb-type').value) ? sbChecklistItems : [],
     createdAt:   editId ? (getBank().find(s=>s.id===editId)?.createdAt || Date.now()) : Date.now(),
     source:      editId ? (getBank().find(s=>s.id===editId)?.source || 'manual') : (isAiEdit ? 'ai' : 'manual'),
   };
