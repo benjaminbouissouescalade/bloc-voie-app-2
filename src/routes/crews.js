@@ -20,6 +20,43 @@ function inviteCode() {
   return Array.from(bytes).map(b => charset[b % charset.length]).join('');
 }
 
+// Crew automatique — retour athlète : ajouter un partenaire ET devoir en plus créer/rejoindre un
+// crew à part pour la même personne, c'est une manipulation de trop. Chaque grimpeur a désormais un
+// unique crew "auto" (id déterministe autoCrewId), dont les membres sont synchronisés en direct sur
+// sa liste de partenaires (table partnerships, seule source de vérité) — plus de code à générer, plus
+// de bouton "Créer un crew". Appelée à chaque GET /api/crews (lecture) et juste après toute connexion/
+// déconnexion de partenaire (partners.js), donc toujours à jour peu importe le point d'entrée.
+function autoCrewId(climberId) { return 'auto_' + climberId; }
+
+async function ensureAutoCrew(climberId) {
+  if (!climberId) return null;
+  const id = autoCrewId(climberId);
+  const { rows: existing } = await pool.query('SELECT id FROM crews WHERE id=$1', [id]);
+  if (!existing.length) {
+    const { rows: climberRows } = await pool.query('SELECT name FROM climbers WHERE id=$1', [climberId]);
+    const name = 'Crew de ' + (climberRows[0]?.name || 'mon groupe');
+    await pool.query(
+      'INSERT INTO crews (id, name, created_by, auto) VALUES ($1,$2,$3,true) ON CONFLICT (id) DO NOTHING',
+      [id, name, climberId]
+    );
+  }
+  const { rows: partnerRows } = await pool.query(
+    `SELECT (CASE WHEN climber_a=$1 THEN climber_b ELSE climber_a END) AS partner_id
+     FROM partnerships WHERE climber_a=$1 OR climber_b=$1`,
+    [climberId]
+  );
+  const wanted = new Set([climberId, ...partnerRows.map(r => r.partner_id)]);
+  const { rows: currentRows } = await pool.query('SELECT climber_id FROM crew_members WHERE crew_id=$1', [id]);
+  const current = new Set(currentRows.map(r => r.climber_id));
+  for (const cid of wanted) {
+    if (!current.has(cid)) await pool.query('INSERT INTO crew_members (crew_id, climber_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [id, cid]);
+  }
+  for (const cid of current) {
+    if (!wanted.has(cid)) await pool.query('DELETE FROM crew_members WHERE crew_id=$1 AND climber_id=$2', [id, cid]);
+  }
+  return id;
+}
+
 async function isCrewMember(climberId, crewId) {
   if (!climberId || !crewId) return false;
   const { rows } = await pool.query(
@@ -76,10 +113,14 @@ router.get('/', async (req, res) => {
   const climberId = req.user?.climberId;
   if (!climberId) return res.json([]);
   try {
+    // Toujours (re)synchroniser le crew auto sur la liste de partenaires courante avant de lister —
+    // filet de sécurité en plus du hook côté partners.js, au cas où la synchro n'aurait pas pu se
+    // faire à ce moment-là (ex. ancien compte, appel API direct...).
+    await ensureAutoCrew(climberId);
     const { rows: myCrews } = await pool.query(
-      `SELECT c.id, c.name FROM crews c
+      `SELECT c.id, c.name, c.auto FROM crews c
        JOIN crew_members cm ON cm.crew_id = c.id
-       WHERE cm.climber_id = $1 ORDER BY c.created_at DESC`,
+       WHERE cm.climber_id = $1 ORDER BY c.auto DESC, c.created_at DESC`,
       [climberId]
     );
     const crews = [];
@@ -90,7 +131,7 @@ router.get('/', async (req, res) => {
          WHERE cm.crew_id = $1 ORDER BY cm.joined_at ASC`,
         [c.id]
       );
-      crews.push({ id: c.id, name: c.name, members });
+      crews.push({ id: c.id, name: c.name, auto: !!c.auto, members });
     }
     res.json(crews);
   } catch (err) {
@@ -575,4 +616,8 @@ router.post('/:crewId/kudos', requireCrewMembership(), async (req, res) => {
   }
 });
 
+// Exposé pour partners.js : resynchroniser immédiatement le crew auto des deux grimpeurs
+// concernés dès qu'une connexion partenaire est créée ou retirée, sans attendre le prochain
+// chargement de l'onglet Crew (GET / le refait de toute façon en filet de sécurité).
 module.exports = router;
+module.exports.ensureAutoCrew = ensureAutoCrew;
