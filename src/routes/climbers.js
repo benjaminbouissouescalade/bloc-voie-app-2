@@ -149,6 +149,12 @@ router.delete('/:id', async (req, res) => {
   try {
     const ok = await canAccessClimber(req.user, req.params.id);
     if (!ok) return res.status(403).json({ error: 'Accès refusé à ce grimpeur' });
+    // users.climber_id n'est pas une clé étrangère vers climbers (juste un TEXT), donc rien
+    // n'empêchait de supprimer un grimpeur pendant qu'un compte pointait encore dessus — le compte
+    // gardait alors un climber_id fantôme, provoquant plus tard des erreurs de contrainte de clé
+    // étrangère sur toute table qui, elle, référence bien climbers(id) (ex. partner_invites,
+    // logs...). On nettoie donc explicitement toute référence pendante avant de supprimer.
+    await pool.query('UPDATE users SET climber_id=NULL WHERE climber_id=$1', [req.params.id]);
     await pool.query('DELETE FROM climbers WHERE id=$1', [req.params.id]);
     res.json({ ok: true });
   } catch (err) {

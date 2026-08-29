@@ -84,6 +84,14 @@ router.post('/invite', async (req, res) => {
     );
     res.json({ ok: true, code });
   } catch (err) {
+    // 23503 = violation de clé étrangère : le climberId du compte pointe vers un profil grimpeur
+    // qui n'existe plus (ex. profil supprimé après une ancienne réassociation manuelle — cf.
+    // climbers.js DELETE, désormais corrigé pour nettoyer users.climber_id, mais des comptes déjà
+    // orphelins avant ce fix peuvent encore avoir un climberId fantôme). Message clair plutôt que
+    // l'erreur SQL brute, avec la marche à suivre pour se rattacher au bon profil.
+    if (err.code === '23503') {
+      return res.status(409).json({ error: "Ton compte est relié à un profil grimpeur qui n'existe plus. Va sur la page d'accueil des profils et clique sur \"🔗 Faire de ce profil mon compte\" sur ton vrai profil, puis réessaie." });
+    }
     res.status(500).json({ error: err.message });
   }
 });
