@@ -77,6 +77,12 @@ async function initDB() {
       -- create/update normal ni via /sync) pour ne jamais être écrasé par un resync complet
       -- déclenché depuis l'état local du client (voir commentaire sur la route /sync plus bas).
       ALTER TABLE logs ADD COLUMN IF NOT EXISTS comments JSONB DEFAULT '[]';
+      -- Petit suivi de bobo : l'athlète coche "petite douleur" à la fin d'une séance (+ note libre
+      -- optionnelle). Sert à afficher une petite ligne discrète sur le calendrier et à faire
+      -- remonter l'info au coach dans son fil d'activité (cf. coachFeed.js) — jamais un diagnostic
+      -- médical, juste un signal pour que le coach en tienne compte dans la suite du plan.
+      ALTER TABLE logs ADD COLUMN IF NOT EXISTS injury BOOLEAN DEFAULT false;
+      ALTER TABLE logs ADD COLUMN IF NOT EXISTS injury_note TEXT DEFAULT '';
       CREATE INDEX IF NOT EXISTS idx_logs_climber_date ON logs(climber_id, date DESC);
       CREATE TABLE IF NOT EXISTS session_bank (
         id          TEXT PRIMARY KEY,
@@ -231,6 +237,11 @@ async function initDB() {
         created_by  TEXT NOT NULL REFERENCES climbers(id) ON DELETE CASCADE,
         created_at  TIMESTAMPTZ DEFAULT NOW()
       );
+      -- Crew automatique : un grimpeur n'a plus besoin de créer/rejoindre un crew "à la main" en
+      -- plus de connecter un partenaire (retour "trop de manipulation") — auto=true marque le crew
+      -- personnel géré par ensureAutoCrew() (src/routes/crews.js), dont les membres sont synchronisés
+      -- sur la liste de partenaires (table partnerships). Le frontend masque Inviter/Quitter dessus.
+      ALTER TABLE crews ADD COLUMN IF NOT EXISTS auto BOOLEAN DEFAULT false;
       CREATE TABLE IF NOT EXISTS crew_members (
         crew_id     TEXT NOT NULL REFERENCES crews(id) ON DELETE CASCADE,
         climber_id  TEXT NOT NULL REFERENCES climbers(id) ON DELETE CASCADE,
