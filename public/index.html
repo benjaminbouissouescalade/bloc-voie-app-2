@@ -9943,7 +9943,7 @@ function newSession(date=null){
   document.getElementById('s-injury-note-row').style.display='none';
   document.getElementById('delete-session-btn').style.display='none';
   document.getElementById('s-together-panel').style.display='none';
-  document.getElementById('s-comments-panel').style.display='none';
+  renderSessionComments(null);
   updateSessionTypeUI({});
   renderAscentsEditor();
   if (date) sNewSessionDateLocked = true;
@@ -10026,16 +10026,21 @@ function editSession(id){
   renderSessionComments(log);
 }
 
-// Fil de commentaires coach ↔ athlète sur une séance déjà enregistrée (voir POST
-// /api/logs/:climberId/:logId/comments côté backend). Masqué pour une séance planifiée non
-// encore réalisée ou pas encore créée — ça n'a de sens qu'une fois la séance loguée.
+// Fil de commentaires coach ↔ athlète. Masqué uniquement pour une séance déjà existante mais
+// encore PRÉVUE (pointillés, pas encore faite) — commenter n'a pas vraiment de sens tant qu'elle
+// n'a pas eu lieu. Reste visible (avec la zone de saisie) même pour une séance PAS ENCORE créée
+// (formulaire "Nouvelle séance" vide) : retour athlète — "il n'y a pas les commentaires de
+// l'athlète à côté de la note du coach", visiblement quel que soit l'appareil, parce que jusqu'ici
+// ce panneau exigeait un log déjà enregistré en base pour s'afficher. Voir
+// ensureSessionSavedThenComment(), qui enregistre la séance en silence dès le premier commentaire
+// envoyé si elle n'existe pas encore.
 function renderSessionComments(log) {
   const panel = document.getElementById('s-comments-panel');
   const listEl = document.getElementById('s-comments-list');
   if (!panel || !listEl) return;
-  if (!log || log.planned) { panel.style.display = 'none'; return; }
+  if (log && log.planned) { panel.style.display = 'none'; return; }
   panel.style.display = '';
-  const comments = log.comments || [];
+  const comments = log?.comments || [];
   listEl.innerHTML = comments.length ? comments.map(c => {
     const mine = c.authorId === window.currentUser?.id;
     const roleLabel = isCoachRoleValue(c.authorRole) ? 'coach' : 'athlète';
@@ -10046,11 +10051,34 @@ function renderSessionComments(log) {
   }).join('') : '<p style="font-size:12px;color:var(--muted)">Aucun commentaire pour l\'instant.</p>';
 }
 
+// Si la séance n'existe pas encore côté client (editingId vide, formulaire "Nouvelle séance"
+// jamais enregistré), l'enregistre d'abord silencieusement — via saveCurrentSession(), la même
+// logique que le bouton "Enregistrer la séance" — puis force son écriture immédiate côté serveur
+// (saveDB()/syncToBackend() est best-effort et asynchrone : sans cet appel direct, le commentaire
+// pourrait arriver avant que la séance existe en base, et l'UPDATE de la colonne comments ne
+// toucherait alors aucune ligne). Renvoie l'id de la séance, ou null si le formulaire est bloqué
+// (ex. date future, cf. saveCurrentSession).
+async function ensureSessionSavedThenComment() {
+  if (editingId) return editingId;
+  const id = saveCurrentSession();
+  if (!id) return null;
+  try {
+    const climberId = getActive().id;
+    const log = getLogs().find(l => l.id === id);
+    await fetch(`/api/logs/${climberId}`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(log) });
+  } catch (e) { /* best-effort : le sync périodique de saveDB() rattrapera de toute façon */ }
+  return id;
+}
+
 async function postSessionComment() {
   const input = document.getElementById('s-comment-input');
   const message = (input?.value || '').trim();
-  const logId = document.getElementById('edit-log-id').value;
-  if (!message || !logId) return;
+  if (!message) return;
+  let logId = document.getElementById('edit-log-id').value;
+  if (!logId) {
+    logId = await ensureSessionSavedThenComment();
+    if (!logId) return;
+  }
   const climberId = getActive()?.id;
   if (!climberId) return;
   try {
@@ -10405,7 +10433,12 @@ document.getElementById('s-type').addEventListener('change', () => {
   renderAscentsEditor();
 });
 
-document.getElementById('save-session-btn').onclick=()=>{
+// Extrait du handler du bouton "Enregistrer la séance" pour pouvoir aussi être appelé en silence
+// par ensureSessionSavedThenComment() (premier commentaire posté sur une séance pas encore créée),
+// sans dupliquer toute la logique de construction du payload. Contrairement au clic sur le bouton,
+// ne navigue jamais et ne réinitialise pas l'état du formulaire — l'appelant décide.
+// Renvoie l'id de la séance enregistrée, ou null si bloquée (ex. date future).
+function saveCurrentSession() {
   const styles=Array.from(document.querySelectorAll('#s-b-styles input:checked')).map(el=>el.value);
   const sType = getCurrentSessionType();
   const sCfg = SESSION_CONFIG[sType] || SESSION_CONFIG.autre;
@@ -10442,7 +10475,16 @@ document.getElementById('save-session-btn').onclick=()=>{
     ascents:JSON.parse(JSON.stringify(sessionAscents)),
     bNoGrade,
     ...(existingLog?.cycleId ? { cycleId: existingLog.cycleId, cycleName: existingLog.cycleName } : {}),
-    ...(existingLog?.bankRef ? { bankRef: existingLog.bankRef } : {})
+    ...(existingLog?.bankRef ? { bankRef: existingLog.bankRef } : {}),
+    ...(existingLog?.comments ? { comments: existingLog.comments } : {}),
+    // Préserve aussi source/assignedByCoachId (séance prescrite par un coach) et flexGoal/
+    // objectiveId (créneau à thème / objectif de période) — ce formulaire générique n'a pas non
+    // plus de champ pour ça, et les reconstruire à vide à chaque sauvegarde effaçait silencieusement
+    // le tag "prescrite par le coach" et le rattachement à un thème/objectif dès la première
+    // modification de la séance (même bug de fond que cycleId/bankRef/comments ci-dessus).
+    ...(existingLog?.source ? { source: existingLog.source, assignedByCoachId: existingLog.assignedByCoachId || null } : {}),
+    ...(existingLog?.flexGoal ? { flexGoal: existingLog.flexGoal } : {}),
+    ...(existingLog?.objectiveId ? { objectiveId: existingLog.objectiveId } : {})
   };
   // Règle : une séance ne peut être marquée "faite" qu'à partir du jour même (retour : "on devrait
   // pouvoir que planifier des séances quand c'est une date future, et seulement rentrer une séance
@@ -10456,15 +10498,16 @@ document.getElementById('save-session-btn').onclick=()=>{
       payload.planned = true;
     } else {
       alert('Cette date est dans le futur : une séance ne peut être enregistrée comme faite qu\'à partir du jour même. Utilise "📅 Planifier une séance" pour une date à venir.');
-      return;
+      return null;
     }
   }
-  const isNewCompletedSession = !editingId && !payload.planned;
+  const wasNew = !editingId;
+  const isNewCompletedSession = wasNew && !payload.planned;
   const newPRs = isNewCompletedSession ? detectNewPRs(payload) : [];
   const prevBadgeKeys = isNewCompletedSession
     ? new Set(computeBadgeState(getActive()).filter(b=>b.unlocked).map(b=>b.catId+':'+b.label))
     : null;
-  if(editingId){const idx=getActive().logs.findIndex(l=>l.id===editingId);if(idx>=0)getActive().logs[idx]=payload;}
+  if(existingLog){const idx=getActive().logs.findIndex(l=>l.id===editingId);if(idx>=0)getActive().logs[idx]=payload;}
   else{getActive().logs.push(payload);}
   saveDB();
   if (isNewCompletedSession) {
@@ -10473,6 +10516,20 @@ document.getElementById('save-session-btn').onclick=()=>{
     const newBadges = computeBadgeState(getActive()).filter(b=>b.unlocked && !prevBadgeKeys.has(b.catId+':'+b.label));
     newBadges.forEach(b => crewPostActivityBestEffort('badge_unlocked', { label: b.label, icon: b.icon }));
   }
+  // Fait passer le formulaire en mode "édition" si on venait de créer la séance (cas de
+  // l'enregistrement silencieux déclenché par un premier commentaire) — sans quoi un second
+  // clic sur "Enregistrer" recréerait un doublon au lieu de mettre à jour celle-ci.
+  if (wasNew) {
+    editingId = payload.id;
+    document.getElementById('edit-log-id').value = payload.id;
+    document.getElementById('session-form-title').textContent = 'Modifier la séance';
+    if (!payload.planned) document.getElementById('delete-session-btn').style.display = '';
+  }
+  return payload.id;
+}
+document.getElementById('save-session-btn').onclick=()=>{
+  const id = saveCurrentSession();
+  if (!id) return;
   editingId=null;sessionAscents=[];switchPage('history');
 };
 document.getElementById('delete-session-btn').onclick=()=>{
