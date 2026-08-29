@@ -88,6 +88,11 @@ async function initDB() {
       -- libellé générique "Autre" partout où on montre une séance individuelle (cf.
       -- sessionDisplayLabel() côté frontend). Vide/non pertinent pour les autres types.
       ALTER TABLE logs ADD COLUMN IF NOT EXISTS custom_name TEXT DEFAULT '';
+      -- Progression sur la checklist d'une fiche banque (cf. session_bank.checklist ci-dessus) :
+      -- tableau des ids de lignes cochées par CET athlète sur CETTE instance de séance (une même
+      -- fiche réutilisée par plusieurs athlètes ou plusieurs fois a une progression indépendante
+      -- à chaque fois). Vide/non pertinent si la séance ne référence pas une fiche à checklist.
+      ALTER TABLE logs ADD COLUMN IF NOT EXISTS checklist_done JSONB DEFAULT '[]';
       CREATE INDEX IF NOT EXISTS idx_logs_climber_date ON logs(climber_id, date DESC);
       CREATE TABLE IF NOT EXISTS session_bank (
         id          TEXT PRIMARY KEY,
@@ -113,6 +118,34 @@ async function initDB() {
       -- Lien vidéo (YouTube) optionnel illustrant la fiche — affiché en lecteur intégré dans le
       -- détail de la séance côté athlète/coach.
       ALTER TABLE session_bank ADD COLUMN IF NOT EXISTS video_url TEXT DEFAULT '';
+      -- Checklist de voies/blocs à valider un par un (fiches type "Voies par niveau" / "Bloc par
+      -- couleur") : tableau [{id, level}] où level est une cotation (GRADES, ex. "7a") pour une
+      -- fiche voies, ou une couleur (BLOC_COLORS, ex. "vert") pour une fiche bloc. Une ligne par
+      -- voie/bloc à faire (deux lignes "7a" = deux voies distinctes à ce niveau). La progression
+      -- de CHAQUE athlète (quelles lignes il/elle a cochées) vit sur le log, pas ici — cf.
+      -- logs.checklist_done plus bas : la fiche est un modèle réutilisable, la coche est propre à
+      -- chaque instance de séance faite.
+      ALTER TABLE session_bank ADD COLUMN IF NOT EXISTS checklist JSONB DEFAULT '[]';
+      -- Deux fiches modèles vides pour la fonctionnalité checklist ci-dessus (retour : "créer 2
+      -- séances dans la banque, une voie l'autre bloc, où l'on pourrait indiquer des voies ou bloc
+      -- par niveau que l'athlète devra faire"). Volontairement sans checklist pré-remplie : c'est
+      -- au coach d'ouvrir la fiche en édition et d'ajouter ses propres lignes (cotations ou
+      -- couleurs). ON CONFLICT DO NOTHING : créées une seule fois, jamais réécrasées si le coach
+      -- les modifie ou les supprime ensuite.
+      INSERT INTO session_bank (id, name, type, support, level, duration, intensity, goal, description, tags, source, category, subcategory, cross_tags, content_type, video_url, checklist)
+      VALUES (
+        'sb_seed_voies_par_niveau', 'Voies par niveau', 'voies', '', 'confirme', 90, 3, 'projet',
+        'Fiche à checklist : ouvre-la en édition et ajoute une ligne par voie à faire (une cotation par ligne — répète la même cotation pour plusieurs voies à ce niveau). L''athlète coche chaque ligne au fur et à mesure qu''il la réussit.',
+        '[]', 'manual', '', '', '[]', 'seance', '', '[]'
+      )
+      ON CONFLICT (id) DO NOTHING;
+      INSERT INTO session_bank (id, name, type, support, level, duration, intensity, goal, description, tags, source, category, subcategory, cross_tags, content_type, video_url, checklist)
+      VALUES (
+        'sb_seed_bloc_par_couleur', 'Bloc par couleur', 'bloc', '', 'confirme', 90, 3, 'projet',
+        'Fiche à checklist : ouvre-la en édition et ajoute une ligne par bloc à faire (une couleur par ligne — répète la même couleur pour plusieurs blocs à ce niveau). L''athlète coche chaque ligne au fur et à mesure qu''il le réussit.',
+        '[]', 'manual', '', '', '[]', 'seance', '', '[]'
+      )
+      ON CONFLICT (id) DO NOTHING;
       -- Favoris par utilisateur — la banque de séances reste globale/partagée, mais le statut
       -- favori est personnel au COMPTE connecté (pas à l'athlète actuellement affiché dans
       -- l'interface coach) : voir migration user_id ci-dessous.
