@@ -10503,6 +10503,19 @@ function saveCurrentSession() {
   }
   const wasNew = !editingId;
   const isNewCompletedSession = wasNew && !payload.planned;
+  // Garde-fou anti-doublon : chaque contexte (onglet/appareil) ouvert sur "+ Ajouter une séance"
+  // génère son propre id ('log_'+Date.now()) sans savoir qu'une séance du même type existe déjà ce
+  // jour-là dans un AUTRE contexte non synchronisé — d'où des séances qui apparaissent deux fois
+  // avec des valeurs légèrement différentes (retour utilisateur : "Lisa a 2x la meme seance"). On
+  // ne bloque pas (plusieurs séances du même type le même jour sont légitimes), mais on prévient.
+  if (isNewCompletedSession) {
+    const dup = (getActive().logs||[]).find(l => l.date === payload.date && l.type === payload.type && !l.planned);
+    if (dup) {
+      const dupLabel = (SESSION_TYPES[dup.type]?.label) || dup.type;
+      const ok = confirm(`Une séance "${dupLabel}" est déjà enregistrée le ${payload.date} (${dup.minutes||0} min).\n\nCréer quand même une séance distincte ce jour-là ?\n\nSi tu voulais plutôt modifier la séance existante (ex. ajouter une ascension), clique sur Annuler puis rouvre-la depuis le calendrier ou l'historique.`);
+      if (!ok) return null;
+    }
+  }
   const newPRs = isNewCompletedSession ? detectNewPRs(payload) : [];
   const prevBadgeKeys = isNewCompletedSession
     ? new Set(computeBadgeState(getActive()).filter(b=>b.unlocked).map(b=>b.catId+':'+b.label))
@@ -10530,7 +10543,11 @@ function saveCurrentSession() {
 document.getElementById('save-session-btn').onclick=()=>{
   const id = saveCurrentSession();
   if (!id) return;
-  editingId=null;sessionAscents=[];switchPage('history');
+  // editingId et #edit-log-id doivent toujours être remis à zéro ensemble (cf. editSession()/
+  // newSession() qui les fixent toujours en paire) — sans ça les deux sources divergent et tout
+  // code qui lit encore le champ DOM (postSessionComment, bouton "Changer" d'un créneau libre...)
+  // continuerait de croire qu'on édite l'ancienne séance.
+  editingId=null;document.getElementById('edit-log-id').value='';sessionAscents=[];switchPage('history');
 };
 document.getElementById('delete-session-btn').onclick=()=>{
   if(!editingId||!confirm('Supprimer cette séance ?'))return;
