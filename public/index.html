@@ -2042,9 +2042,20 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
         </div>
         <div class="form-group" style="border-top:1px solid var(--border);padding-top:14px">
           <label class="form-label">Ajouter une séance au cycle</label>
-          <div style="display:flex;gap:6px;margin-bottom:8px" id="cycle-item-mode-picker">
+          <!-- Deux axes indépendants et combinables (retour : "il faut la possibilité de choisir
+               une séance dans le thème, mais il faut aussi que l'athlète puisse choisir la date...
+               parfois seulement 1, parfois les 2") :
+               - QUOI : une fiche précise, ou un thème (l'athlète choisit la séance qui correspond)
+               - QUAND : un jour fixe imposé, ou une période libre (l'athlète choisit le jour) -->
+          <p style="font-size:11px;color:var(--muted);margin-bottom:4px">Quelle séance ?</p>
+          <div style="display:flex;gap:6px;margin-bottom:10px" id="cycle-item-mode-picker">
             <button type="button" class="btn sm active" data-itemmode="fixed" onclick="setCycleItemMode('fixed')">Séance précise</button>
-            <button type="button" class="btn sm" data-itemmode="flex" onclick="setCycleItemMode('flex')">🎯 Objectif libre (l'athlète choisit)</button>
+            <button type="button" class="btn sm" data-itemmode="flex" onclick="setCycleItemMode('flex')">🎯 Thème (l'athlète choisit la séance)</button>
+          </div>
+          <p style="font-size:11px;color:var(--muted);margin-bottom:4px">Quel jour ?</p>
+          <div style="display:flex;gap:6px;margin-bottom:10px" id="cycle-date-mode-picker">
+            <button type="button" class="btn sm active" data-datemode="fixed" onclick="setCycleDateMode('fixed')">📌 Jour fixe</button>
+            <button type="button" class="btn sm" data-datemode="free" onclick="setCycleDateMode('free')">🗓️ Jour libre (l'athlète choisit quand)</button>
           </div>
           <div style="display:flex;gap:8px">
             <select class="form-control" id="cycle-bank-select" style="flex:1"></select>
@@ -2052,7 +2063,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
             <input class="form-control" type="number" min="1" max="60" value="4" id="cycle-freq" style="width:90px" title="Nombre de fois sur la période">
             <button class="btn primary" onclick="addCycleItem()">+ Ajouter</button>
           </div>
-          <p id="cycle-flex-hint" style="font-size:11px;color:var(--muted);margin-top:6px;display:none">L'athlète verra un créneau "objectif" sur son calendrier et choisira lui-même une séance de la banque avec ce tag, pour s'adapter au matériel disponible ce jour-là.</p>
+          <p id="cycle-flex-hint" style="font-size:11px;color:var(--muted);margin-top:6px"></p>
         </div>
         <div id="cycle-items-list" style="margin-bottom:14px"></div>
       </div>
@@ -6074,26 +6085,51 @@ function addPlannedSessionFromBank(bankId, dateStr) {
 }
 
 // ═══════════════ CYCLE (fréquence de séances sur une période, ou jour par jour) ═══════════════
-// cycleItems (mode simple) : [{key, bankId, freq}] pour une séance précise, ou
-// [{key, flexGoal, freq}] pour un "objectif libre" — l'athlète choisira lui-même une séance de la
-// banque taguée avec ce goal (cf. SB_GOAL_LABELS) pour s'adapter à son support d'entraînement du jour.
+// cycleItems (mode simple) : deux axes indépendants et combinables (retour : "il faut la
+// possibilité de choisir une séance dans le thème, mais il faut aussi que l'athlète puisse choisir
+// la date... parfois seulement 1, parfois les 2") —
+//   QUOI  : bankId (fiche précise imposée) ou flexGoal (thème — l'athlète choisit la séance)
+//   QUAND : dateFree=false (jour fixe imposé, placé automatiquement) ou true (période libre — l'athlète choisit le jour)
+// Les 4 combinaisons sont gérées par generateCycle() : {bankId, freq}=précis+fixe (comportement
+// historique), {flexGoal, freq}=thème+fixe (occurrence datée non résolue, cf. openFlexChoiceModal),
+// {bankId, freq, dateFree:true}=précis+libre, {flexGoal, freq, dateFree:true}=thème+libre
+// (comportement historique "objectif libre").
 let cycleItems = [];
 let cycleDetailedItems = []; // mode détaillé : [{bankId, days:[0..6]}]
 let cycleMode = 'simple';
-let cycleItemMode = 'fixed'; // 'fixed' (séance précise) | 'flex' (objectif libre) — item en cours d'ajout
+let cycleItemMode = 'fixed'; // 'fixed' (séance précise) | 'flex' (thème) — item en cours d'ajout
+let cycleDateMode = 'fixed'; // 'fixed' (jour imposé) | 'free' (période libre) — item en cours d'ajout
 const CYCLE_DAY_LABELS = [['1','Lun'],['2','Mar'],['3','Mer'],['4','Jeu'],['5','Ven'],['6','Sam'],['0','Dim']];
 
+function updateCycleItemHint() {
+  const hint = document.getElementById('cycle-flex-hint');
+  if (!hint) return;
+  if (cycleItemMode === 'flex' && cycleDateMode === 'free') {
+    hint.textContent = "L'athlète verra un objectif de période (pas de jour imposé) et choisira lui-même quand le faire ET quelle séance de la banque correspond, pour s'adapter à son emploi du temps et au matériel disponible.";
+  } else if (cycleItemMode === 'flex' && cycleDateMode === 'fixed') {
+    hint.textContent = "L'athlète verra un créneau \"objectif\" à une date précise sur son calendrier et choisira lui-même la séance de la banque avec ce thème ce jour-là.";
+  } else if (cycleItemMode === 'fixed' && cycleDateMode === 'free') {
+    hint.textContent = "L'athlète verra un objectif de période (pas de jour imposé) pour cette séance précise et choisira lui-même quand la faire.";
+  } else {
+    hint.textContent = '';
+  }
+}
 function setCycleItemMode(mode) {
   cycleItemMode = mode;
   document.querySelectorAll('#cycle-item-mode-picker button').forEach(b => b.classList.toggle('active', b.dataset.itemmode === mode));
   const bankSel = document.getElementById('cycle-bank-select');
   const goalSel = document.getElementById('cycle-flex-goal-select');
-  const hint = document.getElementById('cycle-flex-hint');
   if (bankSel) bankSel.style.display = mode === 'fixed' ? '' : 'none';
   if (goalSel) goalSel.style.display = mode === 'flex' ? '' : 'none';
-  if (hint) hint.style.display = mode === 'flex' ? '' : 'none';
+  updateCycleItemHint();
 }
 window.setCycleItemMode = setCycleItemMode;
+function setCycleDateMode(mode) {
+  cycleDateMode = mode;
+  document.querySelectorAll('#cycle-date-mode-picker button').forEach(b => b.classList.toggle('active', b.dataset.datemode === mode));
+  updateCycleItemHint();
+}
+window.setCycleDateMode = setCycleDateMode;
 
 function setCycleMode(mode) {
   cycleMode = mode;
@@ -6171,15 +6207,30 @@ function openCycleModal(editCycleId, returnToDate) {
     document.getElementById('cycle-rest-hours').value = 24;
     setCycleMode('simple');
     setCycleItemMode('fixed');
+    setCycleDateMode('fixed');
 
-    // Reconstruit cycleItems depuis l'état ACTUEL du cycle : une entrée par fiche de banque
-    // (fréquence = total de séances déjà faites + encore planifiées pour cette fiche) et une par
-    // objectif libre (fréquence = objectif cible actuel). generateCycle() se chargera de ne
-    // recréer que ce qui manque par rapport à ce qui est déjà fait (cf. commentaires plus bas).
-    const fixedCounts = {};
-    cycle.fixedLogs.forEach(l => { if (l.bankRef) fixedCounts[l.bankRef] = (fixedCounts[l.bankRef]||0) + 1; });
-    cycleItems = Object.keys(fixedCounts).map(bankId => ({ key: 'b:'+bankId, bankId, freq: fixedCounts[bankId] }));
-    cycle.objectives.forEach(o => { cycleItems.push({ key: 'g:'+o.flexGoal, flexGoal: o.flexGoal, freq: o.targetCount || 1 }); });
+    // Reconstruit cycleItems depuis l'état ACTUEL du cycle, sur les 4 combinaisons possibles
+    // (fréquence = total de séances déjà faites + encore planifiées / objectif cible actuel) —
+    // generateCycle() se chargera de ne recréer que ce qui manque par rapport à ce qui est déjà
+    // fait (cf. commentaires plus bas). Les logs issus d'un objectif (l.objectiveId défini) sont
+    // exclus de fixedLogs ici : ils sont déjà comptés via cycle.objectives plus bas.
+    const fixedCounts = {};       // "précise + jour fixe" : bankId -> nb d'occurrences
+    const flexFixedCounts = {};   // "thème + jour fixe" : flexGoal -> nb d'occurrences (résolues ou non)
+    cycle.fixedLogs.forEach(l => {
+      if (l.objectiveId) return;
+      if (l.flexGoal) flexFixedCounts[l.flexGoal] = (flexFixedCounts[l.flexGoal]||0) + 1;
+      else if (l.bankRef) fixedCounts[l.bankRef] = (fixedCounts[l.bankRef]||0) + 1;
+    });
+    cycleItems = [
+      ...Object.keys(fixedCounts).map(bankId => ({ key: 'b:'+bankId+':fixed', bankId, freq: fixedCounts[bankId], dateFree: false })),
+      ...Object.keys(flexFixedCounts).map(goal => ({ key: 'g:'+goal+':fixed', flexGoal: goal, freq: flexFixedCounts[goal], dateFree: false }))
+    ];
+    // "précise + jour libre" et "thème + jour libre" : un objectif de période par entrée, selon
+    // qu'il porte sur une fiche précise (o.bankId) ou un thème (o.flexGoal).
+    cycle.objectives.forEach(o => {
+      if (o.bankId) cycleItems.push({ key: 'b:'+o.bankId+':free', bankId: o.bankId, freq: o.targetCount || 1, dateFree: true });
+      else cycleItems.push({ key: 'g:'+o.flexGoal+':free', flexGoal: o.flexGoal, freq: o.targetCount || 1, dateFree: true });
+    });
     cycleDetailedItems = [];
     renderCycleItemsList();
     renderCycleDetailedItemsList();
@@ -6212,6 +6263,7 @@ function openCycleModal(editCycleId, returnToDate) {
     renderCycleDetailedItemsList();
     setCycleMode('simple');
     setCycleItemMode('fixed');
+    setCycleDateMode('fixed');
 
     const daysEl = document.getElementById('cycle-avail-days');
     daysEl.innerHTML = CYCLE_DAY_LABELS.map(([v,label]) =>
@@ -6233,20 +6285,21 @@ window.openCycleModal = openCycleModal;
 
 function addCycleItem() {
   const freq = +document.getElementById('cycle-freq').value || 1;
+  const dateFree = cycleDateMode === 'free';
   if (cycleItemMode === 'flex') {
     const goal = document.getElementById('cycle-flex-goal-select').value;
     if (!goal) return;
-    const key = 'g:' + goal;
+    const key = 'g:' + goal + ':' + (dateFree ? 'free' : 'fixed');
     const existing = cycleItems.find(it => it.key === key);
     if (existing) existing.freq += freq;
-    else cycleItems.push({ key, flexGoal: goal, freq });
+    else cycleItems.push({ key, flexGoal: goal, freq, dateFree });
   } else {
     const bankId = document.getElementById('cycle-bank-select').value;
     if (!bankId) return;
-    const key = 'b:' + bankId;
+    const key = 'b:' + bankId + ':' + (dateFree ? 'free' : 'fixed');
     const existing = cycleItems.find(it => it.key === key);
     if (existing) existing.freq += freq;
-    else cycleItems.push({ key, bankId, freq });
+    else cycleItems.push({ key, bankId, freq, dateFree });
   }
   renderCycleItemsList();
 }
@@ -6261,13 +6314,17 @@ function renderCycleItemsList() {
   el.innerHTML = cycleItems.map(it => {
     let name;
     if (it.flexGoal) {
-      name = `🎯 Objectif libre : ${esc(SB_GOAL_LABELS[it.flexGoal] || it.flexGoal)} <span style="font-weight:400;color:var(--muted)">(l'athlète choisit)</span>`;
+      name = `🎯 Thème : ${esc(SB_GOAL_LABELS[it.flexGoal] || it.flexGoal)} <span style="font-weight:400;color:var(--muted)">(l'athlète choisit la séance)</span>`;
     } else {
       const s = bank.find(x => x.id === it.bankId);
       name = esc(s ? s.name : '(séance supprimée)');
     }
+    const dateTag = it.dateFree
+      ? `<span class="tag" style="border-color:#b07a10;color:#b07a10;font-size:10px;flex-shrink:0">🗓️ jour libre</span>`
+      : `<span class="tag" style="border-color:var(--accent);color:var(--accent);font-size:10px;flex-shrink:0">📌 jour fixe</span>`;
     return `<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r-xs);background:var(--surface2);margin-bottom:6px">
       <span style="flex:1;font-size:13px;font-weight:500">${name}</span>
+      ${dateTag}
       <span style="font-size:12px;color:var(--muted)">× ${it.freq}</span>
       <button class="btn sm danger" onclick="removeCycleItem('${it.key}')">✕</button>
     </div>`;
@@ -6342,16 +6399,20 @@ function generateCycle() {
   // Snapshot du cycle existant AVANT toute modification — sert à ne recréer que ce qui manque
   // (séances/objectifs déjà faits jamais recomptés ni effacés) et à mettre à jour les objectifs
   // libres EN PLACE (même id) pour ne pas faire "repartir à 0" une progression déjà entamée.
-  let doneCountByBankId = {};
-  let existingObjectivesByGoal = {};
+  let doneCountByBankId = {};        // "précise + jour fixe" : bankId -> nb déjà fait
+  let doneCountByFlexGoalFixed = {}; // "thème + jour fixe" : flexGoal -> nb déjà fait (résolu ou non)
+  let existingObjectivesByKey = {};  // "jour libre" (précis ou thème) : clé 'b:'+bankId ou flexGoal -> objectif existant
   if (editCycleId) {
     const activeClimber = getActive();
     const existingCycle = getClimberCycles(activeClimber).find(cy => cy.cycleId === editCycleId);
     if (existingCycle) {
-      existingCycle.fixedLogs.filter(l => !l.planned).forEach(l => {
-        if (l.bankRef) doneCountByBankId[l.bankRef] = (doneCountByBankId[l.bankRef] || 0) + 1;
+      existingCycle.fixedLogs.filter(l => !l.planned && !l.objectiveId).forEach(l => {
+        if (l.flexGoal) doneCountByFlexGoalFixed[l.flexGoal] = (doneCountByFlexGoalFixed[l.flexGoal] || 0) + 1;
+        else if (l.bankRef) doneCountByBankId[l.bankRef] = (doneCountByBankId[l.bankRef] || 0) + 1;
       });
-      existingCycle.objectives.forEach(o => { existingObjectivesByGoal[o.flexGoal] = o; });
+      existingCycle.objectives.forEach(o => {
+        existingObjectivesByKey[o.bankId ? ('b:'+o.bankId) : o.flexGoal] = o;
+      });
     }
   }
 
@@ -6388,24 +6449,28 @@ function generateCycle() {
     }
     if (!eligibleDates.length) { errEl.textContent = 'Aucun jour disponible sur cette période.'; errEl.style.display = ''; return; }
     cycleItems.forEach(it => {
-      if (it.flexGoal) {
-        // Objectif libre : pas de jour imposé — juste un nombre de séances à faire sur la période,
-        // l'athlète choisit lui-même quand et quoi (cf. renderCoachObjectivesPanel / fulfillObjective).
-        // La fréquence saisie est l'OBJECTIF TOTAL (déjà faites incluses) — cf. mise à jour en place
-        // de l'objectif existant plus bas, qui n'y touche pas non plus.
-        flexCycleItems.push({ flexGoal: it.flexGoal, freq: Math.max(1, it.freq) });
+      if (it.dateFree) {
+        // Jour libre (précis ou à thème) : pas de jour imposé — juste un nombre de séances à faire
+        // sur la période, l'athlète choisit lui-même QUAND, et QUOI seulement si c'est un thème
+        // (cf. renderCoachObjectivesPanel / fulfillObjective / fulfillObjectiveDirect). La fréquence
+        // saisie est l'OBJECTIF TOTAL (déjà faites incluses) — cf. mise à jour en place de
+        // l'objectif existant plus bas, qui n'y touche pas non plus.
+        flexCycleItems.push({ flexGoal: it.flexGoal || null, bankId: it.bankId || null, freq: Math.max(1, it.freq) });
         return;
       }
-      const item = bank.find(s => s.id === it.bankId);
-      if (!item) return;
-      // La fréquence saisie est le nombre TOTAL souhaité pour cette fiche sur la période (déjà
-      // faites incluses) : en édition, on ne recrée donc que ce qu'il manque par rapport à ce qui
-      // est déjà fait, jamais les occurrences déjà réalisées.
-      const n = editCycleId ? Math.max(0, it.freq - (doneCountByBankId[it.bankId] || 0)) : Math.max(1, it.freq);
+      // Jour fixe (précis ou à thème) : occurrence(s) datée(s). Avec bankId → séance imposée.
+      // Avec flexGoal seul → créneau "🎯 à choisir" ce jour-là (cf. openFlexChoiceModal), résolu
+      // plus tard par l'athlète parmi les fiches de la banque taguées avec ce thème.
+      if (it.bankId && !bank.find(s => s.id === it.bankId)) return; // fiche supprimée entretemps
+      // La fréquence saisie est le nombre TOTAL souhaité sur la période (déjà faites incluses) : en
+      // édition, on ne recrée donc que ce qu'il manque par rapport à ce qui est déjà fait, jamais
+      // les occurrences déjà réalisées.
+      const doneCount = it.bankId ? (doneCountByBankId[it.bankId] || 0) : (doneCountByFlexGoalFixed[it.flexGoal] || 0);
+      const n = editCycleId ? Math.max(0, it.freq - doneCount) : Math.max(1, it.freq);
       for (let i = 0; i < n; i++) {
         // Répartition régulière de chaque occurrence sur les jours éligibles
         const idx = Math.round((i + 0.5) * (eligibleDates.length / n)) % eligibleDates.length;
-        plannedEntries.push({ dateStr: eligibleDates[idx], bankId: it.bankId });
+        plannedEntries.push({ dateStr: eligibleDates[idx], bankId: it.bankId || null, flexGoal: it.flexGoal || null });
       }
     });
   }
@@ -6448,8 +6513,14 @@ function generateCycle() {
       .map(l => l.date);
 
     plannedEntries.forEach(entry => {
-      const item = bank.find(s => s.id === entry.bankId);
-      if (!item) return;
+      // Séance imposée (entry.bankId) : on reprend ses valeurs par défaut. Créneau à thème sans
+      // séance imposée (entry.flexGoal seul) : on crée un placeholder générique, résolu plus tard
+      // par l'athlète (cf. editSession → openFlexChoiceModal → fulfillFlexSession).
+      let item = null;
+      if (entry.bankId) {
+        item = bank.find(s => s.id === entry.bankId);
+        if (!item) return; // fiche supprimée entretemps
+      }
       if (minGapDays > 0) {
         const newD = new Date(entry.dateStr + 'T00:00:00');
         for (const other of knownDates) {
@@ -6462,17 +6533,18 @@ function generateCycle() {
       climber.logs.push({
         id: 'log_' + Date.now() + '_' + Math.random().toString(36).slice(2,6) + '_' + climberId.slice(-4),
         date: entry.dateStr,
-        type: item.type || 'autre',
-        minutes: item.duration || 90,
-        intensity: item.intensity || 3,
+        type: item ? (item.type || 'autre') : 'autre',
+        minutes: item ? (item.duration || 90) : 90,
+        intensity: item ? (item.intensity || 3) : 3,
         shape: 'normal',
         location: '',
-        support: item.support || '',
-        notes: item.name,
+        support: item ? (item.support || '') : '',
+        notes: item ? item.name : (SB_GOAL_LABELS[entry.flexGoal] || entry.flexGoal || ''),
         ascents: [],
         bNoGrade: {},
         planned: true,
-        bankRef: entry.bankId,
+        bankRef: entry.bankId || null,
+        flexGoal: entry.flexGoal || null,
         cycleId,
         cycleName,
         source: isCoachPrescribing ? 'coach' : 'self',
@@ -6486,7 +6558,8 @@ function generateCycle() {
     // on met à jour l'objectif existant EN PLACE (même id) plutôt que d'en recréer un nouveau, pour
     // que les séances déjà faites (qui pointent vers cet id) continuent de compter dans sa progression.
     flexCycleItems.forEach(it => {
-      const existing = editCycleId ? existingObjectivesByGoal[it.flexGoal] : null;
+      const key = it.bankId ? ('b:'+it.bankId) : it.flexGoal;
+      const existing = editCycleId ? existingObjectivesByKey[key] : null;
       if (existing) {
         existing.targetCount = it.freq;
         existing.cycleName = cycleName;
@@ -6496,7 +6569,8 @@ function generateCycle() {
       } else {
         climber.cycleObjectives.push({
           id: 'obj_' + Date.now() + '_' + Math.random().toString(36).slice(2,6) + '_' + climberId.slice(-4),
-          flexGoal: it.flexGoal,
+          flexGoal: it.flexGoal || null,
+          bankId: it.bankId || null,
           targetCount: it.freq,
           startDate: start,
           endDate: cycleEndDateStr,
@@ -6513,11 +6587,12 @@ function generateCycle() {
     // (les séances déjà faites gardent leur objectiveId, qui pointera vers un objectif disparu —
     // même logique que la suppression complète d'un cycle, cf. deleteCycle).
     if (editCycleId) {
-      const keptGoals = new Set(flexCycleItems.map(it => it.flexGoal));
+      const keptKeys = new Set(flexCycleItems.map(it => it.bankId ? ('b:'+it.bankId) : it.flexGoal));
+      const objKey = o => o.bankId ? ('b:'+o.bankId) : o.flexGoal;
       climber.cycleObjectives
-        .filter(o => o.cycleId === cycleId && !keptGoals.has(o.flexGoal))
+        .filter(o => o.cycleId === cycleId && !keptKeys.has(objKey(o)))
         .forEach(o => objectivesToDeleteRefs.push({ climberId, id: o.id }));
-      climber.cycleObjectives = climber.cycleObjectives.filter(o => o.cycleId !== cycleId || keptGoals.has(o.flexGoal));
+      climber.cycleObjectives = climber.cycleObjectives.filter(o => o.cycleId !== cycleId || keptKeys.has(objKey(o)));
     }
   });
 
@@ -7027,7 +7102,7 @@ function renderCoachObjectivesPanel(panelId, listId) {
       <div class="prog-bar-bg" style="height:5px"><div class="prog-bar-fill" style="width:${pct}%"></div></div>
       ${pendingObjectives.length ? `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px">${pendingObjectives.map(o => {
         const doneCount = (c.logs || []).filter(l => l.objectiveId === o.id).length;
-        return `<button class="btn sm primary" onclick="openObjectiveFulfillModal('${o.id}')">+ ${esc(SB_GOAL_LABELS[o.flexGoal]||o.flexGoal)} (${doneCount}/${o.targetCount||1})</button>`;
+        return `<button class="btn sm primary" onclick="openObjectiveFulfillModal('${o.id}')">+ ${esc(objectiveLabel(o))} (${doneCount}/${o.targetCount||1})</button>`;
       }).join('')}</div>` : ''}
     </div>`;
   }).join('');
@@ -9969,6 +10044,18 @@ function openFlexChoiceModal(logId) {
 }
 window.openFlexChoiceModal = openFlexChoiceModal;
 
+// Libellé affiché pour un objectif de période : le nom de la fiche pour un objectif "séance
+// précise" (o.bankId), le thème pour un objectif "à thème" (o.flexGoal) — cf. retour "il faut la
+// possibilité de choisir une séance dans le thème, mais il faut aussi que l'athlète puisse choisir
+// la date... parfois seulement 1, parfois les 2" (matrice séance précise/thème × jour fixe/libre).
+function objectiveLabel(o) {
+  if (o.bankId) {
+    const s = getBank().find(x => x.id === o.bankId);
+    return s ? s.name : '(séance supprimée)';
+  }
+  return SB_GOAL_LABELS[o.flexGoal] || o.flexGoal;
+}
+
 // Cas normal : ouvre le picker depuis un objectif de période (panneau "Objectifs" du tableau de
 // bord). Choisir une séance crée une nouvelle entrée datée d'aujourd'hui, rattachée à l'objectif.
 function openObjectiveFulfillModal(objectiveId) {
@@ -9977,6 +10064,10 @@ function openObjectiveFulfillModal(objectiveId) {
   if (!climber || !obj) return;
   flexChoiceObjectiveId = objectiveId;
   flexChoiceLogId = null;
+  // Objectif "séance précise" (o.bankId) : un seul candidat possible, inutile d'ouvrir un picker —
+  // on loggue directement. Objectif "à thème" (o.flexGoal) : plusieurs séances de la banque peuvent
+  // correspondre, on garde le picker comme avant.
+  if (obj.bankId) { fulfillObjective(obj.bankId); return; }
   renderFlexChoiceList(obj.flexGoal);
   document.getElementById('flex-choice-modal').classList.add('open');
 }
@@ -10023,7 +10114,11 @@ function fulfillObjective(bankId) {
 }
 window.fulfillObjective = fulfillObjective;
 
-// Legacy : remplit directement un log existant issu de l'ancien mécanisme par créneau daté.
+// Créneau "🎯 à choisir" (thème + jour fixe, cf. generateCycle) : remplit directement le log existant
+// avec la séance choisie par l'athlète, et le fait passer de "prévue" à "faite" — jusqu'ici cette
+// bascule ne se produisait que si l'athlète pensait ensuite à ouvrir puis ré-enregistrer la fiche
+// via le formulaire normal ; sans ça la séance restait "prévue" (pointillés, sans charge) pour
+// toujours, même une fois réellement faite.
 function fulfillFlexSession(bankId) {
   const item = getBank().find(x => x.id === bankId);
   const log = getLogs().find(l => l.id === flexChoiceLogId);
@@ -10034,6 +10129,7 @@ function fulfillFlexSession(bankId) {
   log.support = item.support || '';
   log.notes = item.name;
   log.bankRef = bankId;
+  log.planned = false;
   saveDB();
   closeModal('flex-choice-modal');
   flexChoiceLogId = null;
@@ -10413,7 +10509,7 @@ function renderDayModalCycles(dateStr) {
       </div>
       ${pendingObjectives.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">${pendingObjectives.map(o => {
         const doneCount = (climber.logs||[]).filter(l => l.objectiveId === o.id).length;
-        return `<button class="btn sm primary" onclick="closeModal('day-modal');openObjectiveFulfillModal('${o.id}')">+ ${esc(SB_GOAL_LABELS[o.flexGoal]||o.flexGoal)} (${doneCount}/${o.targetCount||1})</button>`;
+        return `<button class="btn sm primary" onclick="closeModal('day-modal');openObjectiveFulfillModal('${o.id}')">+ ${esc(objectiveLabel(o))} (${doneCount}/${o.targetCount||1})</button>`;
       }).join('')}</div>` : ''}
     </div>`;
   }).join('');
