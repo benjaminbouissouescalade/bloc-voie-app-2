@@ -6,6 +6,11 @@ const crypto = require('crypto');
 const router = express.Router();
 const { pool } = require('../db/schema');
 const { requireAuth } = require('../middleware/auth');
+// Le crew "auto" (src/routes/crews.js) reflète en direct la liste de partenaires — retour athlète :
+// devoir en plus créer/rejoindre un crew à part pour la même personne, c'est une manipulation de
+// trop. On resynchronise donc explicitement les deux crews auto concernés dès qu'une connexion
+// partenaire est créée ou retirée, sans attendre le prochain chargement de l'onglet Crew.
+const { ensureAutoCrew } = require('./crews');
 
 router.use(requireAuth);
 
@@ -118,6 +123,11 @@ router.post('/accept', async (req, res) => {
       [partnershipId(), a, b]
     );
     const { rows: partnerRows } = await pool.query('SELECT id, name, color, level FROM climbers WHERE id=$1', [invite.created_by]);
+    // Resynchro immédiate des deux crews auto (best-effort : une connexion partenaire réussie ne
+    // doit jamais échouer à cause d'un souci sur le crew, qui se resynchronisera de toute façon au
+    // prochain chargement de l'onglet Crew — cf. GET /api/crews).
+    ensureAutoCrew(invite.created_by).catch(() => {});
+    ensureAutoCrew(climberId).catch(() => {});
     res.json({ ok: true, partner: partnerRows[0] });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -150,6 +160,10 @@ router.delete('/:partnerId', async (req, res) => {
   try {
     const [a, b] = orderPair(climberId, req.params.partnerId);
     await pool.query('DELETE FROM partnerships WHERE climber_a=$1 AND climber_b=$2', [a, b]);
+    // Resynchro immédiate des deux crews auto (retirer un partenaire doit aussi le retirer du
+    // crew, dans les deux sens) — best-effort, cf. commentaire dans /accept.
+    ensureAutoCrew(climberId).catch(() => {});
+    ensureAutoCrew(req.params.partnerId).catch(() => {});
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
