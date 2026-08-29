@@ -29,6 +29,7 @@ router.get('/', async (req, res) => {
       crossTags: r.cross_tags || [],
       contentType: r.content_type || 'seance',
       videoUrl: r.video_url || '',
+      checklist: r.checklist || [],
       createdAt: new Date(r.created_at).getTime()
     }));
     res.json(items);
@@ -39,19 +40,19 @@ router.get('/', async (req, res) => {
 
 // POST /api/bank — créer ou mettre à jour une séance type
 router.post('/', async (req, res) => {
-  const { id, name, type, support, level, duration, intensity, goal, description, tags, source, category, subcategory, crossTags, contentType, videoUrl } = req.body;
+  const { id, name, type, support, level, duration, intensity, goal, description, tags, source, category, subcategory, crossTags, contentType, videoUrl, checklist } = req.body;
   if (!id || !name) return res.status(400).json({ error: 'id et name requis' });
   try {
     await pool.query(
-      `INSERT INTO session_bank (id, name, type, support, level, duration, intensity, goal, description, tags, source, category, subcategory, cross_tags, content_type, video_url)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+      `INSERT INTO session_bank (id, name, type, support, level, duration, intensity, goal, description, tags, source, category, subcategory, cross_tags, content_type, video_url, checklist)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
        ON CONFLICT (id) DO UPDATE SET
          name=$2, type=$3, support=$4, level=$5, duration=$6, intensity=$7,
-         goal=$8, description=$9, tags=$10, source=$11, category=$12, subcategory=$13, cross_tags=$14, content_type=$15, video_url=$16, updated_at=NOW()`,
+         goal=$8, description=$9, tags=$10, source=$11, category=$12, subcategory=$13, cross_tags=$14, content_type=$15, video_url=$16, checklist=$17, updated_at=NOW()`,
       [id, name, type, support||'', level||'confirme', duration||90, intensity||3,
        goal||'projet', description||'', JSON.stringify(tags||[]), source||'manual',
        category||'', subcategory||'', JSON.stringify(crossTags||[]), contentType === 'exercice' ? 'exercice' : 'seance',
-       videoUrl||'']
+       videoUrl||'', JSON.stringify(checklist||[])]
     );
     res.json({ ok: true });
   } catch (err) {
@@ -75,13 +76,13 @@ router.post('/sync', async (req, res) => {
     await client.query('DELETE FROM session_bank');
     for (const s of items) {
       await client.query(
-        `INSERT INTO session_bank (id, name, type, support, level, duration, intensity, goal, description, tags, source, category, subcategory, cross_tags, content_type, video_url)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+        `INSERT INTO session_bank (id, name, type, support, level, duration, intensity, goal, description, tags, source, category, subcategory, cross_tags, content_type, video_url, checklist)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
         [s.id, s.name, s.type, s.support||'', s.level||'confirme',
          s.duration||90, s.intensity||3, s.goal||'projet',
          s.description||'', JSON.stringify(s.tags||[]), s.source||'manual',
          s.category||'', s.subcategory||'', JSON.stringify(s.crossTags||[]),
-         s.contentType === 'exercice' ? 'exercice' : 'seance', s.videoUrl||'']
+         s.contentType === 'exercice' ? 'exercice' : 'seance', s.videoUrl||'', JSON.stringify(s.checklist||[])]
       );
     }
     await client.query('COMMIT');
