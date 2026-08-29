@@ -3993,6 +3993,12 @@ const KAYA_BASE = 100, KAYA_GROWTH = 1.18;
 // aux charges bloc/voies calculées via KAYA_BASE/KAYA_GROWTH ci-dessus (calibré empiriquement, ex: 60min à
 // intensité 3/5 → 360, comparable à une séance bloc salle moyenne).
 const SESSION_RPE_MULT = 2;
+// Le footing (course à pied) suit la même formule session-RPE que le PPG, mais avec un facteur
+// réducteur : sollicitation cardio/aérobie générale, beaucoup moins spécifique à l'escalade qu'une
+// séance de PPG (souvent antagonistes/gainage/doigts) ou qu'une vraie séance de grimpe — retour
+// coach : "il faut y mettre une charge plus faible que l'escalade". Moitié moins à durée×intensité
+// égales (ex. 60min à intensité 3/5 → 180 au lieu de 360 pour du PPG).
+const FOOTING_LOAD_FACTOR = 0.5;
 
 const STORAGE_KEY = 'bloc_voie_v2';
 
@@ -4934,7 +4940,9 @@ function sessionLoad(log) {
   // Séances hors escalade (pas d'ascensions/blocs saisis), dont footing : charge = durée × intensité
   // (méthode session-RPE) — la distance (km) du footing est juste informative dans b_no_grade.
   const cfg = SESSION_CONFIG[log.type] || SESSION_CONFIG.autre;
-  const srpe = (cfg.extraPanel === 'ppg' || cfg.extraPanel === 'footing') ? (log.minutes||0) * (log.intensity||3) * SESSION_RPE_MULT : 0;
+  const srpe = cfg.extraPanel === 'ppg' ? (log.minutes||0) * (log.intensity||3) * SESSION_RPE_MULT
+    : cfg.extraPanel === 'footing' ? (log.minutes||0) * (log.intensity||3) * SESSION_RPE_MULT * FOOTING_LOAD_FACTOR
+    : 0;
   return Math.round(al+bl+srpe);
 }
 
@@ -10483,10 +10491,11 @@ function updateLoadPreview(){
   if (cfg.extraPanel === 'ppg' || cfg.extraPanel === 'footing') {
     // Séance hors escalade (dont footing) : charge = durée × intensité (méthode session-RPE),
     // pas de saisie manuelle — la distance (km) du footing est informative, elle n'entre pas
-    // dans le calcul de charge.
+    // dans le calcul de charge. Le footing a en plus un facteur réducteur (cf. FOOTING_LOAD_FACTOR) :
+    // moins spécifique à l'escalade qu'un PPG ou qu'une vraie séance de grimpe.
     const minutes = fieldVal('s-minutes', 0);
     const intensity = fieldVal('s-intensity', 3);
-    bLoad = Math.round(minutes * intensity * SESSION_RPE_MULT);
+    bLoad = Math.round(minutes * intensity * SESSION_RPE_MULT * (cfg.extraPanel === 'footing' ? FOOTING_LOAD_FACTOR : 1));
   } else {
     const b = cfg.extraPanel === 'bloc' ? {
       facileSent:      fieldVal('s-b-facile', 0),
