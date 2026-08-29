@@ -2529,16 +2529,19 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     <div>
       <div class="tests-breadcrumb" onclick="switchPage('tests-bras')">‹ Tests généraux / Bras</div>
       <h2>Tractions</h2>
-      <p>Répétitions max, poids additionnel — <span id="ptr-athlete-name"></span></p>
+      <p>Nombre de tractions, puissance max, rapport puissance/poids — <span id="ptr-athlete-name"></span></p>
     </div>
   </div>
   <div class="panel" style="margin-bottom:20px">
     <div class="panel-header"><span class="panel-title">Nouveau test</span></div>
     <div class="form-row form-row-3">
       <div class="form-group"><label class="form-label">Date</label><input class="form-control" type="date" id="ptr-date"></div>
-      <div class="form-group"><label class="form-label">Répétitions max</label><input class="form-control" type="number" step="1" min="0" id="ptr-reps"></div>
-      <div class="form-group"><label class="form-label">Poids additionnel (kg)</label><input class="form-control" type="number" step="0.5" id="ptr-weight" placeholder="0"></div>
+      <div class="form-group"><label class="form-label">Nombre de tractions</label><input class="form-control" type="number" step="1" min="0" id="ptr-reps"></div>
+      <div class="form-group"><label class="form-label">Puissance max (W)</label><input class="form-control" type="number" step="1" id="ptr-power"></div>
     </div>
+    <!-- Rapport puissance/poids lu directement sur l'appareil (même logique que le test SmartBoard
+         : pas de calcul de notre côté, on recopie ce qu'affiche l'appli). -->
+    <div class="form-group"><label class="form-label">Rapport puissance/poids (W/kg)</label><input class="form-control" type="number" step="0.01" id="ptr-ratio"></div>
     <div class="form-group"><label class="form-label">Notes</label><textarea class="form-control" id="ptr-notes" rows="2"></textarea></div>
     <button class="btn primary" onclick="ptrSaveTest()">Enregistrer le test</button>
   </div>
@@ -8335,9 +8338,9 @@ function makeArmTestPage(cfg) {
 }
 makeArmTestPage({
   prefix: 'ptr', testType: 'tractions', label: 'Tractions',
-  fields: [{ id: 'reps', key: 'reps' }, { id: 'weight', key: 'addedWeight', default: 0 }],
-  chartKey: 'reps',
-  historyLine: p => `${p.reps ?? '–'} réps${p.addedWeight ? ' · +' + p.addedWeight + ' kg' : ''}`
+  fields: [{ id: 'reps', key: 'reps' }, { id: 'power', key: 'maxPowerW' }, { id: 'ratio', key: 'ratio' }],
+  chartKey: 'maxPowerW',
+  historyLine: p => `${p.reps ?? '–'} tractions${p.maxPowerW != null ? ' · ' + p.maxPowerW + ' W' : ''}${p.ratio != null ? ' · ' + p.ratio + ' W/kg' : ''}`
 });
 makeArmTestPage({
   prefix: 'ptg', testType: 'tirage', label: 'Tirage',
