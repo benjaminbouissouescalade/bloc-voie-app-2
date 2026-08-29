@@ -466,8 +466,6 @@ select.form-control { appearance: auto; }
   .modal-backdrop.sb-drawer { align-items: flex-end; }
   .modal-backdrop.sb-drawer .modal.sb-drawer-panel { width: 100%; height: auto; max-height: 90vh; border-radius: var(--radius) var(--radius) 0 0; }
 }
-@keyframes voicePulse { 0% { box-shadow: 0 0 0 0 rgba(231,76,60,0.55); } 70% { box-shadow: 0 0 0 8px rgba(231,76,60,0); } 100% { box-shadow: 0 0 0 0 rgba(231,76,60,0); } }
-.voice-dot { width: 10px; height: 10px; border-radius: 50%; background: #e74c3c; display: inline-block; animation: voicePulse 1.4s infinite; }
 
 /* Ascent row */
 .ascent-row { display: grid; grid-template-columns: 90px 1fr 100px 70px 80px auto; gap: 8px; align-items: center; border: 1px solid var(--border); border-radius: var(--r-sm); padding: 8px 10px; background: var(--surface2); margin-bottom: 6px; }
@@ -1239,28 +1237,6 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   </div>
   <div class="two-col">
     <div>
-      <div class="panel" id="s-voice-panel">
-        <div class="panel-header"><span class="panel-title">🎙️ Dicter ma séance <span style="font-size:11px;font-weight:400;color:var(--muted)">(bêta)</span></span></div>
-        <p style="font-size:13px;color:var(--muted);margin-bottom:12px">Décris ta séance à l'oral (type, durée, ressenti…) et l'IA remplit le formulaire ci-dessous. Ex. : « Séance de muscu ce matin, 45 minutes, assez intense, focus haut du corps ».</p>
-        <div id="s-voice-idle">
-          <button type="button" class="btn" id="s-voice-start-btn" onclick="voiceStartRecording()">🎙️ Démarrer la dictée</button>
-        </div>
-        <div id="s-voice-recording" style="display:none">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-            <span class="voice-dot"></span>
-            <span style="font-size:13px;color:var(--muted)">Écoute en cours…</span>
-          </div>
-          <textarea class="form-control" id="s-voice-transcript" rows="3" placeholder="Le texte reconnu apparaît ici…"></textarea>
-          <div style="display:flex;gap:8px;margin-top:10px">
-            <button type="button" class="btn primary sm" id="s-voice-stop-btn" onclick="voiceStopAndFill()">⏹ Terminer &amp; remplir</button>
-            <button type="button" class="btn sm" onclick="voiceCancelRecording()">Annuler</button>
-          </div>
-        </div>
-        <div id="s-voice-processing" style="display:none">
-          <div style="font-size:13px;color:var(--muted);font-style:italic">✦ L'IA analyse ta séance…</div>
-        </div>
-        <div id="s-voice-result" style="display:none"></div>
-      </div>
       <div class="panel">
         <div class="panel-header"><span class="panel-title">Informations générales</span></div>
         <input type="hidden" id="edit-log-id">
@@ -9836,168 +9812,6 @@ function updateSessionTypeUI(savedBNoGrade) {
 }
 
 // ═══════════════ SAISIE VOCALE (dictée + IA) ═══════════════
-// Reconnaissance vocale native du navigateur (Web Speech API) pour transcrire la séance,
-// puis extraction structurée via le proxy /api/ai/chat déjà utilisé ailleurs dans l'app.
-// Aucune donnée audio n'est envoyée à un serveur : seule la transcription texte l'est.
-let voiceRecognition = null;
-let voiceFinalTranscript = '';
-let voiceListening = false;
-
-function voiceSupported() {
-  return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
-}
-
-function voiceInitPanel() {
-  const panel = document.getElementById('s-voice-panel');
-  if (!panel || voiceSupported()) return;
-  panel.innerHTML = `
-    <div class="panel-header"><span class="panel-title">🎙️ Dicter ma séance</span></div>
-    <p style="font-size:13px;color:var(--muted)">La dictée vocale n'est pas disponible sur ce navigateur — essaie Chrome ou Edge (ordinateur ou Android).</p>`;
-}
-
-function voiceResetPanel() {
-  if (!voiceSupported()) return;
-  voiceCancelRecording();
-  const idle = document.getElementById('s-voice-idle');
-  const result = document.getElementById('s-voice-result');
-  const processing = document.getElementById('s-voice-processing');
-  if (idle) idle.style.display = '';
-  if (result) { result.style.display = 'none'; result.innerHTML = ''; }
-  if (processing) processing.style.display = 'none';
-}
-
-function voiceStartRecording() {
-  if (!voiceSupported()) return;
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  voiceRecognition = new SR();
-  voiceRecognition.lang = 'fr-FR';
-  voiceRecognition.continuous = true;
-  voiceRecognition.interimResults = true;
-  voiceFinalTranscript = '';
-  voiceListening = true;
-
-  document.getElementById('s-voice-idle').style.display = 'none';
-  document.getElementById('s-voice-recording').style.display = '';
-  document.getElementById('s-voice-result').style.display = 'none';
-  document.getElementById('s-voice-transcript').value = '';
-
-  voiceRecognition.onresult = (e) => {
-    let interim = '';
-    for (let i = e.resultIndex; i < e.results.length; i++) {
-      const t = e.results[i][0].transcript;
-      if (e.results[i].isFinal) voiceFinalTranscript += t + ' ';
-      else interim += t;
-    }
-    document.getElementById('s-voice-transcript').value = (voiceFinalTranscript + interim).trim();
-  };
-  voiceRecognition.onerror = (e) => {
-    console.error('Erreur reconnaissance vocale:', e.error);
-    if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
-      alert('Accès au micro refusé. Autorise le micro dans ton navigateur pour utiliser la dictée.');
-      voiceCancelRecording();
-    }
-  };
-  voiceRecognition.onend = () => {
-    // Le navigateur coupe parfois automatiquement après un silence : on relance tant qu'on écoute encore.
-    if (voiceListening) { try { voiceRecognition.start(); } catch(e) {} }
-  };
-  try { voiceRecognition.start(); } catch(e) { console.error(e); }
-}
-
-function voiceCancelRecording() {
-  voiceListening = false;
-  if (voiceRecognition) {
-    voiceRecognition.onend = null;
-    try { voiceRecognition.stop(); } catch(e) {}
-    voiceRecognition = null;
-  }
-  const idle = document.getElementById('s-voice-idle');
-  const rec = document.getElementById('s-voice-recording');
-  if (idle) idle.style.display = '';
-  if (rec) rec.style.display = 'none';
-}
-
-async function voiceStopAndFill() {
-  const transcriptEl = document.getElementById('s-voice-transcript');
-  const transcript = (transcriptEl?.value || '').trim();
-  voiceListening = false;
-  if (voiceRecognition) {
-    voiceRecognition.onend = null;
-    try { voiceRecognition.stop(); } catch(e) {}
-    voiceRecognition = null;
-  }
-  document.getElementById('s-voice-recording').style.display = 'none';
-  if (!transcript) { voiceCancelRecording(); return; }
-
-  document.getElementById('s-voice-processing').style.display = '';
-  const resultBox = document.getElementById('s-voice-result');
-  resultBox.style.display = 'none';
-
-  const typeKeys = Object.keys(SESSION_TYPES).join(', ');
-  const today = new Date().toISOString().slice(0,10);
-  const prompt = `Tu extrais les informations d'une séance d'entraînement d'escalade à partir d'une description orale transcrite (en français, possiblement imparfaite car issue de reconnaissance vocale).
-
-DESCRIPTION DICTÉE : "${transcript}"
-
-DATE DU JOUR (à utiliser si aucune date n'est précisée dans le texte) : ${today}
-
-Réponds UNIQUEMENT en JSON valide, sans markdown, sans backticks, avec exactement ces champs :
-{
-  "type": "une valeur parmi : ${typeKeys}",
-  "date": "YYYY-MM-DD",
-  "minutes": nombre entier (durée en minutes ; estime si vague, ex. 'une petite heure' = 50),
-  "intensity": entier de 1 à 5 (1=très facile, 3=modéré, 5=très intense ; déduis-le du ressenti décrit),
-  "location": "lieu mentionné, ou chaîne vide si absent",
-  "notes": "résumé synthétique en français de ce qui a été fait et ressenti, 1 à 3 phrases",
-  "confidence": "low, medium ou high — ta confiance globale dans cette extraction"
-}`;
-
-  try {
-    const resp = await fetch('/api/ai/chat', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ messages: [{role:'user', content: prompt}], max_tokens: 512 })
-    });
-    const data = await resp.json();
-    if (data.error) throw new Error(typeof data.error === 'string' ? data.error : (data.error.message || 'Erreur API Anthropic'));
-    const raw = (data.content||[]).map(b=>b.text||'').join('');
-    const cleaned = raw.replace(/```json|```/g,'').trim();
-    const parsed = JSON.parse(cleaned);
-    voiceApplyToForm(parsed, transcript);
-  } catch(e) {
-    document.getElementById('s-voice-processing').style.display = 'none';
-    resultBox.style.display = '';
-    resultBox.innerHTML = `<div style="color:#c0392b;font-size:13px">Erreur d'analyse IA : ${esc(e.message)}. Tu peux remplir le formulaire manuellement, ou <button type="button" class="btn sm" style="padding:2px 8px" onclick="voiceResetPanel()">réessayer</button>.</div>`;
-  }
-}
-
-function voiceApplyToForm(parsed, transcript) {
-  const type = SESSION_TYPES[parsed?.type] ? parsed.type : 'autre';
-  document.getElementById('s-type').value = type;
-  if (parsed?.date && /^\d{4}-\d{2}-\d{2}$/.test(parsed.date)) document.getElementById('s-date').value = parsed.date;
-  const minutes = +parsed?.minutes;
-  if (Number.isFinite(minutes) && minutes > 0) setDurationMinutes(minutes);
-  const intensity = +parsed?.intensity;
-  if (Number.isFinite(intensity)) document.getElementById('s-intensity').value = Math.min(5, Math.max(1, Math.round(intensity)));
-  if (parsed?.location) document.getElementById('s-location').value = parsed.location;
-  document.getElementById('s-notes').value = parsed?.notes || transcript;
-
-  updateSessionTypeUI({});
-  renderAscentsEditor();
-  updateLoadPreview();
-
-  document.getElementById('s-voice-processing').style.display = 'none';
-  const resultBox = document.getElementById('s-voice-result');
-  resultBox.style.display = '';
-  const confLabel = {low:'faible — vérifie bien tout', medium:'moyenne', high:'bonne'}[parsed?.confidence] || '';
-  resultBox.innerHTML = `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:13px">
-    ✓ Formulaire pré-rempli à partir de ta dictée${confLabel ? ` (confiance IA : ${esc(confLabel)})` : ''}. Vérifie les champs ci-dessous avant d'enregistrer — les ascensions détaillées restent à ajouter à la main si besoin.
-    <div style="margin-top:8px"><button type="button" class="btn sm" onclick="voiceResetPanel()">🎙️ Recommencer la dictée</button></div>
-  </div>`;
-}
-
-voiceInitPanel();
-
 // — New Session —
 let editingId=null, sessionAscents=[];
 let sNewSessionDateLocked=false; // évite que renderNewSession() n'écrase une date déjà fixée (ex. clic sur une case du calendrier)
@@ -10025,7 +9839,6 @@ function newSession(date=null){
   updateSessionTypeUI({});
   renderAscentsEditor();
   if (date) sNewSessionDateLocked = true;
-  voiceResetPanel();
   applyPrescriptionLock(null);
   updateFlexChangeButton(null);
 }
@@ -10099,7 +9912,6 @@ function editSession(id){
   updateSessionTypeUI(log.bNoGrade||{});
   renderAscentsEditor();
   if (!log.planned) { renderTogetherPanel(id); } else { document.getElementById('s-together-panel').style.display='none'; }
-  voiceResetPanel();
   applyPrescriptionLock(log);
   updateFlexChangeButton(log);
   renderSessionComments(log);
@@ -10117,7 +9929,7 @@ function editSession(id){
 function isPlanningView(log) { return !!(log && log.planned && isFutureDateStr(log.date)); }
 function applyPlanningView(log) {
   const planning = isPlanningView(log);
-  ['s-injury-group', 's-ascents-panel', 's-charge-panel', 's-voice-panel'].forEach(id => {
+  ['s-injury-group', 's-ascents-panel', 's-charge-panel'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = planning ? 'none' : '';
   });
