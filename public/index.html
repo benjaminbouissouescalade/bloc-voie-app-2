@@ -1302,6 +1302,16 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
             </select>
           </div>
         </div>
+        <!-- Nom libre visible uniquement pour le type "Autre" : sans ça toutes les séances "Autre"
+             se ressemblent dans le calendrier (retour : "quand on met autre il faudrait pouvoir
+             nommer la séance et que le nom soit visible dans le calendrier"). Affiché/masqué par
+             updateSessionTypeUI(). -->
+        <div class="form-row" id="s-custom-name-row" style="display:none">
+          <div class="form-group" style="margin:0">
+            <label class="form-label">Nom de la séance</label>
+            <input class="form-control" type="text" id="s-custom-name" maxlength="60" placeholder="Ex. Sortie vélo, Séance étirements du soir…">
+          </div>
+        </div>
         <div class="form-row form-row-3">
           <div class="form-group" style="margin:0">
             <label class="form-label">Durée</label>
@@ -3876,6 +3886,16 @@ const SESSION_TYPES = {
 };
 const STYLES = ['Dalle','Dévers','Compression','Physique','Doigts','Rési','Puissance','Coordination','Équilibre','Technique'];
 
+// Libellé à afficher pour une séance de type "Autre" : elle peut être nommée par l'athlète/coach
+// (retour : "quand on met autre il faudrait pouvoir nommer la séance et que le nom soit visible
+// dans le calendrier") — sinon on retombe sur le libellé générique du type comme pour tous les
+// autres types. Centralisé ici pour que calendrier, case-jour et modale du jour restent cohérents.
+function sessionDisplayLabel(log) {
+  if (!log) return '';
+  if (log.type === 'autre' && log.customName && log.customName.trim()) return log.customName.trim();
+  return (SESSION_TYPES[log.type] || SESSION_TYPES.autre).label;
+}
+
 const SUPPORTS = {
   // ── Poutres & Doigts ──
   poutre_bois:    { label: 'Poutre bois standard',   group: 'Poutre / Doigts', icon: '🪵' },
@@ -5562,7 +5582,7 @@ function buildCalCell(ds, dayNum, isOther, todayStr, climberCycles) {
   const hasInjury = doneLogsForCell.some(l => l.injury);
   cell.className = 'cal-cell' + (isOther?' other-month':'') + (ds===todayStr?' today':'') + (doneLogsForCell.length&&!hasHard?' has-session':doneLogsForCell.length&&hasHard?' has-hard':'') + (plannedLogsForCell.length?' has-planned':'');
   const typeLabelHtml = dayLogs.length === 1
-    ? `<div style="font-size:9px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc((SESSION_TYPES[dayLogs[0].type]||SESSION_TYPES.autre).label)}</div>`
+    ? `<div style="font-size:9px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(sessionDisplayLabel(dayLogs[0]))}</div>`
     : dayLogs.length > 1
       ? `<div style="font-size:9px;color:var(--muted);margin-top:2px">🧗 ${dayLogs.length} séances</div>`
       : '';
@@ -5570,7 +5590,7 @@ function buildCalCell(ds, dayNum, isOther, todayStr, climberCycles) {
   const availBadgeHtml = dayAvail.length
     ? `<div class="cal-avail-badge" title="Dispo déclarée : ${esc(dayAvail.map(a=>gymNameById(a.gymId)||'salle non précisée').join(', '))}">🏟</div>`
     : '';
-  cell.innerHTML = `${plannedLogsForCell.length?`<div class="cal-planned-badge" title="${plannedLogsForCell.length} séance${plannedLogsForCell.length>1?'s':''} prévue${plannedLogsForCell.length>1?'s':''}">📌</div>`:''}${availBadgeHtml}<div class="cal-num">${dayNum}</div><div class="cal-dots">${dayLogs.map(l=>`<div class="cal-dot${l.planned?' cal-dot-planned':''}" style="${l.planned?`border-color:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`:`background:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`}" title="${esc((SESSION_TYPES[l.type]||SESSION_TYPES.autre).label)}${l.planned?' (prévue)':''}"></div>`).join('')}</div>${typeLabelHtml}${cycleTagsHtmlForDate(ds, climberCycles)}${load?`<div style="font-size:9px;font-weight:700;color:var(--muted);margin-top:3px">⚡ ${load}</div>`:''}${hasInjury?`<div style="font-size:9px;font-weight:700;color:var(--warm);margin-top:2px">🩹 bobo</div>`:''}`;
+  cell.innerHTML = `${plannedLogsForCell.length?`<div class="cal-planned-badge" title="${plannedLogsForCell.length} séance${plannedLogsForCell.length>1?'s':''} prévue${plannedLogsForCell.length>1?'s':''}">📌</div>`:''}${availBadgeHtml}<div class="cal-num">${dayNum}</div><div class="cal-dots">${dayLogs.map(l=>`<div class="cal-dot${l.planned?' cal-dot-planned':''}" style="${l.planned?`border-color:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`:`background:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`}" title="${esc(sessionDisplayLabel(l))}${l.planned?' (prévue)':''}"></div>`).join('')}</div>${typeLabelHtml}${cycleTagsHtmlForDate(ds, climberCycles)}${load?`<div style="font-size:9px;font-weight:700;color:var(--muted);margin-top:3px">⚡ ${load}</div>`:''}${hasInjury?`<div style="font-size:9px;font-weight:700;color:var(--warm);margin-top:2px">🩹 bobo</div>`:''}`;
   cell.onclick = () => openDayModal(ds);
   cell.ondragover = (e) => { e.preventDefault(); cell.classList.add('drag-over'); };
   cell.ondragleave = () => cell.classList.remove('drag-over');
@@ -5887,7 +5907,7 @@ function buildCal2Cell(ds, dayNum, isOther, todayStr, climberCycles) {
   const hasInjury = doneLogsForCell.some(l => l.injury);
   cell.className = 'cal-cell' + (isOther?' other-month':'') + (ds===todayStr?' today':'') + (doneLogsForCell.length&&!hasHard?' has-session':doneLogsForCell.length&&hasHard?' has-hard':'') + (plannedLogsForCell.length?' has-planned':'');
   const typeLabelHtml2 = dayLogs.length === 1
-    ? `<div style="font-size:9px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc((SESSION_TYPES[dayLogs[0].type]||SESSION_TYPES.autre).label)}</div>`
+    ? `<div style="font-size:9px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(sessionDisplayLabel(dayLogs[0]))}</div>`
     : dayLogs.length > 1
       ? `<div style="font-size:9px;color:var(--muted);margin-top:2px">🧗 ${dayLogs.length} séances</div>`
       : '';
@@ -5895,7 +5915,7 @@ function buildCal2Cell(ds, dayNum, isOther, todayStr, climberCycles) {
   const availBadgeHtml2 = dayAvail2.length
     ? `<div class="cal-avail-badge" title="Dispo déclarée : ${esc(dayAvail2.map(a=>gymNameById(a.gymId)||'salle non précisée').join(', '))}">🏟</div>`
     : '';
-  cell.innerHTML = `${plannedLogsForCell.length?`<div class="cal-planned-badge" title="${plannedLogsForCell.length} séance${plannedLogsForCell.length>1?'s':''} prévue${plannedLogsForCell.length>1?'s':''}">📌</div>`:''}${availBadgeHtml2}<div class="cal-num">${dayNum}</div><div class="cal-dots">${dayLogs.map(l=>`<div class="cal-dot${l.planned?' cal-dot-planned':''}" style="${l.planned?`border-color:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`:`background:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`}" title="${esc((SESSION_TYPES[l.type]||SESSION_TYPES.autre).label)}${l.planned?' (prévue)':''}"></div>`).join('')}</div>${typeLabelHtml2}${cycleTagsHtmlForDate(ds, climberCycles)}${load?`<div style="font-size:9px;font-weight:700;color:var(--muted);margin-top:3px">⚡ ${load}</div>`:''}${hasInjury?`<div style="font-size:9px;font-weight:700;color:var(--warm);margin-top:2px">🩹 bobo</div>`:''}`;
+  cell.innerHTML = `${plannedLogsForCell.length?`<div class="cal-planned-badge" title="${plannedLogsForCell.length} séance${plannedLogsForCell.length>1?'s':''} prévue${plannedLogsForCell.length>1?'s':''}">📌</div>`:''}${availBadgeHtml2}<div class="cal-num">${dayNum}</div><div class="cal-dots">${dayLogs.map(l=>`<div class="cal-dot${l.planned?' cal-dot-planned':''}" style="${l.planned?`border-color:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`:`background:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`}" title="${esc(sessionDisplayLabel(l))}${l.planned?' (prévue)':''}"></div>`).join('')}</div>${typeLabelHtml2}${cycleTagsHtmlForDate(ds, climberCycles)}${load?`<div style="font-size:9px;font-weight:700;color:var(--muted);margin-top:3px">⚡ ${load}</div>`:''}${hasInjury?`<div style="font-size:9px;font-weight:700;color:var(--warm);margin-top:2px">🩹 bobo</div>`:''}`;
   cell.onclick = () => openDayModal(ds);
   return { cell, dayLogs, isOther };
 }
@@ -9639,6 +9659,10 @@ function updateSessionTypeUI(savedBNoGrade) {
   const ascentBtn = document.getElementById('add-ascent-btn');
   if (ascentPanel) ascentPanel.style.display = cfg.showAscents ? '' : 'none';
 
+  // ── Nom libre (type "Autre" uniquement) ──
+  const nameRow = document.getElementById('s-custom-name-row');
+  if (nameRow) nameRow.style.display = (type === 'autre') ? '' : 'none';
+
   // ── Boulder card label ──
   const bLabel = document.getElementById('s-load-boulder-label');
   const bCard = document.getElementById('s-load-boulder-card');
@@ -9936,6 +9960,7 @@ function newSession(date=null){
   document.getElementById('s-intensity').value=3;
   document.getElementById('s-shape').value='normal';
   document.getElementById('s-location').value='';
+  document.getElementById('s-custom-name').value='';
   document.getElementById('s-support').value='';
   document.getElementById('s-notes').value='';
   document.getElementById('s-injury').checked=false;
@@ -10010,6 +10035,7 @@ function editSession(id){
   document.getElementById('s-intensity').value=log.intensity||3;
   document.getElementById('s-shape').value=log.shape||'normal';
   document.getElementById('s-location').value=log.location||'';
+  document.getElementById('s-custom-name').value=log.customName||'';
   document.getElementById('s-support').value=log.support||'';
   document.getElementById('s-notes').value=log.notes||'';
   document.getElementById('s-injury').checked=!!log.injury;
@@ -10468,6 +10494,10 @@ function saveCurrentSession() {
     intensity:fieldVal('s-intensity', 3),
     shape:fieldStr('s-shape', 'normal'),
     location:fieldStr('s-location'),
+    // Nom libre, uniquement pertinent pour le type "Autre" (champ masqué sinon — cf.
+    // updateSessionTypeUI) : on ne le persiste que pour ce type pour éviter qu'une valeur laissée
+    // dans le champ caché ne "fuite" silencieusement sur un type qui n'en a pas l'usage.
+    customName: sType === 'autre' ? fieldStr('s-custom-name') : '',
     support:fieldStr('s-support'),
     notes:fieldStr('s-notes'),
     injury:!!document.getElementById('s-injury').checked,
@@ -10577,7 +10607,7 @@ function openDayModal(dateStr){
     return `<div class="log-item" style="${l.planned?'border-style:dashed':''}" onclick="closeModal('day-modal');editSession('${l.id}')">
       <div class="log-item-header">
         <div>
-          <div class="log-date" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="sess-dot" style="background:${t.color}"></span>${t.label}${l.planned?' <span class="tag" style="border-color:var(--accent);color:var(--accent)">📌 Prévue</span>':''}${l.flexGoal?` <span class="tag" style="border-color:#b07a10;color:#b07a10">🎯 ${l.bankRef?'Objectif':'À choisir'} : ${esc(SB_GOAL_LABELS[l.flexGoal]||l.flexGoal)}</span>`:''}${cycleLabel?` <span class="tag" style="border-color:${colorForCycleId(l.cycleId)};color:${colorForCycleId(l.cycleId)}">🔁 ${esc(cycleLabel)}</span>`:''}${!l.planned&&l.injury?` <span class="tag" style="border-color:var(--warm);color:var(--warm)" title="${esc(l.injuryNote||'')}">🩹 Petite blessure</span>`:''}</div>
+          <div class="log-date" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="sess-dot" style="background:${t.color}"></span>${esc(sessionDisplayLabel(l))}${l.planned?' <span class="tag" style="border-color:var(--accent);color:var(--accent)">📌 Prévue</span>':''}${l.flexGoal?` <span class="tag" style="border-color:#b07a10;color:#b07a10">🎯 ${l.bankRef?'Objectif':'À choisir'} : ${esc(SB_GOAL_LABELS[l.flexGoal]||l.flexGoal)}</span>`:''}${cycleLabel?` <span class="tag" style="border-color:${colorForCycleId(l.cycleId)};color:${colorForCycleId(l.cycleId)}">🔁 ${esc(cycleLabel)}</span>`:''}${!l.planned&&l.injury?` <span class="tag" style="border-color:var(--warm);color:var(--warm)" title="${esc(l.injuryNote||'')}">🩹 Petite blessure</span>`:''}</div>
           <div class="log-meta">${l.minutes||0} min · intensité ${l.intensity||'—'}${l.planned?'':` · charge ${load}`}${l.location?` · ${l.location}`:''}${l.support&&SUPPORTS[l.support]?` · <span style="font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:3px;padding:1px 7px">${SUPPORTS[l.support].icon} ${SUPPORTS[l.support].label}</span>`:''}</div>
         </div>
         ${l.planned?`<button class="btn sm danger" onclick="event.stopPropagation();deletePlannedSession('${l.id}','${dateStr}')" title="Retirer cette séance prévue">✕</button>`:''}
