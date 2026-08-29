@@ -2392,7 +2392,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     <div>
       <div class="tests-breadcrumb" onclick="switchPage('tests-doigts')">‹ Tests généraux / Doigts</div>
       <h2>SmartBoard</h2>
-      <p>Force pic gauche/droite, force critique — <span id="smb-athlete-name"></span></p>
+      <p>Poids, force max, rapport force/poids, déséquilibre — <span id="smb-athlete-name"></span></p>
     </div>
   </div>
 
@@ -2410,22 +2410,25 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
         <input class="form-control" type="text" id="smb-edge" placeholder="ex : 20mm plat">
       </div>
       <div class="form-group">
-        <label class="form-label">Durée du test (s)</label>
-        <input class="form-control" type="number" step="0.1" id="smb-duration">
+        <label class="form-label">Poids (kg)</label>
+        <input class="form-control" type="number" step="0.1" id="smb-weight">
       </div>
     </div>
+    <!-- Les 3 champs suivants sont lus directement sur l'écran de l'appli SmartBoard après le test
+         (retour : "voici les données que je veux que l'on rentre : poids, force max en N, rapport
+         force poids, déséquilibre") — pas de calcul de notre côté, on recopie ce qu'affiche l'appli. -->
     <div class="form-row form-row-3">
       <div class="form-group">
-        <label class="form-label">Force pic gauche (kg)</label>
-        <input class="form-control" type="number" step="0.1" id="smb-peak-left">
+        <label class="form-label">Force max (N)</label>
+        <input class="form-control" type="number" step="1" id="smb-max-force">
       </div>
       <div class="form-group">
-        <label class="form-label">Force pic droite (kg)</label>
-        <input class="form-control" type="number" step="0.1" id="smb-peak-right">
+        <label class="form-label">Rapport force/poids</label>
+        <input class="form-control" type="number" step="0.01" id="smb-ratio">
       </div>
       <div class="form-group">
-        <label class="form-label">Force critique CF (kg)</label>
-        <input class="form-control" type="number" step="0.1" id="smb-cf">
+        <label class="form-label">Déséquilibre (%)</label>
+        <input class="form-control" type="number" step="0.1" id="smb-imbalance">
       </div>
     </div>
     <div class="form-group">
@@ -8039,13 +8042,10 @@ function smbRenderHistory() {
   if (!smbHistoryCache.length) { el.innerHTML = `<p style="font-size:13px;color:var(--muted)">Aucun test enregistré pour l'instant.</p>`; return; }
   el.innerHTML = smbHistoryCache.map(t => {
     const p = t.payload || {};
-    const asym = (p.peakLeft != null && p.peakRight != null && Math.max(p.peakLeft, p.peakRight) > 0)
-      ? Math.round(Math.abs(p.peakLeft - p.peakRight) / Math.max(p.peakLeft, p.peakRight) * 100)
-      : null;
     return `<div class="fp-history-row" style="cursor:default">
       <div style="flex:1">
         <div style="font-size:14px;font-weight:600">${fmtDate(t.testDate)}${p.edge ? ' · ' + esc(p.edge) : ''}</div>
-        <div style="font-size:12px;color:var(--muted)">G ${p.peakLeft ?? '–'} kg · D ${p.peakRight ?? '–'} kg${asym !== null ? ' · asym. ' + asym + '%' : ''}${p.cf != null ? ' · CF ' + p.cf + ' kg' : ''}</div>
+        <div style="font-size:12px;color:var(--muted)">${p.maxForceN != null ? p.maxForceN + ' N' : '–'}${p.weightKg != null ? ' · ' + p.weightKg + ' kg' : ''}${p.ratio != null ? ' · ratio ' + p.ratio : ''}${p.imbalancePct != null ? ' · déséq. ' + p.imbalancePct + '%' : ''}</div>
       </div>
       <button class="btn" style="padding:4px 8px;font-size:11px" onclick="smbDeleteTest('${t.id}')">Suppr.</button>
     </div>`;
@@ -8059,10 +8059,10 @@ async function smbSaveTest() {
   if (!date) { alert('Renseigne une date.'); return; }
   const payload = {
     edge: document.getElementById('smb-edge').value.trim(),
-    peakLeft: parseFloat(document.getElementById('smb-peak-left').value) || null,
-    peakRight: parseFloat(document.getElementById('smb-peak-right').value) || null,
-    cf: parseFloat(document.getElementById('smb-cf').value) || null,
-    duration: parseFloat(document.getElementById('smb-duration').value) || null
+    weightKg: parseFloat(document.getElementById('smb-weight').value) || null,
+    maxForceN: parseFloat(document.getElementById('smb-max-force').value) || null,
+    ratio: parseFloat(document.getElementById('smb-ratio').value) || null,
+    imbalancePct: parseFloat(document.getElementById('smb-imbalance').value) || null
   };
   const body = {
     id: 'gt_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
@@ -8075,7 +8075,7 @@ async function smbSaveTest() {
   try {
     await fetch('/api/general-tests/' + climber.id, { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) });
   } catch (e) { alert("Erreur lors de l'enregistrement."); return; }
-  ['smb-edge', 'smb-peak-left', 'smb-peak-right', 'smb-cf', 'smb-duration', 'smb-notes'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  ['smb-edge', 'smb-weight', 'smb-max-force', 'smb-ratio', 'smb-imbalance', 'smb-notes'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   await smbFetchHistory();
 }
 window.smbSaveTest = smbSaveTest;
