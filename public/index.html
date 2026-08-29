@@ -6417,6 +6417,11 @@ function generateCycle() {
   let objectivesUpdated = 0;
   const targetNames = [];
   const conflicts = [];
+  // Objectifs retirés du formulaire pendant l'édition (cf. plus bas) : à supprimer explicitement
+  // côté serveur une fois saveDB() passé — cycle_objectives est fusionné par id côté backend, donc
+  // leur seule absence du prochain sync ne suffit plus à les effacer (fix "des cycles qui
+  // disparaissent", cf. mergeCycleObjectivesById dans src/routes/climbers.js).
+  const objectivesToDeleteRefs = [];
 
   targetIds.forEach(climberId => {
     const climber = db.climbers.find(cl => cl.id === climberId);
@@ -6509,11 +6514,19 @@ function generateCycle() {
     // même logique que la suppression complète d'un cycle, cf. deleteCycle).
     if (editCycleId) {
       const keptGoals = new Set(flexCycleItems.map(it => it.flexGoal));
+      climber.cycleObjectives
+        .filter(o => o.cycleId === cycleId && !keptGoals.has(o.flexGoal))
+        .forEach(o => objectivesToDeleteRefs.push({ climberId, id: o.id }));
       climber.cycleObjectives = climber.cycleObjectives.filter(o => o.cycleId !== cycleId || keptGoals.has(o.flexGoal));
     }
   });
 
   saveDB();
+  if (authToken()) {
+    objectivesToDeleteRefs.forEach(({ climberId, id }) => {
+      fetch(`/api/climbers/${climberId}/cycle-objectives/${id}`, { method: 'DELETE', headers: authHeaders() }).catch(() => {});
+    });
+  }
   closeModal('cycle-modal');
   if (returnToDate) openDayModal(returnToDate);
   renderCalendar();
@@ -10417,12 +10430,20 @@ function deleteCycle(cycleId, returnToDate) {
   if (!climber) return;
   if (!confirm('Supprimer ce cycle ? Les séances déjà faites restent dans ton historique ; les séances et objectifs encore à venir seront retirés.')) return;
   const toDeleteIds = (climber.logs || []).filter(l => l.cycleId === cycleId && l.planned).map(l => l.id);
+  const objectivesToDeleteIds = (climber.cycleObjectives || []).filter(o => o.cycleId === cycleId).map(o => o.id);
   climber.logs = (climber.logs || []).filter(l => !(l.cycleId === cycleId && l.planned));
   climber.cycleObjectives = (climber.cycleObjectives || []).filter(o => o.cycleId !== cycleId);
   saveDB();
   if (authToken()) {
     toDeleteIds.forEach(id => {
       fetch(`/api/logs/${climber.id}/${id}`, { method: 'DELETE', headers: authHeaders() }).catch(() => {});
+    });
+    // cycle_objectives est désormais fusionné par id côté serveur (plus jamais remplacé en bloc —
+    // fix "des cycles qui disparaissent" causé par un client resté ouvert avec un état périmé qui
+    // écrasait les objectifs ajoutés entretemps par un autre appareil) : la suppression doit donc
+    // passer par cette route dédiée, pas par la seule absence de l'objectif au prochain sync.
+    objectivesToDeleteIds.forEach(id => {
+      fetch(`/api/climbers/${climber.id}/cycle-objectives/${id}`, { method: 'DELETE', headers: authHeaders() }).catch(() => {});
     });
   }
   if (returnToDate) openDayModal(returnToDate);
