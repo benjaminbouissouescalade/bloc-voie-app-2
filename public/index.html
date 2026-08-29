@@ -1285,6 +1285,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
                 <option value="prehension">Préhension / systémique</option>
                 <option value="musculation">Musculation</option>
                 <option value="cardio">Cardio / aérobie</option>
+                <option value="footing">Footing / course à pied</option>
               </optgroup>
               <optgroup label="── Récupération ──">
                 <option value="mobilite">Mobilité / stretching</option>
@@ -1964,6 +1965,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
               <option value="prehension">Préhension / systémique</option>
               <option value="musculation">Musculation</option>
               <option value="cardio">Cardio / aérobie</option>
+              <option value="footing">Footing / course à pied</option>
             </optgroup>
             <optgroup label="── Autre ──">
               <option value="autre">Autre</option>
@@ -2980,6 +2982,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
           <option value="doigts">Force doigts</option>
           <option value="musculation">Musculation</option>
           <option value="cardio">Cardio</option>
+          <option value="footing">Footing</option>
         </optgroup>
         <optgroup label="Récupération">
           <option value="mobilite">Mobilité</option>
@@ -3121,6 +3124,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
             <option value="prehension">Préhension / systémique</option>
             <option value="musculation">Musculation</option>
             <option value="cardio">Cardio / aérobie</option>
+            <option value="footing">Footing / course à pied</option>
           </optgroup>
           <optgroup label="── Récupération ──">
             <option value="mobilite">Mobilité / stretching</option>
@@ -3290,6 +3294,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
             <option value="prehension">Préhension / systémique</option>
             <option value="musculation">Musculation</option>
             <option value="cardio">Cardio / aérobie</option>
+            <option value="footing">Footing / course à pied</option>
           </optgroup>
           <optgroup label="── Récupération ──">
             <option value="mobilite">Mobilité / stretching</option>
@@ -3507,6 +3512,7 @@ Utilise les raccourcis ci-dessus ou pose-moi directement une question. Par exemp
         <option value="doigts">Force doigts</option>
         <option value="musculation">Musculation</option>
         <option value="cardio">Cardio</option>
+        <option value="footing">Footing</option>
       </optgroup>
       <optgroup label="Récupération">
         <option value="mobilite">Mobilité</option>
@@ -3855,6 +3861,7 @@ const SESSION_TYPES = {
   prehension:    {label:'Préhension / systémique',color:'#c46a30', group:'Physique'},
   musculation:   {label:'Musculation',            color:'#8a4010', group:'Physique'},
   cardio:        {label:'Cardio / aérobie',       color:'#d4602a', group:'Physique'},
+  footing:       {label:'Footing / course à pied',color:'#b8501a', group:'Physique'},
   // ── Récupération & Bien-être ──
   mobilite:      {label:'Mobilité / stretching',  color:'#5a2d82', group:'Récupération'},
   yoga:          {label:'Yoga',                   color:'#7a3da0', group:'Récupération'},
@@ -9552,6 +9559,7 @@ const SESSION_CONFIG = {
   prehension:    { showAscents: false, extraPanel: 'ppg',    defaultMinutes: 60,  loadLabel: '' },
   musculation:   { showAscents: false, extraPanel: 'ppg',    defaultMinutes: 60,  loadLabel: '' },
   cardio:        { showAscents: false, extraPanel: 'ppg',    defaultMinutes: 45,  loadLabel: '' },
+  footing:       { showAscents: false, extraPanel: 'ppg',    defaultMinutes: 40,  loadLabel: '' },
   // ── Récupération ──
   mobilite:      { showAscents: false, extraPanel: 'ppg',    defaultMinutes: 30,  loadLabel: '' },
   yoga:          { showAscents: false, extraPanel: 'ppg',    defaultMinutes: 60,  loadLabel: '' },
@@ -11785,7 +11793,7 @@ async function sbAiGenerate() {
     resultBox.style.display = '';
     resultBox.innerHTML = `<div style="color:var(--muted);font-style:italic;font-size:13px">L'IA met ta séance en forme…</div>`;
 
-    const classifyInstructions = `Choisis toi-même, à partir de ce texte, le type de séance le plus proche parmi : bloc, voies, falaise, pan, competition, ppg, doigts, prehension, musculation, cardio, mobilite, yoga, recup_active, video, mentale.
+    const classifyInstructions = `Choisis toi-même, à partir de ce texte, le type de séance le plus proche parmi : bloc, voies, falaise, pan, competition, ppg, doigts, prehension, musculation, cardio, footing, mobilite, yoga, recup_active, video, mentale.
 Choisis aussi l'objectif principal le plus proche parmi : projet, force_max, puissance, doigts_max, volume, resi, arc, circuit, technique, dalle, devers, coordination, flasher, comp_simulation, onsight, peaking, recuperation, prevention, retour_blessure.
 Si une durée est mentionnée dans le texte, reprends-la ; sinon estime une durée raisonnable en minutes.`;
 
