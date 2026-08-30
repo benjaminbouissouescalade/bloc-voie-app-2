@@ -93,6 +93,11 @@ async function initDB() {
       -- fiche réutilisée par plusieurs athlètes ou plusieurs fois a une progression indépendante
       -- à chaque fois). Vide/non pertinent si la séance ne référence pas une fiche à checklist.
       ALTER TABLE logs ADD COLUMN IF NOT EXISTS checklist_done JSONB DEFAULT '[]';
+      -- Ressenti rapide post-séance (retour utilisateur : "la fonctionnalité que j'ajouterais en
+      -- premier" — un seul choix parmi 5 emojis juste après avoir loggé une séance faite, distinct
+      -- de l'intensité déjà saisie dans le formulaire). Valeurs : too_easy/easy/right/hard/too_hard,
+      -- vide si jamais répondu (l'athlète peut passer).
+      ALTER TABLE logs ADD COLUMN IF NOT EXISTS feeling TEXT DEFAULT '';
       CREATE INDEX IF NOT EXISTS idx_logs_climber_date ON logs(climber_id, date DESC);
       CREATE TABLE IF NOT EXISTS session_bank (
         id          TEXT PRIMARY KEY,
