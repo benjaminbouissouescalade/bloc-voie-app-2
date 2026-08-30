@@ -8149,7 +8149,9 @@ function thdRenderTestChart(canvasId, list, valueFn, markerDates, unit) {
     .map(t => ({ date: t.testDate, value: valueFn(t) }))
     .filter(p => p.value != null)
     .sort((a, b) => a.date.localeCompare(b.date));
-  if (points.length < 2) { destroyChart(canvasId); return; }
+  // Retour utilisateur : "faire apparaître dès le premier test au moins le point de départ" —
+  // un seul point s'affiche comme un point isolé (pas de ligne tant qu'il n'y a rien à relier).
+  if (points.length < 1) { destroyChart(canvasId); return; }
   const testDates = new Set(points.map(p => p.date));
   const rangeStart = points[0].date, rangeEnd = points[points.length - 1].date;
   const markerInRange = [...new Set(markerDates)].filter(d => d >= rangeStart && d <= rangeEnd && !testDates.has(d));
@@ -8527,7 +8529,9 @@ function ehRenderChart() {
   if (!panel) return;
   const list = ehFilteredList().slice().sort((a, b) => a.testDate.localeCompare(b.testDate));
   const pts = list.filter(t => t.payload?.pctBw != null);
-  if (ehFilterEdge === 'all' || pts.length < 2) {
+  // Un seul point s'affiche déjà comme point de départ (retour utilisateur) — seul le filtre
+  // "toutes réglettes" masque la courbe (comparer des tailles différentes n'a pas de sens).
+  if (ehFilterEdge === 'all' || pts.length < 1) {
     panel.style.display = 'none';
     destroyChart('eh-evo-chart');
     return;
@@ -8620,7 +8624,8 @@ function makeArmTestPage(cfg) {
     if (!panel) return;
     const list = (armTestCaches[cfg.prefix] || []).slice().sort((a, b) => a.testDate.localeCompare(b.testDate));
     const pts = list.filter(t => t.payload?.[cfg.chartKey] != null);
-    if (pts.length < 2) { panel.style.display = 'none'; destroyChart(cfg.prefix + '-evo-chart'); return; }
+    // Un seul test affiche déjà un point de départ (retour utilisateur).
+    if (pts.length < 1) { panel.style.display = 'none'; destroyChart(cfg.prefix + '-evo-chart'); return; }
     panel.style.display = '';
     makeChart(cfg.prefix + '-evo-chart', {
       type: 'line',
