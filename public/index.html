@@ -2498,6 +2498,15 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     </div>
     <div id="smb-history-list"><p style="font-size:13px;color:var(--muted)">Chargement…</p></div>
   </div>
+
+  <!-- Comparaison à Berta et al. 2024 — visible seulement si le dernier test est en préhension
+       semi-arquée (seule préhension protocolairement comparable, cf. referenceMappings.js). -->
+  <div class="panel" id="smb-compare-panel" style="display:none">
+    <div class="panel-header">
+      <span class="panel-title">Comparaison — Berta et al. 2024</span>
+    </div>
+    <div id="smb-compare-body"></div>
+  </div>
 </div>
 
 <!-- ═══════════════ TESTS GÉNÉRAUX — SUSPENSION SUR RÉGLETTE ═══════════════ -->
@@ -2553,6 +2562,15 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <span class="panel-sub" id="eh-grip-filter-wrap"></span>
     </div>
     <div id="eh-history-list"><p style="font-size:13px;color:var(--muted)">Chargement…</p></div>
+  </div>
+
+  <!-- Comparaison à Berta et al. 2024 — visible seulement si le dernier test est en préhension
+       semi-arquée (seule préhension protocolairement comparable, cf. referenceMappings.js). -->
+  <div class="panel" id="eh-compare-panel" style="display:none;margin-bottom:20px">
+    <div class="panel-header">
+      <span class="panel-title">Comparaison — Berta et al. 2024</span>
+    </div>
+    <div id="eh-compare-body"></div>
   </div>
 
   <div class="panel" id="eh-chart-panel" style="display:none">
@@ -8168,6 +8186,93 @@ function thdRenderTestChart(canvasId, list, valueFn, markerDates, unit) {
   });
 }
 
+// ═══════════════ TESTS GÉNÉRAUX — COMPARAISON À UNE POPULATION DE RÉFÉRENCE ═══════════════
+// Affiche un tableau de percentiles (Berta et al. 2024) à côté du dernier test en préhension
+// semi-arquée, avec le niveau de comparaison choisi automatiquement (cascade : meilleure perf
+// tête 12 mois → 24 mois → grade de référence → sinon saisie manuelle ponctuelle). Retour
+// utilisateur : "un beau tableau avec les résultats de Berta et le grimpeur ou coach peuvent se
+// faire une idée" — pas de badge de confiance automatique, juste le tableau + une mise en garde.
+function referenceTableHtml(resp, sourceLabel) {
+  if (!resp || !resp.available) {
+    if (resp?.reason === 'grip_mismatch') {
+      return `<p style="font-size:12px;color:var(--muted)">Comparaison disponible uniquement pour un test en préhension <strong>semi-arquée</strong>.</p>`;
+    }
+    return '';
+  }
+  const t = resp.table;
+  const athlete = resp.athlete;
+  const cols = [['P10', t.p10], ['P25', t.p25], ['P50', t.p50], ['P75', t.p75], ['P90', t.p90]];
+  return `
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:12px;text-align:center">
+        <thead><tr>
+          ${cols.map(([label]) => `<th style="padding:4px 6px;color:var(--muted);font-weight:600">${label}</th>`).join('')}
+          <th style="padding:4px 6px;color:var(--accent);font-weight:700">Toi</th>
+        </tr></thead>
+        <tbody><tr>
+          ${cols.map(([, v]) => `<td style="padding:4px 6px;border-top:1px solid var(--border)">${v != null ? v.toFixed(2) : '–'} ${esc(resp.unit)}</td>`).join('')}
+          <td style="padding:4px 6px;border-top:1px solid var(--border);font-weight:700;color:var(--accent)">${athlete.value.toFixed(2)} ${esc(resp.unit)}${athlete.percentile != null ? ' (P' + athlete.percentile + ')' : ''}</td>
+        </tr></tbody>
+      </table>
+    </div>
+    <p style="font-size:11px;color:var(--muted);margin-top:8px">Comparé à ${esc(sourceLabel)} · ${esc(resp.source.label)} (${resp.source.totalN} grimpeurs, IRCRA ±${resp.window}, n=${resp.confidence.n} dans la tranche) · ${esc(resp.confidence.label)}</p>
+    <p style="font-size:11px;color:var(--muted);margin-top:4px">${esc(resp.note)}</p>`;
+}
+
+async function refCompareFetchAndRender(panelId, mappingKey, value, ircra, gender, sourceLabel) {
+  const panel = document.getElementById(panelId);
+  if (!panel) return;
+  try {
+    const params = new URLSearchParams({ mapping: mappingKey, ircra, gender, value, gripType: 'semi_arque' });
+    const r = await fetch('/api/references/table?' + params.toString(), { headers: authHeaders() });
+    const resp = r.ok ? await r.json() : { available: false };
+    panel.innerHTML = referenceTableHtml(resp, sourceLabel) || `<p style="font-size:12px;color:var(--muted)">Pas assez de données pour comparer pour l'instant.</p>`;
+  } catch (e) { panel.innerHTML = ''; }
+}
+
+async function refCompareManualSet(panelId, mappingKey) {
+  const climber = getActive();
+  const grade = document.getElementById(panelId + '-manual-grade')?.value;
+  const panel = document.getElementById(panelId);
+  if (!grade || !climber || !panel) return;
+  const ircra = fpIrcraFromGrade(grade);
+  const gender = climber.profile?.gender || null;
+  const value = parseFloat(panel.dataset.pendingValue);
+  if (ircra === null || !gender || !Number.isFinite(value)) return;
+  await refCompareFetchAndRender(panelId, mappingKey, value, ircra, gender, `${grade} (saisi manuellement)`);
+}
+window.refCompareManualSet = refCompareManualSet;
+
+async function renderReferenceComparison({ panelId, mappingKey, latestTest, valueFn }) {
+  const panel = document.getElementById(panelId);
+  if (!panel) return;
+  const climber = getActive();
+  if (!climber || !latestTest) { panel.innerHTML = ''; return; }
+  const value = valueFn(latestTest);
+  if (value == null) { panel.innerHTML = ''; return; }
+  panel.dataset.pendingValue = value;
+  const gripType = latestTest.payload?.gripType;
+  if (gripType !== 'semi_arque') {
+    panel.innerHTML = `<p style="font-size:12px;color:var(--muted)">Comparaison disponible uniquement pour un test en préhension <strong>semi-arquée</strong> (ton dernier test est en ${GRIP_TYPES[gripType] || 'préhension non précisée'}).</p>`;
+    return;
+  }
+  const gender = climber.profile?.gender || null;
+  if (!gender) { panel.innerHTML = `<p style="font-size:12px;color:var(--muted)">Renseigne le genre du profil pour activer la comparaison.</p>`; return; }
+  const comp = getComparisonGradeForReference(climber);
+  if (!comp.grade) {
+    panel.innerHTML = `
+      <p style="font-size:12px;color:var(--muted);margin-bottom:6px">Aucune performance récente enregistrée pour choisir la tranche de comparaison.</p>
+      <div style="display:flex;gap:8px;align-items:center">
+        <select class="form-control" id="${panelId}-manual-grade" style="width:auto">${GRADES.map(g => `<option value="${g}">${g}</option>`).join('')}</select>
+        <button class="btn sm" onclick="refCompareManualSet('${panelId}','${mappingKey}')">Comparer</button>
+      </div>`;
+    return;
+  }
+  const ircra = fpIrcraFromGrade(comp.grade);
+  if (ircra === null) { panel.innerHTML = ''; return; }
+  await refCompareFetchAndRender(panelId, mappingKey, value, ircra, gender, `${comp.grade} · ${comp.label}`);
+}
+
 // ═══════════════ TESTS GÉNÉRAUX — SMARTBOARD ═══════════════
 // Utilise la table générique general_tests (category='doigts', testType='smartboard') — chaque
 // test est une ligne d'historique conservée, jamais écrasée (cf. Finger Profile côté conception).
@@ -8193,6 +8298,23 @@ async function smbFetchHistory() {
   } catch (e) { smbHistoryCache = []; }
   smbRenderFilters();
   smbRenderHistory();
+  smbRenderCompare();
+}
+
+// Compare le dernier test fait en préhension semi-arquée (seule préhension pour laquelle le
+// dataset Berta et al. 2024 est protocolairement comparable — cf. referenceMappings.js).
+async function smbRenderCompare() {
+  const panel = document.getElementById('smb-compare-panel');
+  if (!panel) return;
+  const latest = smbHistoryCache.find(t => t.payload?.gripType === 'semi_arque' && t.payload?.ratio != null);
+  if (!latest) { panel.style.display = 'none'; return; }
+  panel.style.display = '';
+  await renderReferenceComparison({
+    panelId: 'smb-compare-body',
+    mappingKey: 'smartboard_ratio',
+    latestTest: latest,
+    valueFn: t => t.payload?.ratio
+  });
 }
 
 function smbGripTypes() {
@@ -8309,6 +8431,22 @@ async function ehFetchHistory() {
   ehRenderGripFilter();
   ehRenderHistory();
   ehRenderChart();
+  ehRenderCompare();
+}
+
+// Voir smbRenderCompare() — même logique, dataset et mapping edge_hang_pctbw (%BW).
+async function ehRenderCompare() {
+  const panel = document.getElementById('eh-compare-panel');
+  if (!panel) return;
+  const latest = ehHistoryCache.find(t => t.payload?.gripType === 'semi_arque' && t.payload?.pctBw != null);
+  if (!latest) { panel.style.display = 'none'; return; }
+  panel.style.display = '';
+  await renderReferenceComparison({
+    panelId: 'eh-compare-body',
+    mappingKey: 'edge_hang_pctbw',
+    latestTest: latest,
+    valueFn: t => t.payload?.pctBw
+  });
 }
 
 function ehEdgeSizes() {
@@ -12681,6 +12819,32 @@ function getRefGradeForLogs(logs, declaredLevel) {
     return (declaredLevel && GRADE_IDX[declaredLevel] !== undefined) ? declaredLevel : '—';
   }
   return GRADES[allSent[Math.min(Math.floor(allSent.length*0.7), allSent.length-1)]];
+}
+
+// ─────────────────────────── Cascade de niveau pour la comparaison à Berta et al. 2024 ───────────
+// Retour utilisateur : "on peut pas utiliser la meilleure perf enregistrée sur 12/24 mois ? ou le
+// grade de référence ? ou si la donnée semble faible une fenêtre demande ?" — on évite ainsi de
+// redemander le niveau à chaque test tant qu'un signal fiable existe déjà dans le carnet.
+function bestSentGradeInWindow(logs, months) {
+  const cutoff = new Date();
+  cutoff.setMonth(cutoff.getMonth() - months);
+  const cutoffStr = cutoff.toISOString().slice(0, 10);
+  const idxs = (logs || [])
+    .filter(l => l.date >= cutoffStr)
+    .flatMap(l => (l.ascents || []).filter(a => a.status === 'tete' && GRADE_IDX[a.grade] !== undefined))
+    .map(a => GRADE_IDX[a.grade]);
+  return idxs.length ? GRADES[Math.max(...idxs)] : null;
+}
+
+function getComparisonGradeForReference(climber) {
+  const logs = climber?.logs || [];
+  const g12 = bestSentGradeInWindow(logs, 12);
+  if (g12) return { grade: g12, source: 'best_12mo', label: 'meilleure perf des 12 derniers mois' };
+  const g24 = bestSentGradeInWindow(logs, 24);
+  if (g24) return { grade: g24, source: 'best_24mo', label: 'meilleure perf des 24 derniers mois' };
+  const ref = getRefGradeForLogs(logs, climber?.level || null);
+  if (ref && ref !== '—') return { grade: ref, source: 'grade_ref', label: 'ton grade de référence' };
+  return { grade: null, source: 'manual_needed', label: '' };
 }
 
 function renderClimberCards() {
