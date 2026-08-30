@@ -1157,18 +1157,6 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     </div>
   </div>
 
-  <!-- Retour utilisateur : "un graph araigné des données de test avec les normes à atteindre,
-       visible avec peu de détail sur le tableau de bord général" — reprend les percentiles déjà
-       calculés par Finger Profile (buildFingerProfileReport), pas de nouveau calcul. La "norme"
-       est la médiane (50e percentile) du groupe de référence sur chaque axe. Masqué tant qu'aucun
-       Finger Profile n'a été enregistré (cf. renderDashboardFingerRadar). -->
-  <div class="panel" id="dash-radar-panel" style="display:none">
-    <div class="panel-header">
-      <span class="panel-title">🕸️ Profil doigts vs norme</span>
-      <span class="panel-sub">Percentile vs grimpeurs comparables</span>
-    </div>
-    <div class="chart-wrap" style="height:200px"><canvas id="dashFingerRadarChart" aria-label="Profil doigts vs norme">Profil doigts</canvas></div>
-  </div>
 </div>
 
 <!-- ═══════════════ CALENDAR ═══════════════ -->
@@ -1767,6 +1755,27 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 
       <p style="margin-bottom:0"><strong>6. Les niveaux C1 à C4</strong><br>
       Ils classent ta charge <strong>par rapport à ta propre moyenne</strong> hebdomadaire des 12 dernières semaines — pas une échelle universelle. <strong>C1</strong> (moins de 50% de ta moyenne) charge légère, <strong>C2</strong> (50–100%) modérée, <strong>C3</strong> (100–150%) soutenue, <strong>C4</strong> (plus de 150%) très élevée. Ça t'aide à repérer en un coup d'œil si tu es en sous-charge ou en surcharge par rapport à ton propre rythme habituel.</p>
+    </div>
+  </div>
+</div>
+
+<!-- Retour utilisateur : "la fonctionnalité que j'ajouterais en premier" — juste après avoir loggé
+     une séance faite, un prompt léger avec un seul choix parmi 5 emojis (pas de note chiffrée, pas
+     d'écran séparé). "Passer" ferme sans rien enregistrer plutôt que de forcer une réponse. -->
+<div class="modal-backdrop" id="feeling-modal">
+  <div class="modal" style="width:min(380px,100%);text-align:center">
+    <div class="modal-header" style="justify-content:center">
+      <span class="modal-title">Comment était la séance ?</span>
+    </div>
+    <div class="modal-body">
+      <div style="display:flex;justify-content:center;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+        <button class="btn sm" style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 10px;min-width:62px" onclick="pickFeeling('too_easy')"><span style="font-size:24px;line-height:1">😴</span><span style="font-size:11px">Trop facile</span></button>
+        <button class="btn sm" style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 10px;min-width:62px" onclick="pickFeeling('easy')"><span style="font-size:24px;line-height:1">🙂</span><span style="font-size:11px">Facile</span></button>
+        <button class="btn sm" style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 10px;min-width:62px" onclick="pickFeeling('right')"><span style="font-size:24px;line-height:1">🎯</span><span style="font-size:11px">Juste</span></button>
+        <button class="btn sm" style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 10px;min-width:62px" onclick="pickFeeling('hard')"><span style="font-size:24px;line-height:1">😤</span><span style="font-size:11px">Dure</span></button>
+        <button class="btn sm" style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 10px;min-width:62px" onclick="pickFeeling('too_hard')"><span style="font-size:24px;line-height:1">💀</span><span style="font-size:11px">Trop dure</span></button>
+      </div>
+      <button class="btn sm" style="background:none;border:none;color:var(--muted)" onclick="closeFeelingModal()">Passer</button>
     </div>
   </div>
 </div>
@@ -5521,7 +5530,6 @@ function renderDashboard() {
   renderUpcomingSessions();
   // Placé avant le "return" anticipé plus bas (aucune séance loguée) pour être sûr de toujours
   // s'exécuter, même pour un grimpeur qui a des tests généraux mais pas encore de séance.
-  renderDashboardFingerRadar();
   renderWeeklyDigest();
   const ref = getRefGrade();
   document.getElementById('dash-ref-grade').textContent = ref;
@@ -7761,89 +7769,6 @@ async function fpFetchHistory(force) {
     fpHistoryCache = r.ok ? await r.json() : []; // déjà trié du plus récent au plus ancien par le backend
   } catch (e) { fpHistoryCache = []; }
   return fpHistoryCache;
-}
-
-// Retour utilisateur : "un graph araigné des données de test avec les normes à atteindre, visible
-// avec peu de détail sur le tableau de bord général" — mini radar Chart.js, avec une ligne pointée
-// à 50 (médiane du groupe) comme "norme". Aucun nouveau calcul : on réutilise les endpoints déjà
-// utilisés ailleurs dans l'app. Constat après coup (retour "je ne vois pas le graph") : la première
-// version ne lisait QUE l'ancien flux Finger Profile (finger_tests), alors que les tests réellement
-// remplis dans ce parcours (SmartBoard, suspension sur réglette) vivent dans "Tests généraux"
-// (general_tests) — même source que le badge "Force doigts" du hub Tests généraux. On combine donc
-// les deux sources ; chaque dimension n'apparaît que si un percentile est calculable pour elle.
-async function renderDashboardFingerRadar() {
-  const panel = document.getElementById('dash-radar-panel');
-  if (!panel) return;
-  const climber = getActive();
-  if (!climber) { panel.style.display = 'none'; return; }
-  try {
-    const fields = [];
-
-    // Source 1 : Finger Profile classique (MVC, endurances, finger hang).
-    const fpList = await fpFetchHistory();
-    if (fpList.length) {
-      const latest = fpList[0];
-      const fpGender = climber.profile?.gender || null;
-      const fpParams = new URLSearchParams();
-      if (fpGender) fpParams.set('gender', fpGender);
-      if (latest.comparisonMode) fpParams.set('mode', latest.comparisonMode);
-      const r = await fetch('/api/finger-profile/' + climber.id + '/' + latest.id + '/report?' + fpParams.toString(), { headers: authHeaders() });
-      if (r.ok) {
-        const d = await r.json();
-        (d.report?.fields || []).filter(f => f.percentile != null).forEach(f => {
-          fields.push({ label: f.field.frLabel, percentile: f.percentile });
-        });
-      }
-    }
-
-    // Source 2 : Tests généraux (SmartBoard / suspension sur réglette) — même logique que
-    // thdRenderLevelBadge sur le hub Tests généraux.
-    const gender = climber.profile?.gender || null;
-    const comp = getComparisonGradeForReference(climber);
-    const ircra = comp.grade ? fpIrcraFromGrade(comp.grade) : null;
-    if (gender && ircra !== null) {
-      const [smbR, ehR] = await Promise.all([
-        fetch('/api/general-tests/' + climber.id + '?type=smartboard', { headers: authHeaders() }),
-        fetch('/api/general-tests/' + climber.id + '?type=edge_hang', { headers: authHeaders() })
-      ]);
-      const smbList = smbR.ok ? await smbR.json() : [];
-      const ehList = ehR.ok ? await ehR.json() : [];
-      const latestSmb = smbList.find(t => t.payload?.gripType === 'semi_arque' && t.payload?.ratio != null);
-      const latestEh = ehList.find(t => t.payload?.gripType === 'semi_arque' && t.payload?.pctBw != null);
-      const picks = [
-        latestSmb ? { mappingKey: 'smartboard_ratio', value: latestSmb.payload.ratio, label: 'Force doigts (SmartBoard)' } : null,
-        latestEh ? { mappingKey: 'edge_hang_pctbw', value: latestEh.payload.pctBw, label: 'Force doigts (réglette)' } : null
-      ].filter(Boolean);
-      for (const pick of picks) {
-        const params = new URLSearchParams({ mapping: pick.mappingKey, ircra, gender, value: pick.value, gripType: 'semi_arque' });
-        const r = await fetch('/api/references/table?' + params.toString(), { headers: authHeaders() });
-        const resp = r.ok ? await r.json() : { available: false };
-        if (resp.available && resp.athlete?.percentile != null) {
-          fields.push({ label: pick.label, percentile: resp.athlete.percentile });
-        }
-      }
-    }
-
-    // Un seul point n'a pas grand sens visuellement mais reste plus utile qu'un panneau invisible
-    // qui laisse penser que la fonctionnalité ne marche pas.
-    if (!fields.length) { panel.style.display = 'none'; destroyChart('dashFingerRadarChart'); return; }
-    panel.style.display = '';
-    makeChart('dashFingerRadarChart', {
-      type: 'radar',
-      data: {
-        labels: fields.map(f => f.label),
-        datasets: [
-          { label: 'Toi', data: fields.map(f => f.percentile), borderColor: '#2d7a4e', backgroundColor: 'rgba(45,122,78,.25)', pointBackgroundColor: '#2d7a4e', borderWidth: 2 },
-          { label: 'Norme (médiane du groupe)', data: fields.map(() => 50), borderColor: '#9a958c', backgroundColor: 'transparent', borderDash: [4, 4], pointRadius: 0, borderWidth: 1.5 }
-        ]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: true, position: 'bottom', labels: { usePointStyle: true, pointStyle: 'circle', boxWidth: 7, font: { size: 10 } } } },
-        scales: { r: { min: 0, max: 100, ticks: { display: false, stepSize: 25 }, pointLabels: { font: { size: 10 } } } }
-      }
-    });
-  } catch (e) { panel.style.display = 'none'; }
 }
 
 // Retour utilisateur : "un résumé automatique (charge de la semaine, tests à jour ou pas, objectifs
@@ -11098,6 +11023,38 @@ document.getElementById('s-type').addEventListener('change', () => {
 // sans dupliquer toute la logique de construction du payload. Contrairement au clic sur le bouton,
 // ne navigue jamais et ne réinitialise pas l'état du formulaire — l'appelant décide.
 // Renvoie l'id de la séance enregistrée, ou null si bloquée (ex. date future).
+// Retenu après chaque saveCurrentSession() pour que le handler du bouton "Enregistrer la séance"
+// sache s'il doit déclencher le prompt de ressenti (cf. openFeelingModal) — uniquement pour une
+// séance neuve et réellement faite (pas une simple édition, pas une séance planifiée).
+let lastSavedSessionWasNewCompleted = false;
+
+const FEELING_EMOJI = { too_easy: '😴', easy: '🙂', right: '🎯', hard: '😤', too_hard: '💀' };
+// Ressenti rapide post-séance (cf. feeling-modal). openFeelingModal(logId, onDone) mémorise l'id du
+// log concerné + un callback exécuté à la fermeture (répondu ou "Passer") — le formulaire de séance
+// enchaîne toujours sur switchPage('history') après, qu'on ait répondu ou non.
+let feelingModalLogId = null;
+let feelingModalOnDone = null;
+function openFeelingModal(logId, onDone) {
+  feelingModalLogId = logId;
+  feelingModalOnDone = onDone || null;
+  document.getElementById('feeling-modal').classList.add('open');
+}
+function pickFeeling(key) {
+  const climber = getActive();
+  const log = climber ? (climber.logs || []).find(l => l.id === feelingModalLogId) : null;
+  if (log) { log.feeling = key; saveDB(); }
+  closeFeelingModal();
+}
+function closeFeelingModal() {
+  document.getElementById('feeling-modal').classList.remove('open');
+  const cb = feelingModalOnDone;
+  feelingModalLogId = null;
+  feelingModalOnDone = null;
+  if (cb) cb();
+}
+window.pickFeeling = pickFeeling;
+window.closeFeelingModal = closeFeelingModal;
+
 function saveCurrentSession() {
   const styles=Array.from(document.querySelectorAll('#s-b-styles input:checked')).map(el=>el.value);
   const sType = getCurrentSessionType();
@@ -11152,7 +11109,10 @@ function saveCurrentSession() {
     // modification de la séance (même bug de fond que cycleId/bankRef/comments ci-dessus).
     ...(existingLog?.source ? { source: existingLog.source, assignedByCoachId: existingLog.assignedByCoachId || null } : {}),
     ...(existingLog?.flexGoal ? { flexGoal: existingLog.flexGoal } : {}),
-    ...(existingLog?.objectiveId ? { objectiveId: existingLog.objectiveId } : {})
+    ...(existingLog?.objectiveId ? { objectiveId: existingLog.objectiveId } : {}),
+    // Ressenti post-séance (cf. openFeelingModal) : ce formulaire n'a pas de champ pour ça non plus
+    // — sans cette préservation, ré-enregistrer une séance déjà répondue effacerait le ressenti.
+    ...(existingLog?.feeling ? { feeling: existingLog.feeling } : {})
   };
   // Règle : une séance ne peut être marquée "faite" qu'à partir du jour même (retour : "on devrait
   // pouvoir que planifier des séances quand c'est une date future, et seulement rentrer une séance
@@ -11171,6 +11131,7 @@ function saveCurrentSession() {
   }
   const wasNew = !editingId;
   const isNewCompletedSession = wasNew && !payload.planned;
+  lastSavedSessionWasNewCompleted = isNewCompletedSession;
   // Garde-fou anti-doublon : chaque contexte (onglet/appareil) ouvert sur "+ Ajouter une séance"
   // génère son propre id ('log_'+Date.now()) sans savoir qu'une séance du même type existe déjà ce
   // jour-là dans un AUTRE contexte non synchronisé — d'où des séances qui apparaissent deux fois
@@ -11215,7 +11176,12 @@ document.getElementById('save-session-btn').onclick=()=>{
   // newSession() qui les fixent toujours en paire) — sans ça les deux sources divergent et tout
   // code qui lit encore le champ DOM (postSessionComment, bouton "Changer" d'un créneau libre...)
   // continuerait de croire qu'on édite l'ancienne séance.
-  editingId=null;document.getElementById('edit-log-id').value='';sessionAscents=[];switchPage('history');
+  const promptFeeling = lastSavedSessionWasNewCompleted;
+  editingId=null;document.getElementById('edit-log-id').value='';sessionAscents=[];
+  // Retour utilisateur : "la fonctionnalité que j'ajouterais en premier" — un prompt "Comment était
+  // la séance ?" juste après avoir loggé une séance faite (pas une édition, pas une planification).
+  if (promptFeeling) { openFeelingModal(id, () => switchPage('history')); }
+  else { switchPage('history'); }
 };
 document.getElementById('delete-session-btn').onclick=()=>{
   if(!editingId||!confirm('Supprimer cette séance ?'))return;
@@ -11246,7 +11212,7 @@ function openDayModal(dateStr){
       <div class="log-item-header">
         <div>
           <div class="log-date" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="sess-dot" style="background:${t.color}"></span>${esc(sessionDisplayLabel(l))}${l.planned?' <span class="tag" style="border-color:var(--accent);color:var(--accent)">📌 Prévue</span>':''}${l.flexGoal?` <span class="tag" style="border-color:#b07a10;color:#b07a10">🎯 ${l.bankRef?'Objectif':'À choisir'} : ${esc(SB_GOAL_LABELS[l.flexGoal]||l.flexGoal)}</span>`:''}${cycleLabel?` <span class="tag" style="border-color:${colorForCycleId(l.cycleId)};color:${colorForCycleId(l.cycleId)}">🔁 ${esc(cycleLabel)}</span>`:''}${!l.planned&&l.injury?` <span class="tag" style="border-color:var(--warm);color:var(--warm)" title="${esc(l.injuryNote||'')}">🩹 Petite blessure</span>`:''}</div>
-          <div class="log-meta">${l.minutes||0} min · intensité ${l.intensity||'—'}${l.planned?'':` · charge ${load}`}${l.location?` · ${l.location}`:''}${l.support&&SUPPORTS[l.support]?` · <span style="font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:3px;padding:1px 7px">${SUPPORTS[l.support].icon} ${SUPPORTS[l.support].label}</span>`:''}</div>
+          <div class="log-meta">${l.minutes||0} min · intensité ${l.intensity||'—'}${l.planned?'':` · charge ${load}`}${!l.planned&&l.feeling&&FEELING_EMOJI[l.feeling]?` · ${FEELING_EMOJI[l.feeling]}`:''}${l.location?` · ${l.location}`:''}${l.support&&SUPPORTS[l.support]?` · <span style="font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:3px;padding:1px 7px">${SUPPORTS[l.support].icon} ${SUPPORTS[l.support].label}</span>`:''}</div>
         </div>
         ${l.planned?`<button class="btn sm danger" onclick="event.stopPropagation();deletePlannedSession('${l.id}','${dateStr}')" title="Retirer cette séance prévue">✕</button>`:''}
       </div>
