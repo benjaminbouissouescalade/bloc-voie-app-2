@@ -28,6 +28,7 @@ const fingerProfileRoutes = require('./routes/fingerProfile');
 app.use('/api/finger-profile', fingerProfileRoutes);
 app.use('/api/finger-profile-expected', fingerProfileRoutes.expectedRouter);
 app.use('/api/general-tests', require('./routes/generalTests'));
+app.use('/api/references', require('./routes/references'));
 app.use('/api/crews', require('./routes/crews'));
 app.use('/api/partners', require('./routes/partners'));
 app.use('/api/challenges', require('./routes/challenges'));
