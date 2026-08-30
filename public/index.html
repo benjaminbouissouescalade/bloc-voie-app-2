@@ -8144,11 +8144,23 @@ async function renderTestsHubDashboard() {
   if (brasEmpty) brasEmpty.style.display = (ptrList.length || ptgList.length) ? 'none' : '';
 }
 
+// Retour utilisateur : "être plus fort que 26% c'est bien en apparence mais en réalité je suis en
+// dessous de 74%" — un percentile bas ne doit jamais être présenté avec la formulation qui sonne
+// positive ("tu fais mieux que X%") si X est petit. On formule toujours du côté qui reflète la
+// position réelle : au-dessus de la médiane on dit "tu fais mieux que X%", en dessous on dit
+// "X% des grimpeurs font mieux que toi" (donc "tu es dans les Y% les moins forts").
+function honestPercentileSentence(p) {
+  if (p >= 50) return `tu fais mieux que <strong>${p}%</strong> des grimpeurs de niveau comparable`;
+  return `<strong>${100 - p}%</strong> des grimpeurs de niveau comparable font mieux que toi`;
+}
+
 // Retour utilisateur : "un picto simple qui dit si tu es faible ou pas en doigt par rapport aux
-// données, pour une vision simple sur le tableau de bord" — même comparaison Berta que les pages
-// SmartBoard/réglette (percentile de la cascade de niveau), réduite à 3 paliers avec un point de
-// couleur. Priorité au SmartBoard (force max) si disponible, sinon la réglette (%BW). Vide si
-// aucun test récent en préhension semi-arquée (seule préhension comparable).
+// données" puis "je trouve ça un peu léger, un truc plus visible, léger et fun" — remplace le
+// simple point de couleur par une puce ronde colorée avec emoji, sur le vocabulaire déjà utilisé
+// ailleurs dans Digger (thème pioche/mine : "à creuser" pour un point faible). Même comparaison
+// Berta que les pages SmartBoard/réglette (percentile de la cascade de niveau). Priorité au
+// SmartBoard (force max) si disponible, sinon la réglette (%BW). Vide si aucun test récent en
+// préhension semi-arquée (seule préhension comparable).
 async function thdRenderLevelBadge(smbList, ehList) {
   const el = document.getElementById('thd-doigts-level-badge');
   if (!el) return;
@@ -8172,15 +8184,17 @@ async function thdRenderLevelBadge(smbList, ehList) {
     if (!resp.available || resp.athlete?.percentile == null) { el.innerHTML = ''; return; }
     const p = resp.athlete.percentile;
     const tier = p < 40
-      ? { dot: '#c0392b', label: 'Plutôt faible par rapport à ton niveau' }
+      ? { bg: 'var(--warm2)', fg: 'var(--warm)', emoji: '⛏️', label: 'À creuser' }
       : p < 70
-        ? { dot: '#c9a227', label: 'Dans la norme de ton niveau' }
-        : { dot: '#2d7a4e', label: 'Plutôt fort par rapport à ton niveau' };
-    el.innerHTML = `<div style="display:inline-flex;align-items:center;gap:6px;font-size:12px">
-      <span style="width:9px;height:9px;border-radius:50%;background:${tier.dot};display:inline-block;flex-shrink:0"></span>
-      <span>${esc(tier.label)}</span>
-      <span style="color:var(--muted)">(P${p} · comparé à ${esc(comp.grade)})</span>
-    </div>`;
+        ? { bg: '#fdf1d8', fg: '#8a6a1f', emoji: '⚖️', label: 'Dans la norme' }
+        : { bg: 'var(--accent2)', fg: 'var(--accent)', emoji: '🔥', label: 'Point fort' };
+    el.innerHTML = `
+      <div style="display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span style="display:inline-flex;align-items:center;gap:6px;padding:5px 14px;border-radius:999px;background:${tier.bg};color:${tier.fg};font-weight:700;font-size:13px">
+          <span style="font-size:16px;line-height:1">${tier.emoji}</span>${esc(tier.label)}
+        </span>
+        <span style="font-size:11px;color:var(--muted)">Force doigts · ${honestPercentileSentence(p)} (niveau ${esc(comp.grade)})</span>
+      </div>`;
   } catch (e) { el.innerHTML = ''; }
 }
 
@@ -8257,8 +8271,11 @@ function referenceTableHtml(resp, sourceLabel) {
   const athlete = resp.athlete;
   const unit = esc(resp.unit);
   const fmt = v => v != null ? v.toFixed(2) + ' ' + unit : '–';
+  // Retour utilisateur : "être plus fort que 26% c'est bien en apparence mais en réalité je suis
+  // en dessous de 74%" — voir honestPercentileSentence() : jamais de formulation qui sonne positive
+  // quand le percentile est bas.
   const pctSentence = athlete.percentile != null
-    ? ` — tu fais mieux que <strong>${athlete.percentile}%</strong> des grimpeurs de niveau comparable.`
+    ? ` — ${honestPercentileSentence(athlete.percentile)}.`
     : '.';
   return `
     <p style="font-size:14px;line-height:1.6;margin:0 0 10px">
