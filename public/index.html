@@ -1039,6 +1039,22 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     <button class="btn primary" onclick="switchPage('new-session');newSession()">+ Rentrer une séance</button>
   </div>
 
+  <!-- Retour utilisateur : "un résumé automatique (charge de la semaine, tests à jour ou pas,
+       objectifs en cours) affiché en un coup d'œil au lieu de devoir naviguer entre plusieurs
+       pages" — chaque chiffre réutilise un calcul déjà fait ailleurs (charge : getLoadRange/cLevel
+       comme les stat-cards plus bas ; objectifs : même filtre que le panneau Objectifs ; tests :
+       même seuil TEST_STALE_DAYS que le hub Tests généraux), juste condensé sur une ligne. -->
+  <div class="panel" id="dash-digest-panel" style="margin-bottom:10px">
+    <div class="panel-header">
+      <span class="panel-title">📋 Cette semaine</span>
+    </div>
+    <div style="display:flex;gap:24px;flex-wrap:wrap;font-size:13px">
+      <div><span style="color:var(--muted)">Charge 7j : </span><span id="digest-charge">—</span></div>
+      <div><span style="color:var(--muted)">Objectifs en cours : </span><span id="digest-objectifs">—</span></div>
+      <div><span style="color:var(--muted)">Tests : </span><span id="digest-tests">—</span></div>
+    </div>
+  </div>
+
   <div class="panel" id="dash-objectives-panel" style="margin-bottom:10px">
     <div class="panel-header">
       <span class="panel-title">🎯 Objectifs</span>
@@ -2800,6 +2816,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     <h2>Mes athlètes</h2>
     <p>Sélectionne un athlète pour consulter et piloter son entraînement — tu restes toujours coach, jamais l'athlète lui-même.</p>
   </div>
+  <div id="coach-inactivity-alerts" style="margin-bottom:10px"></div>
   <div id="coach-athletes-grid" class="climber-card-grid"></div>
   <p id="coach-athletes-empty" style="display:none;color:var(--muted);font-size:14px">Tu n'as pas encore d'athlète. Utilise "Inviter un athlète" dans "Gérer les grimpeurs" pour en ajouter un.</p>
   <div class="panel" style="margin-top:20px">
@@ -5505,6 +5522,7 @@ function renderDashboard() {
   // Placé avant le "return" anticipé plus bas (aucune séance loguée) pour être sûr de toujours
   // s'exécuter, même pour un grimpeur qui a des tests généraux mais pas encore de séance.
   renderDashboardFingerRadar();
+  renderWeeklyDigest();
   const ref = getRefGrade();
   document.getElementById('dash-ref-grade').textContent = ref;
   const l7=getLoadRange(7), l28=getLoadRange(28);
@@ -7826,6 +7844,47 @@ async function renderDashboardFingerRadar() {
       }
     });
   } catch (e) { panel.style.display = 'none'; }
+}
+
+// Retour utilisateur : "un résumé automatique (charge de la semaine, tests à jour ou pas, objectifs
+// en cours) affiché en un coup d'œil au lieu de devoir naviguer entre plusieurs pages pour
+// recomposer l'image" — aucun nouveau calcul, on réutilise exactement ce que le reste du dashboard
+// (stat-cards) et le hub Tests généraux (rappel de test périmé) calculent déjà, juste condensé sur
+// une seule ligne visible immédiatement.
+async function renderWeeklyDigest() {
+  const panel = document.getElementById('dash-digest-panel');
+  if (!panel) return;
+  const climber = getActive();
+  if (!climber) { panel.style.display = 'none'; return; }
+  panel.style.display = '';
+
+  const chargeEl = document.getElementById('digest-charge');
+  if (chargeEl) {
+    const l7 = getLoadRange(7);
+    const lvl = cLevel(l7);
+    chargeEl.innerHTML = `<strong>${l7}</strong> <span class="clevel ${lvl.cls}" style="padding:1px 7px;font-size:10px">${lvl.label}</span>`;
+  }
+
+  const objEl = document.getElementById('digest-objectifs');
+  if (objEl) {
+    const activeGoals = (climber.objectives || []).filter(o => o.status !== 'done');
+    objEl.textContent = activeGoals.length ? `${activeGoals.length}` : 'Aucun';
+  }
+
+  const testsEl = document.getElementById('digest-tests');
+  if (testsEl) {
+    testsEl.textContent = '…';
+    try {
+      const types = ['smartboard', 'edge_hang', 'tractions', 'tirage'];
+      const lists = await Promise.all(types.map(t =>
+        fetch('/api/general-tests/' + climber.id + '?type=' + t, { headers: authHeaders() }).then(r => r.ok ? r.json() : [])
+      ));
+      const everTested = lists.some(l => l.length);
+      const staleCount = lists.filter(l => l.length && daysSinceDateStr(l[0].testDate) >= TEST_STALE_DAYS).length;
+      testsEl.textContent = !everTested ? '—' : (staleCount ? `${staleCount} à refaire` : 'À jour');
+      testsEl.style.color = staleCount ? 'var(--warm)' : '';
+    } catch (e) { testsEl.textContent = '—'; }
+  }
 }
 
 function renderFingerProfile() {
@@ -13232,6 +13291,33 @@ function renderClimberCards() {
 // distincte de "Gérer les grimpeurs" (qui mélange encore ton propre profil avec eux). Cliquer
 // un athlète ouvre l'espace Coaching (voir openCoachingView) plutôt que de changer silencieusement
 // "ton" profil actif — c'est la distinction que ce chantier de rôles est censé apporter.
+// Retour utilisateur : "l'équivalent du rappel de test périmé, mais pour repérer un athlète qui a
+// arrêté de loguer" — même principe que le rappel de test généraux (silence par défaut tant qu'un
+// athlète n'a jamais rien logué : ce n'est pas forcément un abandon, il vient peut-être d'être
+// invité). Seuil volontairement plus court que les 90 jours des tests (TEST_STALE_DAYS) : une
+// séance d'entraînement se logue en principe plusieurs fois par semaine, pas tous les trimestres.
+const ATHLETE_INACTIVE_DAYS = 14;
+function daysSinceLastSession(climber) {
+  const logged = (climber.logs || []).filter(l => !l.planned);
+  if (!logged.length) return null;
+  const latest = logged.reduce((max, l) => (l.date > max ? l.date : max), logged[0].date);
+  return daysSinceDateStr(latest);
+}
+function renderCoachInactivityAlerts(athletes) {
+  const el = document.getElementById('coach-inactivity-alerts');
+  if (!el) return;
+  const inactive = (athletes || [])
+    .map(c => ({ c, days: daysSinceLastSession(c) }))
+    .filter(x => x.days !== null && x.days >= ATHLETE_INACTIVE_DAYS)
+    .sort((a, b) => b.days - a.days);
+  if (!inactive.length) { el.innerHTML = ''; return; }
+  el.innerHTML = inactive.map(({ c, days }) => `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px;background:var(--surface2);border-radius:8px;margin-bottom:6px;font-size:12.5px">
+      <span>⏳ <strong>${esc(c.name)}</strong> n'a pas loggé de séance depuis <strong>${days} jours</strong></span>
+      <button class="btn sm" onclick="openCoachingView('${c.id}')">Voir</button>
+    </div>`).join('');
+}
+
 async function renderCoachAthletesPage() {
   const grid = document.getElementById('coach-athletes-grid');
   const empty = document.getElementById('coach-athletes-empty');
@@ -13239,6 +13325,7 @@ async function renderCoachAthletesPage() {
   const myId = window.currentUser?.climberId;
   const athletes = (db.climbers || []).filter(c => c.id !== myId);
   if (empty) empty.style.display = athletes.length ? 'none' : '';
+  renderCoachInactivityAlerts(athletes);
 
   // Le mode de planification n'a de sens que pour un vrai compte coach dédié (pas l'owner, qui
   // voit tous les grimpeurs sans forcément avoir de relation coach_athletes avec chacun).
