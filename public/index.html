@@ -3798,7 +3798,7 @@ Utilise les raccourcis ci-dessus ou pose-moi directement une question. Par exemp
   <div class="modal" style="width:min(720px,100%)">
     <div class="modal-header">
       <span class="modal-title">Profil détaillé — <span id="pd-name"></span></span>
-      <button class="btn sm" onclick="closeModal('profile-detail-modal')">Fermer</button>
+      <button class="btn sm" onclick="pdCloseModal()">Fermer</button>
     </div>
     <div class="modal-body">
       <input type="hidden" id="pd-climber-id">
@@ -7746,33 +7746,74 @@ async function fpFetchHistory(force) {
 }
 
 // Retour utilisateur : "un graph araigné des données de test avec les normes à atteindre, visible
-// avec peu de détail sur le tableau de bord général" — mini radar Chart.js du dernier Finger
-// Profile (4 dimensions déjà calculées, percentile vs groupe de référence), avec une ligne pointée
-// à 50 (médiane du groupe) comme "norme". Aucun nouveau calcul : on réutilise l'endpoint report
-// déjà utilisé par la page Finger Profile elle-même. Masqué s'il n'y a aucun test enregistré.
+// avec peu de détail sur le tableau de bord général" — mini radar Chart.js, avec une ligne pointée
+// à 50 (médiane du groupe) comme "norme". Aucun nouveau calcul : on réutilise les endpoints déjà
+// utilisés ailleurs dans l'app. Constat après coup (retour "je ne vois pas le graph") : la première
+// version ne lisait QUE l'ancien flux Finger Profile (finger_tests), alors que les tests réellement
+// remplis dans ce parcours (SmartBoard, suspension sur réglette) vivent dans "Tests généraux"
+// (general_tests) — même source que le badge "Force doigts" du hub Tests généraux. On combine donc
+// les deux sources ; chaque dimension n'apparaît que si un percentile est calculable pour elle.
 async function renderDashboardFingerRadar() {
   const panel = document.getElementById('dash-radar-panel');
   if (!panel) return;
   const climber = getActive();
   if (!climber) { panel.style.display = 'none'; return; }
   try {
-    const list = await fpFetchHistory();
-    if (!list.length) { panel.style.display = 'none'; destroyChart('dashFingerRadarChart'); return; }
-    const latest = list[0];
+    const fields = [];
+
+    // Source 1 : Finger Profile classique (MVC, endurances, finger hang).
+    const fpList = await fpFetchHistory();
+    if (fpList.length) {
+      const latest = fpList[0];
+      const fpGender = climber.profile?.gender || null;
+      const fpParams = new URLSearchParams();
+      if (fpGender) fpParams.set('gender', fpGender);
+      if (latest.comparisonMode) fpParams.set('mode', latest.comparisonMode);
+      const r = await fetch('/api/finger-profile/' + climber.id + '/' + latest.id + '/report?' + fpParams.toString(), { headers: authHeaders() });
+      if (r.ok) {
+        const d = await r.json();
+        (d.report?.fields || []).filter(f => f.percentile != null).forEach(f => {
+          fields.push({ label: f.field.frLabel, percentile: f.percentile });
+        });
+      }
+    }
+
+    // Source 2 : Tests généraux (SmartBoard / suspension sur réglette) — même logique que
+    // thdRenderLevelBadge sur le hub Tests généraux.
     const gender = climber.profile?.gender || null;
-    const params = new URLSearchParams();
-    if (gender) params.set('gender', gender);
-    if (latest.comparisonMode) params.set('mode', latest.comparisonMode);
-    const r = await fetch('/api/finger-profile/' + climber.id + '/' + latest.id + '/report?' + params.toString(), { headers: authHeaders() });
-    if (!r.ok) { panel.style.display = 'none'; destroyChart('dashFingerRadarChart'); return; }
-    const d = await r.json();
-    const fields = (d.report?.fields || []).filter(f => f.percentile != null);
-    if (fields.length < 3) { panel.style.display = 'none'; destroyChart('dashFingerRadarChart'); return; }
+    const comp = getComparisonGradeForReference(climber);
+    const ircra = comp.grade ? fpIrcraFromGrade(comp.grade) : null;
+    if (gender && ircra !== null) {
+      const [smbR, ehR] = await Promise.all([
+        fetch('/api/general-tests/' + climber.id + '?type=smartboard', { headers: authHeaders() }),
+        fetch('/api/general-tests/' + climber.id + '?type=edge_hang', { headers: authHeaders() })
+      ]);
+      const smbList = smbR.ok ? await smbR.json() : [];
+      const ehList = ehR.ok ? await ehR.json() : [];
+      const latestSmb = smbList.find(t => t.payload?.gripType === 'semi_arque' && t.payload?.ratio != null);
+      const latestEh = ehList.find(t => t.payload?.gripType === 'semi_arque' && t.payload?.pctBw != null);
+      const picks = [
+        latestSmb ? { mappingKey: 'smartboard_ratio', value: latestSmb.payload.ratio, label: 'Force doigts (SmartBoard)' } : null,
+        latestEh ? { mappingKey: 'edge_hang_pctbw', value: latestEh.payload.pctBw, label: 'Force doigts (réglette)' } : null
+      ].filter(Boolean);
+      for (const pick of picks) {
+        const params = new URLSearchParams({ mapping: pick.mappingKey, ircra, gender, value: pick.value, gripType: 'semi_arque' });
+        const r = await fetch('/api/references/table?' + params.toString(), { headers: authHeaders() });
+        const resp = r.ok ? await r.json() : { available: false };
+        if (resp.available && resp.athlete?.percentile != null) {
+          fields.push({ label: pick.label, percentile: resp.athlete.percentile });
+        }
+      }
+    }
+
+    // Un seul point n'a pas grand sens visuellement mais reste plus utile qu'un panneau invisible
+    // qui laisse penser que la fonctionnalité ne marche pas.
+    if (!fields.length) { panel.style.display = 'none'; destroyChart('dashFingerRadarChart'); return; }
     panel.style.display = '';
     makeChart('dashFingerRadarChart', {
       type: 'radar',
       data: {
-        labels: fields.map(f => f.field.frLabel),
+        labels: fields.map(f => f.label),
         datasets: [
           { label: 'Toi', data: fields.map(f => f.percentile), borderColor: '#2d7a4e', backgroundColor: 'rgba(45,122,78,.25)', pointBackgroundColor: '#2d7a4e', borderWidth: 2 },
           { label: 'Norme (médiane du groupe)', data: fields.map(() => 50), borderColor: '#9a958c', backgroundColor: 'transparent', borderDash: [4, 4], pointRadius: 0, borderWidth: 1.5 }
@@ -13631,6 +13672,24 @@ function pdRemoveGoal(i) {
   renderPdGoals();
 }
 
+// Suivi des modifications non enregistrées du modal "Profil détaillé" — retour utilisateur :
+// fermer sans sauvegarder ne prévenait pas. Écoute déléguée posée une seule fois (pas à chaque
+// ouverture) pour éviter d'empiler des listeners ; couvre tous les champs (y compris les cases
+// équipement et sliders de niveau générés dynamiquement) grâce à la remontée des événements.
+let pdDirty = false;
+(function setupPdDirtyTracking() {
+  const modal = document.getElementById('profile-detail-modal');
+  if (!modal) return;
+  const markDirty = () => { pdDirty = true; };
+  modal.addEventListener('input', markDirty);
+  modal.addEventListener('change', markDirty);
+})();
+function pdCloseModal() {
+  if (pdDirty && !confirm('Fermer sans enregistrer les modifications ?')) return;
+  closeModal('profile-detail-modal');
+}
+window.pdCloseModal = pdCloseModal;
+
 function openProfileDetailModal(climberId) {
   const c = db.climbers.find(x => x.id === climberId);
   if (!c) return;
@@ -13666,6 +13725,7 @@ function openProfileDetailModal(climberId) {
   renderPerfSections('pd-perf-sections', p.selfRating, p.coachRating, canEditSelf, canEditCoach, 'pdRatingChanged');
   refreshAllPerfRadars('pd-perf-sections', 'pd-overview-radar', pdHasCoachData);
 
+  pdDirty = false;
   document.getElementById('profile-detail-modal').classList.add('open');
 }
 let pdHasCoachData = false;
@@ -13755,6 +13815,7 @@ async function saveProfileDetail() {
     saveDB();
     if (document.getElementById('climber-cards-grid')) renderClimberCards();
     if (climberId === getActive()?.id) renderSidebarStats();
+    pdDirty = false;
     closeModal('profile-detail-modal');
   } catch (e) {
     errEl.textContent = 'Erreur réseau'; errEl.style.display = '';
