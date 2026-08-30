@@ -13666,10 +13666,12 @@ function pdAddGoal() {
   pdGoals.push({ id:'obj_'+Date.now(), title: text, type:'other', date: d.value || '', notes:'', status:'active', createdAt: new Date().toISOString() });
   t.value = ''; d.value = '';
   renderPdGoals();
+  pdDirty = true;
 }
 function pdRemoveGoal(i) {
   pdGoals.splice(i, 1);
   renderPdGoals();
+  pdDirty = true;
 }
 
 // Suivi des modifications non enregistrées du modal "Profil détaillé" — retour utilisateur :
@@ -13731,6 +13733,11 @@ function openProfileDetailModal(climberId) {
 let pdHasCoachData = false;
 function pdRatingChanged() {
   refreshAllPerfRadars('pd-perf-sections', 'pd-overview-radar', pdHasCoachData);
+  // Les boutons de niveau perçu (perfToggleRate) sont des <button onclick>, pas des <input> — ils
+  // ne remontent pas via la délégation input/change de setupPdDirtyTracking. C'était la cause la
+  // plus probable du retour "j'ai fermé sans que ça me demande" : le niveau perçu est la partie la
+  // plus souvent modifiée du profil.
+  pdDirty = true;
 }
 
 // undefined = pas de changement (garder la photo existante), null = suppression explicite, string = nouvelle photo
@@ -13773,6 +13780,7 @@ function pdRemovePhoto() {
   pdRenderPhotoPreview(null, c?.color);
   const input = document.getElementById('pd-photo-input');
   if (input) input.value = '';
+  pdDirty = true;
 }
 function pdUpdateApeIndex() {
   const note = document.getElementById('pd-ape-note');
