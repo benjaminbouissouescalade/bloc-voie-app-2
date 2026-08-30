@@ -14,10 +14,16 @@
 
 const REFERENCE_MAPPINGS = {
   smartboard_ratio: {
+    // Le "Rapport force/poids" du SmartBoard est déjà un ratio sans unité (force max ÷ (poids ×
+    // 9.81), ex. 629 N / (65 kg × 9.81) ≈ 1.0 "fois le poids de corps") — exactement le même
+    // référentiel physique que mvc_kg_kg de Berta (kgf/kg, lui aussi sans unité). Aucune
+    // conversion n'est donc nécessaire ; une conversion ×9.81 avait été appliquée par erreur ici,
+    // ce qui comparait le ratio brut de l'athlète à une distribution 9,81× trop grande (retour
+    // utilisateur : la comparaison ne "parlait" pas — score anormalement bas).
     datasetId: 'berta_2024',
     datasetField: 'mvc_kg_kg',
-    unit: 'N/kg',
-    convert: (kgPerKg) => kgPerKg * 9.81,
+    unit: '× poids de corps',
+    convert: (kgPerKg) => kgPerKg,
     requiresGripType: 'semi_arque',
     note: "Étude Berta et al. 2024 (307 grimpeurs) — force maximale isométrique, une main, préhension semi-arquée. Le SmartBoard peut mesurer dans une configuration légèrement différente (dispositif, nombre de mains) : à interpréter comme un repère, pas comme une équivalence stricte."
   },
