@@ -580,6 +580,8 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 
 /* Tests généraux (hub Doigts/Bras/Souplesse/Général) */
 .tests-hub-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; margin-bottom:24px; }
+.th-dash-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:16px; }
+@media (max-width:640px) { .th-dash-grid { grid-template-columns:1fr; } }
 .tests-hub-card { text-align:left; }
 .tests-hub-card .th-icon { font-size:26px; display:block; margin-bottom:8px; }
 .tests-hub-card .th-title { font-weight:700; font-size:15px; margin-bottom:2px; }
@@ -2132,7 +2134,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     <div class="sb-card tests-hub-card" onclick="switchPage('tests-bras')">
       <span class="th-icon">💪</span>
       <div class="th-title">Bras</div>
-      <div class="th-sub">Tractions, tirage, poussée</div>
+      <div class="th-sub">Tractions, tirage</div>
     </div>
     <div class="sb-card tests-hub-card disabled">
       <span class="th-badge">Bientôt</span>
@@ -2146,6 +2148,45 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <div class="th-title">Tests généraux</div>
       <div class="th-sub">Endurance, gainage, tests physiques</div>
     </div>
+  </div>
+
+  <!-- Tableau de bord (retour : "un tableau de bord en dessous des tests avec une vue des tests
+       en graph courbe... voir les séances de type force doigt en parallèle") : agrège les tests
+       déjà enregistrés, indépendamment des caches des sous-pages (au cas où on arrive directement
+       ici). Rendu par renderTestsHubDashboard(). -->
+  <div class="panel" style="margin-top:8px">
+    <div class="panel-header"><span class="panel-title">📊 Tableau de bord — Doigts</span></div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:12px">Les petites barres orange indiquent les séances "Force doigts" loguées dans le carnet, pour voir si la progression suit l'entraînement.</p>
+    <div class="th-dash-grid">
+      <div>
+        <div style="font-size:12px;font-weight:600;margin-bottom:4px">SmartBoard — Force max (N)</div>
+        <div class="chart-wrap" style="height:180px"><canvas id="thd-smb-force-chart"></canvas></div>
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:600;margin-bottom:4px">SmartBoard — Rapport force/poids</div>
+        <div class="chart-wrap" style="height:180px"><canvas id="thd-smb-ratio-chart"></canvas></div>
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:600;margin-bottom:4px">Suspension réglette — % du poids de corps</div>
+        <div class="chart-wrap" style="height:180px"><canvas id="thd-eh-pctbw-chart"></canvas></div>
+      </div>
+    </div>
+    <p id="thd-doigts-empty" style="font-size:13px;color:var(--muted);display:none">Pas encore assez de tests enregistrés pour afficher des courbes (2 minimum par test).</p>
+  </div>
+
+  <div class="panel" style="margin-top:16px">
+    <div class="panel-header"><span class="panel-title">📊 Tableau de bord — Bras</span></div>
+    <div class="th-dash-grid">
+      <div>
+        <div style="font-size:12px;font-weight:600;margin-bottom:4px">Tractions — Puissance max (W)</div>
+        <div class="chart-wrap" style="height:180px"><canvas id="thd-ptr-power-chart"></canvas></div>
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:600;margin-bottom:4px">Tirage — Charge max (kg)</div>
+        <div class="chart-wrap" style="height:180px"><canvas id="thd-ptg-load-chart"></canvas></div>
+      </div>
+    </div>
+    <p id="thd-bras-empty" style="font-size:13px;color:var(--muted);display:none">Pas encore assez de tests enregistrés pour afficher des courbes (2 minimum par test).</p>
   </div>
 </div>
 
@@ -2540,11 +2581,6 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <div class="th-title">Tirage</div>
       <div class="th-sub">Charge max</div>
     </div>
-    <div class="sb-card tests-hub-card" onclick="switchPage('tests-poussee')">
-      <span class="th-icon">🤾</span>
-      <div class="th-title">Poussée</div>
-      <div class="th-sub">Répétitions max, lestées ou non</div>
-    </div>
   </div>
 </div>
 
@@ -2605,35 +2641,6 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   <div class="panel">
     <div class="panel-header"><span class="panel-title">Historique</span></div>
     <div id="ptg-history-list"><p style="font-size:13px;color:var(--muted)">Chargement…</p></div>
-  </div>
-</div>
-
-<!-- ═══════════════ TESTS GÉNÉRAUX — POUSSÉE ═══════════════ -->
-<div class="page" id="page-tests-poussee">
-  <div class="page-header">
-    <div>
-      <div class="tests-breadcrumb" onclick="switchPage('tests-bras')">‹ Tests généraux / Bras</div>
-      <h2>Poussée</h2>
-      <p>Répétitions max, poids additionnel — <span id="pps-athlete-name"></span></p>
-    </div>
-  </div>
-  <div class="panel" style="margin-bottom:20px">
-    <div class="panel-header"><span class="panel-title">Nouveau test</span></div>
-    <div class="form-row form-row-3">
-      <div class="form-group"><label class="form-label">Date</label><input class="form-control" type="date" id="pps-date"></div>
-      <div class="form-group"><label class="form-label">Répétitions max</label><input class="form-control" type="number" step="1" min="0" id="pps-reps"></div>
-      <div class="form-group"><label class="form-label">Poids additionnel (kg)</label><input class="form-control" type="number" step="0.5" id="pps-weight" placeholder="0"></div>
-    </div>
-    <div class="form-group"><label class="form-label">Notes</label><textarea class="form-control" id="pps-notes" rows="2"></textarea></div>
-    <button class="btn primary" onclick="ppsSaveTest()">Enregistrer le test</button>
-  </div>
-  <div class="panel" id="pps-chart-panel" style="margin-bottom:20px;display:none">
-    <div class="panel-header"><span class="panel-title">Évolution</span></div>
-    <div class="chart-wrap" style="height:220px"><canvas id="pps-evo-chart"></canvas></div>
-  </div>
-  <div class="panel">
-    <div class="panel-header"><span class="panel-title">Historique</span></div>
-    <div id="pps-history-list"><p style="font-size:13px;color:var(--muted)">Chargement…</p></div>
   </div>
 </div>
 
@@ -4760,7 +4767,7 @@ function applyRoleUI() {
 }
 
 // ═══════════════ MODE MES DONNÉES / MON COACH ═══════════════
-const APPMODE_MINE_PAGES = ['dashboard','calendar','new-session','performance','workload','tests-hub','tests-doigts','finger-profile','tests-smartboard','tests-edgehang','tests-bras','tests-tractions','tests-tirage','tests-poussee','badges','ai-coach','history','community'];
+const APPMODE_MINE_PAGES = ['dashboard','calendar','new-session','performance','workload','tests-hub','tests-doigts','finger-profile','tests-smartboard','tests-edgehang','tests-bras','tests-tractions','tests-tirage','badges','ai-coach','history','community'];
 const APPMODE_COACH_PAGES = ['coach-athletes','planning','session-bank'];
 let appMode = 'mine';
 try { appMode = localStorage.getItem('appMode') || 'mine'; } catch (e) {}
@@ -5143,11 +5150,11 @@ function renderPage(name) {
   if(name==='performance') { renderPerformance(); renderPyramidPage(); }
   if(name==='workload') renderWorkload();
   if(name==='finger-profile') renderFingerProfile();
+  if(name==='tests-hub') renderTestsHubDashboard();
   if(name==='tests-smartboard') renderSmartboard();
   if(name==='tests-edgehang') renderEdgeHang();
   if(name==='tests-tractions') renderTractions();
   if(name==='tests-tirage') renderTirage();
-  if(name==='tests-poussee') renderPoussee();
   if(name==='badges') renderBadges();
   if(name==='community') renderCommunityPage();
   if(name==='history') renderHistory();
@@ -8073,6 +8080,94 @@ function autoLogTestToCalendar(date, logType, label) {
   if (typeof renderCalendar === 'function') renderCalendar();
 }
 
+// ═══════════════ TESTS GÉNÉRAUX — TABLEAU DE BORD (hub) ═══════════════
+// Vue d'ensemble sous les 4 catégories de la page Tests généraux (retour : "un tableau de bord en
+// dessous des tests avec une vue des tests en graph courbe... voir les séances de type force
+// doigt en parallèle") : agrège les tests déjà enregistrés indépendamment des caches des
+// sous-pages (au cas où on arrive directement sur ce hub sans être passé par une sous-page), et
+// superpose sur les tests doigts un repère (petite barre) à chaque date de séance "Force doigts"
+// loguée dans le carnet — pour voir si la progression suit l'entraînement, sans calcul compliqué.
+async function renderTestsHubDashboard() {
+  const climber = getActive();
+  if (!climber) return;
+  let smbList = [], ehList = [], ptrList = [], ptgList = [], fingerLogDates = [];
+  try {
+    const [smbR, ehR, ptrR, ptgR, logsR] = await Promise.all([
+      fetch('/api/general-tests/' + climber.id + '?type=smartboard', { headers: authHeaders() }),
+      fetch('/api/general-tests/' + climber.id + '?type=edge_hang', { headers: authHeaders() }),
+      fetch('/api/general-tests/' + climber.id + '?type=tractions', { headers: authHeaders() }),
+      fetch('/api/general-tests/' + climber.id + '?type=tirage', { headers: authHeaders() }),
+      fetch('/api/logs/' + climber.id, { headers: authHeaders() })
+    ]);
+    smbList = smbR.ok ? await smbR.json() : [];
+    ehList = ehR.ok ? await ehR.json() : [];
+    ptrList = ptrR.ok ? await ptrR.json() : [];
+    ptgList = ptgR.ok ? await ptgR.json() : [];
+    const logs = logsR.ok ? await logsR.json() : [];
+    // "Force doigts" = séances de type doigts (dead-hangs) ou préhension/systémique, réellement
+    // faites (pas planifiées) — ce sont celles qui entraînent directement ce que ces tests mesurent.
+    fingerLogDates = logs.filter(l => !l.planned && (l.type === 'doigts' || l.type === 'prehension')).map(l => l.date);
+  } catch (e) { /* silencieux */ }
+
+  thdRenderTestChart('thd-smb-force-chart', smbList, t => t.payload?.maxForceN, fingerLogDates, 'N');
+  thdRenderTestChart('thd-smb-ratio-chart', smbList, t => t.payload?.ratio, fingerLogDates, '');
+  thdRenderTestChart('thd-eh-pctbw-chart', ehList, t => t.payload?.pctBw, fingerLogDates, '%');
+  thdRenderTestChart('thd-ptr-power-chart', ptrList, t => t.payload?.maxPowerW, [], 'W');
+  thdRenderTestChart('thd-ptg-load-chart', ptgList, t => t.payload?.load, [], 'kg');
+
+  const doigtsEmpty = document.getElementById('thd-doigts-empty');
+  if (doigtsEmpty) doigtsEmpty.style.display = (smbList.length || ehList.length) ? 'none' : '';
+  const brasEmpty = document.getElementById('thd-bras-empty');
+  if (brasEmpty) brasEmpty.style.display = (ptrList.length || ptgList.length) ? 'none' : '';
+}
+
+// Construit une courbe (valeur du test dans le temps, fusion ligne+barres façon Chart.js "mixed
+// chart" — pas besoin de plugin d'annotation externe) + une petite barre repère sur un axe caché
+// à chaque date de séance "force doigts" (markerDates) tombant dans la plage de dates du test.
+function thdRenderTestChart(canvasId, list, valueFn, markerDates, unit) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const points = (list || [])
+    .map(t => ({ date: t.testDate, value: valueFn(t) }))
+    .filter(p => p.value != null)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  if (points.length < 2) { destroyChart(canvasId); return; }
+  const testDates = new Set(points.map(p => p.date));
+  const rangeStart = points[0].date, rangeEnd = points[points.length - 1].date;
+  const markerInRange = [...new Set(markerDates)].filter(d => d >= rangeStart && d <= rangeEnd && !testDates.has(d));
+  const allDates = [...new Set([...points.map(p => p.date), ...markerInRange])].sort();
+  const valueByDate = Object.fromEntries(points.map(p => [p.date, p.value]));
+  const markerSet = new Set(markerDates);
+  const hasMarkers = markerDates && markerDates.length > 0;
+  makeChart(canvasId, {
+    type: 'bar',
+    data: {
+      labels: allDates.map(d => fmtDate(d)),
+      datasets: [
+        {
+          type: 'line', label: 'Test' + (unit ? ' (' + unit + ')' : ''),
+          data: allDates.map(d => valueByDate[d] ?? null), spanGaps: true,
+          borderColor: '#2d7a4e', backgroundColor: '#2d7a4e22', tension: .3, pointRadius: 4, fill: false, yAxisID: 'y'
+        },
+        {
+          type: 'bar', label: 'Séance force doigts',
+          data: allDates.map(d => markerSet.has(d) ? 1 : null),
+          backgroundColor: '#c46a3066', barThickness: 4, yAxisID: 'y1'
+        }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: hasMarkers, labels: { font: { size: 9 } } } },
+      scales: {
+        x: { ticks: { font: { size: 9 } } },
+        y: { ticks: { font: { size: 9 } } },
+        y1: { display: false, min: 0, max: 4, position: 'right' }
+      }
+    }
+  });
+}
+
 // ═══════════════ TESTS GÉNÉRAUX — SMARTBOARD ═══════════════
 // Utilise la table générique general_tests (category='doigts', testType='smartboard') — chaque
 // test est une ligne d'historique conservée, jamais écrasée (cf. Finger Profile côté conception).
@@ -8342,7 +8437,7 @@ async function ehDeleteTest(testId) {
 }
 window.ehDeleteTest = ehDeleteTest;
 
-// ═══════════════ TESTS GÉNÉRAUX — BRAS (Tractions / Tirage / Poussée) ═══════════════
+// ═══════════════ TESTS GÉNÉRAUX — BRAS (Tractions / Tirage) ═══════════════
 // Les 3 sous-tests de la catégorie Bras partagent exactement la même mécanique que
 // SmartBoard/Suspension (table générique general_tests, category='bras') : un formulaire simple
 // (juste des cases à remplir, pas de protocole guidé — cf. retour utilisateur), un historique, et
@@ -8439,12 +8534,6 @@ makeArmTestPage({
   fields: [{ id: 'load', key: 'load' }],
   chartKey: 'load',
   historyLine: p => `${p.load ?? '–'} kg`
-});
-makeArmTestPage({
-  prefix: 'pps', testType: 'poussee', label: 'Poussee', displayLabel: 'Poussée',
-  fields: [{ id: 'reps', key: 'reps' }, { id: 'weight', key: 'addedWeight', default: 0 }],
-  chartKey: 'reps',
-  historyLine: p => `${p.reps ?? '–'} réps${p.addedWeight ? ' · +' + p.addedWeight + ' kg' : ''}`
 });
 
 // ═══════════════ COMMUNAUTÉ / CREWS (mode jeu) ═══════════════
