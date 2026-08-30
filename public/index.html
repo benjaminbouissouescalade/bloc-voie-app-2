@@ -1400,7 +1400,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
             <textarea class="form-control" id="s-injury-note" placeholder="Où, depuis quand, ça fait quoi… (facultatif)" rows="2"></textarea>
           </div>
         </div>
-        <div class="form-group">
+        <div class="form-group" id="s-notes-group">
           <label class="form-label">Note du coach</label>
           <textarea class="form-control" id="s-notes" placeholder="Retour, consignes pour la suite…"></textarea>
           <p id="s-notes-locked-hint" style="display:none;font-size:11px;color:var(--muted);margin-top:4px">🔒 Réservé à ton coach — écris ton ressenti dans les commentaires ci-dessous.</p>
@@ -10513,20 +10513,30 @@ function applyPrescriptionLock(log) {
   });
   const badge = document.getElementById('s-prescribed-badge');
   if (badge) badge.style.display = locked ? '' : 'none';
-  applyNotesLock();
+  applyNotesLock(log);
 }
 
 // La note de séance (#s-notes) est réservée au coach — le ressenti de l'athlète a désormais sa
 // place dans le fil "💬 Commentaires" (échange à double sens), pour ne pas mélanger un retour
-// pédagogique du coach avec le ressenti brut de l'athlète sur la même case. Un athlète voit donc
-// toujours cette case en lecture seule, quelle que soit la séance ; un coach/owner peut toujours
-// l'éditer, y compris en aperçu du profil d'un athlète.
-function applyNotesLock() {
+// pédagogique du coach avec le ressenti brut de l'athlète sur la même case. Un coach/owner peut
+// toujours l'éditer, y compris en aperçu du profil d'un athlète.
+//
+// Retour utilisateur : "enlève la case note du coach pour les séances rentrées par l'athlète car
+// le coach ne l'a pas donnée, c'est donc pas possible" — côté athlète, on masque entièrement la
+// case (pas juste verrouillée) tant qu'aucune note de coach n'existe ni ne peut exister : séance
+// non prescrite par le coach (log.source !== 'coach') et sans note déjà écrite dessus. On la
+// montre en revanche dès qu'une note existe déjà (ex. un coach a commenté après coup une séance
+// que l'athlète avait loguée lui-même), pour ne jamais la faire disparaître sous les yeux de
+// l'athlète après qu'elle a été renseignée.
+function applyNotesLock(log) {
+  const group = document.getElementById('s-notes-group');
   const notesEl = document.getElementById('s-notes');
   const hint = document.getElementById('s-notes-locked-hint');
-  const locked = !isCoachRoleValue(window.currentUser?.role);
-  if (notesEl) notesEl.disabled = locked;
-  if (hint) hint.style.display = locked ? '' : 'none';
+  const isCoach = isCoachRoleValue(window.currentUser?.role);
+  const noteCouldExist = isCoach || !!(log && (log.source === 'coach' || (log.notes && log.notes.trim())));
+  if (group) group.style.display = noteCouldExist ? '' : 'none';
+  if (notesEl) notesEl.disabled = !isCoach;
+  if (hint) hint.style.display = (!isCoach && noteCouldExist) ? '' : 'none';
 }
 
 function editSession(id){
