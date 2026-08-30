@@ -2156,7 +2156,11 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
        ici). Rendu par renderTestsHubDashboard(). -->
   <div class="panel" style="margin-top:8px">
     <div class="panel-header"><span class="panel-title">📊 Tableau de bord — Doigts</span></div>
-    <p style="font-size:12px;color:var(--muted);margin-bottom:12px">Les petites barres orange indiquent les séances "Force doigts" loguées dans le carnet, pour voir si la progression suit l'entraînement.</p>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:8px">Les petites barres orange indiquent les séances "Force doigts" loguées dans le carnet, pour voir si la progression suit l'entraînement.</p>
+    <!-- Retour utilisateur : "un picto simple qui dit si tu es faible ou pas en doigt par rapport
+         aux données, pour une vision simple" — repris de renderReferenceComparison, réduit à 3
+         niveaux (faible/norme/fort) avec un point de couleur. Vide si pas de test semi-arqué. -->
+    <div id="thd-doigts-level-badge" style="margin-bottom:8px"></div>
     <div class="th-dash-grid">
       <div>
         <div style="font-size:12px;font-weight:600;margin-bottom:4px">SmartBoard — Force max (N)</div>
@@ -2171,7 +2175,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
         <div class="chart-wrap" style="height:180px"><canvas id="thd-eh-pctbw-chart"></canvas></div>
       </div>
     </div>
-    <p id="thd-doigts-empty" style="font-size:13px;color:var(--muted);display:none">Pas encore assez de tests enregistrés pour afficher des courbes (2 minimum par test).</p>
+    <p id="thd-doigts-empty" style="font-size:13px;color:var(--muted);display:none">Pas encore de test enregistré pour afficher une courbe.</p>
   </div>
 
   <div class="panel" style="margin-top:16px">
@@ -2186,7 +2190,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
         <div class="chart-wrap" style="height:180px"><canvas id="thd-ptg-load-chart"></canvas></div>
       </div>
     </div>
-    <p id="thd-bras-empty" style="font-size:13px;color:var(--muted);display:none">Pas encore assez de tests enregistrés pour afficher des courbes (2 minimum par test).</p>
+    <p id="thd-bras-empty" style="font-size:13px;color:var(--muted);display:none">Pas encore de test enregistré pour afficher une courbe.</p>
   </div>
 </div>
 
@@ -8132,11 +8136,52 @@ async function renderTestsHubDashboard() {
   thdRenderTestChart('thd-eh-pctbw-chart', ehList, t => t.payload?.pctBw, fingerLogDates, '%');
   thdRenderTestChart('thd-ptr-power-chart', ptrList, t => t.payload?.maxPowerW, [], 'W');
   thdRenderTestChart('thd-ptg-load-chart', ptgList, t => t.payload?.load, [], 'kg');
+  thdRenderLevelBadge(smbList, ehList);
 
   const doigtsEmpty = document.getElementById('thd-doigts-empty');
   if (doigtsEmpty) doigtsEmpty.style.display = (smbList.length || ehList.length) ? 'none' : '';
   const brasEmpty = document.getElementById('thd-bras-empty');
   if (brasEmpty) brasEmpty.style.display = (ptrList.length || ptgList.length) ? 'none' : '';
+}
+
+// Retour utilisateur : "un picto simple qui dit si tu es faible ou pas en doigt par rapport aux
+// données, pour une vision simple sur le tableau de bord" — même comparaison Berta que les pages
+// SmartBoard/réglette (percentile de la cascade de niveau), réduite à 3 paliers avec un point de
+// couleur. Priorité au SmartBoard (force max) si disponible, sinon la réglette (%BW). Vide si
+// aucun test récent en préhension semi-arquée (seule préhension comparable).
+async function thdRenderLevelBadge(smbList, ehList) {
+  const el = document.getElementById('thd-doigts-level-badge');
+  if (!el) return;
+  const climber = getActive();
+  if (!climber) { el.innerHTML = ''; return; }
+  const latestSmb = (smbList || []).find(t => t.payload?.gripType === 'semi_arque' && t.payload?.ratio != null);
+  const latestEh = (ehList || []).find(t => t.payload?.gripType === 'semi_arque' && t.payload?.pctBw != null);
+  const pick = latestSmb
+    ? { mappingKey: 'smartboard_ratio', value: latestSmb.payload.ratio }
+    : (latestEh ? { mappingKey: 'edge_hang_pctbw', value: latestEh.payload.pctBw } : null);
+  if (!pick) { el.innerHTML = ''; return; }
+  const gender = climber.profile?.gender || null;
+  const comp = getComparisonGradeForReference(climber);
+  if (!gender || !comp.grade) { el.innerHTML = ''; return; }
+  const ircra = fpIrcraFromGrade(comp.grade);
+  if (ircra === null) { el.innerHTML = ''; return; }
+  try {
+    const params = new URLSearchParams({ mapping: pick.mappingKey, ircra, gender, value: pick.value, gripType: 'semi_arque' });
+    const r = await fetch('/api/references/table?' + params.toString(), { headers: authHeaders() });
+    const resp = r.ok ? await r.json() : { available: false };
+    if (!resp.available || resp.athlete?.percentile == null) { el.innerHTML = ''; return; }
+    const p = resp.athlete.percentile;
+    const tier = p < 40
+      ? { dot: '#c0392b', label: 'Plutôt faible par rapport à ton niveau' }
+      : p < 70
+        ? { dot: '#c9a227', label: 'Dans la norme de ton niveau' }
+        : { dot: '#2d7a4e', label: 'Plutôt fort par rapport à ton niveau' };
+    el.innerHTML = `<div style="display:inline-flex;align-items:center;gap:6px;font-size:12px">
+      <span style="width:9px;height:9px;border-radius:50%;background:${tier.dot};display:inline-block;flex-shrink:0"></span>
+      <span>${esc(tier.label)}</span>
+      <span style="color:var(--muted)">(P${p} · comparé à ${esc(comp.grade)})</span>
+    </div>`;
+  } catch (e) { el.innerHTML = ''; }
 }
 
 // Construit une courbe (valeur du test dans le temps, fusion ligne+barres façon Chart.js "mixed
@@ -8178,7 +8223,9 @@ function thdRenderTestChart(canvasId, list, valueFn, markerDates, unit) {
     },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: hasMarkers, labels: { font: { size: 9 } } } },
+      // Retour utilisateur : "les boutons pour les tableaux sont pas très beaux" — remplace les
+      // gros pavés rectangulaires par défaut de Chart.js par des puces rondes, plus discrètes.
+      plugins: { legend: { display: hasMarkers, labels: { usePointStyle: true, pointStyle: 'circle', boxWidth: 7, boxHeight: 7, padding: 12, font: { size: 10 } } } },
       scales: {
         x: { ticks: { font: { size: 9 } } },
         y: { ticks: { font: { size: 9 } } },
