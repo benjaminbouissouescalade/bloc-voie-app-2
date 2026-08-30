@@ -10450,6 +10450,7 @@ let editingId=null, sessionAscents=[];
 let sNewSessionDateLocked=false; // évite que renderNewSession() n'écrase une date déjà fixée (ex. clic sur une case du calendrier)
 function newSession(date=null){
   editingId=null; sessionAscents=[];
+  freshlyCompletedLogId=null; // formulaire vierge : pas de séance en cours de complétion
   document.getElementById('edit-log-id').value='';
   document.getElementById('session-form-title').textContent='Nouvelle séance';
   document.getElementById('s-date').value=date||new Date().toISOString().slice(0,10);
@@ -10525,6 +10526,7 @@ function editSession(id){
   // Créneau "objectif libre" pas encore résolu : rien à éditer tant que l'athlète n'a pas choisi
   // sa séance dans la banque — on ouvre directement le picker plutôt que le formulaire normal.
   if (log.flexGoal && !log.bankRef) { openFlexChoiceModal(id); return; }
+  if (freshlyCompletedLogId !== id) freshlyCompletedLogId=null; // on ouvre une autre séance : n'hérite pas d'un état laissé par une séance abandonnée sans clic "Enregistrer"
   editingId=id; sessionAscents=JSON.parse(JSON.stringify(log.ascents||[]));
   document.getElementById('edit-log-id').value=id;
   document.getElementById('session-form-title').textContent='Modifier la séance';
@@ -11026,7 +11028,17 @@ document.getElementById('s-type').addEventListener('change', () => {
 // Retenu après chaque saveCurrentSession() pour que le handler du bouton "Enregistrer la séance"
 // sache s'il doit déclencher le prompt de ressenti (cf. openFeelingModal) — uniquement pour une
 // séance neuve et réellement faite (pas une simple édition, pas une séance planifiée).
-let lastSavedSessionWasNewCompleted = false;
+//
+// Stocke l'id (pas un simple booléen) : si l'athlète tape un commentaire avant de cliquer sur
+// "Enregistrer", postSessionComment() déclenche un premier saveCurrentSession() silencieux (cf.
+// ensureSessionSavedThenComment) qui crée déjà la séance et fixe editingId. Le clic explicite sur
+// "Enregistrer" qui suit relance alors saveCurrentSession() avec wasNew=false — sans ce suivi par
+// id, la condition ci-dessous serait réévaluée à false à ce moment-là et le prompt ne s'afficherait
+// jamais pour une séance sur laquelle un commentaire a été posté avant l'enregistrement (retour
+// utilisateur : "j'ai fait une séance de diff et training et j'ai eu cette fenêtre que sur le
+// training"). On ne l'écrase donc plus qu'en cas de transition réelle vers "faite", jamais vers
+// false, et on le remet à null une fois consommé (par le bouton) ou en ouvrant une autre séance.
+let freshlyCompletedLogId = null;
 
 const FEELING_EMOJI = { too_easy: '😴', easy: '🙂', right: '🎯', hard: '😤', too_hard: '💀' };
 // Ressenti rapide post-séance (cf. feeling-modal). openFeelingModal(logId, onDone) mémorise l'id du
@@ -11139,7 +11151,7 @@ function saveCurrentSession() {
   // on calcule à part la condition du prompt de ressenti : nouvelle séance faite OU séance qui vient
   // de basculer de "prévue" à "faite". On ne redemande jamais sur une séance déjà faite qu'on
   // rouvre juste pour corriger une note.
-  lastSavedSessionWasNewCompleted = !payload.planned && (wasNew || existingLog?.planned);
+  if (!payload.planned && (wasNew || existingLog?.planned)) freshlyCompletedLogId = payload.id;
   // Garde-fou anti-doublon : chaque contexte (onglet/appareil) ouvert sur "+ Ajouter une séance"
   // génère son propre id ('log_'+Date.now()) sans savoir qu'une séance du même type existe déjà ce
   // jour-là dans un AUTRE contexte non synchronisé — d'où des séances qui apparaissent deux fois
@@ -11184,7 +11196,8 @@ document.getElementById('save-session-btn').onclick=()=>{
   // newSession() qui les fixent toujours en paire) — sans ça les deux sources divergent et tout
   // code qui lit encore le champ DOM (postSessionComment, bouton "Changer" d'un créneau libre...)
   // continuerait de croire qu'on édite l'ancienne séance.
-  const promptFeeling = lastSavedSessionWasNewCompleted;
+  const promptFeeling = (freshlyCompletedLogId === id);
+  freshlyCompletedLogId = null; // consommé : un second clic "Enregistrer" sur la même séance (correction d'une note) ne redemandera pas
   editingId=null;document.getElementById('edit-log-id').value='';sessionAscents=[];
   // Retour utilisateur : "la fonctionnalité que j'ajouterais en premier" — un prompt "Comment était
   // la séance ?" juste après avoir loggé une séance faite (pas une édition, pas une planification).
