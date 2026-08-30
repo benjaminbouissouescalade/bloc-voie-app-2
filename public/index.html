@@ -1140,6 +1140,19 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <div class="chart-wrap" style="height:150px"><canvas id="typeChart" aria-label="Répartition types de séances">Types de séances</canvas></div>
     </div>
   </div>
+
+  <!-- Retour utilisateur : "un graph araigné des données de test avec les normes à atteindre,
+       visible avec peu de détail sur le tableau de bord général" — reprend les percentiles déjà
+       calculés par Finger Profile (buildFingerProfileReport), pas de nouveau calcul. La "norme"
+       est la médiane (50e percentile) du groupe de référence sur chaque axe. Masqué tant qu'aucun
+       Finger Profile n'a été enregistré (cf. renderDashboardFingerRadar). -->
+  <div class="panel" id="dash-radar-panel" style="display:none">
+    <div class="panel-header">
+      <span class="panel-title">🕸️ Profil doigts vs norme</span>
+      <span class="panel-sub">Percentile vs grimpeurs comparables</span>
+    </div>
+    <div class="chart-wrap" style="height:200px"><canvas id="dashFingerRadarChart" aria-label="Profil doigts vs norme">Profil doigts</canvas></div>
+  </div>
 </div>
 
 <!-- ═══════════════ CALENDAR ═══════════════ -->
@@ -5489,6 +5502,9 @@ function renderDashboard() {
   renderObjectivesPanel();
   renderCoachObjectivesPanel();
   renderUpcomingSessions();
+  // Placé avant le "return" anticipé plus bas (aucune séance loguée) pour être sûr de toujours
+  // s'exécuter, même pour un grimpeur qui a des tests généraux mais pas encore de séance.
+  renderDashboardFingerRadar();
   const ref = getRefGrade();
   document.getElementById('dash-ref-grade').textContent = ref;
   const l7=getLoadRange(7), l28=getLoadRange(28);
@@ -7727,6 +7743,48 @@ async function fpFetchHistory(force) {
     fpHistoryCache = r.ok ? await r.json() : []; // déjà trié du plus récent au plus ancien par le backend
   } catch (e) { fpHistoryCache = []; }
   return fpHistoryCache;
+}
+
+// Retour utilisateur : "un graph araigné des données de test avec les normes à atteindre, visible
+// avec peu de détail sur le tableau de bord général" — mini radar Chart.js du dernier Finger
+// Profile (4 dimensions déjà calculées, percentile vs groupe de référence), avec une ligne pointée
+// à 50 (médiane du groupe) comme "norme". Aucun nouveau calcul : on réutilise l'endpoint report
+// déjà utilisé par la page Finger Profile elle-même. Masqué s'il n'y a aucun test enregistré.
+async function renderDashboardFingerRadar() {
+  const panel = document.getElementById('dash-radar-panel');
+  if (!panel) return;
+  const climber = getActive();
+  if (!climber) { panel.style.display = 'none'; return; }
+  try {
+    const list = await fpFetchHistory();
+    if (!list.length) { panel.style.display = 'none'; destroyChart('dashFingerRadarChart'); return; }
+    const latest = list[0];
+    const gender = climber.profile?.gender || null;
+    const params = new URLSearchParams();
+    if (gender) params.set('gender', gender);
+    if (latest.comparisonMode) params.set('mode', latest.comparisonMode);
+    const r = await fetch('/api/finger-profile/' + climber.id + '/' + latest.id + '/report?' + params.toString(), { headers: authHeaders() });
+    if (!r.ok) { panel.style.display = 'none'; destroyChart('dashFingerRadarChart'); return; }
+    const d = await r.json();
+    const fields = (d.report?.fields || []).filter(f => f.percentile != null);
+    if (fields.length < 3) { panel.style.display = 'none'; destroyChart('dashFingerRadarChart'); return; }
+    panel.style.display = '';
+    makeChart('dashFingerRadarChart', {
+      type: 'radar',
+      data: {
+        labels: fields.map(f => f.field.frLabel),
+        datasets: [
+          { label: 'Toi', data: fields.map(f => f.percentile), borderColor: '#2d7a4e', backgroundColor: 'rgba(45,122,78,.25)', pointBackgroundColor: '#2d7a4e', borderWidth: 2 },
+          { label: 'Norme (médiane du groupe)', data: fields.map(() => 50), borderColor: '#9a958c', backgroundColor: 'transparent', borderDash: [4, 4], pointRadius: 0, borderWidth: 1.5 }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: true, position: 'bottom', labels: { usePointStyle: true, pointStyle: 'circle', boxWidth: 7, font: { size: 10 } } } },
+        scales: { r: { min: 0, max: 100, ticks: { display: false, stepSize: 25 }, pointLabels: { font: { size: 10 } } } }
+      }
+    });
+  } catch (e) { panel.style.display = 'none'; }
 }
 
 function renderFingerProfile() {
