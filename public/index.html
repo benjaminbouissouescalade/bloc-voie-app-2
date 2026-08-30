@@ -1640,6 +1640,19 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     </p>
   </div>
 
+  <!-- Retour utilisateur : "un signal simple du genre pic de charge la semaine avant cette petite
+       douleur, pour repérer des patterns sans faire de diagnostic médical" — masqué tant qu'il n'y
+       a pas au moins 2 petites douleurs signalées avec assez d'historique pour calculer un ratio
+       (cf. renderInjuryChargeSignal), pour éviter de tirer une conclusion d'une seule coïncidence. -->
+  <div class="panel" id="wl-injury-panel" style="display:none;margin-top:16px;margin-bottom:16px">
+    <div class="panel-header">
+      <span class="panel-title">🩹 Petites douleurs & charge</span>
+    </div>
+    <p id="wl-injury-summary" style="font-size:13px;line-height:1.6;margin:0 0 6px"></p>
+    <p style="font-size:11px;color:var(--muted);margin:0 0 8px">Un signal observationnel basé sur ton propre historique, pas un diagnostic médical — à croiser avec ton ressenti.</p>
+    <div id="wl-injury-list"></div>
+  </div>
+
   <div class="time-filters" style="margin-bottom:16px">
     <button class="time-filter-btn" data-wl-range="week">Cette semaine</button>
     <button class="time-filter-btn" data-wl-range="month">Ce mois</button>
@@ -2149,6 +2162,12 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <div class="th-sub">Endurance, gainage, tests physiques</div>
     </div>
   </div>
+
+  <!-- Retour utilisateur : "un rappel discret quand ça fait longtemps qu'un test n'a pas été
+       refait, pour garder les courbes de progression vivantes" — ne s'affiche que pour un test
+       déjà commencé au moins une fois (pas de relance sur un test jamais fait, cf.
+       thdRenderStaleReminders). -->
+  <div id="thd-stale-reminders" style="margin-top:12px"></div>
 
   <!-- Tableau de bord (retour : "un tableau de bord en dessous des tests avec une vue des tests
        en graph courbe... voir les séances de type force doigt en parallèle") : agrège les tests
@@ -6948,6 +6967,66 @@ function renderLoadTrend(l28, prev28) {
     ? 'Pas encore assez d\'historique (8 semaines) pour calculer une tendance.'
     : `4 dernières semaines : ${l28} · 4 semaines précédentes : ${prev28} (${pct>0?'+':''}${pct}%)`;
 }
+// ═══════════════ CHARGE × PETITES DOULEURS (signal observationnel) ═══════════════
+// Retour utilisateur : "un signal simple du genre pic de charge la semaine avant cette petite
+// douleur" — reprend le même calcul de ratio aigu(7j)/chronique(28j÷4) que la jauge ACWR
+// ci-dessus (renderAcwrGauge), mais ancré sur la date de chaque séance marquée "petite douleur"
+// plutôt que sur aujourd'hui. Purement observationnel, jamais un diagnostic (même disclaimer que
+// la case à cocher "petite douleur / bobo" du formulaire de séance).
+const INJURY_ACWR_ELEVATED = 1.3; // même seuil que la zone "Ça accélère" de acwrZone()
+
+function loadInWindowEndingAt(logs, endDateStr, days) {
+  const end = new Date(endDateStr); end.setHours(0, 0, 0, 0);
+  const start = new Date(end); start.setDate(start.getDate() - (days - 1));
+  return logs
+    .filter(l => !l.planned)
+    .filter(l => { const d = new Date(l.date); return d >= start && d <= end; })
+    .reduce((s, l) => s + sessionLoad(l), 0);
+}
+
+function acwrAtDate(logs, dateStr) {
+  const acute = loadInWindowEndingAt(logs, dateStr, 7);
+  const chronic = loadInWindowEndingAt(logs, dateStr, 28) / 4;
+  return chronic > 0 ? acute / chronic : null;
+}
+
+function computeInjuryChargeSignals(logs) {
+  return (logs || [])
+    .filter(l => !l.planned && l.injury)
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .map(l => ({ date: l.date, note: l.injuryNote || '', ratio: acwrAtDate(logs, l.date) }));
+}
+
+function renderInjuryChargeSignal() {
+  const panel = document.getElementById('wl-injury-panel');
+  if (!panel) return;
+  const logs = getLogs();
+  const signals = computeInjuryChargeSignals(logs);
+  // On ne tire un constat que si au moins 2 petites douleurs ont assez d'historique derrière elles
+  // pour calculer un ratio (4 semaines mini) — une seule coïncidence ne fait pas un motif.
+  const withRatio = signals.filter(s => s.ratio !== null);
+  if (withRatio.length < 2) { panel.style.display = 'none'; return; }
+  panel.style.display = '';
+  const elevatedCount = withRatio.filter(s => s.ratio > INJURY_ACWR_ELEVATED).length;
+  const summaryEl = document.getElementById('wl-injury-summary');
+  if (summaryEl) {
+    summaryEl.innerHTML = elevatedCount > 0
+      ? `<strong>${elevatedCount} sur ${withRatio.length}</strong> petites douleurs signalées sont survenues alors que ta charge des 7 jours précédents dépassait ton rythme habituel (ratio &gt; ${INJURY_ACWR_ELEVATED}).`
+      : `Aucune de tes ${withRatio.length} petites douleurs signalées (avec assez d'historique pour être calculées) n'est associée à un pic de charge récent d'après ce calcul.`;
+  }
+  const listEl = document.getElementById('wl-injury-list');
+  if (listEl) {
+    listEl.innerHTML = signals.map(s => {
+      const flagged = s.ratio !== null && s.ratio > INJURY_ACWR_ELEVATED;
+      const noteTxt = s.note.length > 60 ? s.note.slice(0, 60) + '…' : s.note;
+      return `<div style="display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-top:1px solid var(--border);font-size:12.5px">
+        <div>${fmtDate(s.date)}${noteTxt ? ` · <span style="color:var(--muted)">${esc(noteTxt)}</span>` : ''}</div>
+        <div style="white-space:nowrap;${flagged ? 'color:var(--warm);font-weight:600' : 'color:var(--muted)'}">${s.ratio != null ? 'ratio ' + s.ratio.toFixed(2) + (flagged ? ' ⚠️' : '') : '—'}</div>
+      </div>`;
+    }).join('');
+  }
+}
+
 let wlShowIntensityOverlay = false;
 function toggleWlIntensityOverlay() {
   wlShowIntensityOverlay = !wlShowIntensityOverlay;
@@ -6967,6 +7046,7 @@ function renderWorkload() {
 
   renderAcwrGauge(l7, l28);
   renderLoadTrend(l28, getLoadRange(56) - l28);
+  renderInjuryChargeSignal();
 
   const wData=weeklyData(perfWeeksForRange(wlRange));
   const wlSub=document.getElementById('wl-vol-sub');
@@ -7879,6 +7959,7 @@ function fpRenderSimpleProfile(report, test, containerId) {
         ${weak && (!strong || weak.field.key !== strong.field.key) ? `<div class="fp-synthesis-row"><span class="fp-synthesis-tag" style="color:#c4501a">PRIORITÉ</span><span>${esc(weak.field.frLabel)}</span></div>` : ''}
         ${balance ? `<div class="fp-synthesis-row"><span class="fp-synthesis-tag" style="color:var(--muted)">ÉQUILIBRE</span><span>${esc(balance)}</span></div>` : ''}
         ${report.synthesis ? `<p style="font-size:13px;line-height:1.6;margin-top:10px">${esc(report.synthesis)}</p>` : ''}
+        ${weak ? bankSuggestionsHtml(weak.field.key, 'SÉANCES POUR PROGRESSER SUR CE POINT') : ''}
       </div>` : ''}
       <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;align-items:center">
         <button class="btn" onclick="fpOpenCompareLevelModal()">📊 Comparer à un autre niveau</button>
@@ -8137,6 +8218,7 @@ async function renderTestsHubDashboard() {
   thdRenderTestChart('thd-ptr-power-chart', ptrList, t => t.payload?.maxPowerW, [], 'W');
   thdRenderTestChart('thd-ptg-load-chart', ptgList, t => t.payload?.load, [], 'kg');
   thdRenderLevelBadge(smbList, ehList);
+  thdRenderStaleReminders(smbList, ehList, ptrList, ptgList);
 
   const doigtsEmpty = document.getElementById('thd-doigts-empty');
   if (doigtsEmpty) doigtsEmpty.style.display = (smbList.length || ehList.length) ? 'none' : '';
@@ -8188,14 +8270,54 @@ async function thdRenderLevelBadge(smbList, ehList) {
       : p < 70
         ? { bg: '#fdf1d8', fg: '#8a6a1f', emoji: '⚖️', label: 'Dans la norme' }
         : { bg: 'var(--accent2)', fg: 'var(--accent)', emoji: '🔥', label: 'Point fort' };
+    // Retour utilisateur : "le badge pourrait alimenter des suggestions d'entraînement concrètes" —
+    // uniquement quand le point est vraiment "à creuser" (p<40), pour ne pas spammer une suggestion
+    // sur un point déjà dans la norme ou fort.
+    const suggestionsHtml = p < 40 ? bankSuggestionsHtml('finger_max_force', 'SÉANCES POUR PROGRESSER') : '';
     el.innerHTML = `
       <div style="display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap">
         <span style="display:inline-flex;align-items:center;gap:6px;padding:5px 14px;border-radius:999px;background:${tier.bg};color:${tier.fg};font-weight:700;font-size:13px">
           <span style="font-size:16px;line-height:1">${tier.emoji}</span>${esc(tier.label)}
         </span>
         <span style="font-size:11px;color:var(--muted)">Force doigts · ${honestPercentileSentence(p)} (niveau ${esc(comp.grade)})</span>
-      </div>`;
+      </div>
+      ${suggestionsHtml}`;
   } catch (e) { el.innerHTML = ''; }
+}
+
+// Retour utilisateur : "un rappel discret quand ça fait longtemps qu'un test n'a pas été refait,
+// pour garder les courbes de progression vivantes" — ne relance que sur un test déjà commencé au
+// moins une fois (le silence est le comportement par défaut pour un test jamais fait : ce n'est
+// pas forcément un oubli, l'athlète a pu choisir de ne pas le faire).
+const TEST_STALE_DAYS = 90; // ~3 mois
+function daysSinceDateStr(dateStr) {
+  const d = new Date(dateStr); d.setHours(0, 0, 0, 0);
+  const now = new Date(); now.setHours(0, 0, 0, 0);
+  return Math.round((now - d) / 86400000);
+}
+function thdRenderStaleReminders(smbList, ehList, ptrList, ptgList) {
+  const el = document.getElementById('thd-stale-reminders');
+  if (!el) return;
+  const defs = [
+    { list: smbList, label: 'SmartBoard', page: 'tests-smartboard' },
+    { list: ehList, label: 'Suspension sur réglette', page: 'tests-edgehang' },
+    { list: ptrList, label: 'Tractions', page: 'tests-tractions' },
+    { list: ptgList, label: 'Tirage', page: 'tests-tirage' }
+  ];
+  const stale = defs
+    .filter(d => d.list && d.list.length > 0)
+    .map(d => ({ ...d, days: daysSinceDateStr(d.list[0].testDate) }))
+    .filter(d => d.days >= TEST_STALE_DAYS)
+    .sort((a, b) => b.days - a.days);
+  if (!stale.length) { el.innerHTML = ''; return; }
+  el.innerHTML = stale.map(s => {
+    const months = Math.round(s.days / 30);
+    const sinceTxt = months >= 1 ? `${months} mois` : `${s.days} jours`;
+    return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px;background:var(--surface2);border-radius:8px;margin-bottom:6px;font-size:12.5px">
+      <span>⏳ Ça fait ${sinceTxt} sans test <strong>${esc(s.label)}</strong> — envie de retester ?</span>
+      <button class="btn sm" onclick="switchPage('${s.page}')">Retester</button>
+    </div>`;
+  }).join('');
 }
 
 // Construit une courbe (valeur du test dans le temps, fusion ligne+barres façon Chart.js "mixed
@@ -11483,6 +11605,34 @@ const BANK_CATEGORY_TO_TYPE = {
 };
 
 function getBank() { return db.sessionBank || (db.sessionBank = []); }
+
+// Retour utilisateur : "si l'endurance intermittente ressort comme point faible, proposer
+// automatiquement une séance de la banque ciblant ce point" — table curatée à la main (même
+// principe que REFERENCE_MAPPINGS côté backend : jamais d'inférence automatique à partir d'un nom
+// de champ, une correspondance explicite revue une par une) entre un point faible détecté (Finger
+// Profile ou badge SmartBoard/réglette) et les dossiers/sous-dossiers pertinents de la banque.
+const WEAK_POINT_BANK_SUGGESTIONS = {
+  mvc_kg_kg: { category: 'Hangboard', subcategories: ['Suspensions maximales', 'Suspensions lestées'] },
+  intermittent_kg_s_kg: { category: 'Hangboard', subcategories: ['Repeaters', 'Endurance doigts'] },
+  continuous_kg_s_kg: { category: 'Hangboard', subcategories: ['Endurance doigts'] },
+  finger_hang_s: { category: 'Hangboard', subcategories: ['Suspensions maximales'] },
+  // Utilisé par le badge "À creuser" de SmartBoard/réglette (force max des doigts) — même dossier
+  // que mvc_kg_kg puisque c'est la même qualité physique (force max des doigts).
+  finger_max_force: { category: 'Hangboard', subcategories: ['Suspensions maximales', 'Suspensions lestées'] }
+};
+function bankSuggestionsFor(key, limit = 3) {
+  const cfg = WEAK_POINT_BANK_SUGGESTIONS[key];
+  if (!cfg) return [];
+  return getBank().filter(s => s.category === cfg.category && cfg.subcategories.includes(s.subcategory)).slice(0, limit);
+}
+function bankSuggestionsHtml(key, heading) {
+  const list = bankSuggestionsFor(key);
+  if (!list.length) return '';
+  return `<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+    <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:8px">${esc(heading)}</div>
+    ${list.map(s => `<button class="btn sm" style="margin:0 6px 6px 0" onclick="switchPage('session-bank');sbEditCard('${s.id}')">📋 ${esc(s.name || 'Fiche')}</button>`).join('')}
+  </div>`;
+}
 
 // — Navigation principale "Pour quoi ?" — OBJECTIF d'abord, CONTEXTE ensuite.
 // Regroupement PRÉSENTATIONNEL du champ `goal` (et, en repli, de `category`/`type`) :
