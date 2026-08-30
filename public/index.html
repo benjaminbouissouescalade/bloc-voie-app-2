@@ -5729,10 +5729,15 @@ function buildCalCell(ds, dayNum, isOther, todayStr, climberCycles) {
   // eu lieu, une douleur ne peut donc pas y être associée) — même principe que le badge de charge.
   const hasInjury = doneLogsForCell.some(l => l.injury);
   cell.className = 'cal-cell' + (isOther?' other-month':'') + (ds===todayStr?' today':'') + (doneLogsForCell.length&&!hasHard?' has-session':doneLogsForCell.length&&hasHard?' has-hard':'') + (plannedLogsForCell.length?' has-planned':'');
+  // Retour utilisateur : "mettre les 2 séances au lieu de '2 séances'" — au-delà de 3, la liste des
+  // noms deviendrait trop longue pour la case (ellipsis illisible), on retombe alors sur le compte.
+  const multiLabel = dayLogs.length > 1 ? dayLogs.map(sessionDisplayLabel).join(' + ') : '';
   const typeLabelHtml = dayLogs.length === 1
     ? `<div style="font-size:9px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(sessionDisplayLabel(dayLogs[0]))}</div>`
     : dayLogs.length > 1
-      ? `<div style="font-size:9px;color:var(--muted);margin-top:2px">🧗 ${dayLogs.length} séances</div>`
+      ? (dayLogs.length <= 3
+          ? `<div style="font-size:9px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(multiLabel)}">${esc(multiLabel)}</div>`
+          : `<div style="font-size:9px;color:var(--muted);margin-top:2px">🧗 ${dayLogs.length} séances</div>`)
       : '';
   const dayAvail = getActive() ? availabilityForDate(getActive().id, ds) : [];
   const availBadgeHtml = dayAvail.length
@@ -6054,10 +6059,13 @@ function buildCal2Cell(ds, dayNum, isOther, todayStr, climberCycles) {
   // eu lieu, une douleur ne peut donc pas y être associée) — même principe que le badge de charge.
   const hasInjury = doneLogsForCell.some(l => l.injury);
   cell.className = 'cal-cell' + (isOther?' other-month':'') + (ds===todayStr?' today':'') + (doneLogsForCell.length&&!hasHard?' has-session':doneLogsForCell.length&&hasHard?' has-hard':'') + (plannedLogsForCell.length?' has-planned':'');
+  const multiLabel2 = dayLogs.length > 1 ? dayLogs.map(sessionDisplayLabel).join(' + ') : '';
   const typeLabelHtml2 = dayLogs.length === 1
     ? `<div style="font-size:9px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(sessionDisplayLabel(dayLogs[0]))}</div>`
     : dayLogs.length > 1
-      ? `<div style="font-size:9px;color:var(--muted);margin-top:2px">🧗 ${dayLogs.length} séances</div>`
+      ? (dayLogs.length <= 3
+          ? `<div style="font-size:9px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(multiLabel2)}">${esc(multiLabel2)}</div>`
+          : `<div style="font-size:9px;color:var(--muted);margin-top:2px">🧗 ${dayLogs.length} séances</div>`)
       : '';
   const dayAvail2 = getActive() ? availabilityForDate(getActive().id, ds) : [];
   const availBadgeHtml2 = dayAvail2.length
