@@ -8194,6 +8194,11 @@ function thdRenderTestChart(canvasId, list, valueFn, markerDates, unit) {
 // tête 12 mois → 24 mois → grade de référence → sinon saisie manuelle ponctuelle). Retour
 // utilisateur : "un beau tableau avec les résultats de Berta et le grimpeur ou coach peuvent se
 // faire une idée" — pas de badge de confiance automatique, juste le tableau + une mise en garde.
+// Retour utilisateur : "P10/P25... c'est pas clair" puis "fait quelque chose de plus
+// compréhensible : tu as un ratio de 1, tu es dans les X%, 50% ont 1.4, 10% ont 1.7" — on
+// remplace le tableau de percentiles bruts par une phrase en langage courant + 3 repères simples
+// (les moins forts du groupe / la moitié du groupe / les plus forts du groupe), sans le vocabulaire
+// "P10/P25/P50/P75/P90" qui n'est pas parlant hors contexte statistique.
 function referenceTableHtml(resp, sourceLabel) {
   if (!resp || !resp.available) {
     if (resp?.reason === 'grip_mismatch') {
@@ -8203,20 +8208,20 @@ function referenceTableHtml(resp, sourceLabel) {
   }
   const t = resp.table;
   const athlete = resp.athlete;
-  const cols = [['P10', t.p10], ['P25', t.p25], ['P50', t.p50], ['P75', t.p75], ['P90', t.p90]];
+  const unit = esc(resp.unit);
+  const fmt = v => v != null ? v.toFixed(2) + ' ' + unit : '–';
+  const pctSentence = athlete.percentile != null
+    ? ` — tu fais mieux que <strong>${athlete.percentile}%</strong> des grimpeurs de niveau comparable.`
+    : '.';
   return `
-    <div style="overflow-x:auto">
-      <table style="width:100%;border-collapse:collapse;font-size:12px;text-align:center">
-        <thead><tr>
-          ${cols.map(([label]) => `<th style="padding:4px 6px;color:var(--muted);font-weight:600">${label}</th>`).join('')}
-          <th style="padding:4px 6px;color:var(--accent);font-weight:700">Toi</th>
-        </tr></thead>
-        <tbody><tr>
-          ${cols.map(([, v]) => `<td style="padding:4px 6px;border-top:1px solid var(--border)">${v != null ? v.toFixed(2) : '–'} ${esc(resp.unit)}</td>`).join('')}
-          <td style="padding:4px 6px;border-top:1px solid var(--border);font-weight:700;color:var(--accent)">${athlete.value.toFixed(2)} ${esc(resp.unit)}${athlete.percentile != null ? ' (P' + athlete.percentile + ')' : ''}</td>
-        </tr></tbody>
-      </table>
-    </div>
+    <p style="font-size:14px;line-height:1.6;margin:0 0 10px">
+      Ton résultat : <strong style="color:var(--accent)">${fmt(athlete.value)}</strong>${pctSentence}
+    </p>
+    <p style="font-size:13px;color:var(--muted);line-height:1.7;margin:0 0 8px">
+      Pour comparer : les 10% les moins forts de ce niveau sont à <strong>${fmt(t.p10)}</strong> ou moins,
+      la moitié du groupe est autour de <strong>${fmt(t.p50)}</strong>,
+      et les 10% les plus forts sont à <strong>${fmt(t.p90)}</strong> ou plus.
+    </p>
     <p style="font-size:11px;color:var(--muted);margin-top:8px">Comparé à ${esc(sourceLabel)} · ${esc(resp.source.label)} (${resp.source.totalN} grimpeurs, IRCRA ±${resp.window}, n=${resp.confidence.n} dans la tranche) · ${esc(resp.confidence.label)}</p>
     <p style="font-size:11px;color:var(--muted);margin-top:4px">${esc(resp.note)}</p>`;
 }
