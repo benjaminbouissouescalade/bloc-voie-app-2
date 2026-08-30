@@ -11014,8 +11014,13 @@ function openDayModal(dateStr){
   // Bouton "Planifier un cycle" : ouvre le même modal de cycle que le bouton "🔁 Créer un
   // cycle" du calendrier, avec la date cliquée déjà pré-remplie comme date de début (même
   // mécanisme que dropChoiceCycle lors d'un glisser-déposer depuis la banque).
+  // Retour utilisateur : "je veux rentrer une séance dans le passé et ça me propose de planifier
+  // ou de donner des indisponibilités, c'est pas logique" — même règle que pour "Planifier"
+  // ci-dessus : planifier un cycle ou déclarer une disponibilité n'a de sens que pour une date
+  // future, jamais pour aujourd'hui ou le passé.
   const addCycleBtn = document.getElementById('day-modal-add-cycle');
   if (addCycleBtn) {
+    addCycleBtn.style.display = dateIsFuture ? '' : 'none';
     addCycleBtn.onclick = () => {
       closeModal('day-modal');
       openCycleModal();
@@ -11023,7 +11028,10 @@ function openDayModal(dateStr){
     };
   }
   const addAvailBtn = document.getElementById('day-modal-add-avail');
-  if (addAvailBtn) addAvailBtn.onclick = () => openAvailModal(dateStr);
+  if (addAvailBtn) {
+    addAvailBtn.style.display = dateIsFuture ? '' : 'none';
+    addAvailBtn.onclick = () => openAvailModal(dateStr);
+  }
   renderDayModalAvailability(dateStr);
   document.getElementById('day-modal').classList.add('open');
 }
