@@ -11131,7 +11131,15 @@ function saveCurrentSession() {
   }
   const wasNew = !editingId;
   const isNewCompletedSession = wasNew && !payload.planned;
-  lastSavedSessionWasNewCompleted = isNewCompletedSession;
+  // Retour utilisateur : "pourquoi pas sur toutes les séances ?" — isNewCompletedSession (ci-dessus)
+  // ne couvre que la création directe d'une séance faite, pas le cas très courant où on ouvre une
+  // séance PRÉVUE (auto-planifiée, prescrite par un coach, ou depuis un cycle) et qu'on l'enregistre
+  // une fois faite : ce chemin passe par editSession donc wasNew=false. On garde
+  // isNewCompletedSession intact (PR/badges/activité crew ne doivent pas changer de comportement) et
+  // on calcule à part la condition du prompt de ressenti : nouvelle séance faite OU séance qui vient
+  // de basculer de "prévue" à "faite". On ne redemande jamais sur une séance déjà faite qu'on
+  // rouvre juste pour corriger une note.
+  lastSavedSessionWasNewCompleted = !payload.planned && (wasNew || existingLog?.planned);
   // Garde-fou anti-doublon : chaque contexte (onglet/appareil) ouvert sur "+ Ajouter une séance"
   // génère son propre id ('log_'+Date.now()) sans savoir qu'une séance du même type existe déjà ce
   // jour-là dans un AUTRE contexte non synchronisé — d'où des séances qui apparaissent deux fois
