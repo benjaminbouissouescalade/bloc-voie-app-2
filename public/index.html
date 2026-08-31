@@ -10503,13 +10503,18 @@ function pickPpgBankFiche() {
   if (!select) return;
   const bankId = select.value;
   if (refEl) refEl.value = bankId;
-  if (!bankId) { if (descEl) descEl.textContent = ''; return; }
+  // Retour utilisateur : "je trouve la charge calculée énorme, 270 pour 10 min" — setDurationMinutes()
+  // et la modification directe de #s-intensity ne déclenchent pas d'événement 'input' (contrairement
+  // à une saisie manuelle), donc la charge affichée restait celle de la fiche précédemment choisie
+  // tant qu'on ne retouchait pas les champs à la main. Il faut rafraîchir explicitement.
+  if (!bankId) { if (descEl) descEl.textContent = ''; updateLoadPreview(); return; }
   const item = getBank().find(it => it.id === bankId);
   if (!item) return;
   setDurationMinutes(item.duration || 90);
   const intensityEl = document.getElementById('s-intensity');
   if (intensityEl && item.intensity) intensityEl.value = item.intensity;
   if (descEl) descEl.textContent = item.description || '';
+  updateLoadPreview();
 }
 window.pickPpgBankFiche = pickPpgBankFiche;
 
@@ -11896,6 +11901,10 @@ const BANK_TYPE_TO_OBJECTIF_FALLBACK = {
   video:'technique', mentale:'technique', competition:'technique', via_ferrata:'technique', autre:'technique'
 };
 function sbObjectifOf(s) {
+  // Le type "doigts" (ou "prehension") doit toujours ranger la fiche dans la famille Doigts,
+  // même si son objectif ("goal", ex. "Projet / limite absolue") pointerait sinon vers Force —
+  // sinon une fiche comme "Mono Light" (type doigts, goal projet) disparaît du filtre Doigts.
+  if (s.type === 'doigts' || s.type === 'prehension') return 'doigts';
   if (s.goal && BANK_GOAL_TO_OBJECTIF[s.goal]) return BANK_GOAL_TO_OBJECTIF[s.goal];
   if (s.category && BANK_CATEGORY_TO_OBJECTIF[s.category]) return BANK_CATEGORY_TO_OBJECTIF[s.category];
   return BANK_TYPE_TO_OBJECTIF_FALLBACK[s.type] || 'technique';
