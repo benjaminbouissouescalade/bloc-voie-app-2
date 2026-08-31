@@ -1219,7 +1219,8 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <button class="btn sm" onclick="closeModal('plan-picker-modal')">Fermer</button>
     </div>
     <div class="modal-body">
-      <p style="font-size:13px;color:var(--muted);margin-bottom:10px">Choisis une fiche dans la banque de séances à programmer pour l'athlète.</p>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:10px">Choisis une fiche dans la banque de séances à programmer pour l'athlète, ou écris ta propre séance.</p>
+      <button type="button" class="btn sm primary" style="width:100%;margin-bottom:10px;justify-content:center" onclick="planPickerCustomSession()">✏️ Écrire ma propre séance</button>
       <button type="button" class="btn sm" style="width:100%;margin-bottom:10px;justify-content:center" onclick="planPickerFreeChoice()">🎯 Séance libre — l'athlète choisira le jour venu</button>
       <input class="form-control" style="margin-bottom:10px" id="plan-picker-search" placeholder="Rechercher…" oninput="renderPlanPickerList()">
       <div id="plan-picker-list" style="display:flex;flex-direction:column;gap:6px;max-height:340px;overflow-y:auto"></div>
@@ -6307,6 +6308,20 @@ function planPickerFreeChoice() {
   addPlannedFlexSession(planPickerDate);
 }
 window.planPickerFreeChoice = planPickerFreeChoice;
+
+// Bouton "✏️ Écrire ma propre séance" du picker (plan-picker-modal) — retour utilisateur : "on
+// peut rajouter un bouton en haut pour pouvoir inscrire sa séance, car là ce n'est que les
+// séances de la banque". Avant, ce modal ne proposait que des fiches existantes (ou l'objectif
+// "séance libre" résolu plus tard) : impossible de planifier directement une séance sur-mesure,
+// sans passer par la banque. On réutilise le formulaire normal (newSession) : comme la date est
+// future, saveCurrentSession() la marque déjà automatiquement "planned" (cf. isFutureDateStr).
+function planPickerCustomSession() {
+  if (!planPickerDate) return;
+  closeModal('plan-picker-modal');
+  newSession(planPickerDate);
+  switchPage('new-session');
+}
+window.planPickerCustomSession = planPickerCustomSession;
 
 // ═══════════════ CYCLE (fréquence de séances sur une période, ou jour par jour) ═══════════════
 // cycleItems (mode simple) : deux axes indépendants et combinables (retour : "il faut la
