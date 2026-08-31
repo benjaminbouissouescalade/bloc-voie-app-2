@@ -6318,7 +6318,7 @@ window.planPickerFreeChoice = planPickerFreeChoice;
 function planPickerCustomSession() {
   if (!planPickerDate) return;
   closeModal('plan-picker-modal');
-  newSession(planPickerDate);
+  newSession(planPickerDate, true);
   switchPage('new-session');
 }
 window.planPickerCustomSession = planPickerCustomSession;
@@ -10559,8 +10559,18 @@ window.pickPpgBankFiche = pickPpgBankFiche;
 // — New Session —
 let editingId=null, sessionAscents=[];
 let sNewSessionDateLocked=false; // évite que renderNewSession() n'écrase une date déjà fixée (ex. clic sur une case du calendrier)
-function newSession(date=null){
+// Retour utilisateur : "je viens de proposer ma propre séance pour le futur, malheureusement la
+// fenêtre marche comme rentrer une séance et non pas planifier" — le formulaire "Nouvelle séance"
+// bloque volontairement l'enregistrement d'une séance FAITE dans le futur (cf. plus bas dans
+// saveCurrentSession), et jusqu'ici ne savait faire passer une NOUVELLE séance en "planifiée" que
+// si elle existait déjà en base avec planned=true (cas d'une séance prescrite qu'on rouvre). Pour
+// une toute nouvelle séance écrite depuis le picker "Planifier" (planPickerCustomSession), il n'y
+// avait donc aucun moyen de la sauvegarder : ce drapeau porte l'intention "cette nouvelle séance
+// doit être créée planifiée" jusqu'à saveCurrentSession, qui le consomme puis le réinitialise.
+let sPlanningIntentDate = null;
+function newSession(date=null, planning=false){
   editingId=null; sessionAscents=[];
+  sPlanningIntentDate = planning ? date : null;
   freshlyCompletedLogId=null; // formulaire vierge : pas de séance en cours de complétion
   document.getElementById('edit-log-id').value='';
   document.getElementById('session-form-title').textContent='Nouvelle séance';
@@ -11275,13 +11285,14 @@ function saveCurrentSession() {
   // sinon (nouvelle séance, ou séance déjà faite dont on pousserait la date dans le futur), on
   // bloque plutôt que d'enregistrer une charge sur un jour qui n'a pas encore eu lieu.
   if (isFutureDateStr(payload.date)) {
-    if (existingLog?.planned) {
+    if (existingLog?.planned || (!editingId && sPlanningIntentDate && sPlanningIntentDate === payload.date)) {
       payload.planned = true;
     } else {
       alert('Cette date est dans le futur : une séance ne peut être enregistrée comme faite qu\'à partir du jour même. Utilise "📅 Planifier une séance" pour une date à venir.');
       return null;
     }
   }
+  sPlanningIntentDate = null;
   const wasNew = !editingId;
   const isNewCompletedSession = wasNew && !payload.planned;
   // Retour utilisateur : "pourquoi pas sur toutes les séances ?" — isNewCompletedSession (ci-dessus)
@@ -11376,12 +11387,12 @@ function openDayModal(dateStr){
           <div class="log-date" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="sess-dot" style="background:${t.color}"></span>${esc(sessionDisplayLabel(l))}${l.planned?' <span class="tag" style="border-color:var(--accent);color:var(--accent)">📌 Prévue</span>':''}${l.flexGoal?` <span class="tag" style="border-color:#b07a10;color:#b07a10">🎯 ${l.bankRef?'Objectif':'À choisir'} : ${esc(SB_GOAL_LABELS[l.flexGoal]||l.flexGoal)}</span>`:''}${cycleLabel?` <span class="tag" style="border-color:${colorForCycleId(l.cycleId)};color:${colorForCycleId(l.cycleId)}">🔁 ${esc(cycleLabel)}</span>`:''}${!l.planned&&l.injury?` <span class="tag" style="border-color:var(--warm);color:var(--warm)" title="${esc(l.injuryNote||'')}">🩹 Petite blessure</span>`:''}</div>
           <div class="log-meta">${l.minutes||0} min · intensité ${l.intensity||'—'}${l.planned?'':` · charge ${load}`}${!l.planned&&l.feeling&&FEELING_EMOJI[l.feeling]?` · ${FEELING_EMOJI[l.feeling]}`:''}${l.location?` · ${l.location}`:''}${l.support&&SUPPORTS[l.support]?` · <span style="font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:3px;padding:1px 7px">${SUPPORTS[l.support].icon} ${SUPPORTS[l.support].label}</span>`:''}</div>
         </div>
-        ${l.planned?`<button class="btn sm danger" onclick="event.stopPropagation();deletePlannedSession('${l.id}','${dateStr}')" title="Retirer cette séance prévue">✕</button>`:''}
+        <button class="btn sm danger" onclick="event.stopPropagation();deleteSessionFromDayModal('${l.id}','${dateStr}')" title="${l.planned?'Retirer cette séance prévue':'Supprimer cette séance'}">✕</button>
       </div>
       ${(l.ascents||[]).length?`<div class="log-tags" style="margin-top:8px">${(l.ascents||[]).map(a=>`<span class="chip">${a.grade} · ${statusLabel(a.status)}</span>`).join('')}</div>`:''}
       ${!l.planned&&l.injury&&l.injuryNote?`<div style="font-size:12px;color:var(--warm);margin-top:6px">🩹 ${esc(l.injuryNote)}</div>`:''}
       ${l.planned&&l.notes?`<div style="font-size:12px;color:var(--muted);margin-top:6px">${esc(l.notes.length>140?l.notes.slice(0,140)+'…':l.notes)}</div>`:''}
-      ${l.planned&&l.bankRef&&getBank().find(b=>b.id===l.bankRef)?`<button class="btn sm" style="margin-top:8px" onclick="event.stopPropagation();closeModal('day-modal');switchPage('session-bank');sbEditCard('${l.bankRef}')">📋 Voir la fiche complète</button>`:''}
+      ${l.bankRef&&getBank().find(b=>b.id===l.bankRef)?`<button class="btn sm" style="margin-top:8px" onclick="event.stopPropagation();closeModal('day-modal');switchPage('session-bank');sbEditCard('${l.bankRef}')">📋 Voir la fiche complète</button>`:''}
     </div>`;
   }).join(''):'<p style="color:var(--muted);text-align:center;padding:20px">Aucune séance ce jour</p>';
   renderDayModalCycles(dateStr);
@@ -11572,18 +11583,24 @@ function planPickerBackToList() {
   document.getElementById('plan-picker-modal').classList.add('open');
 }
 window.planPickerBackToList = planPickerBackToList;
-function deletePlannedSession(id, dateStr) {
-  if (!confirm('Retirer cette séance prévue ?')) return;
+// Retour utilisateur : "peux-tu rajouter un bouton pour supprimer les séances ici ?" — avant, la
+// fenêtre "Séances du jour" ne proposait de supprimer que les séances encore PRÉVUES (✕) ; pour une
+// séance déjà FAITE (ex. issue d'un cycle), il fallait ouvrir tout le formulaire d'édition puis
+// cliquer "Supprimer". On généralise le bouton ✕ aux deux cas, avec un message de confirmation
+// adapté (mêmes mécaniques que delete-session-btn : suppression explicite côté serveur, /sync
+// étant un upsert non destructif).
+function deleteSessionFromDayModal(id, dateStr) {
+  const log = (getActive()?.logs || []).find(l => l.id === id);
+  if (!confirm(log && log.planned ? 'Retirer cette séance prévue ?' : 'Supprimer cette séance ?')) return;
   const delClimberId = getActive().id;
   getActive().logs = (getActive().logs||[]).filter(l=>l.id!==id);
   saveDB();
-  // Cf. delete-session-btn : /sync est désormais un upsert non destructif, la suppression doit
-  // être explicite côté serveur.
   if (authToken()) fetch(`/api/logs/${delClimberId}/${id}`, {method:'DELETE', headers:authHeaders()}).catch(()=>{});
   openDayModal(dateStr);
   if (document.getElementById('cal-grid')) renderCalendar();
   if (document.getElementById('cal2-grid')) renderSimpleCalendar();
 }
+window.deleteSessionFromDayModal = deleteSessionFromDayModal;
 function closeModal(id){document.getElementById(id).classList.remove('open');}
 document.getElementById('day-modal').addEventListener('click',e=>{if(e.target.id==='day-modal')closeModal('day-modal');});
 
