@@ -10352,7 +10352,10 @@ function updateSessionTypeUI(savedBNoGrade) {
   let bankPickerHtml = '';
   if (bankPickerApplies) {
     const existingLogForPanel = editingId ? (getActive()?.logs || []).find(l => l.id === editingId) : null;
-    const matchingBankItems = getBank().filter(it => it.type === type && it.contentType !== 'exercice');
+    // Retour utilisateur : une fiche taguée "Exercice" (ex. "Mono Light") n'apparaissait pas dans
+    // le picker — l'exclusion des exercices était trop restrictive, on affiche toutes les fiches du
+    // type quel que soit leur contentType (séance complète ou exercice ciblé).
+    const matchingBankItems = getBank().filter(it => it.type === type);
     const preselectedBankRef = existingLogForPanel?.bankRef || '';
     const preselectedItem = preselectedBankRef ? matchingBankItems.find(it => it.id === preselectedBankRef) : null;
     if (matchingBankItems.length) {
