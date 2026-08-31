@@ -1246,6 +1246,25 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   </div>
 </div>
 
+<!-- Retour utilisateur : "on ne peut pas voir le résumé de l'exercice proposé" — cliquer sur "+ Nom
+     (x/y)" pour un objectif "séance précise" (cycle) ne montrait qu'un confirm() texte brut, sans
+     aucun aperçu du contenu de la fiche (description, durée, tags…) avant de la marquer faite. -->
+<div class="modal-backdrop" id="objective-fulfill-preview-modal">
+  <div class="modal" style="width:min(480px,100%)">
+    <div class="modal-header">
+      <span class="modal-title" id="objective-fulfill-preview-title">Détail de la séance</span>
+      <button class="btn sm" onclick="closeModal('objective-fulfill-preview-modal')">Fermer</button>
+    </div>
+    <div class="modal-body">
+      <div id="objective-fulfill-preview-body"></div>
+      <div style="display:flex;gap:8px;margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+        <button class="btn" onclick="closeModal('objective-fulfill-preview-modal')">Annuler</button>
+        <button class="btn primary" id="objective-fulfill-preview-confirm-btn">✓ J'ai fait cette séance</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ═══════════════ NEW SESSION ═══════════════ -->
 <div class="page" id="page-new-session">
   <div class="page-header">
@@ -10921,12 +10940,19 @@ function openObjectiveFulfillModal(objectiveId) {
   // Retour utilisateur : "des cycles sont mis comme fait car j'ai cliqué sur le bouton vert mais
   // je ne peux pas les enlever" — le clic loguait direct, sans confirmation, une séance FAITE
   // aujourd'hui ; un clic malencontreux créait donc un log difficile à retrouver pour le supprimer.
-  // On demande désormais confirmation avant d'enregistrer.
+  // Puis retour : "on ne peut pas voir le résumé de l'exercice proposé" — un confirm() texte brut
+  // ne montrait ni description, ni durée, ni tags. On ouvre désormais un aperçu complet de la
+  // fiche (même contenu que dans la banque) avant de valider.
   if (obj.bankId) {
     const item = getBank().find(x => x.id === obj.bankId);
-    const name = item ? item.name : 'cette séance';
-    if (!confirm(`Enregistrer "${name}" comme faite aujourd'hui pour cet objectif ?`)) { flexChoiceObjectiveId = null; return; }
-    fulfillObjective(obj.bankId);
+    if (!item) { flexChoiceObjectiveId = null; return; }
+    document.getElementById('objective-fulfill-preview-title').textContent = item.name;
+    document.getElementById('objective-fulfill-preview-body').innerHTML = sbSessionSummaryHtml(item);
+    document.getElementById('objective-fulfill-preview-confirm-btn').onclick = () => {
+      closeModal('objective-fulfill-preview-modal');
+      fulfillObjective(obj.bankId);
+    };
+    document.getElementById('objective-fulfill-preview-modal').classList.add('open');
     return;
   }
   renderFlexChoiceList(obj.flexGoal);
