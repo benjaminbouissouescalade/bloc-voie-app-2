@@ -11997,6 +11997,11 @@ function sbObjectifOf(s) {
   // même si son objectif ("goal", ex. "Projet / limite absolue") pointerait sinon vers Force —
   // sinon une fiche comme "Mono Light" (type doigts, goal projet) disparaît du filtre Doigts.
   if (s.type === 'doigts' || s.type === 'prehension') return 'doigts';
+  // Retour utilisateur : "j'ai mis le tag Doigt à la séance mais quand je filtre elle ne sort
+  // pas" — une fiche d'un AUTRE type/objectif (ex. "Abrahangs", type Kiné/soins, goal Projet)
+  // peut être explicitement taguée "Doigts" dans son panneau Tags ; ce tag libre (s.tags) doit
+  // primer, comme le type, sur la classification par goal/catégorie ci-dessous.
+  if ((s.tags||[]).some(t => String(t).toLowerCase() === 'doigts')) return 'doigts';
   if (s.goal && BANK_GOAL_TO_OBJECTIF[s.goal]) return BANK_GOAL_TO_OBJECTIF[s.goal];
   if (s.category && BANK_CATEGORY_TO_OBJECTIF[s.category]) return BANK_CATEGORY_TO_OBJECTIF[s.category];
   return BANK_TYPE_TO_OBJECTIF_FALLBACK[s.type] || 'technique';
