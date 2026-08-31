@@ -10339,11 +10339,30 @@ function updateSessionTypeUI(savedBNoGrade) {
 
   // ── Extra panel content ──
   if (cfg.extraPanel === 'ppg') {
-    // Pas de voies, pas de bloc : rien à saisir en plus — la charge se calcule automatiquement
-    // à partir de la durée et de l'intensité déjà renseignées plus haut dans le formulaire.
+    // Pas de voies, pas de bloc à saisir — la charge se calcule automatiquement à partir de la
+    // durée et de l'intensité. Retour utilisateur : "quand on met PPG, force physique,
+    // récupération, mobilité, proposer d'aller piocher dans la banque une séance qu'on aurait pu
+    // faire tout seul" — un picker de fiches de la banque du même type (comme pour un coach qui
+    // planifie, cf. addPlannedSessionFromBank), mais ici pour de l'auto-log direct : en choisir une
+    // pré-remplit durée/intensité et rattache bankRef (checklist/suivi), sans jamais être obligatoire
+    // (option "Improviser" par défaut, on peut aussi la resaisir à la main après coup).
+    const existingLogForPanel = editingId ? (getActive()?.logs || []).find(l => l.id === editingId) : null;
+    const matchingBankItems = getBank().filter(it => it.type === type && it.contentType !== 'exercice');
+    const preselectedBankRef = existingLogForPanel?.bankRef || '';
+    const preselectedItem = preselectedBankRef ? matchingBankItems.find(it => it.id === preselectedBankRef) : null;
     panel.innerHTML = `
       <div class="panel-header"><span class="panel-title">Séance hors escalade</span></div>
-      <p style="font-size:13px;color:var(--muted);margin-bottom:12px">PPG, mobilité, musculation… pas d'ascensions à saisir. La charge se calcule automatiquement à partir de la durée × l'intensité renseignées ci-dessus — rien d'autre à remplir.</p>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px">PPG, mobilité, musculation… pas d'ascensions à saisir. La charge se calcule automatiquement à partir de la durée × l'intensité renseignées ci-dessus.</p>
+      ${matchingBankItems.length ? `
+      <div class="form-group">
+        <label class="form-label">Piocher une séance dans la banque (optionnel)</label>
+        <select class="form-control" id="s-ppg-bank-picker" onchange="pickPpgBankFiche()">
+          <option value="">— Improviser, sans fiche —</option>
+          ${matchingBankItems.map(it => `<option value="${it.id}" ${it.id===preselectedBankRef?'selected':''}>${esc(it.name)} — ${it.duration||90} min</option>`).join('')}
+        </select>
+        <input type="hidden" id="s-ppg-bank-ref" value="${esc(preselectedBankRef)}">
+        <p id="s-ppg-bank-desc" style="font-size:12px;color:var(--muted);margin-top:6px;white-space:pre-wrap">${preselectedItem?.description ? esc(preselectedItem.description) : ''}</p>
+      </div>` : ''}
       <div class="form-group" style="margin:0">
         <label class="form-label">Charge estimée séance</label>
         <input class="form-control" id="s-b-preview" disabled value="—">
@@ -10451,6 +10470,28 @@ function updateSessionTypeUI(savedBNoGrade) {
 
   updateLoadPreview();
 }
+
+// Sélection d'une fiche de la banque dans le panneau "Séance hors escalade" (cf. updateSessionTypeUI,
+// extraPanel==='ppg') : pré-remplit durée/intensité à partir de la fiche choisie, affiche sa
+// description en aperçu, et mémorise son id dans #s-ppg-bank-ref pour que saveCurrentSession() la
+// rattache en bankRef (suivi/checklist). Revenir sur "Improviser" efface le rattachement sans
+// toucher à la durée/intensité déjà saisies (l'athlète a pu les ajuster entre-temps).
+function pickPpgBankFiche() {
+  const select = document.getElementById('s-ppg-bank-picker');
+  const refEl = document.getElementById('s-ppg-bank-ref');
+  const descEl = document.getElementById('s-ppg-bank-desc');
+  if (!select) return;
+  const bankId = select.value;
+  if (refEl) refEl.value = bankId;
+  if (!bankId) { if (descEl) descEl.textContent = ''; return; }
+  const item = getBank().find(it => it.id === bankId);
+  if (!item) return;
+  setDurationMinutes(item.duration || 90);
+  const intensityEl = document.getElementById('s-intensity');
+  if (intensityEl && item.intensity) intensityEl.value = item.intensity;
+  if (descEl) descEl.textContent = item.description || '';
+}
+window.pickPpgBankFiche = pickPpgBankFiche;
 
 // ═══════════════ SAISIE VOCALE (dictée + IA) ═══════════════
 // — New Session —
@@ -11107,6 +11148,10 @@ function saveCurrentSession() {
   // (ce formulaire générique n'a pas de champ pour ça — sans ça, terminer une séance de cycle
   // la faisait disparaître de la Vue Année et cassait le suivi "cycles bouclés").
   const existingLog = editingId ? (getActive().logs||[]).find(l=>l.id===editingId) : null;
+  // Fiche piochée dans le panneau "Séance hors escalade" (cf. pickPpgBankFiche) — seul cas où ce
+  // formulaire générique a un vrai champ de choix de bankRef ; sinon on retombe sur la préservation
+  // habituelle de l'existant (bloc/voies n'ont pas ce picker).
+  const ppgBankRef = sCfg.extraPanel === 'ppg' ? fieldStr('s-ppg-bank-ref') : '';
   const payload={
     id:editingId||('log_'+Date.now()),
     date:document.getElementById('s-date').value,
@@ -11126,7 +11171,7 @@ function saveCurrentSession() {
     ascents:JSON.parse(JSON.stringify(sessionAscents)),
     bNoGrade,
     ...(existingLog?.cycleId ? { cycleId: existingLog.cycleId, cycleName: existingLog.cycleName } : {}),
-    ...(existingLog?.bankRef ? { bankRef: existingLog.bankRef } : {}),
+    ...(ppgBankRef ? { bankRef: ppgBankRef } : existingLog?.bankRef ? { bankRef: existingLog.bankRef } : {}),
     ...(existingLog?.comments ? { comments: existingLog.comments } : {}),
     // Idem pour la progression de checklist (cf. toggleChecklistItem) : ce formulaire n'a pas de
     // champ dédié, donc sans ça chaque sauvegarde via "Enregistrer" effacerait les cases déjà
