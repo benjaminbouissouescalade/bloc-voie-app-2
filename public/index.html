@@ -1755,7 +1755,10 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <p><strong>5. Charge de séance, puis charge cumulée</strong><br>
       La charge d'une séance = la somme de toutes tes ascensions et blocs de cette séance. Les indicateurs "7 jours", "28 jours", etc. additionnent simplement la charge de toutes les séances sur cette période.</p>
 
-      <p style="margin-bottom:0"><strong>6. Les niveaux C1 à C4</strong><br>
+      <p><strong>6. Les séances hors escalade</strong><br>
+      PPG, musculation, doigts (hangboard), cardio, footing, mobilité, yoga, récupération active, kiné, analyse vidéo, préparation mentale : leur charge se calcule par durée × intensité (méthode "session-RPE"), pondérée par un facteur propre à chaque activité — PPG et musculation comptent plein pot (sollicitation comparable à l'escalade), tandis que des activités plus douces ou moins spécifiques (yoga, mobilité, récup active, kiné, vidéo, préparation mentale) sont atténuées, pour ne pas peser autant qu'une vraie séance de renfo à durée égale.</p>
+
+      <p style="margin-bottom:0"><strong>7. Les niveaux C1 à C4</strong><br>
       Ils classent ta charge <strong>par rapport à ta propre moyenne</strong> hebdomadaire des 12 dernières semaines — pas une échelle universelle. <strong>C1</strong> (moins de 50% de ta moyenne) charge légère, <strong>C2</strong> (50–100%) modérée, <strong>C3</strong> (100–150%) soutenue, <strong>C4</strong> (plus de 150%) très élevée. Ça t'aide à repérer en un coup d'œil si tu es en sous-charge ou en surcharge par rapport à ton propre rythme habituel.</p>
     </div>
   </div>
@@ -4095,6 +4098,21 @@ const SESSION_RPE_MULT = 2;
 // coach : "il faut y mettre une charge plus faible que l'escalade". Moitié moins à durée×intensité
 // égales (ex. 60min à intensité 3/5 → 180 au lieu de 360 pour du PPG).
 const FOOTING_LOAD_FACTOR = 0.5;
+// Retour utilisateur : "je trouve les points de charge du yoga trop élevés" — avant, TOUTES les
+// séances hors escalade (PPG, muscu, doigts, cardio, mobilité, yoga, récup active, kiné, vidéo,
+// prépa mentale) partageaient exactement le même multiplicateur ×2, sans distinction : un yoga de
+// 60 min à intensité 3 valait donc autant qu'une musculation de même durée/intensité. On introduit
+// une atténuation par activité (mêmes ordres de grandeur que FOOTING_LOAD_FACTOR ci-dessus) —
+// PPG et Musculation restent la référence à ×1 (sollicitation musculaire/systémique comparable à
+// l'escalade), les activités plus douces ou moins spécifiques sont atténuées en conséquence.
+const SESSION_LOAD_FACTOR = {
+  ppg: 1, musculation: 1, cardio: 1,
+  doigts: 0.5, prehension: 0.5,
+  footing: FOOTING_LOAD_FACTOR,
+  mobilite: 0.3, yoga: 0.4, recup_active: 0.25,
+  'kiné': 0.2, video: 0.1, mentale: 0.1
+};
+function sessionLoadFactor(type) { return SESSION_LOAD_FACTOR[type] ?? 1; }
 
 const STORAGE_KEY = 'bloc_voie_v2';
 
@@ -5036,8 +5054,8 @@ function sessionLoad(log) {
   // Séances hors escalade (pas d'ascensions/blocs saisis), dont footing : charge = durée × intensité
   // (méthode session-RPE) — la distance (km) du footing est juste informative dans b_no_grade.
   const cfg = SESSION_CONFIG[log.type] || SESSION_CONFIG.autre;
-  const srpe = cfg.extraPanel === 'ppg' ? (log.minutes||0) * (log.intensity||3) * SESSION_RPE_MULT
-    : cfg.extraPanel === 'footing' ? (log.minutes||0) * (log.intensity||3) * SESSION_RPE_MULT * FOOTING_LOAD_FACTOR
+  const srpe = (cfg.extraPanel === 'ppg' || cfg.extraPanel === 'footing')
+    ? (log.minutes||0) * (log.intensity||3) * SESSION_RPE_MULT * sessionLoadFactor(log.type)
     : 0;
   return Math.round(al+bl+srpe);
 }
@@ -11085,11 +11103,11 @@ function updateLoadPreview(){
   if (cfg.extraPanel === 'ppg' || cfg.extraPanel === 'footing') {
     // Séance hors escalade (dont footing) : charge = durée × intensité (méthode session-RPE),
     // pas de saisie manuelle — la distance (km) du footing est informative, elle n'entre pas
-    // dans le calcul de charge. Le footing a en plus un facteur réducteur (cf. FOOTING_LOAD_FACTOR) :
-    // moins spécifique à l'escalade qu'un PPG ou qu'une vraie séance de grimpe.
+    // dans le calcul de charge. Chaque activité a son propre facteur d'atténuation (cf.
+    // SESSION_LOAD_FACTOR) : moins spécifique/moins intense à l'escalade qu'un PPG ou muscu.
     const minutes = fieldVal('s-minutes', 0);
     const intensity = fieldVal('s-intensity', 3);
-    bLoad = Math.round(minutes * intensity * SESSION_RPE_MULT * (cfg.extraPanel === 'footing' ? FOOTING_LOAD_FACTOR : 1));
+    bLoad = Math.round(minutes * intensity * SESSION_RPE_MULT * sessionLoadFactor(type));
   } else {
     const b = cfg.extraPanel === 'bloc' ? {
       facileSent:      fieldVal('s-b-facile', 0),
