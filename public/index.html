@@ -10285,10 +10285,15 @@ document.getElementById('history-type-filter').onchange=()=>renderHistory();
 // What each type shows in the "extra" panel below general info
 const SESSION_CONFIG = {
   // ── Escalade ──
-  bloc:          { showAscents: true,  extraPanel: 'bloc',   defaultMinutes: 90,  loadLabel: 'Charge bloc salle' },
+  // Retour utilisateur : "il y a encore Ascensions à droite alors que le sélecteur est sur Bloc,
+  // ça doit apparaître que pour voies/falaise" — le bloc (non coté, panneau facile/moyen/travail)
+  // n'a jamais eu besoin du panneau "Ascensions cotées" à côté ; même chose pour Pan/Woody/Board qui
+  // partage le même panneau bloc sans cotation. Seuls voies/falaise/compétition suivent des
+  // ascensions cotées individuellement.
+  bloc:          { showAscents: false, extraPanel: 'bloc',   defaultMinutes: 90,  loadLabel: 'Charge bloc salle' },
   voies:         { showAscents: true,  extraPanel: 'voies',  defaultMinutes: 120, loadLabel: 'Charge voies salle' },
   falaise:       { showAscents: true,  extraPanel: 'voies',  defaultMinutes: 300, loadLabel: 'Charge falaise' },
-  pan:           { showAscents: true,  extraPanel: 'bloc',   defaultMinutes: 90,  loadLabel: 'Charge pan/board' },
+  pan:           { showAscents: false, extraPanel: 'bloc',   defaultMinutes: 90,  loadLabel: 'Charge pan/board' },
   competition:   { showAscents: true,  extraPanel: 'voies',  defaultMinutes: 180, loadLabel: 'Charge compétition' },
   via_ferrata:   { showAscents: false, extraPanel: 'voies',  defaultMinutes: 240, loadLabel: 'Charge via ferrata' },
   // ── Force & Physique ──
