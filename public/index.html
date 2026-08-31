@@ -10574,10 +10574,16 @@ function applyNotesLock(log) {
   const notesEl = document.getElementById('s-notes');
   const hint = document.getElementById('s-notes-locked-hint');
   const isCoach = isCoachRoleValue(window.currentUser?.role);
-  const noteCouldExist = isCoach || !!(log && (log.source === 'coach' || (log.notes && log.notes.trim())));
+  // Retour utilisateur : "la note du coach est encore visible sur ma propre séance" — un compte
+  // coach qui édite SON PROPRE carnet (ex. Ben, coach ET athlète de lui-même) n'est pas "un coach"
+  // dans ce contexte précis, il est dans la même situation qu'un athlète sans note. Le rôle coach
+  // ne donne donc le contrôle de la case que sur les séances d'un AUTRE grimpeur qu'il coache.
+  const viewingOwnProfile = getActive()?.id === window.currentUser?.climberId;
+  const canEditNotes = isCoach && !viewingOwnProfile;
+  const noteCouldExist = canEditNotes || !!(log && (log.source === 'coach' || (log.notes && log.notes.trim())));
   if (group) group.style.display = noteCouldExist ? '' : 'none';
-  if (notesEl) notesEl.disabled = !isCoach;
-  if (hint) hint.style.display = (!isCoach && noteCouldExist) ? '' : 'none';
+  if (notesEl) notesEl.disabled = !canEditNotes;
+  if (hint) hint.style.display = (!canEditNotes && noteCouldExist) ? '' : 'none';
 }
 
 function editSession(id){
