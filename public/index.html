@@ -574,6 +574,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 /* Session Bank */
 .sb-card { border:1px solid var(--border); border-radius:var(--radius); padding:16px; background:var(--surface); transition:all .12s; cursor:pointer; position:relative; }
 .sb-fav-btn { position:absolute; top:12px; right:12px; background:none; border:none; cursor:pointer; font-size:18px; line-height:1; color:var(--muted); padding:2px; }
+.sb-picto { width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:15px; flex-shrink:0; }
 .sb-fav-btn:hover { color:var(--accent); transform:scale(1.15); }
 .sb-card:hover { border-color:var(--border2); box-shadow:var(--shadow); }
 .sb-card.active { border-color:var(--accent); background:var(--accent2); }
@@ -11900,6 +11901,16 @@ const BANK_TYPE_TO_OBJECTIF_FALLBACK = {
   mobilite:'recuperation', yoga:'recuperation', recup_active:'recuperation', 'kiné':'recuperation',
   video:'technique', mentale:'technique', competition:'technique', via_ferrata:'technique', autre:'technique'
 };
+// Petit picto rond sur les cartes de La Mine — retour utilisateur : "rendre la banque plus
+// sexy". Icône = celle de la famille objectif (déjà utilisée sur les pastilles de filtre
+// Force/Résistance/Doigts…), couleur de fond = celle du type de séance (SESSION_TYPES),
+// pour repérer la famille et le contexte d'un coup d'œil sans lire le texte.
+function sbCardPicto(s) {
+  const famKey = sbObjectifOf(s);
+  const icon = (BANK_OBJECTIFS.find(o => o.key === famKey) || {}).icon || '🗂️';
+  const color = (SESSION_TYPES[s.type] || {}).color || 'var(--accent)';
+  return { icon, color };
+}
 function sbObjectifOf(s) {
   // Le type "doigts" (ou "prehension") doit toujours ranger la fiche dans la famille Doigts,
   // même si son objectif ("goal", ex. "Projet / limite absolue") pointerait sinon vers Force —
@@ -12396,9 +12407,13 @@ function sbRenderGrid() {
     // la nouvelle navigation objectif → contexte.
     const contextLabel = SESSION_TYPES[s.type]?.label || s.subcategory || s.category || '';
     const freshness = sbViewMode === 'recentes' ? sbRecentLabel(sbRecentInfo(s.id)) : '';
+    const picto = sbCardPicto(s);
     return `<div class="sb-card" draggable="true" ondragstart="onBankDragStart(event,'${s.id}')" ondragend="onBankDragEnd(event)" title="Glisse cette séance sur une case du calendrier pour la programmer, ou clique pour voir le détail" onclick="sbOpenDetail('${s.id}')">
       <button class="sb-fav-btn" onclick="sbToggleFavorite('${s.id}', event)" title="${isFav?'Retirer des pépites':'Ajouter aux pépites'}">${isFav?'★':'☆'}</button>
-      <div style="font-weight:700;font-size:15px;margin-bottom:2px;padding-right:24px">${esc(s.name)}</div>
+      <div style="display:flex;align-items:flex-start;gap:8px;padding-right:24px;margin-bottom:2px">
+        <div class="sb-picto" style="background:color-mix(in srgb, ${picto.color} 20%, var(--surface2))">${picto.icon}</div>
+        <div style="font-weight:700;font-size:15px;line-height:1.3;margin-top:2px">${esc(s.name)}</div>
+      </div>
       ${contextLabel ? `<div style="font-size:12px;color:var(--muted);margin-bottom:${freshness?'4px':'10px'}">${esc(contextLabel)}${s.goal?' · '+esc(SB_GOAL_LABELS[s.goal]||s.goal):''}</div>` : '<div style="margin-bottom:10px"></div>'}
       ${freshness ? `<div style="font-size:10.5px;color:var(--accent);text-transform:uppercase;letter-spacing:.02em;margin-bottom:8px">${esc(freshness)}</div>` : ''}
       <div style="display:flex;align-items:center;gap:8px">
