@@ -1631,6 +1631,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <p>Suivi du volume, de l'intensité et des niveaux de charge C1–C4</p>
     </div>
     <button class="btn sm" onclick="document.getElementById('wl-info-modal').classList.add('open')">ℹ️ Comment la charge est calculée ?</button>
+    <button class="btn sm" onclick="openLoadCoefModal()">⚙️ Ajuster les coefficients</button>
   </div>
 
   <div class="stat-grid stat-grid-4">
@@ -1796,6 +1797,23 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 
       <p style="margin-bottom:0"><strong>7. Les niveaux C1 à C4</strong><br>
       Ils classent ta charge <strong>par rapport à ta propre moyenne</strong> hebdomadaire des 12 dernières semaines — pas une échelle universelle. <strong>C1</strong> (moins de 50% de ta moyenne) charge légère, <strong>C2</strong> (50–100%) modérée, <strong>C3</strong> (100–150%) soutenue, <strong>C4</strong> (plus de 150%) très élevée. Ça t'aide à repérer en un coup d'œil si tu es en sous-charge ou en surcharge par rapport à ton propre rythme habituel.</p>
+    </div>
+  </div>
+</div>
+
+<!-- Retour utilisateur : "peux tu aussi faire une page où l'on aurait la possibilité d'ajuster les
+     valeurs des coefficients" — les facteurs d'atténuation par activité (cf. SESSION_LOAD_FACTOR /
+     BLOC_GRADED_LOAD_FACTOR, point 6 du modal ci-dessus + Kilter Board) sont réglables ici et
+     sauvegardés en local (localStorage, propre à cet appareil). -->
+<div class="modal-backdrop" id="load-coef-modal">
+  <div class="modal" style="width:min(560px,100%)">
+    <div class="modal-header">
+      <span class="modal-title">Ajuster les coefficients de charge</span>
+      <button class="btn sm" onclick="closeModal('load-coef-modal')">Fermer</button>
+    </div>
+    <div class="modal-body" style="font-size:13.5px;line-height:1.5">
+      <p style="margin-top:0;color:var(--muted);font-size:12.5px">Ces facteurs pondèrent la charge de chaque type de séance par rapport à une escalade "pleine intensité" (facteur 1). Réglages propres à cet appareil.</p>
+      <div id="load-coef-body"></div>
     </div>
   </div>
 </div>
@@ -4168,14 +4186,93 @@ const FOOTING_LOAD_FACTOR = 0.5;
 // une atténuation par activité (mêmes ordres de grandeur que FOOTING_LOAD_FACTOR ci-dessus) —
 // PPG et Musculation restent la référence à ×1 (sollicitation musculaire/systémique comparable à
 // l'escalade), les activités plus douces ou moins spécifiques sont atténuées en conséquence.
-const SESSION_LOAD_FACTOR = {
+const DEFAULT_SESSION_LOAD_FACTOR = {
   ppg: 1, musculation: 1, cardio: 1,
   doigts: 0.5, prehension: 0.5,
   footing: FOOTING_LOAD_FACTOR,
   mobilite: 0.3, yoga: 0.4, recup_active: 0.25,
   'kiné': 0.2, video: 0.1, mentale: 0.1
 };
+// Atténuation de charge par type "bloc gradué" (cf. isBlocGradedType) — le Kilter Board est
+// indoor, sur plots standardisés : à cotation égale, moins engageant/représentatif qu'un bloc
+// extérieur, donc on pondère sa charge à 0,8 par défaut. Ne touche jamais au grade de référence
+// bloc (getRefGradeBloc), qui doit rester basé sur la performance brute, pas sur la charge pondérée.
+const DEFAULT_BLOC_GRADED_LOAD_FACTOR = { bloc_exterieur: 1, kilter: 0.8 };
+
+// Les coefficients ci-dessus sont maintenant réglables par l'utilisateur (retour : "peux-tu aussi
+// faire une page où l'on aurait la possibilité d'ajuster les valeurs des coefficients") — stockés
+// en local (localStorage), donc propres à cet appareil/navigateur, par-dessus les valeurs par
+// défaut ci-dessus. `let` (pas `const`) : ces objets sont mutés en place par le panneau de
+// réglages (cf. #load-coef-modal / setLoadCoefficient) plutôt que réassignés, pour que tout code
+// qui a déjà capturé une référence (sessionLoadFactor/blocGradedLoadFactor la lisent à chaque
+// appel donc peu importe, mais on reste cohérent avec le pattern).
+const LOAD_COEF_STORAGE_KEY = 'digger_load_coefficients_v1';
+function readLoadCoefOverrides() {
+  try { return JSON.parse(localStorage.getItem(LOAD_COEF_STORAGE_KEY) || '{}') || {}; }
+  catch(e) { return {}; }
+}
+function saveLoadCoefOverrides() {
+  localStorage.setItem(LOAD_COEF_STORAGE_KEY, JSON.stringify({
+    sessionLoadFactor: SESSION_LOAD_FACTOR,
+    blocGradedLoadFactor: BLOC_GRADED_LOAD_FACTOR
+  }));
+}
+const _loadCoefSaved = readLoadCoefOverrides();
+let SESSION_LOAD_FACTOR = { ...DEFAULT_SESSION_LOAD_FACTOR, ...(_loadCoefSaved.sessionLoadFactor||{}) };
+let BLOC_GRADED_LOAD_FACTOR = { ...DEFAULT_BLOC_GRADED_LOAD_FACTOR, ...(_loadCoefSaved.blocGradedLoadFactor||{}) };
 function sessionLoadFactor(type) { return SESSION_LOAD_FACTOR[type] ?? 1; }
+function blocGradedLoadFactor(type) { return BLOC_GRADED_LOAD_FACTOR[type] ?? 1; }
+function setLoadCoefficient(group, key, value) {
+  const num = Math.max(0, Math.min(3, Number(value) || 0));
+  const target = group === 'bloc' ? BLOC_GRADED_LOAD_FACTOR : SESSION_LOAD_FACTOR;
+  target[key] = num;
+  saveLoadCoefOverrides();
+  if (document.getElementById('page-new-session')?.classList.contains('active')) updateLoadPreview();
+}
+function resetLoadCoefficients(group) {
+  if (group === 'bloc') { Object.keys(BLOC_GRADED_LOAD_FACTOR).forEach(k=>delete BLOC_GRADED_LOAD_FACTOR[k]); Object.assign(BLOC_GRADED_LOAD_FACTOR, DEFAULT_BLOC_GRADED_LOAD_FACTOR); }
+  else { Object.keys(SESSION_LOAD_FACTOR).forEach(k=>delete SESSION_LOAD_FACTOR[k]); Object.assign(SESSION_LOAD_FACTOR, DEFAULT_SESSION_LOAD_FACTOR); }
+  saveLoadCoefOverrides();
+  renderLoadCoefModal();
+  if (document.getElementById('page-new-session')?.classList.contains('active')) updateLoadPreview();
+}
+window.setLoadCoefficient = setLoadCoefficient;
+window.resetLoadCoefficients = resetLoadCoefficients;
+
+function loadCoefRow(group, key, value) {
+  const label = (SESSION_TYPES[key] || {}).label || key;
+  return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border)">
+    <span style="flex:1;font-size:13px">${label}</span>
+    <input type="range" min="0" max="1.5" step="0.05" value="${value}" style="width:110px"
+      oninput="this.nextElementSibling.value=this.value;setLoadCoefficient('${group}','${key}',this.value)">
+    <input type="number" min="0" max="3" step="0.05" value="${value}" style="width:64px;font-size:12px;padding:5px 6px" class="form-control"
+      onchange="setLoadCoefficient('${group}','${key}',this.value);this.previousElementSibling.value=this.value">
+  </div>`;
+}
+function renderLoadCoefModal() {
+  const el = document.getElementById('load-coef-body');
+  if (!el) return;
+  const sessionRows = Object.keys(SESSION_LOAD_FACTOR).map(k => loadCoefRow('session', k, SESSION_LOAD_FACTOR[k])).join('');
+  const blocRows = Object.keys(BLOC_GRADED_LOAD_FACTOR).map(k => loadCoefRow('bloc', k, BLOC_GRADED_LOAD_FACTOR[k])).join('');
+  el.innerHTML = `
+    <div style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
+      <span class="panel-title" style="font-size:13px">Séances hors escalade</span>
+      <button class="btn sm" onclick="resetLoadCoefficients('session')">↺ Réinitialiser</button>
+    </div>
+    ${sessionRows}
+    <div style="margin:18px 0 8px;display:flex;justify-content:space-between;align-items:center">
+      <span class="panel-title" style="font-size:13px">Bloc gradué (extérieur / Kilter)</span>
+      <button class="btn sm" onclick="resetLoadCoefficients('bloc')">↺ Réinitialiser</button>
+    </div>
+    ${blocRows}
+  `;
+}
+function openLoadCoefModal() {
+  renderLoadCoefModal();
+  document.getElementById('load-coef-modal').classList.add('open');
+}
+window.openLoadCoefModal = openLoadCoefModal;
+window.renderLoadCoefModal = renderLoadCoefModal;
 
 const STORAGE_KEY = 'bloc_voie_v2';
 
@@ -5136,7 +5233,7 @@ function sessionLoad(log) {
   if (isBlocGradedType(log.type)) {
     const refB = getRefGradeBloc() || getActive()?.profile?.levelBloc || '6a';
     const al = (log.ascents||[]).reduce((s,a)=>s+ascentLoad(a,refB,GRADE_IDX_BLOC),0);
-    return Math.round(al);
+    return Math.round(al * blocGradedLoadFactor(log.type));
   }
   const ref = getRefGrade();
   const al = (log.ascents||[]).reduce((s,a)=>s+ascentLoad(a,ref),0);
@@ -11169,9 +11266,10 @@ function renderAscentsEditor(){
   const grades = scaleGrades(scale);
   const gradeIdx = scaleGradeIdx(scale);
   const ref = scaleRefGrade(scale);
+  const blocFactor = scale==='bloc' ? blocGradedLoadFactor(getCurrentSessionType()) : 1;
   el.innerHTML=sessionAscents.map((a,i)=>{
     const isTry = a.status === 'try';
-    const load = ascentLoad(a, ref, gradeIdx);
+    const load = Math.round(ascentLoad(a, ref, gradeIdx) * blocFactor);
     // Champ "essais" — visible uniquement pour les essais et moulinettes avec répétitions
     // Champ "% par tentative" — uniquement pour les essais (le cœur de la nouvelle formule)
     return `<div class="ascent-row" style="grid-template-columns:90px 1fr ${isTry?'80px 90px':'0px 0px'} 80px auto;gap:8px">
@@ -11253,9 +11351,11 @@ function updateLoadPreview(){
   const scale = cfg.gradeScale === 'bloc' ? 'bloc' : 'route';
   const gradeIdx = scaleGradeIdx(scale);
   const ref = scaleRefGrade(scale);
+  // Atténuation par type pour le bloc gradué (ex. Kilter ×0,8) — cf. BLOC_GRADED_LOAD_FACTOR.
+  const blocFactor = scale==='bloc' ? blocGradedLoadFactor(type) : 1;
 
   // Ascensions cotées
-  const routeLoad = Math.round(sessionAscents.reduce((s,a)=>s+ascentLoad(a,ref,gradeIdx), 0));
+  const routeLoad = Math.round(sessionAscents.reduce((s,a)=>s+ascentLoad(a,ref,gradeIdx), 0) * blocFactor);
 
   // Panneau complémentaire (bloc non coté / volume additionnel / séance hors escalade)
   let bLoad;
