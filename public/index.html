@@ -1011,10 +1011,8 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   </div>
  <div class="sidebar-footer">
     <div id="sidebar-user" style="font-size:12px;color:var(--muted);margin-bottom:8px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
-    <button class="btn sm coach-only-btn" style="width:100%;justify-content:center;margin-bottom:6px" onclick="openClimberModal()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:14px;height:14px"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/><path d="M19 8h2m-1-1v2"/></svg>
-      Gérer les grimpeurs
-    </button>
+    <!-- "Gérer les grimpeurs" retiré du panneau bas : redondant avec le clic sur la carte du
+         grimpeur actif en haut de la sidebar, qui ouvre déjà la même modale (openClimberModal()). -->
    <button class="btn sm" style="width:100%;justify-content:center;margin-bottom:6px" onclick="openImport8aModal()">
   📥 Importer 8a.nu
 </button>
@@ -1631,7 +1629,9 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <p>Suivi du volume, de l'intensité et des niveaux de charge C1–C4</p>
     </div>
     <button class="btn sm" onclick="document.getElementById('wl-info-modal').classList.add('open')">ℹ️ Comment la charge est calculée ?</button>
-    <button class="btn sm" onclick="openLoadCoefModal()">⚙️ Ajuster les coefficients</button>
+    <!-- coach-only-btn : réglage global qui affecte le calcul de charge de tout le monde — retour
+         utilisateur "qui peut changer les coefficients ? pour moi seulement les coachs". -->
+    <button class="btn sm coach-only-btn" onclick="openLoadCoefModal()">⚙️ Ajuster les coefficients</button>
   </div>
 
   <div class="stat-grid stat-grid-4">
