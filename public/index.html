@@ -4046,7 +4046,7 @@ const GRADE_IDX_BLOC = Object.fromEntries(GRADES_BLOC.map((g,i)=>[g,i]));
 // (GRADE_IDX_BLOC) et dont les libellés textuels collisionnent parfois avec l'échelle route
 // (ex. "6a" existe dans les deux). Sans ce filtre, une ascension bloc pourrait fausser une
 // stat/référence/record calculée pour les voies.
-function routeLogs(logs) { return (logs||[]).filter(l => l.type !== 'bloc_exterieur'); }
+function routeLogs(logs) { return (logs||[]).filter(l => !isBlocGradedType(l.type)); }
 // Système de couleurs classique des salles de bloc (facile → dur). Utilisé par la checklist de
 // fiche "Bloc par couleur" (cf. sbChecklistItems) — chaque salle mappe ses prises à sa façon, donc
 // on ne prétend pas donner un niveau universel, juste un jeu de couleurs standard à cocher.
@@ -4067,6 +4067,7 @@ const SESSION_TYPES = {
   voies:         {label:'Voies salle',            color:'#1a4a7a', group:'Escalade'},
   falaise:       {label:'Falaise / Outdoor',      color:'#b07a10', group:'Escalade'},
   bloc_exterieur:{label:'Bloc extérieur',         color:'#8a5a2d', group:'Escalade'},
+  kilter:        {label:'Kilter Board',           color:'#c46a1a', group:'Escalade'},
   pan:           {label:'Pan / Woody / Board',    color:'#4a7a1a', group:'Escalade'},
   competition:   {label:'Compétition',            color:'#8b1a5a', group:'Escalade'},
   via_ferrata:   {label:'Via ferrata',            color:'#7a5a1a', group:'Escalade'},
@@ -5053,14 +5054,15 @@ function getRefGrade(logs=null, daysBack=90) {
 }
 
 // Grade de référence BLOC — même méthode que getRefGrade() (70e percentile des envois sur
-// 90 jours), mais réservée aux ascensions de type "bloc_exterieur" (échelle Fontainebleau,
-// jamais mélangée à l'échelle voie — cf. commentaire sur GRADE_IDX_BLOC). Retourne null si
-// aucune donnée : c'est à l'appelant de retomber sur le niveau bloc déclaré (profile.levelBloc).
+// 90 jours), mais réservée aux séances "bloc gradué" (Bloc extérieur, Kilter Board — échelle
+// Fontainebleau, jamais mélangée à l'échelle voie — cf. commentaire sur GRADE_IDX_BLOC).
+// Retourne null si aucune donnée : c'est à l'appelant de retomber sur le niveau bloc déclaré
+// (profile.levelBloc).
 function getRefGradeBloc(logs=null, daysBack=90) {
   const all = logs || getLogs();
   const cutoff = new Date(); cutoff.setDate(cutoff.getDate()-daysBack);
   const sent = all
-    .filter(l=>l.type==='bloc_exterieur' && new Date(l.date)>=cutoff)
+    .filter(l=>isBlocGradedType(l.type) && new Date(l.date)>=cutoff)
     .flatMap(l=>(l.ascents||[]).filter(a=>['tete','moulinette','av','flash'].includes(a.status) && GRADE_IDX_BLOC[a.grade]!==undefined))
     .map(a=>GRADE_IDX_BLOC[a.grade])
     .sort((a,b)=>a-b);
@@ -5127,10 +5129,11 @@ function boulderLoad(b, refGrade) {
 }
 
 function sessionLoad(log) {
-  // Bloc extérieur : coté sur l'échelle Fontainebleau (bloc), toujours — indépendamment de la
-  // discipline principale choisie dans le profil. Les séances de voie gardent toujours l'échelle
-  // voie ci-dessous : chaque activité compte sur son échelle naturelle, elles ne s'écrasent jamais.
-  if (log.type === 'bloc_exterieur') {
+  // Bloc gradué (Bloc extérieur, Kilter Board...) : coté sur l'échelle Fontainebleau (bloc),
+  // toujours — indépendamment de la discipline principale choisie dans le profil. Les séances de
+  // voie gardent toujours l'échelle voie ci-dessous : chaque activité compte sur son échelle
+  // naturelle, elles ne s'écrasent jamais.
+  if (isBlocGradedType(log.type)) {
     const refB = getRefGradeBloc() || getActive()?.profile?.levelBloc || '6a';
     const al = (log.ascents||[]).reduce((s,a)=>s+ascentLoad(a,refB,GRADE_IDX_BLOC),0);
     return Math.round(al);
@@ -7001,11 +7004,12 @@ function renderPerformance() {
     <div class="stat-card warm"><div class="stat-label">Grade de référence</div><div class="stat-value">${ref}</div></div>
   `;
 
-  // Bloc extérieur — échelle Fontainebleau, complètement séparée des cartes voie ci-dessus
-  // (cf. GRADES_BLOC/routeLogs). N'apparaît que si l'athlète a déjà loggé ce type de séance.
+  // Bloc gradué (Bloc extérieur + Kilter Board) — échelle Fontainebleau, complètement séparée
+  // des cartes voie ci-dessus (cf. GRADES_BLOC/routeLogs/isBlocGradedType). N'apparaît que si
+  // l'athlète a déjà loggé au moins une séance de ce type.
   const blocSummaryEl = document.getElementById('perf-bloc-summary');
   if (blocSummaryEl) {
-    const blocLogsAll = getLogs().filter(l=>l.type==='bloc_exterieur');
+    const blocLogsAll = getLogs().filter(l=>isBlocGradedType(l.type));
     if (blocLogsAll.length) {
       const blocLogs = blocLogsAll.filter(l=>!since||new Date(l.date)>=since);
       const blocSent = blocLogs.flatMap(l=>(l.ascents||[]).filter(a=>['tete','av','flash','moulinette'].includes(a.status)&&GRADE_IDX_BLOC[a.grade]!==undefined));
@@ -7014,10 +7018,10 @@ function renderPerformance() {
       const refBloc = getRefGradeBloc() || getActive()?.profile?.levelBloc || '—';
       blocSummaryEl.style.display='';
       blocSummaryEl.innerHTML=`
-        <div class="stat-card accent"><div class="stat-label">🪨 Meilleur bloc extérieur</div><div class="stat-value">${bestBlocTete?.grade||'—'}</div></div>
+        <div class="stat-card accent"><div class="stat-label">🪨 Meilleur bloc (extérieur + Kilter)</div><div class="stat-value">${bestBlocTete?.grade||'—'}</div></div>
         <div class="stat-card"><div class="stat-label">Meilleur flash / AV (bloc)</div><div class="stat-value">${bestBlocFlash?.grade||'—'}</div></div>
         <div class="stat-card warm"><div class="stat-label">Grade de référence bloc</div><div class="stat-value">${refBloc}</div></div>
-        <div class="stat-card"><div class="stat-label">Séances bloc extérieur (période)</div><div class="stat-value">${blocLogs.length}</div></div>
+        <div class="stat-card"><div class="stat-label">Séances bloc (période)</div><div class="stat-value">${blocLogs.length}</div></div>
       `;
     } else {
       blocSummaryEl.style.display='none';
@@ -9181,10 +9185,11 @@ function crewPostCycleStartedBestEffort(cycleName, type) {
 // ajoutée aux logs) — comparé séparément par style d'ascension (tête / flash-à vue / moulinette),
 // comme les "meilleurs enchaînements" déjà affichés sur la page Performance.
 function detectNewPRs(payload) {
-  // Les PR "voie" sont scorés sur l'échelle route (GRADE_IDX) — une séance de bloc extérieur a
-  // ses cotations sur l'échelle Fontainebleau (libellés parfois identiques, ex. "6a"), donc on ne
-  // la fait jamais rentrer dans cette détection pour éviter un faux record.
-  if (payload.type === 'bloc_exterieur') return [];
+  // Les PR "voie" sont scorés sur l'échelle route (GRADE_IDX) — une séance bloc graduée (Bloc
+  // extérieur, Kilter...) a ses cotations sur l'échelle Fontainebleau (libellés parfois
+  // identiques, ex. "6a"), donc on ne la fait jamais rentrer dans cette détection pour éviter un
+  // faux record.
+  if (isBlocGradedType(payload.type)) return [];
   const prevLogs = routeLogs((getActive().logs || []).filter(l => !l.planned));
   const sentAscents = (payload.ascents || []).filter(a => ['tete', 'av', 'flash', 'moulinette'].includes(a.status));
   if (!sentAscents.length) return [];
@@ -10466,6 +10471,10 @@ const SESSION_CONFIG = {
   // gradeScale:'bloc' → l'éditeur d'ascensions et le calcul de charge basculent sur l'échelle
   // Fontainebleau (GRADES_BLOC/GRADE_IDX_BLOC/getRefGradeBloc) au lieu de l'échelle voie.
   bloc_exterieur:{ showAscents: true,  extraPanel: 'voies',  defaultMinutes: 240, loadLabel: 'Charge bloc extérieur', gradeScale: 'bloc' },
+  // Kilter Board — bloc indoor gradué (même échelle bloc que "Bloc extérieur" ci-dessus, cf.
+  // isBlocGradedType) : les deux comptent ensemble pour le niveau bloc / grade de référence bloc,
+  // seul le lieu (indoor board vs outdoor) diffère.
+  kilter:        { showAscents: true,  extraPanel: 'voies',  defaultMinutes: 90,  loadLabel: 'Charge Kilter', gradeScale: 'bloc' },
   pan:           { showAscents: false, extraPanel: 'bloc',   defaultMinutes: 90,  loadLabel: 'Charge pan/board' },
   competition:   { showAscents: true,  extraPanel: 'voies',  defaultMinutes: 180, loadLabel: 'Charge compétition' },
   via_ferrata:   { showAscents: false, extraPanel: 'voies',  defaultMinutes: 240, loadLabel: 'Charge via ferrata' },
@@ -10491,6 +10500,11 @@ const SESSION_CONFIG = {
 function getCurrentSessionType() {
   return document.getElementById('s-type')?.value || 'bloc';
 }
+// Un type de séance est "bloc gradué" quand SESSION_CONFIG le marque gradeScale:'bloc' (Bloc
+// extérieur, Kilter Board...) — utilisé partout où on doit regrouper ces types comme une seule
+// discipline "bloc" (grade de référence, niveau affiché, records, exclusion des stats voie) sans
+// avoir à lister les types un par un à chaque endroit.
+function isBlocGradedType(type) { return (SESSION_CONFIG[type]||{}).gradeScale === 'bloc'; }
 // Échelle de cotation à utiliser pour l'éditeur d'ascensions / le calcul de charge, selon le type
 // de séance courant — 'bloc' (Fontainebleau, GRADES_BLOC) pour "Bloc extérieur", 'route' (GRADES)
 // pour tout le reste. Centralisé ici pour que renderNewSession/renderAscentsEditor/add-ascent-btn/
@@ -13502,7 +13516,7 @@ function climberStats(c, scale = 'route') {
   const isBloc = scale === 'bloc';
   const GR = isBloc ? GRADES_BLOC : GRADES;
   const GI = isBloc ? GRADE_IDX_BLOC : GRADE_IDX;
-  const logs = isBloc ? (c.logs || []).filter(l => l.type === 'bloc_exterieur') : routeLogs(c.logs || []);
+  const logs = isBloc ? (c.logs || []).filter(l => isBlocGradedType(l.type)) : routeLogs(c.logs || []);
   const allAscents = logs.flatMap(l => (l.ascents||[]).filter(a => GI[a.grade] !== undefined));
   const sentAscents = allAscents.filter(a => ['tete','moulinette','av','flash'].includes(a.status));
 
