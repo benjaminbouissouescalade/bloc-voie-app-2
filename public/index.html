@@ -1474,7 +1474,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       </div>
       <div class="panel" id="s-ascents-panel">
         <div class="panel-header">
-          <span class="panel-title">Ascensions cotées</span>
+          <span class="panel-title" id="s-ascents-panel-title">Ascensions cotées</span>
           <button class="btn sm primary" id="add-ascent-btn">+ Ascension</button>
         </div>
         <div id="ascents-editor"></div>
@@ -11273,6 +11273,16 @@ function renderNewSession(){
   if(tg)tg.innerHTML=scaleGrades(scale0).map(g=>`<option>${g}</option>`).join('');
   renderAscentsEditor();updateLoadPreview();
 }
+// Ordre des statuts d'ascension dans le sélecteur — pour le bloc gradué (Bloc extérieur, Kilter),
+// retour utilisateur : "met flash après travail" → Flash passe en dernier, après "Essai / travail"
+// (ordre plus naturel côté bloc : on enchaîne, à vue, ou on flashe après avoir déjà travaillé le
+// bloc). L'ordre voie (flash avant essai) reste inchangé.
+const ASCENT_STATUS_OPTIONS_ROUTE = [
+  ['tete','Enchaîné tête'], ['moulinette','Moulinette'], ['av','À vue'], ['flash','Flash'], ['try','Essai / travail']
+];
+const ASCENT_STATUS_OPTIONS_BLOC = [
+  ['tete','Enchaîné tête'], ['moulinette','Moulinette'], ['av','À vue'], ['try','Essai / travail'], ['flash','Flash']
+];
 function renderAscentsEditor(){
   const el=document.getElementById('ascents-editor');
   document.getElementById('ascents-empty').style.display=sessionAscents.length?'none':'';
@@ -11281,6 +11291,11 @@ function renderAscentsEditor(){
   const gradeIdx = scaleGradeIdx(scale);
   const ref = scaleRefGrade(scale);
   const blocFactor = scale==='bloc' ? blocGradedLoadFactor(getCurrentSessionType()) : 1;
+  const statusOptions = scale==='bloc' ? ASCENT_STATUS_OPTIONS_BLOC : ASCENT_STATUS_OPTIONS_ROUTE;
+  const panelTitleEl = document.getElementById('s-ascents-panel-title');
+  if (panelTitleEl) panelTitleEl.textContent = scale==='bloc' ? 'Blocs' : 'Ascensions cotées';
+  const addBtnEl = document.getElementById('add-ascent-btn');
+  if (addBtnEl) addBtnEl.textContent = scale==='bloc' ? '+ Bloc' : '+ Ascension';
   el.innerHTML=sessionAscents.map((a,i)=>{
     const isTry = a.status === 'try';
     const load = Math.round(ascentLoad(a, ref, gradeIdx) * blocFactor);
@@ -11291,11 +11306,7 @@ function renderAscentsEditor(){
         ${grades.map(g=>`<option ${g===a.grade?'selected':''}>${g}</option>`).join('')}
       </select>
       <select class="form-control" style="font-size:12px;padding:6px 8px" onchange="sessionAscents[${i}].status=this.value;sessionAscents[${i}].tries=1;sessionAscents[${i}].progress=100;renderAscentsEditor();updateLoadPreview()">
-        <option value="tete"      ${a.status==='tete'?'selected':''}>Enchaîné tête</option>
-        <option value="moulinette"${a.status==='moulinette'?'selected':''}>Moulinette</option>
-        <option value="av"        ${a.status==='av'?'selected':''}>À vue</option>
-        <option value="flash"     ${a.status==='flash'?'selected':''}>Flash</option>
-        <option value="try"       ${a.status==='try'?'selected':''}>Essai / travail</option>
+        ${statusOptions.map(([val,label])=>`<option value="${val}" ${a.status===val?'selected':''}>${label}</option>`).join('')}
       </select>
       ${isTry ? `
       <div style="display:flex;flex-direction:column;gap:2px">
