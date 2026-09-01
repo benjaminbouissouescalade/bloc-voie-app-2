@@ -82,6 +82,19 @@
     </div>
   </div>
   <div id="ob-ape-note" style="font-size:11px;color:#a8a296;margin-bottom:20px;min-height:14px"></div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
+    <div>
+      <label style="font-size:11px;font-weight:600;color:#7a7566;display:block;margin-bottom:4px">DISCIPLINE PRINCIPALE</label>
+      <div style="display:flex;border:1px solid #ddd;border-radius:8px;overflow:hidden">
+        <button type="button" id="ob-discipline-voie" onclick="obSetPrimaryDiscipline('voie')" style="flex:1;padding:9px;border:none;background:#2d5a3d;color:#fff;font-size:13px;font-weight:600;cursor:pointer">Voie</button>
+        <button type="button" id="ob-discipline-bloc" onclick="obSetPrimaryDiscipline('bloc')" style="flex:1;padding:9px;border:none;background:#f4f2ee;color:#7a7566;font-size:13px;font-weight:600;cursor:pointer">Bloc</button>
+      </div>
+    </div>
+    <div>
+      <label style="font-size:11px;font-weight:600;color:#7a7566;display:block;margin-bottom:4px">NIVEAU BLOC ACTUEL</label>
+      <select id="ob-level-bloc" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box"></select>
+    </div>
+  </div>
 
   <div style="font-size:12px;font-weight:700;color:#2d5a3d;text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Matériel / outils disponibles</div>
   <div id="ob-equip" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:20px"></div>
@@ -1528,6 +1541,10 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 
   <div class="stat-grid stat-grid-4" style="margin-bottom:20px" id="perf-best-grades">
     <!-- rempli dynamiquement -->
+  </div>
+
+  <div class="stat-grid stat-grid-4" style="margin-bottom:20px;display:none" id="perf-bloc-summary">
+    <!-- rempli dynamiquement — visible seulement si des séances "Bloc extérieur" existent -->
   </div>
 
   <div class="panel">
@@ -3876,6 +3893,19 @@ Utilise les raccourcis ci-dessus ou pose-moi directement une question. Par exemp
           </select>
         </div>
       </div>
+      <div class="form-row form-row-2">
+        <div class="form-group">
+          <label class="form-label">Discipline principale <span style="font-weight:400;color:var(--muted)">(niveau affiché + référence pour le calcul de charge)</span></label>
+          <div style="display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+            <button type="button" id="pd-discipline-voie" onclick="pdSetPrimaryDiscipline('voie')" class="btn sm" style="flex:1;border-radius:0">Voie</button>
+            <button type="button" id="pd-discipline-bloc" onclick="pdSetPrimaryDiscipline('bloc')" class="btn sm" style="flex:1;border-radius:0">Bloc</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Niveau bloc actuel</label>
+          <select class="form-control" id="pd-level-bloc"></select>
+        </div>
+      </div>
       <div class="form-row form-row-3">
         <div class="form-group">
           <label class="form-label">Taille (cm)</label>
@@ -4005,6 +4035,18 @@ Utilise les raccourcis ci-dessus ou pose-moi directement une question. Par exemp
 // ═══════════════ DATA & CONSTANTS ═══════════════
 const GRADES = ["4a","4a+","4b","4b+","4c","4c+","5a","5a+","5b","5b+","5c","5c+","6a","6a+","6b","6b+","6c","6c+","7a","7a+","7b","7b+","7c","7c+","8a","8a+","8b","8b+","8c","8c+","9a","9a+"];
 const GRADE_IDX = Object.fromEntries(GRADES.map((g,i)=>[g,i]));
+// Échelle bloc (Fontainebleau) — indépendante de GRADES/GRADE_IDX (voie). Attention : plusieurs
+// libellés (ex. "6a","7a+") existent dans les deux échelles pour des niveaux physiques très
+// différents — ne jamais faire de lookup croisé entre GRADE_IDX et GRADE_IDX_BLOC, toujours
+// filtrer les ascensions par log.type avant de choisir l'échelle à utiliser.
+const GRADES_BLOC = ["3","4a","4b","4c","5a","5b","5c","6a","6a+","6b","6b+","6c","6c+","7a","7a+","7b","7b+","7c","7c+","8a","8a+","8b","8b+","8c","8c+"];
+const GRADE_IDX_BLOC = Object.fromEntries(GRADES_BLOC.map((g,i)=>[g,i]));
+// À utiliser partout où on agrège/compare des cotations sur l'échelle route (GRADE_IDX/GRADES) —
+// exclut les séances "Bloc extérieur" dont les cotations viennent de l'échelle Fontainebleau
+// (GRADE_IDX_BLOC) et dont les libellés textuels collisionnent parfois avec l'échelle route
+// (ex. "6a" existe dans les deux). Sans ce filtre, une ascension bloc pourrait fausser une
+// stat/référence/record calculée pour les voies.
+function routeLogs(logs) { return (logs||[]).filter(l => l.type !== 'bloc_exterieur'); }
 // Système de couleurs classique des salles de bloc (facile → dur). Utilisé par la checklist de
 // fiche "Bloc par couleur" (cf. sbChecklistItems) — chaque salle mappe ses prises à sa façon, donc
 // on ne prétend pas donner un niveau universel, juste un jeu de couleurs standard à cocher.
@@ -4024,6 +4066,7 @@ const SESSION_TYPES = {
   bloc:          {label:'Bloc salle',            color:'#2d5a3d', group:'Escalade'},
   voies:         {label:'Voies salle',            color:'#1a4a7a', group:'Escalade'},
   falaise:       {label:'Falaise / Outdoor',      color:'#b07a10', group:'Escalade'},
+  bloc_exterieur:{label:'Bloc extérieur',         color:'#8a5a2d', group:'Escalade'},
   pan:           {label:'Pan / Woody / Board',    color:'#4a7a1a', group:'Escalade'},
   competition:   {label:'Compétition',            color:'#8b1a5a', group:'Escalade'},
   via_ferrata:   {label:'Via ferrata',            color:'#7a5a1a', group:'Escalade'},
@@ -4997,7 +5040,7 @@ async function loadFromBackend() {
 
 // ═══════════════ COMPUTATIONS ═══════════════
 function getRefGrade(logs=null, daysBack=90) {
-  const all = logs || getLogs();
+  const all = routeLogs(logs || getLogs());
   const cutoff = new Date(); cutoff.setDate(cutoff.getDate()-daysBack);
   const sent = all
     .filter(l=>new Date(l.date)>=cutoff)
@@ -5009,8 +5052,25 @@ function getRefGrade(logs=null, daysBack=90) {
   return GRADES[sent[Math.min(idx, sent.length-1)]];
 }
 
-function ascentLoad(a, refGrade) {
-  const gi = GRADE_IDX[a.grade], ri = GRADE_IDX[refGrade];
+// Grade de référence BLOC — même méthode que getRefGrade() (70e percentile des envois sur
+// 90 jours), mais réservée aux ascensions de type "bloc_exterieur" (échelle Fontainebleau,
+// jamais mélangée à l'échelle voie — cf. commentaire sur GRADE_IDX_BLOC). Retourne null si
+// aucune donnée : c'est à l'appelant de retomber sur le niveau bloc déclaré (profile.levelBloc).
+function getRefGradeBloc(logs=null, daysBack=90) {
+  const all = logs || getLogs();
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate()-daysBack);
+  const sent = all
+    .filter(l=>l.type==='bloc_exterieur' && new Date(l.date)>=cutoff)
+    .flatMap(l=>(l.ascents||[]).filter(a=>['tete','moulinette','av','flash'].includes(a.status) && GRADE_IDX_BLOC[a.grade]!==undefined))
+    .map(a=>GRADE_IDX_BLOC[a.grade])
+    .sort((a,b)=>a-b);
+  if (!sent.length) return null;
+  const idx = Math.floor(sent.length*0.7);
+  return GRADES_BLOC[sent[Math.min(idx, sent.length-1)]];
+}
+
+function ascentLoad(a, refGrade, gradeIdx = GRADE_IDX) {
+  const gi = gradeIdx[a.grade], ri = gradeIdx[refGrade];
   if (gi===undefined||ri===undefined) return 0;
   const base = KAYA_BASE * Math.pow(KAYA_GROWTH, gi-ri);
 
@@ -5067,6 +5127,14 @@ function boulderLoad(b, refGrade) {
 }
 
 function sessionLoad(log) {
+  // Bloc extérieur : coté sur l'échelle Fontainebleau (bloc), toujours — indépendamment de la
+  // discipline principale choisie dans le profil. Les séances de voie gardent toujours l'échelle
+  // voie ci-dessous : chaque activité compte sur son échelle naturelle, elles ne s'écrasent jamais.
+  if (log.type === 'bloc_exterieur') {
+    const refB = getRefGradeBloc() || getActive()?.profile?.levelBloc || '6a';
+    const al = (log.ascents||[]).reduce((s,a)=>s+ascentLoad(a,refB,GRADE_IDX_BLOC),0);
+    return Math.round(al);
+  }
   const ref = getRefGrade();
   const al = (log.ascents||[]).reduce((s,a)=>s+ascentLoad(a,ref),0);
   const bl = boulderLoad(log.bNoGrade||{}, ref);
@@ -6918,7 +6986,7 @@ function generateCycle() {
 let perfRange='6m', pyrCtx='all', pyrLoc='all';
 function renderPerformance() {
   const since=rangeToDate(perfRange);
-  const logs=getLogs().filter(l=>!since||new Date(l.date)>=since);
+  const logs=routeLogs(getLogs().filter(l=>!since||new Date(l.date)>=since));
   const ref=getRefGrade();
 
   // Best grades
@@ -6933,15 +7001,39 @@ function renderPerformance() {
     <div class="stat-card warm"><div class="stat-label">Grade de référence</div><div class="stat-value">${ref}</div></div>
   `;
 
+  // Bloc extérieur — échelle Fontainebleau, complètement séparée des cartes voie ci-dessus
+  // (cf. GRADES_BLOC/routeLogs). N'apparaît que si l'athlète a déjà loggé ce type de séance.
+  const blocSummaryEl = document.getElementById('perf-bloc-summary');
+  if (blocSummaryEl) {
+    const blocLogsAll = getLogs().filter(l=>l.type==='bloc_exterieur');
+    if (blocLogsAll.length) {
+      const blocLogs = blocLogsAll.filter(l=>!since||new Date(l.date)>=since);
+      const blocSent = blocLogs.flatMap(l=>(l.ascents||[]).filter(a=>['tete','av','flash','moulinette'].includes(a.status)&&GRADE_IDX_BLOC[a.grade]!==undefined));
+      const bestBlocTete=blocSent.filter(a=>a.status==='tete').sort((a,b)=>GRADE_IDX_BLOC[b.grade]-GRADE_IDX_BLOC[a.grade])[0];
+      const bestBlocFlash=blocSent.filter(a=>['flash','av'].includes(a.status)).sort((a,b)=>GRADE_IDX_BLOC[b.grade]-GRADE_IDX_BLOC[a.grade])[0];
+      const refBloc = getRefGradeBloc() || getActive()?.profile?.levelBloc || '—';
+      blocSummaryEl.style.display='';
+      blocSummaryEl.innerHTML=`
+        <div class="stat-card accent"><div class="stat-label">🪨 Meilleur bloc extérieur</div><div class="stat-value">${bestBlocTete?.grade||'—'}</div></div>
+        <div class="stat-card"><div class="stat-label">Meilleur flash / AV (bloc)</div><div class="stat-value">${bestBlocFlash?.grade||'—'}</div></div>
+        <div class="stat-card warm"><div class="stat-label">Grade de référence bloc</div><div class="stat-value">${refBloc}</div></div>
+        <div class="stat-card"><div class="stat-label">Séances bloc extérieur (période)</div><div class="stat-value">${blocLogs.length}</div></div>
+      `;
+    } else {
+      blocSummaryEl.style.display='none';
+      blocSummaryEl.innerHTML='';
+    }
+  }
+
   // Line chart — weekly best grade (respecte la période sélectionnée)
   const wData=weeklyData(perfWeeksForRange(perfRange));
   const wBestTete=wData.map(w=>{
-    const wLogs=getLogs().filter(l=>{const d=new Date(l.date);return d>=w.start&&d<w.end;});
+    const wLogs=routeLogs(getLogs()).filter(l=>{const d=new Date(l.date);return d>=w.start&&d<w.end;});
     const grades=wLogs.flatMap(l=>(l.ascents||[]).filter(a=>a.status==='tete'&&GRADES.includes(a.grade)).map(a=>GRADE_IDX[a.grade]));
     return grades.length?Math.max(...grades):null;
   });
   const wBestMoul=wData.map(w=>{
-    const wLogs=getLogs().filter(l=>{const d=new Date(l.date);return d>=w.start&&d<w.end;});
+    const wLogs=routeLogs(getLogs()).filter(l=>{const d=new Date(l.date);return d>=w.start&&d<w.end;});
     const grades=wLogs.flatMap(l=>(l.ascents||[]).filter(a=>a.status==='moulinette'&&GRADES.includes(a.grade)).map(a=>GRADE_IDX[a.grade]));
     return grades.length?Math.max(...grades):null;
   });
@@ -6981,7 +7073,7 @@ document.getElementById('pyr-context-tabs').addEventListener('click',e=>{const b
 document.getElementById('pyr-location-tabs').addEventListener('click',e=>{const b=e.target.closest('[data-loc]');if(b){document.querySelectorAll('[data-loc]').forEach(x=>x.classList.remove('active'));b.classList.add('active');pyrLoc=b.dataset.loc;renderPerformance();}});
 
 function renderSmallPyramid(logs, ctx='all', loc='all') {
-  let ascents=(logs||getLogs()).flatMap(l=>{
+  let ascents=routeLogs(logs||getLogs()).flatMap(l=>{
     const isLoc=(loc==='all')||(loc==='salle'&&['bloc','voies'].includes(l.type))||(loc==='falaise'&&l.type==='falaise');
     if(!isLoc)return [];
     return (l.ascents||[]).map(a=>({...a,sessionType:l.type}));
@@ -9089,7 +9181,11 @@ function crewPostCycleStartedBestEffort(cycleName, type) {
 // ajoutée aux logs) — comparé séparément par style d'ascension (tête / flash-à vue / moulinette),
 // comme les "meilleurs enchaînements" déjà affichés sur la page Performance.
 function detectNewPRs(payload) {
-  const prevLogs = (getActive().logs || []).filter(l => !l.planned);
+  // Les PR "voie" sont scorés sur l'échelle route (GRADE_IDX) — une séance de bloc extérieur a
+  // ses cotations sur l'échelle Fontainebleau (libellés parfois identiques, ex. "6a"), donc on ne
+  // la fait jamais rentrer dans cette détection pour éviter un faux record.
+  if (payload.type === 'bloc_exterieur') return [];
+  const prevLogs = routeLogs((getActive().logs || []).filter(l => !l.planned));
   const sentAscents = (payload.ascents || []).filter(a => ['tete', 'av', 'flash', 'moulinette'].includes(a.status));
   if (!sentAscents.length) return [];
   const bestIdx = (list) => list.length ? Math.max(...list.map(a => GRADE_IDX[a.grade] ?? -1)) : -1;
@@ -10367,6 +10463,9 @@ const SESSION_CONFIG = {
   bloc:          { showAscents: false, extraPanel: 'bloc',   defaultMinutes: 90,  loadLabel: 'Charge bloc salle' },
   voies:         { showAscents: true,  extraPanel: 'voies',  defaultMinutes: 120, loadLabel: 'Charge voies salle' },
   falaise:       { showAscents: true,  extraPanel: 'voies',  defaultMinutes: 300, loadLabel: 'Charge falaise' },
+  // gradeScale:'bloc' → l'éditeur d'ascensions et le calcul de charge basculent sur l'échelle
+  // Fontainebleau (GRADES_BLOC/GRADE_IDX_BLOC/getRefGradeBloc) au lieu de l'échelle voie.
+  bloc_exterieur:{ showAscents: true,  extraPanel: 'voies',  defaultMinutes: 240, loadLabel: 'Charge bloc extérieur', gradeScale: 'bloc' },
   pan:           { showAscents: false, extraPanel: 'bloc',   defaultMinutes: 90,  loadLabel: 'Charge pan/board' },
   competition:   { showAscents: true,  extraPanel: 'voies',  defaultMinutes: 180, loadLabel: 'Charge compétition' },
   via_ferrata:   { showAscents: false, extraPanel: 'voies',  defaultMinutes: 240, loadLabel: 'Charge via ferrata' },
@@ -10391,6 +10490,20 @@ const SESSION_CONFIG = {
 
 function getCurrentSessionType() {
   return document.getElementById('s-type')?.value || 'bloc';
+}
+// Échelle de cotation à utiliser pour l'éditeur d'ascensions / le calcul de charge, selon le type
+// de séance courant — 'bloc' (Fontainebleau, GRADES_BLOC) pour "Bloc extérieur", 'route' (GRADES)
+// pour tout le reste. Centralisé ici pour que renderNewSession/renderAscentsEditor/add-ascent-btn/
+// updateLoadPreview restent synchronisés sans dupliquer le branchement.
+function currentGradeScale() {
+  const type = getCurrentSessionType();
+  return (SESSION_CONFIG[type] || SESSION_CONFIG.autre).gradeScale === 'bloc' ? 'bloc' : 'route';
+}
+function scaleGrades(scale) { return scale === 'bloc' ? GRADES_BLOC : GRADES; }
+function scaleGradeIdx(scale) { return scale === 'bloc' ? GRADE_IDX_BLOC : GRADE_IDX; }
+function scaleRefGrade(scale) {
+  if (scale === 'bloc') return getRefGradeBloc() || getActive()?.profile?.levelBloc || '6a';
+  return getRefGrade();
 }
 
 // Renders the dynamic extra panel based on session type
@@ -11028,24 +11141,28 @@ window.fulfillFlexSession = fulfillFlexSession;
 function renderNewSession(){
   if(!editingId&&!sessionAscents.length&&!sNewSessionDateLocked) newSession();
   sNewSessionDateLocked=false;
-  document.getElementById('s-ref-grade-display').textContent=getRefGrade();
+  const scale0 = currentGradeScale();
+  document.getElementById('s-ref-grade-display').textContent=scaleRefGrade(scale0);
   // Target grade select
   const tg=document.getElementById('p-target-grade');
-  if(tg)tg.innerHTML=GRADES.map(g=>`<option>${g}</option>`).join('');
+  if(tg)tg.innerHTML=scaleGrades(scale0).map(g=>`<option>${g}</option>`).join('');
   renderAscentsEditor();updateLoadPreview();
 }
 function renderAscentsEditor(){
   const el=document.getElementById('ascents-editor');
   document.getElementById('ascents-empty').style.display=sessionAscents.length?'none':'';
-  const ref = getRefGrade();
+  const scale = currentGradeScale();
+  const grades = scaleGrades(scale);
+  const gradeIdx = scaleGradeIdx(scale);
+  const ref = scaleRefGrade(scale);
   el.innerHTML=sessionAscents.map((a,i)=>{
     const isTry = a.status === 'try';
-    const load = ascentLoad(a, ref);
+    const load = ascentLoad(a, ref, gradeIdx);
     // Champ "essais" — visible uniquement pour les essais et moulinettes avec répétitions
     // Champ "% par tentative" — uniquement pour les essais (le cœur de la nouvelle formule)
     return `<div class="ascent-row" style="grid-template-columns:90px 1fr ${isTry?'80px 90px':'0px 0px'} 80px auto;gap:8px">
       <select class="form-control" style="font-size:12px;padding:6px 8px" onchange="sessionAscents[${i}].grade=this.value;renderAscentsEditor();updateLoadPreview()">
-        ${GRADES.map(g=>`<option ${g===a.grade?'selected':''}>${g}</option>`).join('')}
+        ${grades.map(g=>`<option ${g===a.grade?'selected':''}>${g}</option>`).join('')}
       </select>
       <select class="form-control" style="font-size:12px;padding:6px 8px" onchange="sessionAscents[${i}].status=this.value;sessionAscents[${i}].tries=1;sessionAscents[${i}].progress=100;renderAscentsEditor();updateLoadPreview()">
         <option value="tete"      ${a.status==='tete'?'selected':''}>Enchaîné tête</option>
@@ -11079,7 +11196,7 @@ function renderAscentsEditor(){
   }).join('');
 }
 document.getElementById('add-ascent-btn').onclick=()=>{
-  const ref=getRefGrade();
+  const ref=scaleRefGrade(currentGradeScale());
   sessionAscents.push({grade:ref,status:'tete',tries:1,progress:100,styles:[]});
   renderAscentsEditor();updateLoadPreview();
 };
@@ -11117,12 +11234,14 @@ function setDurationMinutes(mins) {
 window.setDurationMinutes = setDurationMinutes;
 
 function updateLoadPreview(){
-  const ref = getRefGrade();
   const type = getCurrentSessionType();
   const cfg = SESSION_CONFIG[type] || SESSION_CONFIG.autre;
+  const scale = cfg.gradeScale === 'bloc' ? 'bloc' : 'route';
+  const gradeIdx = scaleGradeIdx(scale);
+  const ref = scaleRefGrade(scale);
 
   // Ascensions cotées
-  const routeLoad = Math.round(sessionAscents.reduce((s,a)=>s+ascentLoad(a,ref), 0));
+  const routeLoad = Math.round(sessionAscents.reduce((s,a)=>s+ascentLoad(a,ref,gradeIdx), 0));
 
   // Panneau complémentaire (bloc non coté / volume additionnel / séance hors escalade)
   let bLoad;
@@ -11170,13 +11289,13 @@ function updateLoadPreview(){
     if (sentAscents.length) rows.push(
       `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
         <span>Enchaînements / à vue (${sentAscents.length})</span>
-        <strong style="color:var(--text)">${Math.round(sentAscents.reduce((s,a)=>s+ascentLoad(a,ref),0))}</strong>
+        <strong style="color:var(--text)">${Math.round(sentAscents.reduce((s,a)=>s+ascentLoad(a,ref,gradeIdx),0))}</strong>
       </div>`
     );
     if (tryAscents.length) rows.push(
       `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
         <span>Essais non enchaînés (${tryAscents.length})</span>
-        <strong style="color:var(--text)">${Math.round(tryAscents.reduce((s,a)=>s+ascentLoad(a,ref),0))}</strong>
+        <strong style="color:var(--text)">${Math.round(tryAscents.reduce((s,a)=>s+ascentLoad(a,ref,gradeIdx),0))}</strong>
       </div>`
     );
   }
@@ -13334,7 +13453,8 @@ document.getElementById('sb-reset-filters').onclick = () => {
 // ═══════════════ SIDEBAR STATS ═══════════════
 function renderSidebarStats(){
   const c = getActive();
-  const stats = climberStats(c);
+  const isBlocPrimary = c.profile?.primaryDiscipline === 'bloc';
+  const stats = climberStats(c, isBlocPrimary ? 'bloc' : 'route');
   const total = getLogs().length;
   const initials = c.name.trim().split(/\s+/).map(w=>w[0]).join('').toUpperCase().slice(0,2);
   const avatarEl = document.getElementById('sidebar-avatar');
@@ -13347,10 +13467,14 @@ function renderSidebarStats(){
   document.getElementById('sidebar-name').textContent = c.name;
   const mobileTitle = document.getElementById('mobile-topbar-title');
   if (mobileTitle) mobileTitle.textContent = c.name;
-  // Show: current level if available, else declared, else ref grade
-  const displayGrade = stats.currentLvl || c.level || getRefGrade();
+  // Show: current level if available, else declared, else ref grade — sur l'échelle de la
+  // discipline principale choisie dans le profil (cf. pd-discipline-*/ob-discipline-*).
+  const displayGrade = isBlocPrimary
+    ? (stats.currentLvl || c.profile?.levelBloc || getRefGradeBloc() || '—')
+    : (stats.currentLvl || c.level || getRefGrade());
   const trendArrow = stats.trend ? (stats.trend.dir==='up'?' ↑':stats.trend.dir==='down'?' ↓':'') : '';
-  document.getElementById('sidebar-grade').textContent = `niveau actuel ${displayGrade}${trendArrow} · ${total} séances`;
+  const disciplineTag = isBlocPrimary ? ' (bloc)' : '';
+  document.getElementById('sidebar-grade').textContent = `niveau actuel ${displayGrade}${disciplineTag}${trendArrow} · ${total} séances`;
 }
 
 // ═══════════════ CLIMBER MODAL ═══════════════
@@ -13371,35 +13495,41 @@ function openClimberModal() {
 document.getElementById('climber-modal').addEventListener('click',e=>{if(e.target.id==='climber-modal')closeModal('climber-modal');});
 
 // ─── Compute climber stats for profile card ───────────────────────────────
-function climberStats(c) {
-  const logs = c.logs || [];
-  const allAscents = logs.flatMap(l => (l.ascents||[]).filter(a => GRADE_IDX[a.grade] !== undefined));
+// scale='route' (défaut, échelle voie GRADES/GRADE_IDX, exclut les séances bloc extérieur) ou
+// 'bloc' (échelle Fontainebleau GRADES_BLOC/GRADE_IDX_BLOC, ne garde que les séances bloc
+// extérieur) — jamais les deux mélangées, cf. routeLogs()/collision de libellés entre échelles.
+function climberStats(c, scale = 'route') {
+  const isBloc = scale === 'bloc';
+  const GR = isBloc ? GRADES_BLOC : GRADES;
+  const GI = isBloc ? GRADE_IDX_BLOC : GRADE_IDX;
+  const logs = isBloc ? (c.logs || []).filter(l => l.type === 'bloc_exterieur') : routeLogs(c.logs || []);
+  const allAscents = logs.flatMap(l => (l.ascents||[]).filter(a => GI[a.grade] !== undefined));
   const sentAscents = allAscents.filter(a => ['tete','moulinette','av','flash'].includes(a.status));
 
   // 1. Meilleure perf all-time (tête uniquement)
-  const sentTete = allAscents.filter(a => a.status === 'tete').map(a => GRADE_IDX[a.grade]);
+  const sentTete = allAscents.filter(a => a.status === 'tete').map(a => GI[a.grade]);
   const bestPerfIdx = sentTete.length ? Math.max(...sentTete) : null;
-  const bestPerf = bestPerfIdx !== null ? GRADES[bestPerfIdx] : null;
+  const bestPerf = bestPerfIdx !== null ? GR[bestPerfIdx] : null;
 
   // 2. Niveau actuel : top grade enchaîné sur les 3 dernières séances ayant des ascensions
   const logsWithAscents = logs
-    .filter(l => (l.ascents||[]).some(a => ['tete','moulinette','av','flash'].includes(a.status) && GRADE_IDX[a.grade] !== undefined))
+    .filter(l => (l.ascents||[]).some(a => ['tete','moulinette','av','flash'].includes(a.status) && GI[a.grade] !== undefined))
     .sort((a,b) => b.date.localeCompare(a.date))
     .slice(0, 3);
   const recentSent = logsWithAscents
-    .flatMap(l => (l.ascents||[]).filter(a => ['tete','av','flash'].includes(a.status) && GRADE_IDX[a.grade] !== undefined))
-    .map(a => GRADE_IDX[a.grade]);
+    .flatMap(l => (l.ascents||[]).filter(a => ['tete','av','flash'].includes(a.status) && GI[a.grade] !== undefined))
+    .map(a => GI[a.grade]);
   const currentLvlIdx = recentSent.length ? Math.max(...recentSent) : null;
-  const currentLvl = currentLvlIdx !== null ? GRADES[currentLvlIdx] : null;
+  const currentLvl = currentLvlIdx !== null ? GR[currentLvlIdx] : null;
 
   // 3. Tendance : comparer les 3 séances récentes aux 3 précédentes
   const prev3 = logs
-    .filter(l => (l.ascents||[]).some(a => ['tete','av','flash'].includes(a.status) && GRADE_IDX[a.grade] !== undefined))
+    .filter(l => (l.ascents||[]).some(a => ['tete','av','flash'].includes(a.status) && GI[a.grade] !== undefined))
     .sort((a,b) => b.date.localeCompare(a.date))
     .slice(3, 6);
   const prevSent = prev3
-    .flatMap(l => (l.ascents||[]).filter(a => ['tete','av','flash'].includes(a.status) && GRADE_IDX[a.grade] !== undefined))
-    .map(a => GRADE_IDX[a.grade]);
+    .flatMap(l => (l.ascents||[]).filter(a => ['tete','av','flash'].includes(a.status) && GI[a.grade] !== undefined))
+    .map(a => GI[a.grade]);
   const prevLvlIdx = prevSent.length ? Math.max(...prevSent) : null;
 
   let trend = null;
@@ -13414,7 +13544,7 @@ function climberStats(c) {
 }
 
 function getRefGradeForLogs(logs, declaredLevel) {
-  const allSent = (logs||[])
+  const allSent = routeLogs(logs)
     .flatMap(l=>(l.ascents||[]).filter(a=>['tete','moulinette','av','flash'].includes(a.status)&&GRADE_IDX[a.grade]!==undefined))
     .map(a=>GRADE_IDX[a.grade]).sort((a,b)=>a-b);
   if (!allSent.length) {
@@ -14004,6 +14134,13 @@ function openProfileDetailModal(climberId) {
   document.getElementById('pd-armspan').value = p.armSpan || '';
   document.getElementById('pd-sessions-week').value = p.sessionsPerWeek || '';
   document.getElementById('pd-minutes-session').value = p.minutesPerSession || '';
+  const lvlBEl = document.getElementById('pd-level-bloc');
+  if (lvlBEl && !lvlBEl.dataset.filled) {
+    lvlBEl.innerHTML = GRADES_BLOC.map(g => `<option value="${g}">${g}</option>`).join('');
+    lvlBEl.dataset.filled = '1';
+  }
+  if (lvlBEl) lvlBEl.value = p.levelBloc || '6a';
+  pdSetPrimaryDiscipline(p.primaryDiscipline === 'bloc' ? 'bloc' : 'voie');
   migrateLegacyGoals(c);
   pdGoals = Array.isArray(c.objectives) ? c.objectives.slice() : [];
   renderPdGoals();
@@ -14038,6 +14175,20 @@ function pdRatingChanged() {
   // plus souvent modifiée du profil.
   pdDirty = true;
 }
+
+// Discipline principale du profil (bloc/voie) — pilote le niveau affiché (sidebar, cartes) et le
+// grade de référence utilisé pour le calcul de charge. N'affecte jamais le classement des
+// séances de voie elles-mêmes : elles restent toujours scorées sur l'échelle voie, et les
+// séances de bloc extérieur toujours sur l'échelle bloc (cf. sessionLoad/scaleRefGrade).
+let pdPrimaryDiscipline = 'voie';
+function pdSetPrimaryDiscipline(d) {
+  pdPrimaryDiscipline = d === 'bloc' ? 'bloc' : 'voie';
+  const voieBtn = document.getElementById('pd-discipline-voie'), blocBtn = document.getElementById('pd-discipline-bloc');
+  if (voieBtn) voieBtn.classList.toggle('primary', pdPrimaryDiscipline === 'voie');
+  if (blocBtn) blocBtn.classList.toggle('primary', pdPrimaryDiscipline === 'bloc');
+  pdDirty = true;
+}
+window.pdSetPrimaryDiscipline = pdSetPrimaryDiscipline;
 
 // undefined = pas de changement (garder la photo existante), null = suppression explicite, string = nouvelle photo
 let pdPhotoDataUrl = undefined;
@@ -14109,7 +14260,9 @@ async function saveProfileDetail() {
     minutesPerSession: parseInt(document.getElementById('pd-minutes-session').value, 10) || null,
     equipment,
     selfRating: canEditSelf ? readPerfSide('pd-perf-sections', 'self') : (c.profile?.selfRating || undefined),
-    coachRating: canEditCoach ? readPerfSide('pd-perf-sections', 'coach') : (c.profile?.coachRating || undefined)
+    coachRating: canEditCoach ? readPerfSide('pd-perf-sections', 'coach') : (c.profile?.coachRating || undefined),
+    primaryDiscipline: pdPrimaryDiscipline,
+    levelBloc: document.getElementById('pd-level-bloc')?.value || null
   };
   c.objectives = pdGoals;
   try {
@@ -14879,12 +15032,32 @@ function obUpdateApeIndex(){
 }
 window.obUpdateApeIndex=obUpdateApeIndex;
 
+// Discipline principale déclarée à l'onboarding — pilote à la fois le badge "niveau actuel"
+// affiché et le grade de référence utilisé pour le calcul de charge (cf. renderSidebarStats /
+// climberStats côté app). Les séances de voie restent toujours comptées sur l'échelle voie, et
+// inversement pour le bloc — ce curseur n'affecte que l'affichage/la mise en avant, pas le calcul
+// de charge de chaque activité (qui reste toujours sur son échelle naturelle).
+var obPrimaryDiscipline = 'voie';
+function obSetPrimaryDiscipline(d){
+  obPrimaryDiscipline = d === 'bloc' ? 'bloc' : 'voie';
+  var voieBtn=document.getElementById("ob-discipline-voie"), blocBtn=document.getElementById("ob-discipline-bloc");
+  if(voieBtn) { voieBtn.style.background = obPrimaryDiscipline==='voie' ? '#2d5a3d' : '#f4f2ee'; voieBtn.style.color = obPrimaryDiscipline==='voie' ? '#fff' : '#7a7566'; }
+  if(blocBtn) { blocBtn.style.background = obPrimaryDiscipline==='bloc' ? '#2d5a3d' : '#f4f2ee'; blocBtn.style.color = obPrimaryDiscipline==='bloc' ? '#fff' : '#7a7566'; }
+}
+window.obSetPrimaryDiscipline=obSetPrimaryDiscipline;
+
 function populateOnboardingForm(){
   var lvl=document.getElementById("ob-level");
   if(lvl && !lvl.dataset.filled){
     lvl.innerHTML=GRADES.map(function(g){return '<option value="'+g+'">'+g+'</option>'}).join("");
     lvl.value="6a";
     lvl.dataset.filled="1";
+  }
+  var lvlB=document.getElementById("ob-level-bloc");
+  if(lvlB && !lvlB.dataset.filled){
+    lvlB.innerHTML=GRADES_BLOC.map(function(g){return '<option value="'+g+'">'+g+'</option>'}).join("");
+    lvlB.value="6a";
+    lvlB.dataset.filled="1";
   }
   var eq=document.getElementById("ob-equip");
   if(eq && !eq.dataset.filled){
@@ -14955,7 +15128,9 @@ async function submitOnboarding(){
     armSpan: parseInt(document.getElementById("ob-armspan").value,10)||null,
     photo: obPhotoDataUrl||null,
     goals: obGoals,
-    selfRating: readPerfSide("ob-perf-sections", "self")
+    selfRating: readPerfSide("ob-perf-sections", "self"),
+    primaryDiscipline: obPrimaryDiscipline,
+    levelBloc: document.getElementById("ob-level-bloc") ? document.getElementById("ob-level-bloc").value : null
   };
   var payload={
     token: token,
