@@ -5247,7 +5247,12 @@ function sessionLoad(log) {
   if (isBlocGradedType(log.type)) {
     const refB = getRefGradeBloc() || getActive()?.profile?.levelBloc || '6a';
     const al = (log.ascents||[]).reduce((s,a)=>s+ascentLoad(a,refB,GRADE_IDX_BLOC),0);
-    return Math.round(al * blocGradedLoadFactor(log.type));
+    // Panneau "volume complémentaire" (blocs non cotés saisis en plus des ascensions gradées) —
+    // sans cette ligne, une séance Bloc extérieur/Kilter remplie uniquement via ce panneau (sans
+    // aucune ascension cotée) était sauvegardée avec une charge de 0 et disparaissait des totaux
+    // du calendrier/dashboard, alors que l'aperçu à la saisie (updateLoadPreview) l'affichait bien.
+    const bl = boulderLoad(log.bNoGrade||{}, refB);
+    return Math.round(al * blocGradedLoadFactor(log.type) + bl);
   }
   const ref = getRefGrade();
   const al = (log.ascents||[]).reduce((s,a)=>s+ascentLoad(a,ref),0);
