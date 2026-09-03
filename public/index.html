@@ -5936,9 +5936,13 @@ window.setCalZoom = setCalZoom;
 function cycleTagsHtmlForDate(ds, climberCycles) {
   const active = (climberCycles || []).filter(c => (!c.startDate || ds >= c.startDate) && (!c.endDate || ds <= c.endDate));
   if (!active.length) return '';
-  return `<div style="display:flex;flex-direction:column;gap:1px;margin-top:2px">${active.slice(0,2).map(c => {
+  // Étiquette discrète : hachurée + couleur en texte plutôt qu'aplat plein, pour ne pas écraser
+  // visuellement le nom de la séance réellement loguée dans la case (retour : "trop visible en
+  // comparaison avec les séances").
+  return `<div style="display:flex;flex-direction:column;gap:1px;margin-bottom:2px">${active.slice(0,2).map(c => {
     const remaining = Math.max(0, c.total - c.done);
-    return `<div style="font-size:8px;line-height:1.5;color:#fff;background:${colorForCycleId(c.cycleId)};padding:0 4px;border-radius:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(c.displayName)} — ${c.done}/${c.total} séances${remaining?`, ${remaining} restante${remaining>1?'s':''}`:' — terminé'}">${esc(c.displayName)}</div>`;
+    const col = colorForCycleId(c.cycleId);
+    return `<div style="font-size:8px;line-height:1.5;color:${col};font-weight:700;background-image:repeating-linear-gradient(45deg,${col}2e 0 3px,transparent 3px 6px);border:1px solid ${col}55;padding:0 4px;border-radius:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(c.displayName)} — ${c.done}/${c.total} séances${remaining?`, ${remaining} restante${remaining>1?'s':''}`:' — terminé'}">${esc(c.displayName)}</div>`;
   }).join('')}${active.length > 2 ? `<div style="font-size:8px;color:var(--muted)">+${active.length-2} autre${active.length-2>1?'s':''}</div>` : ''}</div>`;
 }
 // Construit une case de calendrier (jour) entièrement câblée — réutilisée par les vues mois et semaine
@@ -5969,7 +5973,7 @@ function buildCalCell(ds, dayNum, isOther, todayStr, climberCycles) {
   const availBadgeHtml = dayAvail.length
     ? `<div class="cal-avail-badge" title="Dispo déclarée : ${esc(dayAvail.map(a=>gymNameById(a.gymId)||'salle non précisée').join(', '))}">🏟</div>`
     : '';
-  cell.innerHTML = `${plannedLogsForCell.length?`<div class="cal-planned-badge" title="${plannedLogsForCell.length} séance${plannedLogsForCell.length>1?'s':''} prévue${plannedLogsForCell.length>1?'s':''}">📌</div>`:''}${availBadgeHtml}<div class="cal-num">${dayNum}</div><div class="cal-dots">${dayLogs.map(l=>`<div class="cal-dot${l.planned?' cal-dot-planned':''}" style="${l.planned?`border-color:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`:`background:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`}" title="${esc(sessionDisplayLabel(l))}${l.planned?' (prévue)':''}"></div>`).join('')}</div>${typeLabelHtml}${cycleTagsHtmlForDate(ds, climberCycles)}${load?`<div style="font-size:11px;font-weight:800;color:var(--text);margin-top:3px">⚡ ${load}</div>`:''}${hasInjury?`<div style="font-size:9px;font-weight:700;color:var(--warm);margin-top:2px">🩹 bobo</div>`:''}`;
+  cell.innerHTML = `${plannedLogsForCell.length?`<div class="cal-planned-badge" title="${plannedLogsForCell.length} séance${plannedLogsForCell.length>1?'s':''} prévue${plannedLogsForCell.length>1?'s':''}">📌</div>`:''}${availBadgeHtml}<div class="cal-num">${dayNum}</div>${cycleTagsHtmlForDate(ds, climberCycles)}<div class="cal-dots">${dayLogs.map(l=>`<div class="cal-dot${l.planned?' cal-dot-planned':''}" style="${l.planned?`border-color:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`:`background:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`}" title="${esc(sessionDisplayLabel(l))}${l.planned?' (prévue)':''}"></div>`).join('')}</div>${typeLabelHtml}${load?`<div style="font-size:11px;font-weight:800;color:var(--text);margin-top:3px">⚡ ${load}</div>`:''}${hasInjury?`<div style="font-size:9px;font-weight:700;color:var(--warm);margin-top:2px">🩹 bobo</div>`:''}`;
   cell.onclick = () => openDayModal(ds);
   cell.ondragover = (e) => { e.preventDefault(); cell.classList.add('drag-over'); };
   cell.ondragleave = () => cell.classList.remove('drag-over');
