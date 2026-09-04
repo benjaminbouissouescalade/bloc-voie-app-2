@@ -5215,35 +5215,69 @@ async function loadFromBackend() {
 }
 
 // ═══════════════ COMPUTATIONS ═══════════════
+// Un essai/travail (statut 'try') pèse dans le niveau de référence proportionnellement à son
+// VOLUME (tentatives × % de progression), pas à sa proximité supposée du niveau limite — retour
+// utilisateur : le % de progression saisi mesure la quantité de mouvements grimpés (avec repos
+// possibles aux dégaines), pas si l'essai était "proche d'un envoi". Un essai bien travaillé
+// (plusieurs tentatives, bonne portion de la voie/du bloc parcourue) pèse donc plus qu'un essai
+// symbolique vite abandonné, sans qu'on ait à deviner un seuil arbitraire de "proximité au
+// niveau". Concrètement chaque essai ajoute round(tentatives × progression/100) "votes" de son
+// grade au calcul du 70e percentile (même mécanisme qu'un envoi, qui compte pour 1 vote) — un
+// essai à faible volume peut donc arrondir à 0 vote et ne rien changer, tandis qu'un essai copieux
+// peut peser autant que plusieurs envois. Plafonné (REF_GRADE_MAX_VOTES_PER_TRY) pour qu'un seul
+// essai très travaillé ne finisse pas par dominer entièrement le calcul. Sans ce mécanisme, une
+// période où l'on travaille dur des voies difficiles sans les lier (retour : "je vais essayer
+// beaucoup de voix... sans enchaînement, intensité très élevée") faisait chuter le niveau de
+// référence vers le fallback générique au bout de 90 jours sans envoi — alors que la formule de
+// charge (cf. ascentLoad) est exponentielle en (grade tenté − référence), donc un niveau de
+// référence qui s'effondre gonfle artificiellement la charge de CHAQUE essai suivant, même à
+// effort constant.
+// Plancher minimum (retour utilisateur : "il faut bien que ce soit les run avec minima 80% qui
+// comptent") : un essai qui n'atteint pas 80% de progression ne rapporte aucun vote, quel que soit
+// le nombre de tentatives — ça évite qu'un volume élevé de tentatives très courtes/exploratoires
+// (loin d'aboutir) ne finisse quand même par peser dans le niveau de référence.
+const REF_GRADE_MIN_TRY_PROGRESS = 80;
+const REF_GRADE_MAX_VOTES_PER_TRY = 5;
+function refGradeVotes(a, gradeIdx) {
+  const gi = gradeIdx[a.grade];
+  if (gi === undefined) return [];
+  if (['tete','moulinette','av','flash'].includes(a.status)) return [gi];
+  if (a.status === 'try') {
+    const pct = Math.max(0, Math.min(1, (a.progress || 0) / 100));
+    if (pct * 100 < REF_GRADE_MIN_TRY_PROGRESS) return [];
+    const tries = Math.max(1, Number(a.tries || 1));
+    const votes = Math.min(REF_GRADE_MAX_VOTES_PER_TRY, Math.round(tries * pct));
+    return votes > 0 ? Array(votes).fill(gi) : [];
+  }
+  return [];
+}
 function getRefGrade(logs=null, daysBack=90) {
   const all = routeLogs(logs || getLogs());
   const cutoff = new Date(); cutoff.setDate(cutoff.getDate()-daysBack);
-  const sent = all
+  const eligible = all
     .filter(l=>new Date(l.date)>=cutoff)
-    .flatMap(l=>(l.ascents||[]).filter(a=>['tete','moulinette','av','flash'].includes(a.status) && GRADE_IDX[a.grade]!==undefined))
-    .map(a=>GRADE_IDX[a.grade])
+    .flatMap(l=>(l.ascents||[]).flatMap(a=>refGradeVotes(a, GRADE_IDX)))
     .sort((a,b)=>a-b);
-  if (!sent.length) return '6b';
-  const idx = Math.floor(sent.length*0.7);
-  return GRADES[sent[Math.min(idx, sent.length-1)]];
+  if (!eligible.length) return '6b';
+  const idx = Math.floor(eligible.length*0.7);
+  return GRADES[eligible[Math.min(idx, eligible.length-1)]];
 }
 
-// Grade de référence BLOC — même méthode que getRefGrade() (70e percentile des envois sur
-// 90 jours), mais réservée aux séances "bloc gradué" (Bloc extérieur, Kilter Board — échelle
-// Fontainebleau, jamais mélangée à l'échelle voie — cf. commentaire sur GRADE_IDX_BLOC).
-// Retourne null si aucune donnée : c'est à l'appelant de retomber sur le niveau bloc déclaré
-// (profile.levelBloc).
+// Grade de référence BLOC — même méthode que getRefGrade() (70e percentile, envois + essais
+// pondérés par leur volume, sur 90 jours), mais réservée aux séances "bloc gradué" (Bloc
+// extérieur, Kilter Board — échelle Fontainebleau, jamais mélangée à l'échelle voie — cf.
+// commentaire sur GRADE_IDX_BLOC). Retourne null si aucune donnée : c'est à l'appelant de
+// retomber sur le niveau bloc déclaré (profile.levelBloc).
 function getRefGradeBloc(logs=null, daysBack=90) {
   const all = logs || getLogs();
   const cutoff = new Date(); cutoff.setDate(cutoff.getDate()-daysBack);
-  const sent = all
+  const eligible = all
     .filter(l=>isBlocGradedType(l.type) && new Date(l.date)>=cutoff)
-    .flatMap(l=>(l.ascents||[]).filter(a=>['tete','moulinette','av','flash'].includes(a.status) && GRADE_IDX_BLOC[a.grade]!==undefined))
-    .map(a=>GRADE_IDX_BLOC[a.grade])
+    .flatMap(l=>(l.ascents||[]).flatMap(a=>refGradeVotes(a, GRADE_IDX_BLOC)))
     .sort((a,b)=>a-b);
-  if (!sent.length) return null;
-  const idx = Math.floor(sent.length*0.7);
-  return GRADES_BLOC[sent[Math.min(idx, sent.length-1)]];
+  if (!eligible.length) return null;
+  const idx = Math.floor(eligible.length*0.7);
+  return GRADES_BLOC[eligible[Math.min(idx, eligible.length-1)]];
 }
 
 function ascentLoad(a, refGrade, gradeIdx = GRADE_IDX) {
