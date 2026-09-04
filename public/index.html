@@ -7759,12 +7759,11 @@ function renderCoachObjectivesPanel(panelId, listId) {
       </div>
       <div class="prog-bar-bg" style="height:5px"><div class="prog-bar-fill" style="width:${pct}%"></div></div>
       ${pendingObjectives.length ? `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px">${pendingObjectives.map(o => {
-        const doneCount = (c.logs || []).filter(l => l.objectiveId === o.id).length;
-        // Libellé précisé (retour utilisateur : le "x/y" de ce bouton ne compte QUE cet objectif
-        // libre, alors que le "x/y faites" affiché plus haut compte tout le cycle — fixe + libre.
-        // Sans "séances libres" les deux chiffres différents à côté l'un de l'autre semblaient
-        // être une incohérence/un bug, alors que ce sont deux portées différentes.
-        return `<button class="btn sm primary" onclick="openObjectiveFulfillModal('${o.id}')">+ Compléter ${esc(objectiveLabel(o))} (${doneCount}/${o.targetCount||1} séances libres)</button>`;
+        // Retour utilisateur : le compteur "x/y séances libres" affiché ici n'était jamais à jour
+        // (doneCount recalculé au rendu du panneau, pas rafraîchi en continu) — retiré du libellé
+        // plutôt que de laisser un chiffre trompeur. Le "x/y faites" du cycle entier, juste au-
+        // dessus, reste la source fiable pour la progression.
+        return `<button class="btn sm primary" onclick="openObjectiveFulfillModal('${o.id}')">+ Compléter ${esc(objectiveLabel(o))}</button>`;
       }).join('')}</div>` : ''}
       ${fixedList.length ? `<details style="margin-top:6px">
         <summary style="cursor:pointer;font-size:11px;color:var(--muted)">Voir le contenu (${fixedList.length} séance${fixedList.length>1?'s':''})</summary>
