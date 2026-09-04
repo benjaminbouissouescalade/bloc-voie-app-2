@@ -538,8 +538,15 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 .prog-val { font-size: 12px; font-weight: 600; text-align: right; color: var(--muted); }
 
 /* Week nav */
-.month-nav { display: flex; align-items: center; gap: 12px; }
+.month-nav { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .month-nav span { font-weight: 600; font-size: 15px; min-width: 140px; text-align: center; }
+/* Calendrier "Carnet" (#page-calendar) : contrairement à la page Planification, son en-tête
+   n'avait pas flex-wrap en ligne — sur un écran de téléphone (~375px), le titre "Calendrier" +
+   les 4 contrôles du month-nav (←, libellé du mois, →, "Aujourd'hui") dépassaient largement la
+   largeur de l'écran et le bouton "→" se retrouvait hors cadre, impossible à cliquer (retour :
+   "le bouton et hors cadre"). On fait passer les contrôles à la ligne suivante plutôt que de
+   déborder. */
+#page-calendar .page-header { flex-wrap: wrap; }
 
 /* Tooltips/chips in history */
 .chips { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -868,6 +875,12 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   .cal-dot { width: 5px; height: 5px; }
   .cal-planned-badge { font-size: 11px; top: 2px; right: 2px; }
   .cal-avail-badge { font-size: 9px; top: 2px; right: 14px; }
+  /* Contrôles prev/mois/next/Aujourd'hui : une fois repassés à la ligne (cf. #page-calendar
+     .page-header ci-dessus), on resserre encore le libellé du mois et les espacements pour que
+     les 4 éléments tiennent sur la largeur d'un téléphone sans forcer un nouveau débordement. */
+  .month-nav { gap: 6px; }
+  .month-nav span { min-width: 100px; font-size: 13px; }
+  .month-nav .btn { padding: 8px 12px; font-size: 13px; }
 }
 </style>
 </head>
