@@ -1336,6 +1336,17 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
             </select>
           </div>
         </div>
+        <!-- Palette de couleurs pastel pour personnaliser la couleur du type de séance sélectionné
+             ci-dessus (retour : "une palette de 8 couleurs pastel... avec la couleur par défaut qui
+             puisse être modifiée par l'utilisateur"). Le rond avec le contour foncé indique la
+             couleur actuelle du type ; cliquer sur un autre rond la change pour ce type entier,
+             partout dans l'appli (cf. setSessionTypeColor/renderSessionColorPalette). -->
+        <div class="form-row">
+          <div class="form-group" style="margin:0">
+            <label class="form-label">Couleur du type de séance</label>
+            <div id="s-color-palette" style="display:flex;gap:8px;align-items:center;margin-top:2px"></div>
+          </div>
+        </div>
         <!-- Nom libre visible uniquement pour le type "Autre" : sans ça toutes les séances "Autre"
              se ressemblent dans le calendrier (retour : "quand on met autre il faudrait pouvoir
              nommer la séance et que le nom soit visible dans le calendrier"). Affiché/masqué par
@@ -4122,6 +4133,46 @@ const SESSION_TYPES = {
   autre:         {label:'Autre',                  color:'#7a7566', group:'Autre'}
 };
 const STYLES = ['Dalle','Dévers','Compression','Physique','Doigts','Rési','Puissance','Coordination','Équilibre','Technique'];
+
+// Palette de couleurs pastel proposée dans le formulaire de séance pour personnaliser la couleur
+// d'un TYPE de séance (retour : "une palette de 8 couleurs pastel... avec la couleur par défaut
+// qui puisse être modifiée par l'utilisateur"). Le choix s'applique au type entier (pas à la seule
+// séance en cours de saisie) : toutes les séances passées et futures de ce type en héritent,
+// partout où SESSION_TYPES[type].color est lu (calendrier, dashboard, historique, etc.) — même
+// principe de mutation en place + persistance localStorage que BLOC_GRADED_LOAD_FACTOR.
+const SESSION_COLOR_PALETTE = ['#f2b8b5','#f6cf9e','#f5e6a3','#bfe3b4','#a8ddd0','#aecbf0','#cdbdf0','#f0bede'];
+const SESSION_COLOR_STORAGE_KEY = 'digger_session_colors_v1';
+function readSessionColorOverrides() { try { return JSON.parse(localStorage.getItem(SESSION_COLOR_STORAGE_KEY) || '{}') || {}; } catch(e) { return {}; } }
+function saveSessionColorOverrides(overrides) { localStorage.setItem(SESSION_COLOR_STORAGE_KEY, JSON.stringify(overrides)); }
+// Applique tout de suite les personnalisations déjà enregistrées, dès le chargement de la page.
+(function applySessionColorOverrides() {
+  const overrides = readSessionColorOverrides();
+  Object.keys(overrides).forEach(type => { if (SESSION_TYPES[type]) SESSION_TYPES[type].color = overrides[type]; });
+})();
+function setSessionTypeColor(type, color) {
+  if (!SESSION_TYPES[type]) return;
+  SESSION_TYPES[type].color = color;
+  const overrides = readSessionColorOverrides();
+  overrides[type] = color;
+  saveSessionColorOverrides(overrides);
+  renderSessionColorPalette();
+  // Rafraîchit tout de suite le calendrier s'il est affiché, pour voir l'effet sans naviguer.
+  if (document.getElementById('page-calendar')?.classList.contains('active')) renderCalendar();
+}
+window.setSessionTypeColor = setSessionTypeColor;
+function renderSessionColorPalette() {
+  const el = document.getElementById('s-color-palette');
+  if (!el) return;
+  const type = getCurrentSessionType();
+  const current = ((SESSION_TYPES[type] || SESSION_TYPES.autre).color || '').toLowerCase();
+  el.innerHTML = SESSION_COLOR_PALETTE.map(col => {
+    const selected = col.toLowerCase() === current;
+    return `<button type="button" onclick="setSessionTypeColor('${type}','${col}')" title="${col}"
+      style="width:24px;height:24px;border-radius:50%;background:${col};cursor:pointer;padding:0;
+      border:2px solid ${selected?'var(--text)':'transparent'};box-shadow:0 0 0 1px rgba(0,0,0,.12);flex-shrink:0"></button>`;
+  }).join('');
+}
+window.renderSessionColorPalette = renderSessionColorPalette;
 
 // Libellé à afficher pour une séance de type "Autre" : elle peut être nommée par l'athlète/coach
 // (retour : "quand on met autre il faudrait pouvoir nommer la séance et que le nom soit visible
@@ -11281,6 +11332,7 @@ function renderNewSession(){
   const tg=document.getElementById('p-target-grade');
   if(tg)tg.innerHTML=scaleGrades(scale0).map(g=>`<option>${g}</option>`).join('');
   renderAscentsEditor();updateLoadPreview();
+  renderSessionColorPalette();
 }
 // Ordre des statuts d'ascension dans le sélecteur — pour le bloc gradué (Bloc extérieur, Kilter),
 // retour utilisateur : "met flash après travail" → Flash passe en dernier, après "Essai / travail"
@@ -11476,6 +11528,7 @@ document.getElementById('s-type').addEventListener('change', () => {
   if (knownDefaults.includes(currentMinutes)) setDurationMinutes(cfg.defaultMinutes);
   updateSessionTypeUI({});
   renderAscentsEditor();
+  renderSessionColorPalette();
 });
 
 // Extrait du handler du bouton "Enregistrer la séance" pour pouvoir aussi être appelé en silence
