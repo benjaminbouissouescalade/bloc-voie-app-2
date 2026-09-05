@@ -4073,7 +4073,24 @@ Utilise les raccourcis ci-dessus ou pose-moi directement une question. Par exemp
       <button class="btn" id="day-modal-add-plan">📌 Planifier (prévisionnel)</button>
       <button class="btn" id="day-modal-add-cycle">🔁 Planifier un cycle</button>
       <button class="btn" id="day-modal-add-avail">🏟 Déclarer ma disponibilité</button>
-      <button class="btn" id="day-modal-cycle-btn" style="display:none"></button>
+    </div>
+  </div>
+</div>
+
+<!-- Choix rapide au clic sur une case du calendrier : évite d'ouvrir toute la fenêtre "Séances du
+     jour" quand on veut seulement indiquer un début de règles (retour utilisateur : "je préfère la
+     possibilité de pouvoir seulement rentrer les règles sans passer par une séance"). N'apparaît
+     que côté Carnet et si le suivi du cycle est activé (cf. openDayQuickPick) — sinon le clic ouvre
+     directement "Séances du jour" comme avant. -->
+<div class="modal-backdrop" id="day-quickpick-modal">
+  <div class="modal" style="width:min(360px,100%)">
+    <div class="modal-header">
+      <span class="modal-title" id="day-quickpick-title">Ce jour</span>
+      <button class="btn sm" onclick="closeModal('day-quickpick-modal')">Fermer</button>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:10px">
+      <button class="btn primary" style="width:100%" id="day-quickpick-sessions-btn">🧗 Séances de ce jour</button>
+      <button class="btn" style="width:100%" id="day-quickpick-cycle-btn"></button>
     </div>
   </div>
 </div>
@@ -6109,7 +6126,7 @@ function buildCalCell(ds, dayNum, isOther, todayStr, climberCycles) {
     : '';
   const cycleBadgeHtml = shouldShowCycleBadge(getActive(), ds) ? `<div class="cal-cycle-badge" title="Règles">🩸</div>` : '';
   cell.innerHTML = `${plannedLogsForCell.length?`<div class="cal-planned-badge" title="${plannedLogsForCell.length} séance${plannedLogsForCell.length>1?'s':''} prévue${plannedLogsForCell.length>1?'s':''}">📌</div>`:''}${availBadgeHtml}${cycleBadgeHtml}<div class="cal-num">${dayNum}</div>${cycleTagsHtmlForDate(ds, climberCycles)}<div class="cal-dots">${dayLogs.map(l=>`<div class="cal-dot${l.planned?' cal-dot-planned':''}" style="${l.planned?`border-color:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`:`background:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`}" title="${esc(sessionDisplayLabel(l))}${l.planned?' (prévue)':''}"></div>`).join('')}</div>${typeLabelHtml}${load?`<div style="font-size:11px;font-weight:800;color:var(--text);margin-top:3px">⚡ ${load}</div>`:''}${hasInjury?`<div style="font-size:9px;font-weight:700;color:var(--warm);margin-top:2px">🩹 bobo</div>`:''}`;
-  cell.onclick = () => openDayModal(ds);
+  cell.onclick = () => openDayQuickPick(ds);
   cell.ondragover = (e) => { e.preventDefault(); cell.classList.add('drag-over'); };
   cell.ondragleave = () => cell.classList.remove('drag-over');
   cell.ondrop = (e) => { e.preventDefault(); cell.classList.remove('drag-over'); onBankDropOnDate(ds); };
@@ -6289,7 +6306,6 @@ function toggleCycleDay(ds) {
   const i = days.indexOf(ds);
   if (i === -1) days.push(ds); else days.splice(i, 1);
   saveDB();
-  renderDayModalCycleTrackingBtn(ds);
   renderCalendar();
   if (typeof renderSimpleCalendar === 'function' && document.getElementById('cal2-grid')) renderSimpleCalendar();
 }
@@ -6477,7 +6493,7 @@ function buildCal2Cell(ds, dayNum, isOther, todayStr, climberCycles) {
     : '';
   const cycleBadgeHtml2 = shouldShowCycleBadge(getActive(), ds) ? `<div class="cal-cycle-badge" title="Règles">🩸</div>` : '';
   cell.innerHTML = `${plannedLogsForCell.length?`<div class="cal-planned-badge" title="${plannedLogsForCell.length} séance${plannedLogsForCell.length>1?'s':''} prévue${plannedLogsForCell.length>1?'s':''}">📌</div>`:''}${availBadgeHtml2}${cycleBadgeHtml2}<div class="cal-num">${dayNum}</div>${cycleTagsHtmlForDate(ds, climberCycles)}<div class="cal-dots">${dayLogs.map(l=>`<div class="cal-dot${l.planned?' cal-dot-planned':''}" style="${l.planned?`border-color:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`:`background:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`}" title="${esc(sessionDisplayLabel(l))}${l.planned?' (prévue)':''}"></div>`).join('')}</div>${typeLabelHtml2}${load?`<div style="font-size:11px;font-weight:800;color:var(--text);margin-top:3px">⚡ ${load}</div>`:''}${hasInjury?`<div style="font-size:9px;font-weight:700;color:var(--warm);margin-top:2px">🩹 bobo</div>`:''}`;
-  cell.onclick = () => openDayModal(ds);
+  cell.onclick = () => openDayQuickPick(ds);
   return { cell, dayLogs, isOther };
 }
 
@@ -11943,24 +11959,32 @@ function openDayModal(dateStr){
     addAvailBtn.onclick = () => openAvailModal(dateStr);
   }
   renderDayModalAvailability(dateStr);
-  renderDayModalCycleTrackingBtn(dateStr);
   document.getElementById('day-modal').classList.add('open');
 }
-// Bouton "🩸 Règles ce jour" dans la fenêtre "Séances du jour" : n'apparaît que sur son propre
-// Carnet (jamais côté Coach — le suivi du cycle reste une saisie strictement personnelle) et
-// seulement si l'athlète a activé le suivi depuis son Profil détaillé.
-function renderDayModalCycleTrackingBtn(dateStr) {
-  const btn = document.getElementById('day-modal-cycle-btn');
-  if (!btn) return;
+// Point d'entrée du clic sur une case du calendrier (cf. buildCalCell/buildCal2Cell) : si le suivi
+// du cycle est activé sur son propre Carnet, on propose d'abord un petit choix rapide plutôt que
+// d'ouvrir directement toute la fenêtre "Séances du jour" — retour utilisateur : le suivi du cycle
+// doit rester saisissable sans jamais passer par le flux séance. Dans tous les autres cas (Coach,
+// suivi désactivé), le comportement historique est inchangé : clic → "Séances du jour" direct.
+function openDayQuickPick(ds) {
   const c = getActive();
   const s = cycleTrackingSettings(c);
-  if (appMode === 'coach' || !isSelfClimber(c) || !s.enabled) { btn.style.display = 'none'; return; }
-  const marked = s.days.includes(dateStr);
-  btn.style.display = '';
-  btn.textContent = marked ? '🩸 Retirer "règles"' : '🩸 Marquer "règles" ce jour';
-  btn.className = marked ? 'btn danger' : 'btn';
-  btn.onclick = () => toggleCycleDay(dateStr);
+  if (appMode === 'coach' || !isSelfClimber(c) || !s.enabled) { openDayModal(ds); return; }
+  const d = new Date(ds+'T00:00:00');
+  document.getElementById('day-quickpick-title').textContent = d.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  const dayLogs = getLogs().filter(l => l.date === ds);
+  const sessBtn = document.getElementById('day-quickpick-sessions-btn');
+  sessBtn.textContent = dayLogs.length ? `🧗 Voir les ${dayLogs.length} séance${dayLogs.length>1?'s':''} de ce jour` : '+ Ajouter une séance ce jour';
+  sessBtn.onclick = () => { closeModal('day-quickpick-modal'); openDayModal(ds); };
+  const marked = s.days.includes(ds);
+  const cycleBtn = document.getElementById('day-quickpick-cycle-btn');
+  cycleBtn.textContent = marked ? '🩸 Retirer "règles" de ce jour' : '🩸 Marquer début des règles';
+  cycleBtn.className = marked ? 'btn danger' : 'btn';
+  cycleBtn.style.width = '100%';
+  cycleBtn.onclick = () => { toggleCycleDay(ds); closeModal('day-quickpick-modal'); };
+  document.getElementById('day-quickpick-modal').classList.add('open');
 }
+window.openDayQuickPick = openDayQuickPick;
 // Affiche, en haut de la fenêtre "Séances du jour", les cycles dont la période couvre cette date
 // (cf. getClimberCycles) : nom du cycle, progression, et pour chaque objectif de période non
 // encore rempli, un bouton pour y ajouter directement une séance — ce qui décompte le nombre de
