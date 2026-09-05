@@ -4151,17 +4151,34 @@ const STYLES = ['Dalle','Dévers','Compression','Physique','Doigts','Rési','Pui
 // d'un TYPE de séance (retour : "une palette de 8 couleurs pastel... avec la couleur par défaut
 // qui puisse être modifiée par l'utilisateur"). Le choix s'applique au type entier (pas à la seule
 // séance en cours de saisie) : toutes les séances passées et futures de ce type en héritent,
-// partout où SESSION_TYPES[type].color est lu (calendrier, dashboard, historique, etc.) — même
-// principe de mutation en place + persistance localStorage que BLOC_GRADED_LOAD_FACTOR.
+// partout où SESSION_TYPES[type].color est lu (calendrier, dashboard, historique, etc.).
+// Persisté dans profile.sessionColors DU COMPTE PROPRIÉTAIRE (window.currentUser.climberId, pas
+// forcément getActive() si un coach est en train de consulter un autre athlète) : ce champ profile
+// est déjà synchronisé vers le backend par syncToBackend() comme le reste du profil (photo,
+// discipline principale, etc.), donc pas de route backend à ajouter. Retour utilisateur : "les
+// couleurs sur téléphone et version ordinateur ne sont pas les mêmes" — la première version
+// stockait ça en localStorage, propre à chaque navigateur/appareil, jamais partagé.
 const SESSION_COLOR_PALETTE = ['#f2b8b5','#f6cf9e','#f5e6a3','#bfe3b4','#a8ddd0','#aecbf0','#cdbdf0','#f0bede'];
-const SESSION_COLOR_STORAGE_KEY = 'digger_session_colors_v1';
-function readSessionColorOverrides() { try { return JSON.parse(localStorage.getItem(SESSION_COLOR_STORAGE_KEY) || '{}') || {}; } catch(e) { return {}; } }
-function saveSessionColorOverrides(overrides) { localStorage.setItem(SESSION_COLOR_STORAGE_KEY, JSON.stringify(overrides)); }
-// Applique tout de suite les personnalisations déjà enregistrées, dès le chargement de la page.
-(function applySessionColorOverrides() {
+function sessionColorOwnerClimber() {
+  const id = window.currentUser?.climberId;
+  return (db.climbers || []).find(c => c.id === id) || getActive();
+}
+function readSessionColorOverrides() { return sessionColorOwnerClimber()?.profile?.sessionColors || {}; }
+function saveSessionColorOverrides(overrides) {
+  const owner = sessionColorOwnerClimber();
+  if (!owner) return;
+  owner.profile = owner.profile || {};
+  owner.profile.sessionColors = overrides;
+  saveDB();
+}
+// Applique les personnalisations déjà enregistrées — appelé une fois les données du compte
+// chargées (cf. initAppData(), après loadFromBackend()), jamais au chargement du script lui-même :
+// à ce stade db.climbers/window.currentUser n'existent pas encore.
+function applySessionColorOverrides() {
   const overrides = readSessionColorOverrides();
   Object.keys(overrides).forEach(type => { if (SESSION_TYPES[type]) SESSION_TYPES[type].color = overrides[type]; });
-})();
+}
+window.applySessionColorOverrides = applySessionColorOverrides;
 function setSessionTypeColor(type, color) {
   if (!SESSION_TYPES[type]) return;
   SESSION_TYPES[type].color = color;
@@ -6205,7 +6222,7 @@ function getClimberCycles(climber) {
     const fixedTotal = c.fixedLogs.length;
     const fixedDone = c.fixedLogs.filter(l => !l.planned).length;
     const objTotal = c.objectives.reduce((s,o) => s + (o.targetCount || 1), 0);
-    const objDone = c.objectives.reduce((s,o) => s + (climber.logs || []).filter(l => l.objectiveId === o.id).length, 0);
+    const objDone = c.objectives.reduce((s,o) => s + (climber.logs || []).filter(l => l.objectiveId === o.id && !l.planned).length, 0);
     const isGenericName = !c.cycleName || c.cycleName === 'Cycle' || /^Cycle du /.test(c.cycleName);
     let displayName = c.cycleName;
     if (isGenericName) {
@@ -7734,7 +7751,7 @@ function renderCoachObjectivesPanel(panelId, listId) {
     const period = cy.startDate && cy.endDate ? `${fmtDate(cy.startDate)} → ${fmtDate(cy.endDate)}` : '';
     const overdue = cy.endDate && cy.endDate < today && cy.done < cy.total;
     const pendingObjectives = cy.objectives.filter(o => {
-      const doneCount = (c.logs || []).filter(l => l.objectiveId === o.id).length;
+      const doneCount = (c.logs || []).filter(l => l.objectiveId === o.id && !l.planned).length;
       return doneCount < (o.targetCount || 1);
     });
     // Retour utilisateur : "il y a bien le bandeau indiquant le cycle [sur le calendrier] mais il
@@ -15105,6 +15122,7 @@ window.initAppData = async function() {
   if (!fromBackend) {
     console.log('📱 Mode hors-ligne — données locales');
   }
+  applySessionColorOverrides();
   renderColorPicker();
   renderSidebarStats();
   renderDashboard();
