@@ -1178,7 +1178,11 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     <div class="panel">
       <div class="panel-header">
         <span class="panel-title">Répartition des types</span>
-        <span class="panel-sub">12 derniers mois</span>
+        <select id="dash-type-range" style="font-weight:500;font-size:12px;color:var(--text);border:1px solid var(--border2);border-radius:99px;padding:3px 8px;background:var(--surface);cursor:pointer">
+          <option value="1">1 mois</option>
+          <option value="3">3 derniers mois</option>
+          <option value="6">6 derniers mois</option>
+        </select>
       </div>
       <div class="chart-wrap" style="height:150px"><canvas id="typeChart" aria-label="Répartition types de séances">Types de séances</canvas></div>
     </div>
@@ -5900,6 +5904,7 @@ function renderUpcomingSessions() {
     </div>`;
   }).join('')}</div>`;
 }
+let dashTypeRange = 3;
 function renderDashboard() {
   document.getElementById('dashDate').textContent = new Date().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
   renderObjectivesPanel();
@@ -6016,9 +6021,13 @@ function renderDashboard() {
   }).join('');
 
   // Type chart — graphe en colonnes (une barre par type de séance, plus lisible qu'un donut
-  // pour comparer les volumes entre types d'un coup d'œil).
+  // pour comparer les volumes entre types d'un coup d'œil). Filtré sur une fenêtre glissante
+  // (1/3/6 mois) choisie via le sélecteur dash-type-range, plutôt que tout l'historique.
+  const typeRangeEl = document.getElementById('dash-type-range');
+  if (typeRangeEl) typeRangeEl.value = String(dashTypeRange);
+  const typeCutoff = new Date(); typeCutoff.setMonth(typeCutoff.getMonth() - dashTypeRange);
   const typeCounts={};
-  getLogs().forEach(l=>{typeCounts[l.type]=(typeCounts[l.type]||0)+1;});
+  getLogs().filter(l=>!l.planned && new Date(l.date)>=typeCutoff).forEach(l=>{typeCounts[l.type]=(typeCounts[l.type]||0)+1;});
   const typeKeys=Object.keys(typeCounts).sort((a,b)=>typeCounts[b]-typeCounts[a]);
   makeChart('typeChart',{
     type:'bar',
@@ -6029,6 +6038,10 @@ function renderDashboard() {
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{font:{size:10}}},y:{beginAtZero:true,ticks:{precision:0,font:{size:10}},grid:{color:'rgba(0,0,0,.05)'}}}}
   });
 }
+document.getElementById('dash-type-range')?.addEventListener('change', e => {
+  dashTypeRange = Number(e.target.value) || 3;
+  renderDashboard();
+});
 
 // — Objectif de l'athlète (posé par lui-même ou par le coach) —
 function renderPlanObjective() {
