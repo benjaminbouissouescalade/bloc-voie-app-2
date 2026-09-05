@@ -3944,7 +3944,7 @@ Utilise les raccourcis ci-dessus ou pose-moi directement une question. Par exemp
       <div class="form-row form-row-2">
         <div class="form-group">
           <label class="form-label">Sexe <span style="font-weight:400;color:var(--muted)">(utilisé pour les comparaisons Finger Profile)</span></label>
-          <select class="form-control" id="pd-gender">
+          <select class="form-control" id="pd-gender" onchange="pdUpdateCycleTrackingVisibility()">
             <option value="">Non renseigné</option>
             <option value="male">Homme</option>
             <option value="female">Femme</option>
@@ -12692,28 +12692,36 @@ function sbRenderActiveChips() {
 }
 
 // ═══════════════ PHOTO PROFIL / ENVERGURE — helpers partagés ═══════════════
+// Retour utilisateur : sur téléphone (iOS notamment), la sélection d'une photo semblait ne rien
+// faire — l'aperçu ne se mettait pas à jour. Cause probable : décoder via
+// FileReader.readAsDataURL() + <img src="data:..."> est plus fragile sur mobile (formats HEIC de
+// l'appareil photo, gros fichiers) que URL.createObjectURL(), qui référence directement le blob
+// sans passer par une chaîne base64 intermédiaire et est mieux supporté pour ce cas d'usage.
 function resizeImageToDataUrl(file, maxSize = 320, quality = 0.82) {
   return new Promise((resolve, reject) => {
     if (!file || !file.type || !file.type.startsWith('image/')) { reject(new Error('Fichier non image')); return; }
     if (file.size > 15 * 1024 * 1024) { reject(new Error('Image trop volumineuse')); return; }
-    const reader = new FileReader();
-    reader.onerror = () => reject(reader.error || new Error('Lecture impossible'));
-    reader.onload = () => {
-      const img = new Image();
-      img.onerror = () => reject(new Error('Image invalide'));
-      img.onload = () => {
+    const objectUrl = URL.createObjectURL(file);
+    const cleanup = () => { try { URL.revokeObjectURL(objectUrl); } catch (e) {} };
+    const img = new Image();
+    img.onerror = () => { cleanup(); reject(new Error('Image invalide ou format non supporté')); };
+    img.onload = () => {
+      try {
         let { width, height } = img;
+        if (!width || !height) { cleanup(); reject(new Error('Image invalide')); return; }
         if (width >= height) { if (width > maxSize) { height = Math.round(height * maxSize / width); width = maxSize; } }
         else { if (height > maxSize) { width = Math.round(width * maxSize / height); height = maxSize; } }
         const canvas = document.createElement('canvas');
         canvas.width = width; canvas.height = height;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', quality));
-      };
-      img.src = reader.result;
+        const dataUrl = canvas.toDataURL('image/jpeg', quality);
+        cleanup();
+        if (!dataUrl || dataUrl === 'data:,') { reject(new Error('Échec de conversion de l\'image')); return; }
+        resolve(dataUrl);
+      } catch (e) { cleanup(); reject(e); }
     };
-    reader.readAsDataURL(file);
+    img.src = objectUrl;
   });
 }
 window.resizeImageToDataUrl = resizeImageToDataUrl;
@@ -14525,16 +14533,14 @@ function openProfileDetailModal(climberId) {
 
   const canEditSelf = climberId === window.currentUser?.climberId;
   const canEditCoach = isAdmin();
-  const cycleGroupEl = document.getElementById('pd-cycle-tracking-group');
-  if (cycleGroupEl) {
-    cycleGroupEl.style.display = canEditSelf ? '' : 'none';
-    if (canEditSelf) {
-      const ct = p.cycleTracking || {};
-      document.getElementById('pd-cycle-enabled').checked = !!ct.enabled;
-      document.getElementById('pd-cycle-visible-coach').checked = !!ct.visibleToCoach;
-      pdCycleEnabledChanged();
-    }
+  pdCanEditSelf = canEditSelf;
+  if (canEditSelf) {
+    const ct = p.cycleTracking || {};
+    document.getElementById('pd-cycle-enabled').checked = !!ct.enabled;
+    document.getElementById('pd-cycle-visible-coach').checked = !!ct.visibleToCoach;
+    pdCycleEnabledChanged();
   }
+  pdUpdateCycleTrackingVisibility();
   pdHasCoachData = !!(p.coachRating && Object.keys(p.coachRating).length);
   const sectionsEl = document.getElementById('pd-perf-sections');
   if (sectionsEl) sectionsEl.dataset.coachTouched = '';
@@ -14568,6 +14574,18 @@ function pdSetPrimaryDiscipline(d) {
 }
 window.pdSetPrimaryDiscipline = pdSetPrimaryDiscipline;
 
+// Le suivi du cycle ne concerne que les profils "Femme" (retour utilisateur : "il faut mettre la
+// case suivi que quand femme"). Recalculé à l'ouverture du modal ET à chaque changement du champ
+// Sexe (on peut corriger le sexe puis vouloir activer le suivi dans la foulée, sans rouvrir le
+// modal) — combiné à canEditSelf, qui lui reste fixe pour la durée de l'ouverture du modal.
+let pdCanEditSelf = false;
+function pdUpdateCycleTrackingVisibility() {
+  const el = document.getElementById('pd-cycle-tracking-group');
+  if (!el) return;
+  const isFemale = document.getElementById('pd-gender').value === 'female';
+  el.style.display = (pdCanEditSelf && isFemale) ? '' : 'none';
+}
+window.pdUpdateCycleTrackingVisibility = pdUpdateCycleTrackingVisibility;
 // Grise la case "visible pour mon coach" quand le suivi est désactivé — évite un état incohérent
 // (visible mais pas activé), sans pour autant effacer le choix si l'athlète réactive plus tard.
 function pdCycleEnabledChanged() {
@@ -14604,12 +14622,20 @@ function pdHandlePhotoChange(e) {
   if (!file) return;
   const climberId = document.getElementById('pd-climber-id').value;
   const c = db.climbers.find(x => x.id === climberId);
+  const errEl = document.getElementById('pd-error');
+  errEl.style.display = 'none';
+  // Retour utilisateur : sur téléphone, on ne voyait aucun signe que la sélection avait été prise
+  // en compte tant que le traitement (décodage + redimension) n'était pas terminé — un aperçu
+  // temporaire "Chargement…" évite l'impression que rien ne s'est passé pendant ce court délai.
+  const prev = document.getElementById('pd-photo-preview');
+  if (prev) { prev.style.backgroundImage = ''; prev.textContent = '⏳'; }
   resizeImageToDataUrl(file).then(dataUrl => {
     pdPhotoDataUrl = dataUrl;
     pdRenderPhotoPreview(dataUrl, c?.color);
-  }).catch(() => {
-    const errEl = document.getElementById('pd-error');
-    errEl.textContent = 'Impossible de charger cette image, réessaie avec une autre photo';
+    pdDirty = true;
+  }).catch((err) => {
+    pdRenderPhotoPreview(pdPhotoDataUrl || c?.profile?.photo || null, c?.color);
+    errEl.textContent = 'Impossible de charger cette image (' + (err?.message || 'erreur inconnue') + '), réessaie avec une autre photo';
     errEl.style.display = '';
   });
 }
