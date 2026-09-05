@@ -6431,11 +6431,11 @@ function renderCalendarYear() {
 function renderCalBankMini() {
   const el = document.getElementById('cal-bank-mini');
   if (!el) return;
-  const search = (document.getElementById('cal-bank-search')?.value || '').toLowerCase();
+  const search = normText(document.getElementById('cal-bank-search')?.value || '');
   let items = getBank().slice().sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
   if (search) items = items.filter(s =>
-    s.name.toLowerCase().includes(search) ||
-    (s.tags||[]).some(t=>t.toLowerCase().includes(search))
+    normText(s.name).includes(search) ||
+    (s.tags||[]).some(t=>normText(t).includes(search))
   );
   if (!items.length) { el.innerHTML = `<p style="font-size:12px;color:var(--muted)">Aucune séance dans la banque.</p>`; return; }
   el.innerHTML = items.map(s => {
@@ -12069,11 +12069,11 @@ window.openPlanPicker = openPlanPicker;
 function renderPlanPickerList() {
   const el = document.getElementById('plan-picker-list');
   if (!el) return;
-  const search = (document.getElementById('plan-picker-search')?.value || '').toLowerCase();
+  const search = normText(document.getElementById('plan-picker-search')?.value || '');
   let items = getBank().slice().sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
   if (search) items = items.filter(s =>
-    s.name.toLowerCase().includes(search) ||
-    (s.tags||[]).some(t=>t.toLowerCase().includes(search))
+    normText(s.name).includes(search) ||
+    (s.tags||[]).some(t=>normText(t).includes(search))
   );
   if (!items.length) { el.innerHTML = `<p style="font-size:12px;color:var(--muted)">Aucune séance dans la banque — crée-en une dans "La Mine".</p>`; return; }
   el.innerHTML = items.map(s => {
@@ -12905,7 +12905,7 @@ function sbRenderGrid() {
   sbRenderCategoryNav();
   sbRenderCrossTagRow();
   sbRenderFamilyNav();
-  const search    = (document.getElementById('sb-search')?.value || '').toLowerCase();
+  const search    = normText(document.getElementById('sb-search')?.value || '');
   const typeF     = document.getElementById('sb-type-filter')?.value || '';
   const goalF     = document.getElementById('sb-goal-filter')?.value || '';
   const supportF  = document.getElementById('sb-support-filter')?.value || '';
@@ -12949,14 +12949,14 @@ function sbRenderGrid() {
   // ── Filters ──
   // Recherche : couvre nom, description, tags, crossTags, support, objectif, dossier/sous-dossier.
   if (search) items = items.filter(s =>
-    s.name.toLowerCase().includes(search) ||
-    s.description?.toLowerCase().includes(search) ||
-    (s.tags||[]).some(t => t.toLowerCase().includes(search)) ||
-    (s.crossTags||[]).some(t => t.toLowerCase().includes(search)) ||
-    (SUPPORTS[s.support]?.label||'').toLowerCase().includes(search) ||
-    (SB_GOAL_LABELS[s.goal]||'').toLowerCase().includes(search) ||
-    (s.category||'').toLowerCase().includes(search) ||
-    (s.subcategory||'').toLowerCase().includes(search)
+    normText(s.name).includes(search) ||
+    normText(s.description).includes(search) ||
+    (s.tags||[]).some(t => normText(t).includes(search)) ||
+    (s.crossTags||[]).some(t => normText(t).includes(search)) ||
+    normText(SUPPORTS[s.support]?.label).includes(search) ||
+    normText(SB_GOAL_LABELS[s.goal]).includes(search) ||
+    normText(s.category).includes(search) ||
+    normText(s.subcategory).includes(search)
   );
   if (typeF)    items = items.filter(s => s.type === typeF);
   if (goalF)    items = items.filter(s => s.goal === goalF);
@@ -15013,6 +15013,11 @@ document.getElementById('cf-delete-btn').onclick = () => {
 
 // ═══════════════ HELPERS ═══════════════
 function esc(s=''){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+// Recherche insensible aux accents : "resi" doit retrouver un tag "Rési", "resistance" doit
+// retrouver "Résistance" — .toLowerCase() seul ne suffit pas ("é" reste "é"). Retour utilisateur :
+// "seulement une fiche alors que j'en ai mis plein" en tapant "resi" dans La Mine, alors que
+// plusieurs fiches portaient bien le tag "Rési" (juste jamais retrouvées à cause de l'accent).
+function normText(s){return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');}
 function fmtDate(ds){return new Date(ds+'T00:00:00').toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'});}
 // Formate un total de minutes en "9h28" (ou "9h" si rond, "45 min" si < 1h) — utilisé partout où
 // on affiche un CUMUL de minutes sur une période (mois, semaine…), par cohérence avec la saisie
