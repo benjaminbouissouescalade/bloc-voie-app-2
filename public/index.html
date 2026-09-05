@@ -376,6 +376,7 @@ body.preview-mode #sidebar-user { color: var(--accent) !important; font-weight: 
 .cal-cell.has-planned.has-session, .cal-cell.has-planned.has-hard { background: var(--accent2); }
 .cal-planned-badge { position: absolute; top: 4px; right: 4px; font-size: 13px; line-height: 1; filter: drop-shadow(0 1px 1px rgba(0,0,0,.25)); }
 .cal-avail-badge { position: absolute; top: 4px; right: 20px; font-size: 11px; line-height: 1; opacity: .85; }
+.cal-cycle-badge { position: absolute; top: 4px; left: 4px; font-size: 10px; line-height: 1; opacity: .9; }
 .cal-cell.drag-over { outline: 3px dashed var(--accent); outline-offset: -3px; background: var(--accent2); }
 .cal-bank-mini-card { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border: 1px solid var(--border); border-radius: var(--r-xs); background: var(--surface2); cursor: grab; }
 .cal-bank-mini-card:hover { border-color: var(--border2); background: var(--surface); }
@@ -875,6 +876,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   .cal-dot { width: 8px; height: 8px; }
   .cal-planned-badge { font-size: 11px; top: 2px; right: 2px; }
   .cal-avail-badge { font-size: 9px; top: 2px; right: 14px; }
+  .cal-cycle-badge { font-size: 8px; top: 2px; left: 2px; }
   /* Contrôles prev/mois/next/Aujourd'hui : une fois repassés à la ligne (cf. #page-calendar
      .page-header ci-dessus), on resserre encore le libellé du mois et les espacements pour que
      les 4 éléments tiennent sur la largeur d'un téléphone sans forcer un nouveau débordement. */
@@ -3949,6 +3951,22 @@ Utilise les raccourcis ci-dessus ou pose-moi directement une question. Par exemp
           </select>
         </div>
       </div>
+      <!-- Suivi du cycle féminin : réglage strictement personnel — jamais affiché ni modifiable
+           depuis la fiche d'un autre grimpeur (cf. openProfileDetailModal, canEditSelf). La
+           visibilité pour le coach est un choix explicite de l'athlète, désactivé par défaut. -->
+      <div class="form-group" id="pd-cycle-tracking-group" style="display:none;background:var(--surface2);border-radius:8px;padding:10px 12px">
+        <label class="form-label">Suivi du cycle féminin</label>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text);cursor:pointer">
+            <input type="checkbox" id="pd-cycle-enabled" onchange="pdCycleEnabledChanged()">
+            Activer le suivi (marquer les jours de règles dans le calendrier)
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text);cursor:pointer" id="pd-cycle-visible-row">
+            <input type="checkbox" id="pd-cycle-visible-coach">
+            Visible pour mon coach (petite 🩸 sur le calendrier partagé)
+          </label>
+        </div>
+      </div>
       <div class="form-row form-row-2">
         <div class="form-group">
           <label class="form-label">Discipline principale <span style="font-weight:400;color:var(--muted)">(niveau affiché + référence pour le calcul de charge)</span></label>
@@ -4055,6 +4073,7 @@ Utilise les raccourcis ci-dessus ou pose-moi directement une question. Par exemp
       <button class="btn" id="day-modal-add-plan">📌 Planifier (prévisionnel)</button>
       <button class="btn" id="day-modal-add-cycle">🔁 Planifier un cycle</button>
       <button class="btn" id="day-modal-add-avail">🏟 Déclarer ma disponibilité</button>
+      <button class="btn" id="day-modal-cycle-btn" style="display:none"></button>
     </div>
   </div>
 </div>
@@ -6088,7 +6107,8 @@ function buildCalCell(ds, dayNum, isOther, todayStr, climberCycles) {
   const availBadgeHtml = dayAvail.length
     ? `<div class="cal-avail-badge" title="Dispo déclarée : ${esc(dayAvail.map(a=>gymNameById(a.gymId)||'salle non précisée').join(', '))}">🏟</div>`
     : '';
-  cell.innerHTML = `${plannedLogsForCell.length?`<div class="cal-planned-badge" title="${plannedLogsForCell.length} séance${plannedLogsForCell.length>1?'s':''} prévue${plannedLogsForCell.length>1?'s':''}">📌</div>`:''}${availBadgeHtml}<div class="cal-num">${dayNum}</div>${cycleTagsHtmlForDate(ds, climberCycles)}<div class="cal-dots">${dayLogs.map(l=>`<div class="cal-dot${l.planned?' cal-dot-planned':''}" style="${l.planned?`border-color:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`:`background:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`}" title="${esc(sessionDisplayLabel(l))}${l.planned?' (prévue)':''}"></div>`).join('')}</div>${typeLabelHtml}${load?`<div style="font-size:11px;font-weight:800;color:var(--text);margin-top:3px">⚡ ${load}</div>`:''}${hasInjury?`<div style="font-size:9px;font-weight:700;color:var(--warm);margin-top:2px">🩹 bobo</div>`:''}`;
+  const cycleBadgeHtml = shouldShowCycleBadge(getActive(), ds) ? `<div class="cal-cycle-badge" title="Règles">🩸</div>` : '';
+  cell.innerHTML = `${plannedLogsForCell.length?`<div class="cal-planned-badge" title="${plannedLogsForCell.length} séance${plannedLogsForCell.length>1?'s':''} prévue${plannedLogsForCell.length>1?'s':''}">📌</div>`:''}${availBadgeHtml}${cycleBadgeHtml}<div class="cal-num">${dayNum}</div>${cycleTagsHtmlForDate(ds, climberCycles)}<div class="cal-dots">${dayLogs.map(l=>`<div class="cal-dot${l.planned?' cal-dot-planned':''}" style="${l.planned?`border-color:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`:`background:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`}" title="${esc(sessionDisplayLabel(l))}${l.planned?' (prévue)':''}"></div>`).join('')}</div>${typeLabelHtml}${load?`<div style="font-size:11px;font-weight:800;color:var(--text);margin-top:3px">⚡ ${load}</div>`:''}${hasInjury?`<div style="font-size:9px;font-weight:700;color:var(--warm);margin-top:2px">🩹 bobo</div>`:''}`;
   cell.onclick = () => openDayModal(ds);
   cell.ondragover = (e) => { e.preventDefault(); cell.classList.add('drag-over'); };
   cell.ondragleave = () => cell.classList.remove('drag-over');
@@ -6235,6 +6255,45 @@ function getClimberCycles(climber) {
     return { ...c, startDate, endDate, displayName, fixedTotal, fixedDone, objTotal, objDone, total: fixedTotal + objTotal, done: fixedDone + objDone };
   }).sort((a,b) => (b.startDate || '').localeCompare(a.startDate || ''));
 }
+
+// Suivi du cycle féminin : jours marqués + réglages stockés dans profile.cycleTracking (JSONB
+// générique, synchronisé au même titre que les autres réglages de profil — cf. sessionColors).
+// Marquer un jour reste une action strictement personnelle de l'athlète (jamais du coach) ; la
+// visibilité pour le coach est un choix explicite, désactivé par défaut.
+function cycleTrackingSettings(c) {
+  const ct = c && c.profile && c.profile.cycleTracking;
+  return { enabled: !!(ct && ct.enabled), visibleToCoach: !!(ct && ct.visibleToCoach), days: (ct && Array.isArray(ct.days)) ? ct.days : [] };
+}
+function isSelfClimber(c) {
+  return !!(c && window.currentUser && c.id === window.currentUser.climberId);
+}
+// Détermine si la goutte 🩸 doit apparaître sur une case de calendrier pour ce climber/date :
+// jamais si le suivi n'est pas activé, et côté Coach uniquement si l'athlète a explicitement
+// choisi de le rendre visible.
+function shouldShowCycleBadge(c, ds) {
+  const s = cycleTrackingSettings(c);
+  if (!s.enabled || !s.days.includes(ds)) return false;
+  return appMode !== 'coach' || s.visibleToCoach;
+}
+// Marque/démarque un jour — appelable uniquement sur son propre profil (le bouton n'est de toute
+// façon affiché que dans ce cas, cf. openDayModal), et seulement si le suivi est activé (activé
+// depuis le Profil détaillé).
+function toggleCycleDay(ds) {
+  const c = getActive();
+  if (!isSelfClimber(c)) return;
+  const s = cycleTrackingSettings(c);
+  if (!s.enabled) return;
+  c.profile = c.profile || {};
+  c.profile.cycleTracking = c.profile.cycleTracking || { enabled: true, visibleToCoach: false, days: [] };
+  const days = c.profile.cycleTracking.days = Array.isArray(c.profile.cycleTracking.days) ? c.profile.cycleTracking.days : [];
+  const i = days.indexOf(ds);
+  if (i === -1) days.push(ds); else days.splice(i, 1);
+  saveDB();
+  renderDayModalCycleTrackingBtn(ds);
+  renderCalendar();
+  if (typeof renderSimpleCalendar === 'function' && document.getElementById('cal2-grid')) renderSimpleCalendar();
+}
+window.toggleCycleDay = toggleCycleDay;
 // Cycles dont la période (bornée par les dates de ses séances fixes et/ou de ses objectifs)
 // couvre la date donnée — sert à étiqueter une case de calendrier et à proposer, au clic sur un
 // jour, d'y remplir un objectif du cycle correspondant.
@@ -6416,7 +6475,8 @@ function buildCal2Cell(ds, dayNum, isOther, todayStr, climberCycles) {
   const availBadgeHtml2 = dayAvail2.length
     ? `<div class="cal-avail-badge" title="Dispo déclarée : ${esc(dayAvail2.map(a=>gymNameById(a.gymId)||'salle non précisée').join(', '))}">🏟</div>`
     : '';
-  cell.innerHTML = `${plannedLogsForCell.length?`<div class="cal-planned-badge" title="${plannedLogsForCell.length} séance${plannedLogsForCell.length>1?'s':''} prévue${plannedLogsForCell.length>1?'s':''}">📌</div>`:''}${availBadgeHtml2}<div class="cal-num">${dayNum}</div>${cycleTagsHtmlForDate(ds, climberCycles)}<div class="cal-dots">${dayLogs.map(l=>`<div class="cal-dot${l.planned?' cal-dot-planned':''}" style="${l.planned?`border-color:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`:`background:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`}" title="${esc(sessionDisplayLabel(l))}${l.planned?' (prévue)':''}"></div>`).join('')}</div>${typeLabelHtml2}${load?`<div style="font-size:11px;font-weight:800;color:var(--text);margin-top:3px">⚡ ${load}</div>`:''}${hasInjury?`<div style="font-size:9px;font-weight:700;color:var(--warm);margin-top:2px">🩹 bobo</div>`:''}`;
+  const cycleBadgeHtml2 = shouldShowCycleBadge(getActive(), ds) ? `<div class="cal-cycle-badge" title="Règles">🩸</div>` : '';
+  cell.innerHTML = `${plannedLogsForCell.length?`<div class="cal-planned-badge" title="${plannedLogsForCell.length} séance${plannedLogsForCell.length>1?'s':''} prévue${plannedLogsForCell.length>1?'s':''}">📌</div>`:''}${availBadgeHtml2}${cycleBadgeHtml2}<div class="cal-num">${dayNum}</div>${cycleTagsHtmlForDate(ds, climberCycles)}<div class="cal-dots">${dayLogs.map(l=>`<div class="cal-dot${l.planned?' cal-dot-planned':''}" style="${l.planned?`border-color:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`:`background:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`}" title="${esc(sessionDisplayLabel(l))}${l.planned?' (prévue)':''}"></div>`).join('')}</div>${typeLabelHtml2}${load?`<div style="font-size:11px;font-weight:800;color:var(--text);margin-top:3px">⚡ ${load}</div>`:''}${hasInjury?`<div style="font-size:9px;font-weight:700;color:var(--warm);margin-top:2px">🩹 bobo</div>`:''}`;
   cell.onclick = () => openDayModal(ds);
   return { cell, dayLogs, isOther };
 }
@@ -11883,7 +11943,23 @@ function openDayModal(dateStr){
     addAvailBtn.onclick = () => openAvailModal(dateStr);
   }
   renderDayModalAvailability(dateStr);
+  renderDayModalCycleTrackingBtn(dateStr);
   document.getElementById('day-modal').classList.add('open');
+}
+// Bouton "🩸 Règles ce jour" dans la fenêtre "Séances du jour" : n'apparaît que sur son propre
+// Carnet (jamais côté Coach — le suivi du cycle reste une saisie strictement personnelle) et
+// seulement si l'athlète a activé le suivi depuis son Profil détaillé.
+function renderDayModalCycleTrackingBtn(dateStr) {
+  const btn = document.getElementById('day-modal-cycle-btn');
+  if (!btn) return;
+  const c = getActive();
+  const s = cycleTrackingSettings(c);
+  if (appMode === 'coach' || !isSelfClimber(c) || !s.enabled) { btn.style.display = 'none'; return; }
+  const marked = s.days.includes(dateStr);
+  btn.style.display = '';
+  btn.textContent = marked ? '🩸 Retirer "règles"' : '🩸 Marquer "règles" ce jour';
+  btn.className = marked ? 'btn danger' : 'btn';
+  btn.onclick = () => toggleCycleDay(dateStr);
 }
 // Affiche, en haut de la fenêtre "Séances du jour", les cycles dont la période couvre cette date
 // (cf. getClimberCycles) : nom du cycle, progression, et pour chaque objectif de période non
@@ -14425,6 +14501,16 @@ function openProfileDetailModal(climberId) {
 
   const canEditSelf = climberId === window.currentUser?.climberId;
   const canEditCoach = isAdmin();
+  const cycleGroupEl = document.getElementById('pd-cycle-tracking-group');
+  if (cycleGroupEl) {
+    cycleGroupEl.style.display = canEditSelf ? '' : 'none';
+    if (canEditSelf) {
+      const ct = p.cycleTracking || {};
+      document.getElementById('pd-cycle-enabled').checked = !!ct.enabled;
+      document.getElementById('pd-cycle-visible-coach').checked = !!ct.visibleToCoach;
+      pdCycleEnabledChanged();
+    }
+  }
   pdHasCoachData = !!(p.coachRating && Object.keys(p.coachRating).length);
   const sectionsEl = document.getElementById('pd-perf-sections');
   if (sectionsEl) sectionsEl.dataset.coachTouched = '';
@@ -14457,6 +14543,18 @@ function pdSetPrimaryDiscipline(d) {
   pdDirty = true;
 }
 window.pdSetPrimaryDiscipline = pdSetPrimaryDiscipline;
+
+// Grise la case "visible pour mon coach" quand le suivi est désactivé — évite un état incohérent
+// (visible mais pas activé), sans pour autant effacer le choix si l'athlète réactive plus tard.
+function pdCycleEnabledChanged() {
+  const enabled = document.getElementById('pd-cycle-enabled').checked;
+  const visRow = document.getElementById('pd-cycle-visible-row');
+  if (visRow) visRow.style.opacity = enabled ? '1' : '.5';
+  const visCb = document.getElementById('pd-cycle-visible-coach');
+  if (visCb) visCb.disabled = !enabled;
+  pdDirty = true;
+}
+window.pdCycleEnabledChanged = pdCycleEnabledChanged;
 
 // undefined = pas de changement (garder la photo existante), null = suppression explicite, string = nouvelle photo
 let pdPhotoDataUrl = undefined;
@@ -14530,7 +14628,17 @@ async function saveProfileDetail() {
     selfRating: canEditSelf ? readPerfSide('pd-perf-sections', 'self') : (c.profile?.selfRating || undefined),
     coachRating: canEditCoach ? readPerfSide('pd-perf-sections', 'coach') : (c.profile?.coachRating || undefined),
     primaryDiscipline: pdPrimaryDiscipline,
-    levelBloc: document.getElementById('pd-level-bloc')?.value || null
+    levelBloc: document.getElementById('pd-level-bloc')?.value || null,
+    // Suivi du cycle féminin : seule l'athlète peut changer ses propres réglages (canEditSelf) —
+    // un coach qui enregistre le profil d'un·e athlète ne doit jamais pouvoir les modifier ni les
+    // effacer. Les jours déjà marqués (cycleTracking.days) sont toujours préservés tels quels : ce
+    // formulaire ne les touche pas, seul toggleCycleDay() les modifie.
+    cycleTracking: canEditSelf ? {
+      ...(c.profile?.cycleTracking || {}),
+      enabled: document.getElementById('pd-cycle-enabled').checked,
+      visibleToCoach: document.getElementById('pd-cycle-visible-coach').checked,
+      days: c.profile?.cycleTracking?.days || []
+    } : (c.profile?.cycleTracking || undefined)
   };
   c.objectives = pdGoals;
   try {
