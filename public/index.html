@@ -1743,6 +1743,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 
   <div class="time-filters" style="margin-bottom:16px">
     <button class="time-filter-btn" data-wl-range="week">Cette semaine</button>
+    <button class="time-filter-btn" data-wl-range="2w">2 semaines</button>
     <button class="time-filter-btn" data-wl-range="month">Ce mois</button>
     <button class="time-filter-btn" data-wl-range="3m">3M</button>
     <button class="time-filter-btn active" data-wl-range="6m">6M</button>
@@ -1757,6 +1758,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
         <div style="display:flex;align-items:center;gap:8px">
           <span class="panel-sub" id="wl-vol-sub">16 dernières semaines</span>
           <button class="time-filter-btn" id="wl-vol-overlay-btn" style="padding:3px 10px;font-size:11px" onclick="toggleWlIntensityOverlay()">+ Intensité</button>
+          <button class="time-filter-btn" id="wl-vol-time-btn" style="padding:3px 10px;font-size:11px" onclick="toggleWlTimeOverlay()">+ Temps</button>
         </div>
       </div>
       <div class="chart-wrap" style="height:200px"><canvas id="volChart" aria-label="Volume hebdomadaire">Volume hebdomadaire</canvas></div>
@@ -1769,27 +1771,12 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     </div>
   </div>
 
-  <div class="two-col">
-    <div class="panel">
-      <div class="panel-header">
-        <span class="panel-title">Charge cumulée (comparaison)</span>
-        <span class="panel-sub">12 sem. actuelles vs 12 sem. précédentes</span>
-      </div>
-      <div class="chart-wrap" style="height:180px"><canvas id="cumChart" aria-label="Charge cumulée comparaison">Charge cumulée</canvas></div>
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">Charge cumulée (comparaison)</span>
+      <span class="panel-sub">12 sem. actuelles vs 12 sem. précédentes</span>
     </div>
-    <div class="panel">
-      <div class="panel-header">
-        <span class="panel-title">Temps cumulé (comparaison)</span>
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap" id="cumtime-range-picker">
-          <button class="time-filter-btn active" style="padding:3px 10px;font-size:11px" data-cumtime-range="week">1 sem.</button>
-          <button class="time-filter-btn" style="padding:3px 10px;font-size:11px" data-cumtime-range="2w">2 sem.</button>
-          <button class="time-filter-btn" style="padding:3px 10px;font-size:11px" data-cumtime-range="month">Mois</button>
-          <button class="time-filter-btn" style="padding:3px 10px;font-size:11px" data-cumtime-range="3m">3 mois</button>
-        </div>
-      </div>
-      <span class="panel-sub" id="wl-cumtime-sub" style="display:block;margin:-6px 0 6px"></span>
-      <div class="chart-wrap" style="height:180px"><canvas id="cumTimeChart" aria-label="Temps cumulé comparaison">Temps cumulé</canvas></div>
-    </div>
+    <div class="chart-wrap" style="height:180px"><canvas id="cumChart" aria-label="Charge cumulée comparaison">Charge cumulée</canvas></div>
   </div>
 
   <div class="panel">
@@ -5644,7 +5631,7 @@ function weeklyData(nWeeks=16) {
     const start=new Date(now); start.setDate(start.getDate()-((now.getDay()||7)-1)-i*7);
     const end=new Date(start); end.setDate(end.getDate()+7);
     const label=`S${Math.ceil((start.getDate()+(new Date(start.getFullYear(),start.getMonth(),1).getDay()||7)-1)/7)} ${start.toLocaleDateString('fr',{month:'short'})}`;
-    weeks.push({start,end,label,load:0,sessions:0,intSum:0});
+    weeks.push({start,end,label,load:0,sessions:0,intSum:0,minutes:0});
   }
   const rangeStart = weeks[0].start, rangeEnd = weeks[weeks.length-1].end;
   const msPerWeek = 7*24*3600*1000;
@@ -5657,8 +5644,9 @@ function weeklyData(nWeeks=16) {
     w.load += sessionLoad(l);
     w.sessions++;
     w.intSum += (l.intensity||3);
+    w.minutes += (l.minutes||0);
   });
-  return weeks.map(w=>({start:w.start,end:w.end,load:Math.round(w.load),sessions:w.sessions,avgInt:w.sessions?Math.round(w.intSum/w.sessions*10)/10:0,label:w.label}));
+  return weeks.map(w=>({start:w.start,end:w.end,load:Math.round(w.load),sessions:w.sessions,avgInt:w.sessions?Math.round(w.intSum/w.sessions*10)/10:0,minutes:Math.round(w.minutes),label:w.label}));
 }
 
 function miniSparkSvg(values, color) {
@@ -7542,7 +7530,7 @@ function renderSmallPyramid(logs, ctx='all', loc='all') {
 
 // — Workload —
 let wlRange = '6m';
-const WL_RANGE_LABELS = { week:'Cette semaine', month:'Ce mois', '3m':'3 derniers mois', '6m':'6 derniers mois', '1y':'12 derniers mois', all:'Depuis le début' };
+const WL_RANGE_LABELS = { week:'Cette semaine', '2w':'2 dernières semaines', month:'Ce mois', '3m':'3 derniers mois', '6m':'6 derniers mois', '1y':'12 derniers mois', all:'Depuis le début' };
 // Ratio charge aiguë (7j) / charge chronique (moyenne hebdo des 4 dernières semaines)
 function acwrZone(ratio) {
   if (ratio===null) return { label:'Pas assez de données', emoji:'🤔', color:'var(--muted)', bg:'var(--surface2)' };
@@ -7664,6 +7652,14 @@ function toggleWlIntensityOverlay() {
   renderWorkload();
 }
 window.toggleWlIntensityOverlay = toggleWlIntensityOverlay;
+let wlShowTimeOverlay = false;
+function toggleWlTimeOverlay() {
+  wlShowTimeOverlay = !wlShowTimeOverlay;
+  const btn = document.getElementById('wl-vol-time-btn');
+  if (btn) { btn.classList.toggle('active', wlShowTimeOverlay); btn.textContent = wlShowTimeOverlay ? '✓ Temps' : '+ Temps'; }
+  renderWorkload();
+}
+window.toggleWlTimeOverlay = toggleWlTimeOverlay;
 function renderWorkload() {
   const l7=getLoadRange(7),l28=getLoadRange(28),l365=getLoadRange(365);
   document.getElementById('wl-load7').textContent=l7;
@@ -7682,6 +7678,8 @@ function renderWorkload() {
   if (wlSub) wlSub.textContent = WL_RANGE_LABELS[wlRange] || '';
   const overlayBtn=document.getElementById('wl-vol-overlay-btn');
   if (overlayBtn) { overlayBtn.classList.toggle('active', wlShowIntensityOverlay); overlayBtn.textContent = wlShowIntensityOverlay ? '✓ Intensité' : '+ Intensité'; }
+  const timeBtn=document.getElementById('wl-vol-time-btn');
+  if (timeBtn) { timeBtn.classList.toggle('active', wlShowTimeOverlay); timeBtn.textContent = wlShowTimeOverlay ? '✓ Temps' : '+ Temps'; }
   const volDatasets=[{
     label:'Charge',data:wData.map(w=>w.load),
     backgroundColor:wData.map(w=>{const c=cLevel(w.load);return c.cls==='c1'?'rgba(45,90,61,.85)':c.cls==='c2'?'rgba(176,122,16,.8)':c.cls==='c3'?'rgba(196,80,26,.85)':'rgba(90,45,130,.9)';}),
@@ -7694,6 +7692,17 @@ function renderWorkload() {
       pointRadius:3,pointBackgroundColor:'#1a4a7a',spanGaps:true,order:1,yAxisID:'y1'
     });
   }
+  if (wlShowTimeOverlay) {
+    // Temps cumulé par semaine (retour : "un bouton sur ce graph avec le temps cumulé par
+    // semaine... on réutilise le même [graphique] avec l'option tout visible ou seulement
+    // certaines vues") — réutilise wData/wlRange, donc la même fenêtre temporelle (Cette
+    // semaine/2 semaines/Ce mois/3M/6M/1 an/Tout) que le reste du panneau.
+    volDatasets.push({
+      type:'line',label:'Temps',data:wData.map(w=>w.minutes||null),
+      borderColor:'#2d5a3d',backgroundColor:'rgba(45,90,61,.08)',tension:.4,fill:false,
+      pointRadius:3,pointBackgroundColor:'#2d5a3d',spanGaps:true,order:0,yAxisID:'y2'
+    });
+  }
   makeChart('volChart',{
     type:'bar',
     data:{
@@ -7701,11 +7710,15 @@ function renderWorkload() {
       datasets:volDatasets
     },
     options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{display:wlShowIntensityOverlay,position:'top',labels:{boxWidth:10,font:{size:10}}}},
+      plugins:{
+        legend:{display:wlShowIntensityOverlay||wlShowTimeOverlay,position:'top',labels:{boxWidth:10,font:{size:10}}},
+        tooltip:{callbacks:{label:ctx=>ctx.dataset.yAxisID==='y2'?`${ctx.dataset.label} : ${fmtHM(ctx.parsed.y)}`:`${ctx.dataset.label} : ${ctx.parsed.y}`}}
+      },
       scales:{
         x:{grid:{display:false},ticks:{font:{size:9},maxTicksLimit:8}},
         y:{grid:{color:'rgba(0,0,0,.05)'},ticks:{font:{size:10}}},
-        y1:{display:wlShowIntensityOverlay,position:'right',min:0,max:5,grid:{display:false},ticks:{stepSize:1,font:{size:10}}}
+        y1:{display:wlShowIntensityOverlay,position:'right',min:0,max:5,grid:{display:false},ticks:{stepSize:1,font:{size:10}}},
+        y2:{display:wlShowTimeOverlay,position:'right',grid:{display:false},ticks:{font:{size:10},callback:v=>fmtHM(v)}}
       }
     }
   });
@@ -7747,73 +7760,8 @@ function renderWorkload() {
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{font:{size:9},maxTicksLimit:6}},y:{grid:{color:'rgba(0,0,0,.05)'},ticks:{font:{size:10}}}}}
   });
 
-  renderCumTimeChart();
   renderTripsList();
 }
-
-// Temps cumulé (comparaison) — même principe que "Charge cumulée" ci-dessus (période actuelle vs
-// période précédente de même longueur), mais sur la DURÉE des séances plutôt que la charge, avec
-// son propre sélecteur de période (retour : "mettre aussi le temps... avec vision 1 semaine, 2
-// semaines, mois, 3 mois"). Résolution journalière (plutôt qu'hebdo comme cumChart) pour que la
-// vue "1 semaine" reste lisible avec seulement quelques points.
-const CUM_TIME_RANGES = {
-  week:  { days: 7,  label: '7 derniers jours vs 7 jours précédents' },
-  '2w':  { days: 14, label: '14 derniers jours vs 14 jours précédents' },
-  month: { days: 30, label: '30 derniers jours vs 30 jours précédents' },
-  '3m':  { days: 90, label: '90 derniers jours vs 90 jours précédents' }
-};
-let cumTimeRange = 'week';
-function renderCumTimeChart() {
-  const canvas = document.getElementById('cumTimeChart');
-  if (!canvas) return;
-  const cfg = CUM_TIME_RANGES[cumTimeRange] || CUM_TIME_RANGES.week;
-  const days = cfg.days;
-  const subEl = document.getElementById('wl-cumtime-sub');
-  if (subEl) subEl.textContent = cfg.label;
-  const minutesByDate = {};
-  getLogs().forEach(l => {
-    if (l.planned) return;
-    minutesByDate[l.date] = (minutesByDate[l.date] || 0) + (l.minutes || 0);
-  });
-  const now = new Date(); now.setHours(0,0,0,0);
-  const cumCurrent = [], cumPrev = [], labels = [];
-  let cc = 0, cp = 0;
-  for (let i = 0; i < days; i++) {
-    const dCur = new Date(now); dCur.setDate(dCur.getDate() - (days - 1) + i);
-    const dPrev = new Date(dCur); dPrev.setDate(dPrev.getDate() - days);
-    cc += minutesByDate[dCur.toISOString().slice(0,10)] || 0;
-    cp += minutesByDate[dPrev.toISOString().slice(0,10)] || 0;
-    cumCurrent.push(cc);
-    cumPrev.push(cp);
-    labels.push(`J${i+1}`);
-  }
-  makeChart('cumTimeChart', {
-    type: 'line',
-    data: {
-      labels,
-      datasets: [
-        { label: 'Actuel', data: cumCurrent, borderColor: '#1a4a7a', backgroundColor: 'rgba(26,74,122,.18)', fill: true, tension: .3, pointRadius: 2 },
-        { label: 'Précédent', data: cumPrev, borderColor: 'rgba(26,74,122,.35)', backgroundColor: 'transparent', borderDash: [4,3], tension: .3, pointRadius: 2 }
-      ]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `${ctx.dataset.label} : ${fmtHM(ctx.parsed.y)}` } } },
-      scales: {
-        x: { grid: { display: false }, ticks: { font: { size: 9 }, maxTicksLimit: 8 } },
-        y: { grid: { color: 'rgba(0,0,0,.05)' }, ticks: { font: { size: 10 }, callback: v => fmtHM(v) } }
-      }
-    }
-  });
-}
-document.querySelectorAll('[data-cumtime-range]').forEach(b => {
-  b.onclick = () => {
-    document.querySelectorAll('[data-cumtime-range]').forEach(x => x.classList.remove('active'));
-    b.classList.add('active');
-    cumTimeRange = b.dataset.cumtimeRange;
-    renderCumTimeChart();
-  };
-});
 
 document.querySelectorAll('[data-wl-range]').forEach(b=>{
   b.onclick=()=>{document.querySelectorAll('[data-wl-range]').forEach(x=>x.classList.remove('active'));b.classList.add('active');wlRange=b.dataset.wlRange;renderWorkload();};
@@ -15271,6 +15219,7 @@ function perfWeeksForRange(range) {
 function rangeToDate(range){
   const d=new Date();
   if(range==='week'){d.setDate(d.getDate()-7);return d;}
+  if(range==='2w'){d.setDate(d.getDate()-14);return d;}
   if(range==='month'){d.setMonth(d.getMonth()-1);return d;}
   if(range==='3m'){d.setMonth(d.getMonth()-3);return d;}
   if(range==='6m'){d.setMonth(d.getMonth()-6);return d;}
