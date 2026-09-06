@@ -5174,10 +5174,16 @@ function setAppMode(mode) {
   document.querySelectorAll('.mode-mine').forEach(el => el.classList.toggle('appmode-hidden', appMode !== 'mine'));
   document.querySelectorAll('.mode-coach').forEach(el => el.classList.toggle('appmode-hidden', appMode !== 'coach'));
   document.querySelectorAll('.app-mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === appMode));
-  if (appMode === 'mine') {
+  if (appMode === 'mine' && !previewMode) {
     // "Mes données" doit toujours refléter TON propre profil, jamais rester bloqué sur un
     // athlète consulté depuis l'espace Coaching (voir openCoachingView/exitCoachingView) —
     // c'est la garantie centrale qui évite l'ambiguïté "je devient l'athlète que je coache".
+    // Exception : en mode "Aperçu athlète" (previewMode, cf. togglePreviewMode), on reste
+    // volontairement sur l'athlète sélectionné — sinon "Mes données" retombait silencieusement
+    // sur SON PROPRE calendrier dès qu'on passait en mode 'mine', et une séance planifiée par le
+    // coach pour cet athlète semblait "n'apparaître que côté Planification" alors qu'elle existait
+    // bien : on regardait juste le mauvais grimpeur (retour : "vision des séances planifiées...
+    // pas seulement dans le calendrier de planification").
     const myId = window.currentUser?.climberId;
     const banner = document.getElementById('coaching-view-banner');
     if (banner) banner.style.display = 'none';
