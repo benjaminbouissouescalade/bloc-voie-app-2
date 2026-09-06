@@ -1751,25 +1751,17 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     <button class="time-filter-btn" data-wl-range="all">Tout</button>
   </div>
 
-  <div class="two-col">
-    <div class="panel">
-      <div class="panel-header">
-        <span class="panel-title">Volume d'entraînement hebdo</span>
-        <div style="display:flex;align-items:center;gap:8px">
-          <span class="panel-sub" id="wl-vol-sub">16 dernières semaines</span>
-          <button class="time-filter-btn active" id="wl-vol-charge-btn" style="padding:3px 10px;font-size:11px" onclick="toggleWlChargeOverlay()">✓ Charge</button>
-          <button class="time-filter-btn" id="wl-vol-overlay-btn" style="padding:3px 10px;font-size:11px" onclick="toggleWlIntensityOverlay()">+ Intensité</button>
-          <button class="time-filter-btn" id="wl-vol-time-btn" style="padding:3px 10px;font-size:11px" onclick="toggleWlTimeOverlay()">+ Temps</button>
-        </div>
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">Volume d'entraînement hebdo</span>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="panel-sub" id="wl-vol-sub">16 dernières semaines</span>
+        <button class="time-filter-btn active" id="wl-vol-charge-btn" style="padding:3px 10px;font-size:11px" onclick="toggleWlChargeOverlay()">✓ Charge</button>
+        <button class="time-filter-btn" id="wl-vol-overlay-btn" style="padding:3px 10px;font-size:11px" onclick="toggleWlIntensityOverlay()">+ Intensité</button>
+        <button class="time-filter-btn" id="wl-vol-time-btn" style="padding:3px 10px;font-size:11px" onclick="toggleWlTimeOverlay()">+ Temps</button>
       </div>
-      <div class="chart-wrap" style="height:200px"><canvas id="volChart" aria-label="Volume hebdomadaire">Volume hebdomadaire</canvas></div>
     </div>
-    <div class="panel">
-      <div class="panel-header">
-        <span class="panel-title">Intensité moyenne / semaine</span>
-      </div>
-      <div class="chart-wrap" style="height:200px"><canvas id="intensChart2" aria-label="Intensité hebdomadaire">Intensité</canvas></div>
-    </div>
+    <div class="chart-wrap" style="height:200px"><canvas id="volChart" aria-label="Volume hebdomadaire">Volume hebdomadaire</canvas></div>
   </div>
 
   <div class="panel">
@@ -7743,19 +7735,6 @@ function renderWorkload() {
         y2:{display:wlShowTimeOverlay,position:'right',grid:{display:false},ticks:{font:{size:10},callback:v=>fmtHM(v)}}
       }
     }
-  });
-
-  makeChart('intensChart2',{
-    type:'line',
-    data:{
-      labels:wData.map(w=>w.label),
-      datasets:[{
-        data:wData.map(w=>w.avgInt||null),
-        borderColor:'#c4501a',backgroundColor:'rgba(196,80,26,.07)',tension:.4,fill:true,
-        pointRadius:3,pointBackgroundColor:'#c4501a',spanGaps:true
-      }]
-    },
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{font:{size:9},maxTicksLimit:8}},y:{min:0,max:5,ticks:{stepSize:1,font:{size:10}},grid:{color:'rgba(0,0,0,.05)'}}}}
   });
 
   // Cumulative comparison
