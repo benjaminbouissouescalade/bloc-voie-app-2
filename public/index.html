@@ -5558,6 +5558,21 @@ function climberLoadRange(c, daysBack) {
     .reduce((s,l)=>s+sessionLoadFor(l, refRoute, refBloc),0));
 }
 
+// Répartition séances autonomes (source==='self', athlète décide seul) vs prescrites par le coach
+// (source==='coach') sur les daysBack derniers jours — retour : "rajouter une petite info séance
+// autonome faite par l'athlète / séance validée programmée par le coach pour suivre rapidement"
+// depuis "Mes athlètes", sans devoir ouvrir chaque fiche. Ne compte que les séances FAITES (une
+// planifiée pas encore réalisée ne dit encore rien sur l'autonomie de l'athlète).
+function climberSourceBreakdown(c, daysBack) {
+  const logs = c?.logs || [];
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate()-daysBack);
+  const now = new Date();
+  const done = logs.filter(l => !l.planned && new Date(l.date)>=cutoff && new Date(l.date)<=now);
+  const coach = done.filter(l => l.source === 'coach').length;
+  const self = done.length - coach;
+  return { self, coach, total: done.length };
+}
+
 // Charge hebdomadaire (nWeeks dernières semaines) pour un grimpeur donné, pas forcément l'actif —
 // utilisée à la fois pour la charge de référence (climberBaseline) et pour un mini-graphe visuel
 // (aperçu "Mes athlètes").
@@ -14368,10 +14383,19 @@ async function renderCoachAthletesPage() {
     // simple badge de niveau de charge.
     const l7 = climberLoadRange(c, 7), l28 = climberLoadRange(c, 28);
     const weeklyLoads = climberWeeklyLoads(c, 8);
+    // Retour : "rajouter une petite info séance autonome faite par l'athlète / séance validée
+    // programmée par le coach pour suivre rapidement" — sur les mêmes 28 jours que la charge
+    // ci-dessus, pour rester cohérent avec la période déjà affichée sur la carte.
+    const src28 = climberSourceBreakdown(c, 28);
+    const sourceBreakdown = src28.total ? `
+      <div style="font-size:11px;color:var(--muted);text-align:center;margin-top:2px" title="Séances faites sur les 28 derniers jours, par origine">
+        🧍 ${src28.self} autonome${src28.self!==1?'s':''} · 🧑‍🏫 ${src28.coach} prescrite${src28.coach!==1?'s':''}
+      </div>` : '';
     const loadPreview = stats.sessionCount ? `
       <div style="margin:4px 0 10px">
         ${miniBarsSvg(weeklyLoads, c.color || '#1f5a45')}
         <div style="font-size:11px;color:var(--muted);text-align:center;margin-top:4px">Charge : 7j ${l7} · 28j ${l28}</div>
+        ${sourceBreakdown}
       </div>` : '';
     return `<div class="climber-card">
       <div class="cc-avatar" style="${avatarPhotoStyle(photo, c.color)}">${photo?'':initials}</div>
