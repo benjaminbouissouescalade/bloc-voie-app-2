@@ -31,8 +31,12 @@ router.get('/recent', async (req, res) => {
     // intérêt particulier — cf. retour "certaines séances avec commentaire n'apparaissent pas".
     // Dans chaque groupe, la plus récente activité (création ou dernier commentaire) d'abord.
     const orderClause = `ORDER BY l.injury DESC, (jsonb_array_length(COALESCE(l.comments,'[]'::jsonb)) > 0) DESC, GREATEST(l.created_at, l.updated_at) DESC LIMIT $1`;
+    // Retour : "peut-on rajouter un peu plus de données sur la ligne, comme le logo de séance et
+    // l'émoticône d'état" — l.shape (forme physique déclarée par l'athlète : low/normal/good)
+    // n'était pas remonté par ce fil, seulement par la fiche détaillée. On l'ajoute ici pour que
+    // le frontend puisse afficher une petite icône d'état sans requête supplémentaire.
     if (isOwnerRole(req.user.role)) {
-      query = `SELECT l.id, l.climber_id, l.date, l.type, l.support, l.minutes, l.intensity, l.notes,
+      query = `SELECT l.id, l.climber_id, l.date, l.type, l.support, l.minutes, l.intensity, l.shape, l.notes,
                       l.comments, l.injury, l.injury_note, l.created_at, l.updated_at, c.name AS climber_name, c.color AS climber_color
                FROM logs l JOIN climbers c ON c.id = l.climber_id
                WHERE l.planned = false
@@ -40,7 +44,7 @@ router.get('/recent', async (req, res) => {
                ${orderClause}`;
       params = [limit, ownClimberId];
     } else {
-      query = `SELECT l.id, l.climber_id, l.date, l.type, l.support, l.minutes, l.intensity, l.notes,
+      query = `SELECT l.id, l.climber_id, l.date, l.type, l.support, l.minutes, l.intensity, l.shape, l.notes,
                       l.comments, l.injury, l.injury_note, l.created_at, l.updated_at, c.name AS climber_name, c.color AS climber_color
                FROM logs l JOIN climbers c ON c.id = l.climber_id
                WHERE l.planned = false
@@ -62,6 +66,7 @@ router.get('/recent', async (req, res) => {
         support: r.support,
         minutes: r.minutes,
         intensity: r.intensity,
+        shape: r.shape || 'normal',
         notes: r.notes,
         comments,
         commentsCount: comments.length,
