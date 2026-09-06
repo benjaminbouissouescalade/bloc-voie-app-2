@@ -1179,6 +1179,15 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <div class="panel-header">
         <span class="panel-title">Charge hebdomadaire</span>
       </div>
+      <!-- Retour : "c'est quoi les règles de couleur ?" — légende visible plutôt que de laisser
+           deviner (couleur = niveau de charge de la semaine par rapport à ta moyenne habituelle,
+           cf. cLevel/C_LEVEL_COLORS dans renderDashboard()). -->
+      <div style="display:flex;gap:10px;flex-wrap:wrap;font-size:10.5px;color:var(--muted);margin-bottom:6px">
+        <span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:rgba(45,90,61,.85);margin-right:3px"></span>C1 léger</span>
+        <span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:rgba(176,122,16,.8);margin-right:3px"></span>C2 dans la norme</span>
+        <span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:rgba(196,80,26,.85);margin-right:3px"></span>C3 élevé</span>
+        <span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:rgba(90,45,130,.9);margin-right:3px"></span>C4 à surveiller</span>
+      </div>
       <div class="chart-wrap" style="height:170px"><canvas id="weeklyChart" aria-label="Charge hebdomadaire sur 12 semaines">Données charge hebdomadaire</canvas></div>
     </div>
     <div class="panel">
@@ -6259,20 +6268,27 @@ function renderDashboard() {
   // Weekly chart
   const wData=weeklyData(12);
   const maxLoad=Math.max(...wData.map(w=>w.load),1);
+  // Retour utilisateur : "c'est quoi les règles de couleur ?" / "peux-tu proposer une palette plus
+  // logique ?" — l'ancienne palette (vert clair C1, vert foncé C2, GRIS C3, orange C4) cassait la
+  // progression visuelle en plein milieu (le gris ne se lit pas comme "plus intense que le vert")
+  // et surtout ne correspondait PAS à la palette C1-C4 déjà utilisée partout ailleurs dans l'appli
+  // (page Charge, cartes "Mes athlètes"...) — même niveau de charge, deux couleurs différentes
+  // selon la page. On reprend ici cette palette standard, une vraie progression verte → dorée →
+  // orange → violette (léger → dans la norme → élevé → à surveiller).
+  const C_LEVEL_COLORS = { c1:'rgba(45,90,61,.85)', c2:'rgba(176,122,16,.8)', c3:'rgba(196,80,26,.85)', c4:'rgba(90,45,130,.9)' };
   makeChart('weeklyChart',{
     type:'bar',
     data:{
       labels:wData.map(w=>w.label),
       datasets:[{
         data:wData.map(w=>w.load),
-        backgroundColor:wData.map(w=>{
-          const c=cLevel(w.load);
-          return c.cls==='c1'?'rgba(31,90,69,.5)':c.cls==='c2'?'rgba(31,90,69,.9)':c.cls==='c3'?'rgba(107,102,92,.85)':'rgba(233,75,27,.9)';
-        }),
+        backgroundColor:wData.map(w=>C_LEVEL_COLORS[cLevel(w.load).cls]),
         borderRadius:6,borderSkipped:false
       }]
     },
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{font:{size:10}}},y:{grid:{color:'rgba(0,0,0,.05)'},ticks:{font:{size:10}}}}}
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},
+      tooltip:{callbacks:{label:(ctx)=>{const lv=cLevel(wData[ctx.dataIndex].load);return `${ctx.parsed.y} (${lv.label})`;}}}
+    },scales:{x:{grid:{display:false},ticks:{font:{size:10}}},y:{grid:{color:'rgba(0,0,0,.05)'},ticks:{font:{size:10}}}}}
   });
 
   // Intensity chart
