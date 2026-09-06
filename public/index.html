@@ -2202,20 +2202,18 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
         </div>
         <div class="form-group" style="border-top:1px solid var(--border);padding-top:14px">
           <label class="form-label">Ajouter une séance au cycle</label>
-          <!-- Deux axes indépendants et combinables (retour : "il faut la possibilité de choisir
-               une séance dans le thème, mais il faut aussi que l'athlète puisse choisir la date...
-               parfois seulement 1, parfois les 2") :
-               - QUOI : une fiche précise, ou un thème (l'athlète choisit la séance qui correspond)
-               - QUAND : un jour fixe imposé, ou une période libre (l'athlète choisit le jour) -->
+          <!-- Le mode Simple ne propose plus qu'un seul axe : QUOI (fiche précise ou thème) — la
+               date est toujours libre, choisie par l'athlète sur la période (retour : "pour moi le
+               nombre sur la période permet à l'athlète de choisir les jours", le sous-choix
+               jour fixe/libre faisait doublon avec le mode Détaillé qui sert justement à imposer
+               des jours précis). Les cycles existants créés avant ce changement avec des occurrences
+               à date fixe restent affichés tels quels en édition (cf. reconstruction de cycleItems
+               plus bas et dateTag dans renderCycleItemsList), seule la création de NOUVELLES
+               occurrences à date fixe en mode Simple n'est plus proposée. -->
           <p style="font-size:11px;color:var(--muted);margin-bottom:4px">Quelle séance ?</p>
           <div style="display:flex;gap:6px;margin-bottom:10px" id="cycle-item-mode-picker">
             <button type="button" class="btn sm active" data-itemmode="fixed" onclick="setCycleItemMode('fixed')">Séance précise</button>
             <button type="button" class="btn sm" data-itemmode="flex" onclick="setCycleItemMode('flex')">🎯 Thème (l'athlète choisit la séance)</button>
-          </div>
-          <p style="font-size:11px;color:var(--muted);margin-bottom:4px">Quel jour ?</p>
-          <div style="display:flex;gap:6px;margin-bottom:10px" id="cycle-date-mode-picker">
-            <button type="button" class="btn sm active" data-datemode="fixed" onclick="setCycleDateMode('fixed')">📌 Jour fixe</button>
-            <button type="button" class="btn sm" data-datemode="free" onclick="setCycleDateMode('free')">🗓️ Jour libre (l'athlète choisit quand)</button>
           </div>
           <div style="display:flex;gap:8px">
             <select class="form-control" id="cycle-bank-select" style="flex:1"></select>
@@ -6868,30 +6866,22 @@ window.planPickerCustomSession = planPickerCustomSession;
 // possibilité de choisir une séance dans le thème, mais il faut aussi que l'athlète puisse choisir
 // la date... parfois seulement 1, parfois les 2") —
 //   QUOI  : bankId (fiche précise imposée) ou flexGoal (thème — l'athlète choisit la séance)
-//   QUAND : dateFree=false (jour fixe imposé, placé automatiquement) ou true (période libre — l'athlète choisit le jour)
-// Les 4 combinaisons sont gérées par generateCycle() : {bankId, freq}=précis+fixe (comportement
-// historique), {flexGoal, freq}=thème+fixe (occurrence datée non résolue, cf. openFlexChoiceModal),
-// {bankId, freq, dateFree:true}=précis+libre, {flexGoal, freq, dateFree:true}=thème+libre
-// (comportement historique "objectif libre").
+//   QUAND : toujours une période libre en mode Simple (l'athlète choisit le jour) — pour imposer
+//           des jours précis, le mode Détaillé existe (retour : le sous-choix jour fixe/libre qui
+//           existait ici faisait doublon avec lui). generateCycle() gère encore dateFree:false en
+//           interne pour ne pas casser l'édition des cycles créés avant ce changement.
 let cycleItems = [];
 let cycleDetailedItems = []; // mode détaillé : [{bankId, days:[0..6]}]
 let cycleMode = 'simple';
 let cycleItemMode = 'fixed'; // 'fixed' (séance précise) | 'flex' (thème) — item en cours d'ajout
-let cycleDateMode = 'fixed'; // 'fixed' (jour imposé) | 'free' (période libre) — item en cours d'ajout
 const CYCLE_DAY_LABELS = [['1','Lun'],['2','Mar'],['3','Mer'],['4','Jeu'],['5','Ven'],['6','Sam'],['0','Dim']];
 
 function updateCycleItemHint() {
   const hint = document.getElementById('cycle-flex-hint');
   if (!hint) return;
-  if (cycleItemMode === 'flex' && cycleDateMode === 'free') {
-    hint.textContent = "L'athlète verra un objectif de période (pas de jour imposé) et choisira lui-même quand le faire ET quelle séance de la banque correspond, pour s'adapter à son emploi du temps et au matériel disponible.";
-  } else if (cycleItemMode === 'flex' && cycleDateMode === 'fixed') {
-    hint.textContent = "L'athlète verra un créneau \"objectif\" à une date précise sur son calendrier et choisira lui-même la séance de la banque avec ce thème ce jour-là.";
-  } else if (cycleItemMode === 'fixed' && cycleDateMode === 'free') {
-    hint.textContent = "L'athlète verra un objectif de période (pas de jour imposé) pour cette séance précise et choisira lui-même quand la faire.";
-  } else {
-    hint.textContent = '';
-  }
+  hint.textContent = cycleItemMode === 'flex'
+    ? "L'athlète verra un objectif de période (pas de jour imposé) et choisira lui-même quand le faire ET quelle séance de la banque correspond, pour s'adapter à son emploi du temps et au matériel disponible."
+    : "L'athlète verra un objectif de période (pas de jour imposé) pour cette séance précise et choisira lui-même quand la faire.";
 }
 function setCycleItemMode(mode) {
   cycleItemMode = mode;
@@ -6903,12 +6893,6 @@ function setCycleItemMode(mode) {
   updateCycleItemHint();
 }
 window.setCycleItemMode = setCycleItemMode;
-function setCycleDateMode(mode) {
-  cycleDateMode = mode;
-  document.querySelectorAll('#cycle-date-mode-picker button').forEach(b => b.classList.toggle('active', b.dataset.datemode === mode));
-  updateCycleItemHint();
-}
-window.setCycleDateMode = setCycleDateMode;
 
 function setCycleMode(mode) {
   cycleMode = mode;
@@ -6986,7 +6970,6 @@ function openCycleModal(editCycleId, returnToDate) {
     document.getElementById('cycle-rest-hours').value = 24;
     setCycleMode('simple');
     setCycleItemMode('fixed');
-    setCycleDateMode('fixed');
 
     // Reconstruit cycleItems depuis l'état ACTUEL du cycle, sur les 4 combinaisons possibles
     // (fréquence = total de séances déjà faites + encore planifiées / objectif cible actuel) —
@@ -7042,7 +7025,6 @@ function openCycleModal(editCycleId, returnToDate) {
     renderCycleDetailedItemsList();
     setCycleMode('simple');
     setCycleItemMode('fixed');
-    setCycleDateMode('fixed');
 
     const daysEl = document.getElementById('cycle-avail-days');
     daysEl.innerHTML = CYCLE_DAY_LABELS.map(([v,label]) =>
@@ -7064,7 +7046,8 @@ window.openCycleModal = openCycleModal;
 
 function addCycleItem() {
   const freq = +document.getElementById('cycle-freq').value || 1;
-  const dateFree = cycleDateMode === 'free';
+  // Toujours "jour libre" en mode Simple désormais — cf. commentaire plus haut sur cycleItems.
+  const dateFree = true;
   if (cycleItemMode === 'flex') {
     const goal = document.getElementById('cycle-flex-goal-select').value;
     if (!goal) return;
