@@ -5496,6 +5496,66 @@ function computeBadgeState(climber) {
   return result;
 }
 
+// Variante paramétrable de sessionLoad(), utilisable pour un grimpeur qui n'est PAS le grimpeur
+// actif (ex: aperçu charge de chaque athlète sur "Mes athlètes") — sessionLoad()/getRefGrade()
+// sans argument s'appuient sur getActive()/getLogs() (le grimpeur actuellement affiché), donc
+// inutilisables tels quels pour calculer la charge d'un autre grimpeur sans changer de contexte.
+function sessionLoadFor(log, refRoute, refBloc) {
+  if (isBlocGradedType(log.type)) {
+    const al = (log.ascents||[]).reduce((s,a)=>s+ascentLoad(a,refBloc,GRADE_IDX_BLOC),0);
+    const bl = boulderLoad(log.bNoGrade||{}, refBloc);
+    return Math.round(al * blocGradedLoadFactor(log.type) + bl);
+  }
+  const al = (log.ascents||[]).reduce((s,a)=>s+ascentLoad(a,refRoute),0);
+  const bl = boulderLoad(log.bNoGrade||{}, refRoute);
+  const cfg = SESSION_CONFIG[log.type] || SESSION_CONFIG.autre;
+  const srpe = (cfg.extraPanel === 'ppg' || cfg.extraPanel === 'footing')
+    ? (log.minutes||0) * (log.intensity||3) * SESSION_RPE_MULT * sessionLoadFactor(log.type)
+    : 0;
+  return Math.round(al+bl+srpe);
+}
+
+// Charge sur les daysBack derniers jours pour un grimpeur donné (pas forcément l'actif) —
+// même logique d'exclusion des séances planifiées/futures que getLoadRange().
+function climberLoadRange(c, daysBack) {
+  const logs = c?.logs || [];
+  const refRoute = getRefGrade(logs);
+  const refBloc = getRefGradeBloc(logs) || c?.profile?.levelBloc || '6a';
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate()-daysBack);
+  const now = new Date();
+  return Math.round(logs.filter(l=>!l.planned && new Date(l.date)>=cutoff && new Date(l.date)<=now)
+    .reduce((s,l)=>s+sessionLoadFor(l, refRoute, refBloc),0));
+}
+
+// Charge hebdo "normale" pour un grimpeur donné — équivalent de getPersonalBaseline() mais sans
+// dépendre du grimpeur actif.
+function climberBaseline(c) {
+  const logs = c?.logs || [];
+  const refRoute = getRefGrade(logs);
+  const refBloc = getRefGradeBloc(logs) || c?.profile?.levelBloc || '6a';
+  const now = new Date(); now.setHours(0,0,0,0);
+  const nWeeks = 12;
+  const weeks = [];
+  for (let i=nWeeks-1;i>=0;i--) {
+    const start=new Date(now); start.setDate(start.getDate()-((now.getDay()||7)-1)-i*7);
+    const end=new Date(start); end.setDate(end.getDate()+7);
+    weeks.push({start,end,load:0});
+  }
+  const rangeStart = weeks[0].start, rangeEnd = weeks[weeks.length-1].end;
+  const msPerWeek = 7*24*3600*1000;
+  logs.forEach(l=>{
+    if (l.planned) return;
+    const d=new Date(l.date);
+    if (d<rangeStart || d>=rangeEnd) return;
+    const w = weeks[Math.floor((d-rangeStart)/msPerWeek)];
+    if (!w) return;
+    w.load += sessionLoadFor(l, refRoute, refBloc);
+  });
+  const vals = weeks.map(w=>Math.round(w.load)).filter(v=>v>0);
+  if (vals.length < 3) return 0;
+  return vals.reduce((a,b)=>a+b,0)/vals.length;
+}
+
 function getLoadRange(daysBack) {
   const cutoff = new Date(); cutoff.setDate(cutoff.getDate()-daysBack);
   // Résultat "actuel" (charge 7j/28j, ACWR, contexte IA...) : on exclut les séances planifiées
@@ -14111,10 +14171,21 @@ async function renderCoachAthletesPage() {
           <option value="coach_only" ${mode==='coach_only'?'selected':''}>Coach uniquement</option>
         </select>
       </div>` : '';
+    // Aperçu rapide de la charge sans devoir ouvrir la fiche de chaque athlète — répond au besoin
+    // "vision rapide d'une partie du tableau de bord" directement depuis "Mes athlètes".
+    const l7 = climberLoadRange(c, 7), l28 = climberLoadRange(c, 28);
+    const baseline = climberBaseline(c);
+    const lvl = cLevel(l7, baseline);
+    const loadPreview = stats.sessionCount ? `
+      <div style="display:flex;align-items:center;justify-content:center;gap:6px;margin:2px 0 8px;flex-wrap:wrap">
+        <span class="clevel ${lvl.cls}" style="padding:2px 8px;font-size:10px">${lvl.label}</span>
+        <span style="font-size:11px;color:var(--muted)">charge 7j ${l7} · 28j ${l28}</span>
+      </div>` : '';
     return `<div class="climber-card">
       <div class="cc-avatar" style="${avatarPhotoStyle(photo, c.color)}">${photo?'':initials}</div>
       <div class="cc-name">${esc(c.name)}</div>
       <div class="cc-stats">${stats.sessionCount} séance${stats.sessionCount!==1?'s':''}${c.level?` · niveau déclaré ${esc(c.level)}`:''}</div>
+      ${loadPreview}
       <div class="cc-actions" style="margin-top:8px;flex-wrap:wrap;justify-content:center">
         <button class="btn sm primary" onclick="openCoachingView('${c.id}')">🧑‍🏫 Voir son entraînement</button>
       </div>
