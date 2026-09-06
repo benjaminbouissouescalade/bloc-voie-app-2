@@ -214,8 +214,15 @@ button, input, select, textarea { font-family: inherit; }
 .nav-group { margin-bottom: 8px; }
 .nav-label { font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding: 0 20px 6px; }
 .nav-btn { display: flex; align-items: center; gap: 10px; width: calc(100% - 16px); margin: 0 8px; padding: 10px 12px; background: none; border: none; cursor: pointer; color: var(--muted); font-size: 14px; font-weight: 400; border-radius: var(--r-xs); transition: all .15s; text-align: left; }
+/* Retour : "Badges présente un contour bleu très fort" — sans règle :focus dédiée, un clic sur le
+   bouton lui laisse le contour de focus PAR DÉFAUT DU NAVIGATEUR (bleu), qui reste visible tant
+   qu'on ne clique pas ailleurs — indépendamment de la vraie page active. On retire ce contour
+   générique et on le remplace par un liseré vert Digger, cohérent avec .nav-btn.active ci-dessous. */
+.nav-btn:focus { outline: none; }
+.nav-btn:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--accent); }
 .nav-btn:hover { background: var(--surface2); color: var(--text); }
 .nav-btn.active { background: var(--accent2); color: var(--accent); font-weight: 500; }
+.nav-btn.active:focus-visible { box-shadow: none; }
 .nav-btn .icon { width: 20px; height: 20px; opacity: .7; flex-shrink: 0; }
 .nav-btn.active .icon { opacity: 1; }
 .sidebar-footer { margin-top: auto; padding: 16px 20px; border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); }
@@ -732,54 +739,70 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 .app-mode-btn { flex: 1; border: none; background: none; cursor: pointer; padding: 7px 4px; font-size: 12px; font-weight: 600; color: var(--muted); border-radius: 99px; transition: all .15s; }
 .app-mode-btn:hover { color: var(--text); }
 .app-mode-btn.active { background: var(--surface); color: var(--accent); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
-/* Catégories de badges — en-tête éditorial numéroté, allégé */
-.badge-cat-block { margin-bottom: 30px; }
-.badge-cat-header { display: flex; align-items: baseline; gap: 8px; margin-bottom: 15px; }
+/* Catégories de badges — retour utilisateur : "la page manque de hiérarchie et de cohérence
+   visuelle" — refonte complète (2 colonnes, états vert/contour/grisé uniformes, barres de
+   progression réelles, une seule structure de badge avec finition dorée pour les paliers hauts). */
+.badges-overall-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; margin-bottom: 18px; }
+.badges-overall-label { font-size: 14px; margin-bottom: 8px; }
+.badges-overall-label b { font-family: var(--serif); font-size: 18px; font-weight: 600; color: var(--dg-green); }
+.badge-cat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+@media (max-width: 860px) { .badge-cat-grid { grid-template-columns: 1fr; } }
+.badge-cat-block { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px 18px; }
+.badge-cat-header { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
 .badge-cat-num { font-family: var(--font); font-size: 11px; font-weight: 600; color: var(--dg-mineral); letter-spacing: .04em; }
-.badge-cat-title { font-family: var(--serif); font-size: 14px; font-weight: 400; text-transform: uppercase; letter-spacing: .03em; color: var(--text); }
-.badge-cat-line { flex: 1; height: 1px; background: var(--border); }
-.badge-grid { display: flex; flex-wrap: wrap; align-items: center; gap: 22px 20px; }
+.badge-cat-title { font-family: var(--serif); font-size: 14px; font-weight: 400; text-transform: uppercase; letter-spacing: .03em; color: var(--text); flex: 1; }
+.badge-cat-count { font-size: 11.5px; font-weight: 700; color: var(--dg-green); background: var(--accent2); border-radius: 99px; padding: 2px 9px; flex-shrink: 0; }
+.badge-cat-note { font-size: 11.5px; color: var(--muted); font-style: italic; margin-bottom: 12px; line-height: 1.4; }
+.badge-cat-note b { color: var(--text); font-weight: 600; font-style: normal; }
+.badge-grid { display: flex; flex-wrap: wrap; align-items: center; gap: 18px 16px; margin: 14px 0; }
 .badge-cat-empty { font-size: 13px; color: var(--muted); font-style: italic; }
-.badge-cat-progress { margin-top: 12px; font-size: 12.5px; color: var(--muted); }
-.badge-cat-progress b { color: var(--text); font-weight: 600; }
+.badge-cat-next { margin-top: 4px; padding-top: 12px; border-top: 1px solid var(--border); }
+.badge-cat-next-detail { font-size: 12.5px; color: var(--muted); margin-bottom: 6px; }
+.badge-cat-next-detail b { color: var(--text); font-weight: 600; }
+.badge-cat-complete { font-size: 12.5px; color: var(--dg-green); font-weight: 600; text-align: center; }
 
-/* Chaque badge = objet indépendant, pas de carte, pas de lignes de liaison */
-.badge-item { text-align: center; }
-
-/* Niveau 1-2 (standard / achievement) : forme simple de la famille, sans décoration technique */
-.badge-shape { position: relative; width: 44px; height: 44px; margin: 0 auto; }
-.tier-achievement .badge-shape { width: 50px; height: 50px; }
+/* Chaque badge = objet indépendant, pas de carte, pas de lignes de liaison. Une SEULE structure
+   (forme SVG de la catégorie) pour tous les paliers — retour : "les badges 8A–8C ressemblent à
+   des cartes complètement différentes" — la distinction se fait uniquement par l'état et la
+   finition ci-dessous, jamais par un changement de structure. */
+.badge-item { text-align: center; width: 50px; }
+.badge-shape { position: relative; width: 46px; height: 46px; margin: 0 auto; }
 .badge-shape-svg { width: 100%; height: 100%; overflow: visible; }
-.badge-shape-svg > * { stroke-width: 1.3; vector-effect: non-scaling-stroke; }
-.locked .badge-shape-svg > * { fill: none; stroke: #d2d2cd; }
-.badge-shape-value { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: var(--serif); font-weight: 400; line-height: 1; color: #c4c4bf; }
+.badge-shape-svg > * { stroke-width: 2; vector-effect: non-scaling-stroke; transition: fill .2s, stroke .2s; }
+.badge-shape-value { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: var(--serif); font-weight: 400; line-height: 1; }
 .badge-shape-value.sz-lg { font-size: 15px; }
 .badge-shape-value.sz-md { font-size: 12px; }
 .badge-shape-value.sz-sm { font-size: 9.5px; letter-spacing: -.02em; }
-.unlocked.tier-standard .badge-shape-svg > * { fill: var(--dg-cream); stroke: var(--dg-green); }
-.unlocked.tier-standard .badge-shape-value { color: var(--dg-green); }
-.unlocked.tier-achievement .badge-shape-svg > * { fill: var(--dg-green); stroke: var(--dg-green); }
-.unlocked.tier-achievement .badge-shape-value { color: var(--dg-cream); }
-.tier-achievement.unlocked .badge-shape::after { content:''; position:absolute; bottom:-2px; left:50%; transform:translateX(-50%); width:4px; height:4px; border-radius:50%; background:var(--dg-mineral); }
+.badge-shape-value.sz-lock { font-size: 15px; }
 
-/* Niveau 3-4 (milestone / hero) : véritable plaque éditoriale, forme moins parfaite */
-.badge-plate { position: relative; width: 58px; height: 58px; margin: 0 auto; padding: 7px 4px 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; background: var(--surface2); border: 1px solid var(--border2); clip-path: polygon(16% 0,100% 0,100% 84%,84% 100%,0 100%,0 16%); }
-.tier-hero .badge-plate { width: 68px; height: 48px; clip-path: none; border-radius: 999px; }
-.badge-plate-serial { font-family: var(--font); font-size: 6.5px; font-weight: 600; letter-spacing: .06em; color: var(--muted); }
-.badge-plate-value { font-family: var(--serif); font-weight: 400; line-height: 1; }
-.badge-plate-value.sz-lg { font-size: 19px; }
-.badge-plate-value.sz-md { font-size: 15px; }
-.badge-plate-value.sz-sm { font-size: 11px; letter-spacing: -.02em; }
-.badge-plate-tag { font-family: var(--font); font-size: 6.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
-.locked .badge-plate { background: var(--surface); border-color: var(--border); box-shadow: none; }
-.locked .badge-plate-serial, .locked .badge-plate-tag { color: #c4c4bf; }
-.locked .badge-plate-value { color: #c4c4bf; }
-.unlocked.tier-milestone .badge-plate { background: var(--dg-anthracite); border-color: var(--dg-terra); box-shadow: 0 2px 6px rgba(32,34,31,.18), inset 0 1px 0 rgba(255,255,255,.06); }
-.unlocked.tier-milestone .badge-plate-serial, .unlocked.tier-milestone .badge-plate-tag { color: var(--dg-terra); }
-.unlocked.tier-milestone .badge-plate-value { color: var(--dg-cream); }
-.unlocked.tier-hero .badge-plate { background: var(--dg-black); border: 1.5px solid var(--dg-sable); box-shadow: 0 3px 10px rgba(32,34,31,.25), inset 0 1px 0 rgba(255,255,255,.08); }
-.unlocked.tier-hero .badge-plate-serial, .unlocked.tier-hero .badge-plate-tag { color: var(--dg-sable); }
-.unlocked.tier-hero .badge-plate-value { color: var(--dg-cream); }
+/* État 1/3 — VERROUILLÉ : grisé + cadenas, sans ambiguïté possible avec un badge "prestigieux". */
+.badge-item.state-locked { opacity: .55; }
+.state-locked .badge-shape-svg > * { fill: var(--surface2); stroke: #c8c8c2; }
+.state-locked .badge-shape-value { color: #b0b0aa; }
+
+/* État 2/3 — PROCHAIN OBJECTIF : contour vert, fond clair, léger halo pour attirer l'œil sans
+   être aussi "fort" qu'un badge débloqué. */
+.badge-item.state-next { animation: badgeNextPulse 2.4s ease-in-out infinite; }
+.state-next .badge-shape-svg > * { fill: var(--dg-cream); stroke: var(--dg-green); }
+.state-next .badge-shape-value { color: var(--dg-green); font-weight: 600; }
+@keyframes badgeNextPulse { 0%,100% { filter: drop-shadow(0 0 0 rgba(31,90,69,0)); } 50% { filter: drop-shadow(0 0 5px rgba(31,90,69,.35)); } }
+
+/* État 3/3 — DÉBLOQUÉ : vert plein, sans ambiguïté. Les paliers importants (milestone/hero)
+   gardent la MÊME forme mais reçoivent en plus un contour doré + un léger éclat animé — retour :
+   "je garderais une forme commune, avec une finition plus prestigieuse : contour doré, éclat". */
+.state-unlocked .badge-shape-svg > * { fill: var(--dg-green); stroke: var(--dg-green); }
+.state-unlocked .badge-shape-value { color: var(--dg-cream); font-weight: 600; }
+.tier-milestone.state-unlocked .badge-shape-svg > *,
+.tier-hero.state-unlocked .badge-shape-svg > * { fill: var(--dg-anthracite); stroke: var(--dg-sable); stroke-width: 2.5; }
+.tier-milestone.state-unlocked .badge-shape-value,
+.tier-hero.state-unlocked .badge-shape-value { color: var(--dg-sable); }
+.tier-milestone.state-unlocked .badge-shape, .tier-hero.state-unlocked .badge-shape { filter: drop-shadow(0 2px 4px rgba(32,34,31,.25)); }
+.tier-milestone.state-unlocked .badge-shape::after, .tier-hero.state-unlocked .badge-shape::after {
+  content: ''; position: absolute; inset: -6px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(196,166,84,.35), transparent 70%);
+  animation: badgeShine 3s ease-in-out infinite; pointer-events: none;
+}
+@keyframes badgeShine { 0%,100% { opacity: .25; } 50% { opacity: .7; } }
 
 /* Repère "Next" — seul le prochain objectif de chaque catégorie l'affiche, intégré au badge */
 .crew-card { border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; background: var(--surface2); margin-bottom: 14px; }
@@ -2845,9 +2868,11 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <h2>Badges</h2>
       <p>Tes réussites d'entraînement — <span id="badges-athlete-name"></span></p>
     </div>
-    <div id="badges-summary" style="font-size:13px;color:var(--muted)"></div>
   </div>
-  <div id="badges-grid"></div>
+  <!-- Retour : "transformer 16/25 en vraie progression" — remplace le texte seul par une barre
+       remplie (voir renderBadges()). -->
+  <div id="badges-summary" class="badges-overall-panel"></div>
+  <div id="badges-grid" class="badge-cat-grid"></div>
 </div>
 
 <!-- ═══════════════ COMMUNAUTÉ ═══════════════ -->
@@ -5497,12 +5522,15 @@ function bestSentGradeIdx(logs) {
   }));
   return best;
 }
+// Retour utilisateur : "Premiers envois" → "Paliers de difficulté" (plus clair : c'est une échelle
+// de niveau, pas juste "la première fois"), "Volume bloc" → "Blocs enchaînés" (même logique : on
+// parle du nombre de blocs sortis, "enchaînés" est plus parlant que "volume").
 const BADGE_CATEGORIES = [
-  { id:'grades',   label:'Premiers envois',      icon:'🧗', type:'grade', shape:'circle', tag:'PREMIER ENVOI',
+  { id:'grades',   label:'Paliers de difficulté', icon:'🧗', type:'grade', shape:'circle', tag:'PREMIER ENVOI',
     tiers:['5a','6a','6b','6c','7a','7b','7c','8a','8b','8c','9a'] },
   { id:'sessions', label:'Régularité',            icon:'📅', type:'count', unitLabel:'séances', shape:'hexagon', tag:'RÉGULARITÉ',
     tiers:[10,50,100,365,500], statFn: logs => (logs||[]).filter(l=>!l.planned).length },
-  { id:'bloc',     label:'Volume bloc',           icon:'🪨', type:'count', unitLabel:'blocs sortis', shape:'rect', tag:'VOLUME',
+  { id:'bloc',     label:'Blocs enchaînés',        icon:'🪨', type:'count', unitLabel:'blocs sortis', shape:'rect', tag:'VOLUME',
     tiers:[100,500,1000], statFn: logs => (logs||[]).reduce((s,l)=>s+bngSentTotal(l.bNoGrade),0) },
   { id:'doigts',   label:'Travail des doigts',    icon:'🤏', type:'count', unitLabel:'séances doigts', shape:'shield', tag:'FORCE',
     tiers:[10,25,50], statFn: logs => (logs||[]).filter(l=>!l.planned && l.type==='doigts').length },
@@ -5516,6 +5544,12 @@ const BADGE_SHAPE_SVG = {
   rect:     '<rect x="6" y="6" width="52" height="52" rx="3"/>',
   diamond:  '<polygon points="32,3 61,32 32,61 3,32"/>'
 };
+// Retour utilisateur : "on doit comprendre immédiatement vert plein = débloqué, contour =
+// prochain objectif, grisé/cadenas = verrouillé" — chaque badge porte maintenant un `state`
+// explicite ('unlocked' | 'next' | 'locked') en plus du booléen `unlocked` déjà utilisé ailleurs
+// (notif "nouveau badge"), pour piloter l'affichage sans ambiguïté. On calcule aussi `current` /
+// `target` bruts (pas seulement le %) pour pouvoir afficher "365 / 500 séances — 73%" plutôt que
+// juste "Prochain palier : 500 séances" (retour : "beaucoup plus motivant").
 function computeBadgeState(climber) {
   const logs = climber?.logs || [];
   const bestIdx = bestSentGradeIdx(logs);
@@ -5535,11 +5569,13 @@ function computeBadgeState(climber) {
       serial++;
       result.push({
         catId: cat.id, catLabel: cat.label, icon: cat.icon, shape: cat.shape, tag: cat.tag,
+        catType: cat.type, unitLabel: cat.unitLabel,
         tierIdx, isMaxTier, stage, serialDisp: 'DGR·'+String(serial).padStart(3,'0'),
         label: cat.type==='grade' ? `Premier ${tier}` : `${tier} ${cat.unitLabel}`,
         unlocked, isNextObjective,
+        state: unlocked ? 'unlocked' : (isNextObjective ? 'next' : 'locked'),
         headline: String(tier).toUpperCase(),
-        target,
+        current, target,
         progressPct: cat.type==='grade'
           ? (unlocked?100:Math.max(0,Math.min(99,Math.round(((bestIdx+1)/(target+1))*100))))
           : Math.max(0,Math.min(100,Math.round((current/target)*100)))
@@ -9856,59 +9892,99 @@ function crewShowSuccess(html) {
   if (okEl) { okEl.innerHTML = html; okEl.style.display = ''; }
 }
 
+// Retour utilisateur détaillé sur cette page (résumé) : (1) les 3 états d'un badge doivent être
+// immédiatement reconnaissables — vert plein = débloqué, contour = prochain objectif, grisé +
+// cadenas = verrouillé (avant : seuls les débloqués étaient affichés, le reste était invisible) ;
+// (2) une vraie barre de progression globale (avant : juste le texte "16 / 25") ; (3) la
+// progression vers le prochain palier avec des chiffres concrets ("365 / 500 séances — 73 %"),
+// pas juste un libellé ; (4) une forme commune à tous les paliers d'une catégorie, la "finition"
+// (contour doré + éclat) étant réservée aux paliers importants déjà débloqués plutôt qu'une
+// structure de carte complètement différente ; (5) une grille en 2 colonnes de cartes catégorie
+// pour combler les grands espaces vides.
 function renderBadges() {
   const c = getActive();
   const nameEl = document.getElementById('badges-athlete-name');
   if (nameEl) nameEl.textContent = c ? c.name : '';
   const badges = computeBadgeState(c);
   const unlockedCount = badges.filter(b=>b.unlocked).length;
+  const totalCount = badges.length;
+  const overallPct = totalCount ? Math.round((unlockedCount/totalCount)*100) : 0;
+
   const summaryEl = document.getElementById('badges-summary');
-  if (summaryEl) summaryEl.textContent = `${unlockedCount} / ${badges.length} badges débloqués`;
+  if (summaryEl) {
+    summaryEl.innerHTML = `
+      <div class="badges-overall-label"><b>${unlockedCount}</b> badges débloqués sur ${totalCount}</div>
+      <div class="prog-bar-bg" style="height:10px"><div class="prog-bar-fill" style="width:${overallPct}%;background:var(--dg-green)"></div></div>`;
+  }
 
   const grouped = {};
   badges.forEach(b => { (grouped[b.catId] = grouped[b.catId]||[]).push(b); });
+
+  // Retour : "le profil indique niveau actuel 7c, alors que les badges 8A/8B/8C paraissent
+  // débloqués" — les badges "Paliers de difficulté" se basent sur le MEILLEUR envoi jamais réalisé
+  // (bestSentGradeIdx, tout l'historique), alors que le "niveau actuel" ailleurs dans l'appli
+  // (getRefGrade) ne regarde que les 90 derniers jours. Les deux chiffres peuvent légitimement
+  // diverger (blessure, pause, saison plus facile...) — on l'explicite ici plutôt que de laisser
+  // croire à une incohérence de données.
+  const bestIdx = bestSentGradeIdx(c?.logs || []);
+  const bestGradeLabel = bestIdx >= 0 ? GRADES[bestIdx] : null;
+  const currentRefGrade = getRefGrade(c?.logs || []);
 
   const container = document.getElementById('badges-grid');
   if (!container) return;
   container.innerHTML = BADGE_CATEGORIES.map((cat, catIdx) => {
     const items = grouped[cat.id] || [];
-    const unlockedItems = items.filter(b => b.unlocked);
-    const nextLocked = items.find(b => !b.unlocked);
-    const gridHtml = unlockedItems.length
-      ? `<div class="badge-grid">
-        ${unlockedItems.map(b => {
+    const unlockedInCat = items.filter(b => b.unlocked).length;
+    const nextItem = items.find(b => b.state === 'next');
+
+    const gridHtml = `<div class="badge-grid">
+        ${items.map(b => {
           const sizeCls = b.headline.length<=2?'sz-lg':b.headline.length===3?'sz-md':'sz-sm';
           const tierCls = b.stage===0?'tier-standard':b.stage===1?'tier-achievement':b.stage===2?'tier-milestone':'tier-hero';
-          const cls = `badge-item ${tierCls} shape-${b.shape} unlocked`;
-          if (b.stage <= 1) {
-            return `
-          <div class="${cls}">
+          const cls = `badge-item ${tierCls} shape-${b.shape} state-${b.state}`;
+          const displayValue = b.state === 'locked' ? '🔒' : esc(b.headline);
+          const title = b.state === 'unlocked' ? `${b.label} — débloqué`
+            : b.state === 'next' ? `${b.label} — prochain objectif (${b.progressPct}%)`
+            : `${b.label} — verrouillé`;
+          return `
+          <div class="${cls}" title="${esc(title)}">
             <div class="badge-shape">
               <svg class="badge-shape-svg" viewBox="0 0 64 64">${BADGE_SHAPE_SVG[b.shape]}</svg>
-              <div class="badge-shape-value ${sizeCls}">${esc(b.headline)}</div>
-            </div>
-          </div>`;
-          }
-          return `
-          <div class="${cls}">
-            <div class="badge-plate">
-              <div class="badge-plate-serial">${esc(b.serialDisp)}</div>
-              <div class="badge-plate-value ${sizeCls}">${esc(b.headline)}</div>
-              <div class="badge-plate-tag">${esc(b.tag)}</div>
+              <div class="badge-shape-value ${b.state==='locked'?'sz-lock':sizeCls}">${displayValue}</div>
             </div>
           </div>`;
         }).join('')}
-      </div>`
-      : `<div class="badge-cat-empty">Aucun badge débloqué pour l'instant</div>`;
-    const progressHtml = nextLocked ? `<div class="badge-cat-progress">Prochain palier : <b>${esc(nextLocked.label)}</b></div>` : '';
+      </div>`;
+
+    // Progression concrète vers le prochain palier (retour : "beaucoup plus motivant que
+    // seulement 'Prochain palier'") — chiffres bruts pour les catégories de comptage, juste le
+    // libellé + % pour les grades (un "index de grade" brut ne veut rien dire pour l'utilisateur).
+    let nextHtml = '';
+    if (nextItem) {
+      const detail = nextItem.catType === 'grade'
+        ? `Prochain palier : <b>${esc(nextItem.headline)}</b> — ${nextItem.progressPct}%`
+        : `<b>${nextItem.current} / ${nextItem.target} ${esc(nextItem.unitLabel)}</b> — ${nextItem.progressPct}%`;
+      nextHtml = `<div class="badge-cat-next">
+        <div class="badge-cat-next-detail">${detail}</div>
+        <div class="prog-bar-bg" style="height:6px"><div class="prog-bar-fill" style="width:${nextItem.progressPct}%"></div></div>
+      </div>`;
+    } else if (items.length) {
+      nextHtml = `<div class="badge-cat-next badge-cat-complete">🎉 Catégorie complète</div>`;
+    }
+
+    const gradeNote = cat.id === 'grades' && bestGradeLabel && currentRefGrade && bestGradeLabel !== currentRefGrade
+      ? `<div class="badge-cat-note">Basé sur ton meilleur envoi historique (<b>${esc(bestGradeLabel)}</b>) — ton niveau de référence actuel (90 derniers jours) est <b>${esc(currentRefGrade)}</b>.</div>`
+      : '';
+
     return `<div class="badge-cat-block">
       <div class="badge-cat-header">
         <span class="badge-cat-num">${String(catIdx+1).padStart(2,'0')}</span>
         <span class="badge-cat-title">${esc(cat.label)}</span>
-        <span class="badge-cat-line"></span>
+        <span class="badge-cat-count">${unlockedInCat}/${items.length}</span>
       </div>
+      ${gradeNote}
       ${gridHtml}
-      ${progressHtml}
+      ${nextHtml}
     </div>`;
   }).join('');
 }
