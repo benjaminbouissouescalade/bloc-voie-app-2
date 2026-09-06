@@ -7699,11 +7699,12 @@ function renderWorkload() {
       borderRadius:5,borderSkipped:false,order:2,yAxisID:'y'
     });
   }
+  // Intensité et Temps sont désormais des barres (comme Charge), pas des lignes — retour :
+  // "met moi des colonnes" (une simple ligne fine était peu lisible à côté des barres de charge).
   if (wlShowIntensityOverlay) {
     volDatasets.push({
-      type:'line',label:'Intensité moy.',data:wData.map(w=>w.avgInt||null),
-      borderColor:'#1a4a7a',backgroundColor:'rgba(26,74,122,.08)',tension:.4,fill:false,
-      pointRadius:3,pointBackgroundColor:'#1a4a7a',spanGaps:true,order:1,yAxisID:'y1'
+      label:'Intensité moy.',data:wData.map(w=>w.avgInt||null),
+      backgroundColor:'rgba(26,74,122,.75)',borderRadius:5,borderSkipped:false,order:1,yAxisID:'y1'
     });
   }
   if (wlShowTimeOverlay) {
@@ -7712,9 +7713,8 @@ function renderWorkload() {
     // certaines vues") — réutilise wData/wlRange, donc la même fenêtre temporelle (Cette
     // semaine/2 semaines/Ce mois/3M/6M/1 an/Tout) que le reste du panneau.
     volDatasets.push({
-      type:'line',label:'Temps',data:wData.map(w=>w.minutes||null),
-      borderColor:'#2d5a3d',backgroundColor:'rgba(45,90,61,.08)',tension:.4,fill:false,
-      pointRadius:3,pointBackgroundColor:'#2d5a3d',spanGaps:true,order:0,yAxisID:'y2'
+      label:'Temps',data:wData.map(w=>w.minutes||null),
+      backgroundColor:'rgba(45,90,61,.75)',borderRadius:5,borderSkipped:false,order:0,yAxisID:'y2'
     });
   }
   makeChart('volChart',{
