@@ -1213,7 +1213,11 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     <div class="cal-grid" id="cal2-grid"></div>
   </div>
   <div class="panel">
-    <div class="panel-header"><span class="panel-title">Séances du mois</span></div>
+    <!-- Retour : "il faudrait dire séance septembre pour que l'on comprenne que la charge est sur
+         le mois et pas sur un mois glissant" — le titre générique "du mois" laissait croire à une
+         fenêtre glissante (type "30 derniers jours") ; on affiche maintenant le mois civil affiché
+         (cf. renderSimpleCalendar), sans ambiguïté sur la période couverte. -->
+    <div class="panel-header"><span class="panel-title" id="cal2-stats-title">Séances</span></div>
     <div class="stat-grid stat-grid-4" style="margin-bottom:0">
       <div class="stat-card"><div class="stat-label">🧗 Séances</div><div class="stat-value" id="cal2-count">0</div></div>
       <div class="stat-card"><div class="stat-label">⏱ Temps</div><div class="stat-value" id="cal2-minutes">0</div></div>
@@ -3117,7 +3121,11 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     </div>
   </div>
   <div class="panel">
-    <div class="panel-header"><span class="panel-title">Séances du mois</span></div>
+    <!-- Retour : "il faudrait dire séance septembre..." — le titre reflète maintenant la période
+         RÉELLEMENT affichée (mois/semaine/année selon le zoom du calendrier ci-dessus), mise à jour
+         par renderCalendarMonth/Week/Year, plutôt qu'un générique "du mois" qui laissait croire à
+         une fenêtre glissante même en vue Semaine ou Année. -->
+    <div class="panel-header"><span class="panel-title" id="cal-stats-title">Séances</span></div>
     <div class="stat-grid stat-grid-4" style="margin-bottom:0">
       <div class="stat-card"><div class="stat-label">🧗 Séances</div><div class="stat-value" id="cal-count">0</div></div>
       <div class="stat-card"><div class="stat-label">⏱ Temps</div><div class="stat-value" id="cal-minutes">0</div></div>
@@ -6285,8 +6293,11 @@ function renderCalendar() {
 
 function renderCalendarMonth() {
   const y=calDate.getFullYear(), m=calDate.getMonth();
-  document.getElementById('cal-month-label').textContent=new Date(y,m,1).toLocaleDateString('fr-FR',{month:'long',year:'numeric'});
-  document.getElementById('cal-month-title').textContent=new Date(y,m,1).toLocaleDateString('fr-FR',{month:'long',year:'numeric'});
+  const monthLabel = new Date(y,m,1).toLocaleDateString('fr-FR',{month:'long',year:'numeric'});
+  document.getElementById('cal-month-label').textContent=monthLabel;
+  document.getElementById('cal-month-title').textContent=monthLabel;
+  const statsTitle = document.getElementById('cal-stats-title');
+  if (statsTitle) statsTitle.textContent = `Séances de ${monthLabel}`;
   const first=new Date(y,m,1), firstDay=(first.getDay()+6)%7, daysInMonth=new Date(y,m+1,0).getDate();
   const grid=document.getElementById('cal-grid'); grid.innerHTML='';
   const todayStr=new Date().toISOString().slice(0,10);
@@ -6317,6 +6328,8 @@ function renderCalendarWeek() {
   const label = `Semaine du ${fmtDate(monday.toISOString().slice(0,10))}`;
   document.getElementById('cal-month-label').textContent = label;
   document.getElementById('cal-month-title').textContent = label;
+  const statsTitle = document.getElementById('cal-stats-title');
+  if (statsTitle) statsTitle.textContent = `Séances — ${label.toLowerCase()}`;
   const headerEl = document.getElementById('cal-week-header');
   const dayNames = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
   headerEl.innerHTML = dayNames.map(n => `<div class="cal-day-label">${n}</div>`).join('');
@@ -6488,6 +6501,8 @@ function renderCalendarYear() {
   const y = calDate.getFullYear();
   document.getElementById('cal-month-label').textContent = String(y);
   document.getElementById('cal-month-title').textContent = String(y);
+  const statsTitle = document.getElementById('cal-stats-title');
+  if (statsTitle) statsTitle.textContent = `Séances ${y}`;
   const grid = document.getElementById('cal-year-grid');
   const logs = getLogs();
   const yearCycleNameById = Object.fromEntries(getClimberCycles(getActive()).map(c => [c.cycleId, c.displayName]));
@@ -6646,8 +6661,11 @@ function renderSimpleCalendar() {
   const gridEl = document.getElementById('cal2-grid');
   if (!gridEl) return;
   const y=cal2Date.getFullYear(), m=cal2Date.getMonth();
-  document.getElementById('cal2-month-label').textContent=new Date(y,m,1).toLocaleDateString('fr-FR',{month:'long',year:'numeric'});
-  document.getElementById('cal2-month-title').textContent=new Date(y,m,1).toLocaleDateString('fr-FR',{month:'long',year:'numeric'});
+  const cal2MonthLabel = new Date(y,m,1).toLocaleDateString('fr-FR',{month:'long',year:'numeric'});
+  document.getElementById('cal2-month-label').textContent=cal2MonthLabel;
+  document.getElementById('cal2-month-title').textContent=cal2MonthLabel;
+  const cal2StatsTitle = document.getElementById('cal2-stats-title');
+  if (cal2StatsTitle) cal2StatsTitle.textContent = `Séances de ${cal2MonthLabel}`;
   const first=new Date(y,m,1), firstDay=(first.getDay()+6)%7, daysInMonth=new Date(y,m+1,0).getDate();
   gridEl.innerHTML='';
   const todayStr=new Date().toISOString().slice(0,10);
