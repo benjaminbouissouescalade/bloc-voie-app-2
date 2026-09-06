@@ -4087,6 +4087,15 @@ Utilise les raccourcis ci-dessus ou pose-moi directement une question. Par exemp
       <div class="form-group">
         <label class="form-label">Facteurs de performance</label>
         <p style="font-size:12px;color:var(--muted);margin:2px 0 12px">Vue d'ensemble par thème, puis détail de chaque thème — auto-évaluation de l'athlète et évaluation du coach sur l'échelle Acquis / Moyen / À travailler.</p>
+        <!-- Retour utilisateur : "peut-on mettre un bouton permettant de voir la vision coach ou
+             non" — sur le radar, les deux courbes (athlète plein, coach pointillé) se superposent
+             souvent près du centre et se gênent visuellement. Case à cocher, affichée seulement
+             s'il y a une évaluation coach à masquer (sinon rien à proposer) — ne masque QUE
+             l'affichage sur les graphiques, jamais les colonnes de notation elles-mêmes. -->
+        <label id="pd-toggle-coach-label" style="display:none;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);margin-bottom:10px;cursor:pointer;user-select:none">
+          <input type="checkbox" id="pd-toggle-coach-vision" checked onchange="pdToggleCoachVision()" style="cursor:pointer">
+          👁 Afficher l'évaluation du coach sur les graphiques
+        </label>
         <div class="chart-wrap" style="height:240px;margin-bottom:14px"><canvas id="pd-overview-radar" aria-label="Vue d'ensemble par thème">Vue d'ensemble</canvas></div>
         <div id="pd-perf-sections"></div>
       </div>
@@ -12853,12 +12862,14 @@ function renderPerfThemeRadar(canvasId, theme, selfRatings, coachRatings, hasCoa
     }
   });
 }
-// Rafraîchit vue d'ensemble + 4 radars détaillés à partir des toggles actuellement affichés dans containerId
-function refreshAllPerfRadars(containerId, overviewCanvasId, hasCoachData) {
+// Rafraîchit vue d'ensemble + 4 radars détaillés à partir des toggles actuellement affichés dans
+// containerId. `showCoachVision` (défaut true) permet de masquer la courbe coach sur les
+// graphiques sans toucher aux données ni aux colonnes de notation — cf. pdToggleCoachVision().
+function refreshAllPerfRadars(containerId, overviewCanvasId, hasCoachData, showCoachVision = true) {
   const selfR = readPerfSide(containerId, 'self');
   const coachR = readPerfSide(containerId, 'coach');
   const touched = document.getElementById(containerId)?.dataset.coachTouched === '1';
-  const hasCoach = !!hasCoachData || touched;
+  const hasCoach = (!!hasCoachData || touched) && showCoachVision;
   renderPerfOverviewRadar(overviewCanvasId, selfR, coachR, hasCoach);
   PERF_THEME_NAMES.forEach(t => renderPerfThemeRadar(containerId+'-radar-'+t, t, selfR, coachR, hasCoach));
 }
@@ -15080,20 +15091,44 @@ function openProfileDetailModal(climberId) {
   pdHasCoachData = !!(p.coachRating && Object.keys(p.coachRating).length);
   const sectionsEl = document.getElementById('pd-perf-sections');
   if (sectionsEl) sectionsEl.dataset.coachTouched = '';
+  // Retour : "bouton pour voir la vision coach ou non" — case affichée seulement s'il y a
+  // effectivement une évaluation coach à masquer/montrer, réinitialisée à "affichée" à chaque
+  // ouverture du profil.
+  pdShowCoachVision = true;
+  const toggleCoachLabel = document.getElementById('pd-toggle-coach-label');
+  const toggleCoachCb = document.getElementById('pd-toggle-coach-vision');
+  if (toggleCoachLabel) toggleCoachLabel.style.display = pdHasCoachData ? 'flex' : 'none';
+  if (toggleCoachCb) toggleCoachCb.checked = true;
   renderPerfSections('pd-perf-sections', p.selfRating, p.coachRating, canEditSelf, canEditCoach, 'pdRatingChanged');
-  refreshAllPerfRadars('pd-perf-sections', 'pd-overview-radar', pdHasCoachData);
+  refreshAllPerfRadars('pd-perf-sections', 'pd-overview-radar', pdHasCoachData, pdShowCoachVision);
 
   pdDirty = false;
   document.getElementById('profile-detail-modal').classList.add('open');
 }
 let pdHasCoachData = false;
+// Retour utilisateur : "peut-on mettre un bouton permettant de voir la vision coach ou non" — sur
+// le radar (vue d'ensemble + 4 radars détaillés par thème), la courbe coach en pointillé se
+// superpose souvent à celle de l'athlète près du centre et gêne la lecture. Ce booléen ne masque
+// QUE l'affichage sur les graphiques (cf. refreshAllPerfRadars) : les colonnes de notation et les
+// données elles-mêmes ne sont jamais touchées.
+let pdShowCoachVision = true;
+function pdToggleCoachVision() {
+  pdShowCoachVision = !!document.getElementById('pd-toggle-coach-vision')?.checked;
+  refreshAllPerfRadars('pd-perf-sections', 'pd-overview-radar', pdHasCoachData, pdShowCoachVision);
+}
+window.pdToggleCoachVision = pdToggleCoachVision;
 function pdRatingChanged() {
-  refreshAllPerfRadars('pd-perf-sections', 'pd-overview-radar', pdHasCoachData);
+  refreshAllPerfRadars('pd-perf-sections', 'pd-overview-radar', pdHasCoachData, pdShowCoachVision);
   // Les boutons de niveau perçu (perfToggleRate) sont des <button onclick>, pas des <input> — ils
   // ne remontent pas via la délégation input/change de setupPdDirtyTracking. C'était la cause la
   // plus probable du retour "j'ai fermé sans que ça me demande" : le niveau perçu est la partie la
   // plus souvent modifiée du profil.
   pdDirty = true;
+  // Si le coach vient de saisir sa première note, la case doit apparaître immédiatement (avant :
+  // elle ne se met à jour qu'à la prochaine ouverture du profil, via pdHasCoachData).
+  const touched = document.getElementById('pd-perf-sections')?.dataset.coachTouched === '1';
+  const toggleCoachLabel = document.getElementById('pd-toggle-coach-label');
+  if (toggleCoachLabel && (pdHasCoachData || touched)) toggleCoachLabel.style.display = 'flex';
 }
 
 // Discipline principale du profil (bloc/voie) — pilote le niveau affiché (sidebar, cartes) et le
