@@ -1769,12 +1769,27 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     </div>
   </div>
 
-  <div class="panel">
-    <div class="panel-header">
-      <span class="panel-title">Charge cumulée (comparaison)</span>
-      <span class="panel-sub">12 sem. actuelles vs 12 sem. précédentes</span>
+  <div class="two-col">
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Charge cumulée (comparaison)</span>
+        <span class="panel-sub">12 sem. actuelles vs 12 sem. précédentes</span>
+      </div>
+      <div class="chart-wrap" style="height:180px"><canvas id="cumChart" aria-label="Charge cumulée comparaison">Charge cumulée</canvas></div>
     </div>
-    <div class="chart-wrap" style="height:180px"><canvas id="cumChart" aria-label="Charge cumulée comparaison">Charge cumulée</canvas></div>
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Temps cumulé (comparaison)</span>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap" id="cumtime-range-picker">
+          <button class="time-filter-btn active" style="padding:3px 10px;font-size:11px" data-cumtime-range="week">1 sem.</button>
+          <button class="time-filter-btn" style="padding:3px 10px;font-size:11px" data-cumtime-range="2w">2 sem.</button>
+          <button class="time-filter-btn" style="padding:3px 10px;font-size:11px" data-cumtime-range="month">Mois</button>
+          <button class="time-filter-btn" style="padding:3px 10px;font-size:11px" data-cumtime-range="3m">3 mois</button>
+        </div>
+      </div>
+      <span class="panel-sub" id="wl-cumtime-sub" style="display:block;margin:-6px 0 6px"></span>
+      <div class="chart-wrap" style="height:180px"><canvas id="cumTimeChart" aria-label="Temps cumulé comparaison">Temps cumulé</canvas></div>
+    </div>
   </div>
 
   <div class="panel">
@@ -7732,8 +7747,74 @@ function renderWorkload() {
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{font:{size:9},maxTicksLimit:6}},y:{grid:{color:'rgba(0,0,0,.05)'},ticks:{font:{size:10}}}}}
   });
 
+  renderCumTimeChart();
   renderTripsList();
 }
+
+// Temps cumulé (comparaison) — même principe que "Charge cumulée" ci-dessus (période actuelle vs
+// période précédente de même longueur), mais sur la DURÉE des séances plutôt que la charge, avec
+// son propre sélecteur de période (retour : "mettre aussi le temps... avec vision 1 semaine, 2
+// semaines, mois, 3 mois"). Résolution journalière (plutôt qu'hebdo comme cumChart) pour que la
+// vue "1 semaine" reste lisible avec seulement quelques points.
+const CUM_TIME_RANGES = {
+  week:  { days: 7,  label: '7 derniers jours vs 7 jours précédents' },
+  '2w':  { days: 14, label: '14 derniers jours vs 14 jours précédents' },
+  month: { days: 30, label: '30 derniers jours vs 30 jours précédents' },
+  '3m':  { days: 90, label: '90 derniers jours vs 90 jours précédents' }
+};
+let cumTimeRange = 'week';
+function renderCumTimeChart() {
+  const canvas = document.getElementById('cumTimeChart');
+  if (!canvas) return;
+  const cfg = CUM_TIME_RANGES[cumTimeRange] || CUM_TIME_RANGES.week;
+  const days = cfg.days;
+  const subEl = document.getElementById('wl-cumtime-sub');
+  if (subEl) subEl.textContent = cfg.label;
+  const minutesByDate = {};
+  getLogs().forEach(l => {
+    if (l.planned) return;
+    minutesByDate[l.date] = (minutesByDate[l.date] || 0) + (l.minutes || 0);
+  });
+  const now = new Date(); now.setHours(0,0,0,0);
+  const cumCurrent = [], cumPrev = [], labels = [];
+  let cc = 0, cp = 0;
+  for (let i = 0; i < days; i++) {
+    const dCur = new Date(now); dCur.setDate(dCur.getDate() - (days - 1) + i);
+    const dPrev = new Date(dCur); dPrev.setDate(dPrev.getDate() - days);
+    cc += minutesByDate[dCur.toISOString().slice(0,10)] || 0;
+    cp += minutesByDate[dPrev.toISOString().slice(0,10)] || 0;
+    cumCurrent.push(cc);
+    cumPrev.push(cp);
+    labels.push(`J${i+1}`);
+  }
+  makeChart('cumTimeChart', {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Actuel', data: cumCurrent, borderColor: '#1a4a7a', backgroundColor: 'rgba(26,74,122,.18)', fill: true, tension: .3, pointRadius: 2 },
+        { label: 'Précédent', data: cumPrev, borderColor: 'rgba(26,74,122,.35)', backgroundColor: 'transparent', borderDash: [4,3], tension: .3, pointRadius: 2 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `${ctx.dataset.label} : ${fmtHM(ctx.parsed.y)}` } } },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 9 }, maxTicksLimit: 8 } },
+        y: { grid: { color: 'rgba(0,0,0,.05)' }, ticks: { font: { size: 10 }, callback: v => fmtHM(v) } }
+      }
+    }
+  });
+}
+document.querySelectorAll('[data-cumtime-range]').forEach(b => {
+  b.onclick = () => {
+    document.querySelectorAll('[data-cumtime-range]').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    cumTimeRange = b.dataset.cumtimeRange;
+    renderCumTimeChart();
+  };
+});
+
 document.querySelectorAll('[data-wl-range]').forEach(b=>{
   b.onclick=()=>{document.querySelectorAll('[data-wl-range]').forEach(x=>x.classList.remove('active'));b.classList.add('active');wlRange=b.dataset.wlRange;renderWorkload();};
 });
