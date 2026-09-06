@@ -4220,6 +4220,18 @@ const SESSION_TYPES = {
   autre:         {label:'Autre',                  color:'#7a7566', group:'Autre'}
 };
 const STYLES = ['Dalle','Dévers','Compression','Physique','Doigts','Rési','Puissance','Coordination','Équilibre','Technique'];
+// Retour utilisateur (fil "Activité récente" coach) : "rajouter un peu plus de données sur la
+// ligne, comme le logo de séance et l'émoticône d'état" — un petit picto par type (repris ensuite
+// partout où on veut identifier un type de séance d'un coup d'œil sans lire le libellé).
+const SESSION_TYPE_ICONS = {
+  bloc:'🧗', voies:'🧗‍♂️', falaise:'⛰️', bloc_exterieur:'🪨', kilter:'🟠', pan:'🪵',
+  competition:'🏆', via_ferrata:'⛓️', ppg:'🏋️', doigts:'💪', prehension:'🖐️',
+  musculation:'🏋️', cardio:'🫀', footing:'🏃', mobilite:'🤸', yoga:'🧘',
+  recup_active:'🌿', 'kiné':'🩺', video:'🎥', mentale:'🧠', autre:'🗂️'
+};
+// "Forme physique" (l.shape) déclarée à la saisie de la séance : low/normal/good → une émoticône
+// d'état simple, dans le même esprit que le champ "Forme physique" du formulaire (s-shape).
+const SHAPE_ICONS = { low:'😓', normal:'🙂', good:'💪' };
 
 // Palette de couleurs pastel proposée dans le formulaire de séance pour personnaliser la couleur
 // d'un TYPE de séance (retour : "une palette de 8 couleurs pastel... avec la couleur par défaut
@@ -14572,14 +14584,24 @@ async function renderCoachFeed() {
     // un bobo signalé ressort en rouge, avec la note en clair si elle existe (retour coach : besoin
     // d'une "notification visible" quand un athlète signale une petite blessure).
     listEl.innerHTML = `<div style="max-height:280px;overflow-y:auto;display:flex;flex-direction:column;gap:4px">${items.map((it, i) => {
-      const typeLabel = (SESSION_TYPES[it.type] || {}).label || it.type;
+      const st = SESSION_TYPES[it.type] || {};
+      const typeLabel = st.label || it.type;
+      const typeIcon = SESSION_TYPE_ICONS[it.type] || '🗂️';
+      const shapeIcon = SHAPE_ICONS[it.shape] || '';
+      const shapeTitle = { low:'Forme basse', normal:'Forme normale', good:'Bonne forme' }[it.shape] || '';
       const hasComments = it.commentsCount > 0;
       const commentBtn = hasComments ? `<button class="btn sm primary" style="padding:3px 8px;font-size:11px" onclick="event.stopPropagation();openFeedCommentModal(${i})" title="Commentaires">💬 ${it.commentsCount}</button>` : '';
       const injuryTag = it.injury ? `<span class="tag" style="border-color:var(--warm);color:var(--warm);flex-shrink:0">🩹 Bobo</span>` : '';
+      // Retour : "rajouter un peu plus de données sur la ligne, comme le logo de séance et
+      // l'émoticône d'état" — picto rond coloré par type (même couleur que partout ailleurs dans
+      // l'app, SESSION_TYPES[type].color) + émoticône de forme physique (l.shape) juste après le
+      // nom de l'athlète, avant le libellé du type.
       return `<div class="log-item" style="cursor:pointer;padding:8px 10px;display:flex;flex-direction:column;gap:4px;${it.injury?'border-color:var(--warm);background:color-mix(in srgb, var(--warm) 8%, var(--surface2))':''}" onclick="openCoachFeedItem('${it.climberId}','${it.id}')">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-          <div style="font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+          <div style="font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:center;gap:6px">
+            <span title="${esc(typeLabel)}" style="width:20px;height:20px;border-radius:50%;background:color-mix(in srgb, ${st.color||'var(--accent)'} 20%, var(--surface2));display:inline-flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0">${typeIcon}</span>
             <span style="font-weight:600">${esc(it.climberName)}</span>
+            ${shapeIcon ? `<span title="${esc(shapeTitle)}">${shapeIcon}</span>` : ''}
             <span style="color:var(--muted)"> · ${esc(typeLabel)} · ${it.minutes||0} min · ${fmtDate(it.date)}</span>
           </div>
           <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">${injuryTag}${commentBtn}</div>
