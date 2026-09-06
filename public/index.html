@@ -1757,6 +1757,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
         <span class="panel-title">Volume d'entraînement hebdo</span>
         <div style="display:flex;align-items:center;gap:8px">
           <span class="panel-sub" id="wl-vol-sub">16 dernières semaines</span>
+          <button class="time-filter-btn active" id="wl-vol-charge-btn" style="padding:3px 10px;font-size:11px" onclick="toggleWlChargeOverlay()">✓ Charge</button>
           <button class="time-filter-btn" id="wl-vol-overlay-btn" style="padding:3px 10px;font-size:11px" onclick="toggleWlIntensityOverlay()">+ Intensité</button>
           <button class="time-filter-btn" id="wl-vol-time-btn" style="padding:3px 10px;font-size:11px" onclick="toggleWlTimeOverlay()">+ Temps</button>
         </div>
@@ -7660,6 +7661,16 @@ function toggleWlTimeOverlay() {
   renderWorkload();
 }
 window.toggleWlTimeOverlay = toggleWlTimeOverlay;
+// Charge affichée par défaut (comme avant), mais désormais désactivable — retour : "mettre le
+// bouton Charge aussi pour pouvoir l'enlever", pour ne garder que Intensité et/ou Temps si besoin.
+let wlShowCharge = true;
+function toggleWlChargeOverlay() {
+  wlShowCharge = !wlShowCharge;
+  const btn = document.getElementById('wl-vol-charge-btn');
+  if (btn) { btn.classList.toggle('active', wlShowCharge); btn.textContent = wlShowCharge ? '✓ Charge' : 'Charge'; }
+  renderWorkload();
+}
+window.toggleWlChargeOverlay = toggleWlChargeOverlay;
 function renderWorkload() {
   const l7=getLoadRange(7),l28=getLoadRange(28),l365=getLoadRange(365);
   document.getElementById('wl-load7').textContent=l7;
@@ -7676,15 +7687,20 @@ function renderWorkload() {
   const wData=weeklyData(perfWeeksForRange(wlRange));
   const wlSub=document.getElementById('wl-vol-sub');
   if (wlSub) wlSub.textContent = WL_RANGE_LABELS[wlRange] || '';
+  const chargeBtn=document.getElementById('wl-vol-charge-btn');
+  if (chargeBtn) { chargeBtn.classList.toggle('active', wlShowCharge); chargeBtn.textContent = wlShowCharge ? '✓ Charge' : 'Charge'; }
   const overlayBtn=document.getElementById('wl-vol-overlay-btn');
   if (overlayBtn) { overlayBtn.classList.toggle('active', wlShowIntensityOverlay); overlayBtn.textContent = wlShowIntensityOverlay ? '✓ Intensité' : '+ Intensité'; }
   const timeBtn=document.getElementById('wl-vol-time-btn');
   if (timeBtn) { timeBtn.classList.toggle('active', wlShowTimeOverlay); timeBtn.textContent = wlShowTimeOverlay ? '✓ Temps' : '+ Temps'; }
-  const volDatasets=[{
-    label:'Charge',data:wData.map(w=>w.load),
-    backgroundColor:wData.map(w=>{const c=cLevel(w.load);return c.cls==='c1'?'rgba(45,90,61,.85)':c.cls==='c2'?'rgba(176,122,16,.8)':c.cls==='c3'?'rgba(196,80,26,.85)':'rgba(90,45,130,.9)';}),
-    borderRadius:5,borderSkipped:false,order:2,yAxisID:'y'
-  }];
+  const volDatasets=[];
+  if (wlShowCharge) {
+    volDatasets.push({
+      label:'Charge',data:wData.map(w=>w.load),
+      backgroundColor:wData.map(w=>{const c=cLevel(w.load);return c.cls==='c1'?'rgba(45,90,61,.85)':c.cls==='c2'?'rgba(176,122,16,.8)':c.cls==='c3'?'rgba(196,80,26,.85)':'rgba(90,45,130,.9)';}),
+      borderRadius:5,borderSkipped:false,order:2,yAxisID:'y'
+    });
+  }
   if (wlShowIntensityOverlay) {
     volDatasets.push({
       type:'line',label:'Intensité moy.',data:wData.map(w=>w.avgInt||null),
@@ -7711,12 +7727,12 @@ function renderWorkload() {
     },
     options:{responsive:true,maintainAspectRatio:false,
       plugins:{
-        legend:{display:wlShowIntensityOverlay||wlShowTimeOverlay,position:'top',labels:{boxWidth:10,font:{size:10}}},
+        legend:{display:!wlShowCharge||wlShowIntensityOverlay||wlShowTimeOverlay,position:'top',labels:{boxWidth:10,font:{size:10}}},
         tooltip:{callbacks:{label:ctx=>ctx.dataset.yAxisID==='y2'?`${ctx.dataset.label} : ${fmtHM(ctx.parsed.y)}`:`${ctx.dataset.label} : ${ctx.parsed.y}`}}
       },
       scales:{
         x:{grid:{display:false},ticks:{font:{size:9},maxTicksLimit:8}},
-        y:{grid:{color:'rgba(0,0,0,.05)'},ticks:{font:{size:10}}},
+        y:{display:wlShowCharge,grid:{color:'rgba(0,0,0,.05)'},ticks:{font:{size:10}}},
         y1:{display:wlShowIntensityOverlay,position:'right',min:0,max:5,grid:{display:false},ticks:{stepSize:1,font:{size:10}}},
         y2:{display:wlShowTimeOverlay,position:'right',grid:{display:false},ticks:{font:{size:10},callback:v=>fmtHM(v)}}
       }
