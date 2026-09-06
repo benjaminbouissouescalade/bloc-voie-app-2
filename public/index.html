@@ -1121,6 +1121,11 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
         <span id="dash-rhythm-pill" style="display:none;align-items:center;gap:6px;font-size:14px;font-weight:700;padding:5px 14px;border-radius:99px" title=""></span>
       </div>
       <div class="mini-spark" id="dash-load7-spark"></div>
+      <!-- Retour : "la courbe seule ne permet pas d'identifier les jours" — le mini-graphe montrait
+           une tendance sur 8 semaines sous une carte titrée "Charge 7 jours", ce qui n'avait pas de
+           sens. Il montre maintenant les 7 derniers jours (un point = un jour), avec les initiales
+           du jour dessous et le détail (jour + charge) au survol de chaque point. -->
+      <div id="dash-load7-spark-days" style="display:flex;justify-content:space-between;font-size:9px;color:var(--muted);margin-top:2px;padding:0 1px"></div>
     </div>
     <div class="stat-card tint-mineral">
       <div class="stat-label">Charge 28 jours</div>
@@ -1135,19 +1140,13 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <div class="stat-label">Séances ce mois</div>
       <div class="stat-value" id="dash-month-sessions">0</div>
       <div class="stat-sub" id="dash-month-minutes">0 min</div>
-      <div style="display:flex;gap:14px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
-        <div>
-          <div style="font-size:19px;font-weight:700;line-height:1.1" id="dash-month-prev">—</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:2px">Mois dernier</div>
-        </div>
-        <div>
-          <div style="font-size:19px;font-weight:700;line-height:1.1" id="dash-month-avg3">—</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:2px">Moyenne 3 mois</div>
-        </div>
-        <div>
-          <div style="font-size:19px;font-weight:700;line-height:1.1" id="dash-month-avg6">—</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:2px">Moyenne 6 mois</div>
-        </div>
+      <!-- Retour : "les trois chiffres du bas concurrencent le chiffre principal" — retrait de la
+           moyenne 6 mois (la moyenne 3 mois sert déjà de repère "moyenne mensuelle") et passage à
+           une liste "Label : valeur" en petit texte plutôt qu'à 2 gros chiffres côte à côte, pour
+           que ces repères restent secondaires face au chiffre du mois en cours. -->
+      <div style="display:flex;flex-direction:column;gap:5px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-size:13px">
+        <div><span style="color:var(--muted)">Mois précédent : </span><strong id="dash-month-prev">—</strong></div>
+        <div><span style="color:var(--muted)">Moyenne mensuelle : </span><strong id="dash-month-avg3">—</strong></div>
       </div>
     </div>
   </div>
@@ -2982,7 +2981,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     <input type="hidden" id="gym-edit-id">
     <div class="form-group">
       <label class="form-label">Nom de la salle</label>
-      <input type="text" class="form-control" id="gym-name" placeholder="ex : Arkose Pantin">
+      <input type="text" class="form-control" id="gym-name" placeholder="ex : Climbing District">
     </div>
     <div class="form-group">
       <label class="form-label">Équipements disponibles</label>
@@ -5713,6 +5712,41 @@ function miniSparkSvg(values, color) {
   const pts = values.map((v,i)=>`${(i*step).toFixed(1)},${(h-(v/max)*h*0.85-2).toFixed(1)}`).join(' ');
   return `<svg viewBox="0 0 ${w} ${h}" class="mini-spark-svg" preserveAspectRatio="none"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg>`;
 }
+// Initiale du jour en français, indexée sur Date.getDay() (0=dimanche ... 6=samedi).
+const DAY_LETTERS_FR = ['D','L','M','M','J','V','S'];
+// Charge jour par jour sur les n derniers jours (aujourd'hui inclus), séances loguées uniquement
+// (pas les planifiées/futures) — sert au mini-graphe "Charge 7 jours" du dashboard, pour que la
+// courbe corresponde vraiment à des jours (et non à des semaines comme avant).
+function dailyLoadsForRange(n) {
+  const now = new Date(); now.setHours(0,0,0,0);
+  const days = [];
+  for (let i=n-1;i>=0;i--) {
+    const d = new Date(now); d.setDate(d.getDate()-i);
+    days.push({ date: d, dateStr: d.toISOString().slice(0,10), load: 0 });
+  }
+  const byDate = {};
+  days.forEach(d=>{ byDate[d.dateStr]=d; });
+  getLogs().filter(l=>!l.planned && byDate[l.date]).forEach(l=>{ byDate[l.date].load += sessionLoad(l); });
+  days.forEach(d=>{ d.load = Math.round(d.load); });
+  return days;
+}
+// Comme miniSparkSvg, mais un point = un jour (days = sortie de dailyLoadsForRange) : chaque point
+// porte un <title> natif (jour + date + charge) affiché au survol, pour lever l'ambiguïté "ça
+// représente quoi ?" sans alourdir l'affichage.
+function miniSparkSvgDaily(days, color) {
+  if (!days || !days.length) return '';
+  const values = days.map(d=>d.load);
+  const max = Math.max(...values, 1);
+  const w = 60, h = 20, step = w/((values.length-1)||1);
+  const pts = values.map((v,i)=>({ x:i*step, y:h-(v/max)*h*0.85-2 }));
+  const line = pts.map(p=>`${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+  const circles = pts.map((p,i)=>{
+    const d = days[i];
+    const dateLabel = d.date.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'short'});
+    return `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="2" fill="${color}"><title>${esc(dateLabel)} · charge ${d.load}</title></circle>`;
+  }).join('');
+  return `<svg viewBox="0 0 ${w} ${h}" class="mini-spark-svg" preserveAspectRatio="none"><polyline points="${line}" fill="none" stroke="${color}" stroke-width="1.6" vector-effect="non-scaling-stroke"/>${circles}</svg>`;
+}
 
 // ═══════════════ NAVIGATION ═══════════════
 function switchPage(name) {
@@ -6121,20 +6155,37 @@ function renderDashboard() {
       if (load28TrendDetailEl) load28TrendDetailEl.textContent = 'Pas encore assez d\'historique pour comparer.';
     } else {
       const tz = loadTrendZone(trendPct);
+      // Retour : "le symbole ➡️ suggère une stabilité alors que la charge augmente" — loadTrendZone
+      // ne bascule sur ↗/↘ qu'au-delà de ±15% (seuil pensé pour la page Charge, où on veut ignorer
+      // le bruit). Sur cette carte, la flèche doit refléter le sens réel du chiffre affiché, même
+      // pour une variation plus petite comme +13% : on garde la couleur/le fond de loadTrendZone
+      // (toujours pertinents), mais la flèche est recalculée directement sur le signe de trendPct.
+      const arrow = trendPct > 0 ? '↗' : trendPct < 0 ? '↘' : '→';
       load28TrendEl.style.display='inline-flex';
       load28TrendEl.style.background=tz.bg; load28TrendEl.style.color=tz.color;
-      load28TrendEl.textContent = `${tz.emoji} ${trendPct>0?'+':''}${trendPct}%`;
-      if (load28TrendDetailEl) load28TrendDetailEl.innerHTML = `vs 4 sem. précédentes<br><strong style="color:var(--text)">${prev28}</strong> → <strong style="color:var(--text)">${l28}</strong>`;
+      load28TrendEl.textContent = `${arrow} ${trendPct>0?'+':''}${trendPct}%`;
+      if (load28TrendDetailEl) load28TrendDetailEl.innerHTML = `par rapport aux 28 jours précédents<br><strong style="color:var(--text)">${prev28}</strong> → <strong style="color:var(--text)">${l28}</strong>`;
     }
   }
+  // Retour : "la courbe seule ne permet pas d'identifier les jours" — le mini-graphe montrait une
+  // tendance sur 8 SEMAINES sous une carte titrée "Charge 7 JOURS" (weeklyData(8)), incohérent avec
+  // le chiffre affiché juste au-dessus. Il montre maintenant les 7 derniers jours (un point = un
+  // jour, cf. dailyLoadsForRange), avec l'initiale du jour dessous et jour+charge au survol.
+  const daily7 = dailyLoadsForRange(7);
   const sparkEl = document.getElementById('dash-load7-spark');
-  if (sparkEl) sparkEl.innerHTML = miniSparkSvg(weeklyData(8).map(w=>w.load), '#c4501a');
+  if (sparkEl) sparkEl.innerHTML = miniSparkSvgDaily(daily7, '#c4501a');
+  const sparkDaysEl = document.getElementById('dash-load7-spark-days');
+  if (sparkDaysEl) sparkDaysEl.innerHTML = daily7.map(d=>`<span>${DAY_LETTERS_FR[d.date.getDay()]}</span>`).join('');
   const now=new Date(), monthStr=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
   const monthLogs=getLogs().filter(l=>l.date.startsWith(monthStr) && !l.planned);
   document.getElementById('dash-month-sessions').textContent=monthLogs.length;
   document.getElementById('dash-month-minutes').textContent=fmtHM(monthLogs.reduce((s,l)=>s+(l.minutes||0),0));
-  // Comparaison demandée : mois en cours vs mois précédent vs moyenne des 12 derniers mois — un
-  // "16" seul ne dit pas si c'est beaucoup ou peu pour cet athlète.
+  // Comparaison demandée : mois en cours vs mois précédent vs moyenne mensuelle — un "16" seul ne
+  // dit pas si c'est beaucoup ou peu pour cet athlète.
+  // Retour : "les trois chiffres du bas concurrencent le chiffre principal" — on retire la moyenne
+  // 6 mois (moyenne 3 mois suffit comme repère "moyenne mensuelle") et on renomme les deux lignes
+  // restantes en "Mois précédent" / "Moyenne mensuelle" (labels plus explicites que "Mois dernier" /
+  // "Moyenne 3 mois").
   const prevMonthDate = new Date(now.getFullYear(), now.getMonth()-1, 1);
   const prevMonthStr = `${prevMonthDate.getFullYear()}-${String(prevMonthDate.getMonth()+1).padStart(2,'0')}`;
   const prevMonthCount = getLogs().filter(l=>l.date.startsWith(prevMonthStr) && !l.planned).length;
@@ -6145,10 +6196,8 @@ function renderDashboard() {
   };
   const prevMonthEl = document.getElementById('dash-month-prev');
   const avg3El = document.getElementById('dash-month-avg3');
-  const avg6El = document.getElementById('dash-month-avg6');
   if (prevMonthEl) prevMonthEl.textContent = prevMonthCount;
   if (avg3El) avg3El.textContent = avgSessionsPerMonth(3);
-  if (avg6El) avg6El.textContent = avgSessionsPerMonth(6);
 
   // Weekly chart
   const wData=weeklyData(12);
