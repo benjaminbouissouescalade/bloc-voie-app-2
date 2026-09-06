@@ -2987,6 +2987,16 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     <div class="form-group">
       <label class="form-label">Équipements disponibles</label>
       <div id="gym-facilities-checks" style="display:flex;flex-wrap:wrap;gap:10px"></div>
+      <!-- Retour : "rajouter à équipement disponible une case autre pour rajouter des équipements"
+           — les autres cases sont une liste fermée (GYM_FACILITIES) ; celle-ci laisse préciser un
+           équipement non prévu (ex. Moonboard, mur de vitesse dédié…) en texte libre. -->
+      <div style="display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap">
+        <label style="display:flex;align-items:center;gap:5px;font-size:13px;border:1px solid var(--border2);border-radius:99px;padding:5px 10px;cursor:pointer;flex-shrink:0">
+          <input type="checkbox" id="gym-facility-autre-check" style="margin:0" onchange="toggleGymAutreInput()">
+          • Autre
+        </label>
+        <input type="text" class="form-control" id="gym-facility-autre-input" placeholder="préciser l'équipement (ex : Moonboard, mur de vitesse…)" style="display:none;flex:1;min-width:200px">
+      </div>
     </div>
     <div class="form-group">
       <label class="form-label">Notes (optionnel)</label>
@@ -4321,7 +4331,8 @@ const GYM_FACILITIES = {
   muscu:      { label: 'Salle de muscu', icon: '🏋️' },
   pan:        { label: 'Pan',        icon: '🟫' },
   poutre:     { label: 'Poutre',     icon: '🪵' },
-  smartboard: { label: 'Smartboard', icon: '💡' }
+  smartboard: { label: 'Smartboard', icon: '💡' },
+  kilter:     { label: 'Kilter Board', icon: '🟠' }
 };
 // Seuils exprimés en ratio par rapport à la charge hebdo moyenne du grimpeur (12 dernières semaines),
 // pas en valeur absolue : chaque grimpeur a sa propre échelle de volume.
@@ -5797,8 +5808,14 @@ function gymFacilitiesChecksHtml(checked) {
 function gymFacilitiesBadgesHtml(facilities) {
   facilities = facilities || {};
   const active = Object.keys(GYM_FACILITIES).filter(k => facilities[k]);
-  if (!active.length) return '<span style="color:var(--muted);font-size:12px">Aucun équipement renseigné</span>';
-  return active.map(k => `<span class="tag" style="font-size:11px">${GYM_FACILITIES[k].icon} ${GYM_FACILITIES[k].label}</span>`).join(' ');
+  const badges = active.map(k => `<span class="tag" style="font-size:11px">${GYM_FACILITIES[k].icon} ${GYM_FACILITIES[k].label}</span>`);
+  // Équipement libre saisi via la case "Autre" (cf. toggleGymAutreInput/gymSave) — stocké comme
+  // chaîne (pas booléen) dans facilities.autre, donc distingué des clés fixes ci-dessus.
+  if (typeof facilities.autre === 'string' && facilities.autre.trim()) {
+    badges.push(`<span class="tag" style="font-size:11px">• ${esc(facilities.autre.trim())}</span>`);
+  }
+  if (!badges.length) return '<span style="color:var(--muted);font-size:12px">Aucun équipement renseigné</span>';
+  return badges.join(' ');
 }
 
 async function renderGymsPage() {
@@ -5828,11 +5845,26 @@ async function renderGymsPage() {
 }
 window.renderGymsPage = renderGymsPage;
 
+// Affiche/masque le champ de texte libre à côté de la case "Autre" (cf. GYM_FACILITIES —
+// équipement non prévu par la liste fixe, ex. Moonboard, mur de vitesse dédié…).
+function toggleGymAutreInput() {
+  const chk = document.getElementById('gym-facility-autre-check');
+  const inp = document.getElementById('gym-facility-autre-input');
+  if (!chk || !inp) return;
+  inp.style.display = chk.checked ? '' : 'none';
+  if (!chk.checked) inp.value = '';
+}
+window.toggleGymAutreInput = toggleGymAutreInput;
+
 function gymResetForm() {
   document.getElementById('gym-edit-id').value = '';
   document.getElementById('gym-name').value = '';
   document.getElementById('gym-notes').value = '';
   document.querySelectorAll('.gym-facility-check').forEach(c => c.checked = false);
+  const autreChk = document.getElementById('gym-facility-autre-check');
+  if (autreChk) autreChk.checked = false;
+  const autreInp = document.getElementById('gym-facility-autre-input');
+  if (autreInp) { autreInp.value = ''; autreInp.style.display = 'none'; }
   document.getElementById('gym-form-title').textContent = 'Ajouter une salle';
   document.getElementById('gym-cancel-edit-btn').style.display = 'none';
 }
@@ -5845,6 +5877,11 @@ function gymEdit(id) {
   document.getElementById('gym-name').value = g.name;
   document.getElementById('gym-notes').value = g.notes || '';
   document.querySelectorAll('.gym-facility-check').forEach(c => { c.checked = !!(g.facilities || {})[c.value]; });
+  const autreVal = typeof g.facilities?.autre === 'string' ? g.facilities.autre : '';
+  const autreChk = document.getElementById('gym-facility-autre-check');
+  const autreInp = document.getElementById('gym-facility-autre-input');
+  if (autreChk) autreChk.checked = !!autreVal;
+  if (autreInp) { autreInp.value = autreVal; autreInp.style.display = autreVal ? '' : 'none'; }
   document.getElementById('gym-form-title').textContent = 'Modifier la salle';
   document.getElementById('gym-cancel-edit-btn').style.display = '';
   document.getElementById('gym-form-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -5857,6 +5894,9 @@ async function gymSave() {
   const editId = document.getElementById('gym-edit-id').value;
   const facilities = {};
   document.querySelectorAll('.gym-facility-check').forEach(c => { if (c.checked) facilities[c.value] = true; });
+  const autreChecked = document.getElementById('gym-facility-autre-check')?.checked;
+  const autreVal = document.getElementById('gym-facility-autre-input')?.value.trim();
+  if (autreChecked && autreVal) facilities.autre = autreVal;
   const body = {
     id: editId || ('gym_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8)),
     name,
