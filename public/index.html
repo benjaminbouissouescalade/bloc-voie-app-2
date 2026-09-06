@@ -1233,7 +1233,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     <div class="modal-body">
       <p style="font-size:13px;color:var(--muted);margin-bottom:14px" id="drop-choice-desc"></p>
       <div style="display:flex;flex-direction:column;gap:8px">
-        <button class="btn primary" style="justify-content:flex-start" onclick="dropChoiceOnce()">📌 Une seule fois, à cette date</button>
+        <button class="btn primary" id="drop-choice-once-btn" style="justify-content:flex-start" onclick="dropChoiceOnce()">📌 Une seule fois, à cette date</button>
         <button class="btn" style="justify-content:flex-start" onclick="dropChoiceCycle('simple')">🔁 Cycle simple — X fois sur une période</button>
         <button class="btn" style="justify-content:flex-start" onclick="dropChoiceCycle('detailed')">📅 Cycle détaillé — jours fixes chaque semaine</button>
       </div>
@@ -1254,6 +1254,23 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <button type="button" class="btn sm" style="width:100%;margin-bottom:10px;justify-content:center" onclick="planPickerFreeChoice()">🎯 Séance libre — l'athlète choisira le jour venu</button>
       <input class="form-control" style="margin-bottom:10px" id="plan-picker-search" placeholder="Rechercher…" oninput="renderPlanPickerList()">
       <div id="plan-picker-list" style="display:flex;flex-direction:column;gap:6px;max-height:340px;overflow-y:auto"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Choisir une séance de la banque pour PRÉ-REMPLIR le formulaire de séance en cours (bouton
+     "📋 Choisir dans La Mine" du formulaire "Nouvelle séance") — contrairement au picker de
+     planification ci-dessus, ne crée rien directement : remplit juste les champs. -->
+<div class="modal-backdrop" id="session-bank-picker-modal">
+  <div class="modal" style="width:min(440px,100%)">
+    <div class="modal-header">
+      <span class="modal-title">Choisir dans La Mine</span>
+      <button class="btn sm" onclick="closeModal('session-bank-picker-modal')">Fermer</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--muted);margin-bottom:10px">Choisis une fiche pour pré-remplir le type, la durée, l'intensité et le support de la séance.</p>
+      <input class="form-control" style="margin-bottom:10px" id="session-bank-picker-search" placeholder="Rechercher…" oninput="renderSessionBankPickerList()">
+      <div id="session-bank-picker-list" style="display:flex;flex-direction:column;gap:6px;max-height:340px;overflow-y:auto"></div>
     </div>
   </div>
 </div>
@@ -1308,7 +1325,14 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   <div class="two-col">
     <div>
       <div class="panel">
-        <div class="panel-header"><span class="panel-title">Informations générales</span></div>
+        <div class="panel-header">
+          <span class="panel-title">Informations générales</span>
+          <!-- Retour utilisateur : "si je passe par le calendrier la fenêtre pour rentrer les
+               séance ne permet pas d'avoir les séance de la banque" — permet de pré-remplir type,
+               durée, intensité et support depuis une fiche de La Mine sans passer par la
+               planification (qui, elle, exige une date future). -->
+          <button type="button" class="btn sm" onclick="openSessionBankPicker()">📋 Choisir dans La Mine</button>
+        </div>
         <input type="hidden" id="edit-log-id">
         <!-- Rappel affiché uniquement tant que la séance est encore planifiée pour une date future
              (retour : "le coach devrait pas avoir ça [bobo, ascensions, charge...] quand c'est de
@@ -6672,13 +6696,34 @@ function onBankDropOnDate(dateStr) {
   pendingDrop = { bankId: id, dateStr };
   const descEl = document.getElementById('drop-choice-desc');
   if (descEl) descEl.textContent = `"${item.name}" — ${fmtDate(dateStr)}`;
+  // Retour : "j'ai voulu remplir une séance de la banque aujourd'hui... voici le message [date
+  // future requise]" — déposer une fiche sur aujourd'hui ou une date passée ne peut pas planifier
+  // (ça n'a pas encore eu lieu), donc le bouton "une fois" change de sens pour ces dates : il
+  // ouvrira le formulaire de séance FAITE, pré-rempli avec la fiche, au lieu de programmer.
+  const onceBtn = document.getElementById('drop-choice-once-btn');
+  if (onceBtn) {
+    onceBtn.textContent = isFutureDateStr(dateStr)
+      ? '📌 Une seule fois, à cette date'
+      : '✅ Loguer cette séance (déjà faite)';
+  }
   document.getElementById('drop-choice-modal').classList.add('open');
 }
 function dropChoiceOnce() {
   if (!pendingDrop) return;
-  addPlannedSessionFromBank(pendingDrop.bankId, pendingDrop.dateStr);
+  const { bankId, dateStr } = pendingDrop;
   closeModal('drop-choice-modal');
   pendingDrop = null;
+  if (isFutureDateStr(dateStr)) {
+    addPlannedSessionFromBank(bankId, dateStr);
+  } else {
+    // Retour : glisser une fiche sur AUJOURD'HUI ou une date passée doit permettre de loguer
+    // directement la séance FAITE avec cette fiche, pas afficher l'erreur "date future" de
+    // addPlannedSessionFromBank — on ouvre donc le formulaire habituel, pré-rempli avec les valeurs
+    // de la fiche, pour ajuster (ascensions, ressenti…) avant d'enregistrer.
+    newSession(dateStr);
+    switchPage('new-session');
+    prefillSessionFromBank(bankId);
+  }
 }
 function dropChoiceCycle(mode) {
   if (!pendingDrop) return;
@@ -11180,9 +11225,15 @@ let sNewSessionDateLocked=false; // évite que renderNewSession() n'écrase une 
 // avait donc aucun moyen de la sauvegarder : ce drapeau porte l'intention "cette nouvelle séance
 // doit être créée planifiée" jusqu'à saveCurrentSession, qui le consomme puis le réinitialise.
 let sPlanningIntentDate = null;
+// bankRef d'une fiche de La Mine choisie via prefillSessionFromBank() pour une toute NOUVELLE
+// séance pas encore enregistrée (donc sans existingLog.bankRef à hériter) — cf. saveCurrentSession
+// et le bouton "📋 Choisir dans La Mine" du formulaire. Réinitialisé à chaque ouverture du
+// formulaire (nouvelle séance ou édition) pour ne jamais fuiter sur la séance suivante.
+let prefillBankRef = null;
 function newSession(date=null, planning=false){
   editingId=null; sessionAscents=[];
   sPlanningIntentDate = planning ? date : null;
+  prefillBankRef = null;
   freshlyCompletedLogId=null; // formulaire vierge : pas de séance en cours de complétion
   document.getElementById('edit-log-id').value='';
   document.getElementById('session-form-title').textContent='Nouvelle séance';
@@ -11209,6 +11260,66 @@ function newSession(date=null, planning=false){
   applyPrescriptionLock(null);
   updateFlexChangeButton(null);
 }
+window.newSession = newSession;
+
+// Pré-remplit le formulaire "Nouvelle séance" (type, durée, intensité, support) à partir d'une
+// fiche de La Mine — retour : "si je passe par le calendrier la fenêtre pour rentrer les séance ne
+// permet pas d'avoir les séance de la banque". Contrairement à addPlannedSessionFromBank (qui crée
+// directement une séance PRÉVUE pour une date future), on se contente ici de remplir les champs
+// d'une séance en cours de saisie : l'utilisateur ajuste (ascensions, ressenti…) puis enregistre
+// lui-même via "Enregistrer la séance", et la séance est FAITE dès l'enregistrement.
+function prefillSessionFromBank(bankId) {
+  const item = getBank().find(b => b.id === bankId);
+  if (!item) return;
+  document.getElementById('s-type').value = item.type || 'bloc';
+  setDurationMinutes(item.duration || 90);
+  document.getElementById('s-intensity').value = item.intensity || 3;
+  document.getElementById('s-support').value = item.support || '';
+  if ((item.type || 'bloc') === 'autre') document.getElementById('s-custom-name').value = item.name || '';
+  prefillBankRef = item.id;
+  updateSessionTypeUI({});
+  updateLoadPreview();
+}
+window.prefillSessionFromBank = prefillSessionFromBank;
+
+// Bouton "📋 Choisir dans La Mine" du formulaire de séance — même liste que le picker de
+// planification (plan-picker-modal), mais le choix pré-remplit le formulaire en cours au lieu de
+// créer une séance prévue.
+function openSessionBankPicker() {
+  const search = document.getElementById('session-bank-picker-search');
+  if (search) search.value = '';
+  renderSessionBankPickerList();
+  document.getElementById('session-bank-picker-modal').classList.add('open');
+}
+window.openSessionBankPicker = openSessionBankPicker;
+function renderSessionBankPickerList() {
+  const el = document.getElementById('session-bank-picker-list');
+  if (!el) return;
+  const search = normText(document.getElementById('session-bank-picker-search')?.value || '');
+  let items = getBank().slice().sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  if (search) items = items.filter(s =>
+    normText(s.name).includes(search) ||
+    (s.tags||[]).some(t=>normText(t).includes(search))
+  );
+  if (!items.length) { el.innerHTML = `<p style="font-size:12px;color:var(--muted)">Aucune séance dans la banque — crée-en une dans "La Mine".</p>`; return; }
+  el.innerHTML = items.map(s => {
+    const t = SESSION_TYPES[s.type] || SESSION_TYPES.autre;
+    return `<div class="cal-bank-mini-card" style="cursor:pointer" onclick="chooseSessionBankPickerItem('${s.id}')">
+      <span class="sess-dot" style="background:${t.color};flex-shrink:0"></span>
+      <div style="min-width:0;flex:1">
+        <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(s.name)}</div>
+        <div style="font-size:11px;color:var(--muted)">${s.duration||90} min · int. ${s.intensity||3}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+window.renderSessionBankPickerList = renderSessionBankPickerList;
+function chooseSessionBankPickerItem(bankId) {
+  closeModal('session-bank-picker-modal');
+  prefillSessionFromBank(bankId);
+}
+window.chooseSessionBankPickerItem = chooseSessionBankPickerItem;
+
 // Affiche/masque le bouton "Changer de séance" pour un créneau "objectif libre" (flexGoal) — visible
 // tant que le créneau existe, qu'il soit déjà résolu ou non, car le choix reste modifiable jusqu'à
 // ce que la séance soit réellement faite (voir openFlexChoiceModal / fulfillFlexSession).
@@ -11276,6 +11387,7 @@ function editSession(id){
   // sa séance dans la banque — on ouvre directement le picker plutôt que le formulaire normal.
   if (log.flexGoal && !log.bankRef) { openFlexChoiceModal(id); return; }
   if (freshlyCompletedLogId !== id) freshlyCompletedLogId=null; // on ouvre une autre séance : n'hérite pas d'un état laissé par une séance abandonnée sans clic "Enregistrer"
+  prefillBankRef = null; // la séance éditée a déjà (ou non) son propre bankRef, cf. existingLog?.bankRef ci-dessous
   editingId=id; sessionAscents=JSON.parse(JSON.stringify(log.ascents||[]));
   document.getElementById('edit-log-id').value=id;
   document.getElementById('session-form-title').textContent='Modifier la séance';
@@ -11900,7 +12012,7 @@ function saveCurrentSession() {
     ascents:JSON.parse(JSON.stringify(sessionAscents)),
     bNoGrade,
     ...(existingLog?.cycleId ? { cycleId: existingLog.cycleId, cycleName: existingLog.cycleName } : {}),
-    ...(ppgBankRef ? { bankRef: ppgBankRef } : existingLog?.bankRef ? { bankRef: existingLog.bankRef } : {}),
+    ...(ppgBankRef ? { bankRef: ppgBankRef } : existingLog?.bankRef ? { bankRef: existingLog.bankRef } : prefillBankRef ? { bankRef: prefillBankRef } : {}),
     ...(existingLog?.comments ? { comments: existingLog.comments } : {}),
     // Idem pour la progression de checklist (cf. toggleChecklistItem) : ce formulaire n'a pas de
     // champ dédié, donc sans ça chaque sauvegarde via "Enregistrer" effacerait les cases déjà
