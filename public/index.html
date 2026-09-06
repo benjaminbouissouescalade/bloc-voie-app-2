@@ -5562,6 +5562,24 @@ function climberBaseline(c) {
   return vals.reduce((a,b)=>a+b,0)/vals.length;
 }
 
+// Référence de charge JOURNALIÈRE du grimpeur actif — moyenne des charges des jours où il y a eu
+// au moins une séance faite, sur les ~90 derniers jours. Sert à décider si la case d'un jour du
+// calendrier doit ressortir en "séance dure" (teinte chaude) : avant, ce surlignage se basait sur
+// l'intensité ressentie (1-5) saisie sur la séance, un champ invisible sur la case — le retour
+// "la coloration semble complètement random" venait de là (aucun lien visible avec le chiffre de
+// charge ⚡ affiché). On compare maintenant ce même chiffre de charge à la moyenne personnelle du
+// grimpeur, ce qui est cohérent avec ce qui est affiché.
+function personalDailyLoadBaseline() {
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate()-90);
+  const byDate = {};
+  getLogs().filter(l=>!l.planned && new Date(l.date)>=cutoff).forEach(l=>{
+    byDate[l.date] = (byDate[l.date]||0) + sessionLoad(l);
+  });
+  const vals = Object.values(byDate).filter(v=>v>0);
+  if (vals.length < 3) return 0;
+  return vals.reduce((a,b)=>a+b,0)/vals.length;
+}
+
 // Mini-graphe en barres (plus lisible qu'une simple sparkline en ligne pour comparer des semaines
 // d'un coup d'œil) — utilisé pour l'aperçu de charge par athlète sur "Mes athlètes".
 function miniBarsSvg(values, color, w=180, h=44) {
@@ -6200,7 +6218,11 @@ function buildCalCell(ds, dayNum, isOther, todayStr, climberCycles) {
   // Charge affichée sur la case : uniquement les séances FAITES (jamais les séances planifiées/
   // futures — retour : "ces scores doivent apparaître que si la séance est faite").
   const load = doneLogsForCell.reduce((s,l) => s + sessionLoad(l), 0);
-  const hasHard = doneLogsForCell.some(l => l.intensity >= 4);
+  // Case "dure" (teinte chaude) : charge du jour nettement au-dessus de la moyenne personnelle des
+  // jours d'entraînement (plutôt que l'intensité ressentie, invisible sur la case — cf. commentaire
+  // sur personalDailyLoadBaseline()).
+  const dailyBaseline = personalDailyLoadBaseline();
+  const hasHard = dailyBaseline > 0 && load > dailyBaseline * 1.3;
   // Petite ligne "bobo" : uniquement sur les séances FAITES (une séance planifiée n'a pas encore
   // eu lieu, une douleur ne peut donc pas y être associée) — même principe que le badge de charge.
   const hasInjury = doneLogsForCell.some(l => l.injury);
@@ -6569,7 +6591,11 @@ function buildCal2Cell(ds, dayNum, isOther, todayStr, climberCycles) {
   // Charge affichée sur la case : uniquement les séances FAITES (jamais les séances planifiées/
   // futures — retour : "ces scores doivent apparaître que si la séance est faite").
   const load = doneLogsForCell.reduce((s,l) => s + sessionLoad(l), 0);
-  const hasHard = doneLogsForCell.some(l => l.intensity >= 4);
+  // Case "dure" (teinte chaude) : charge du jour nettement au-dessus de la moyenne personnelle des
+  // jours d'entraînement (plutôt que l'intensité ressentie, invisible sur la case — cf. commentaire
+  // sur personalDailyLoadBaseline()).
+  const dailyBaseline = personalDailyLoadBaseline();
+  const hasHard = dailyBaseline > 0 && load > dailyBaseline * 1.3;
   // Petite ligne "bobo" : uniquement sur les séances FAITES (une séance planifiée n'a pas encore
   // eu lieu, une douleur ne peut donc pas y être associée) — même principe que le badge de charge.
   const hasInjury = doneLogsForCell.some(l => l.injury);
