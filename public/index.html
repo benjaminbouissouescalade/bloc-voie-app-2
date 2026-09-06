@@ -5527,14 +5527,14 @@ function climberLoadRange(c, daysBack) {
     .reduce((s,l)=>s+sessionLoadFor(l, refRoute, refBloc),0));
 }
 
-// Charge hebdo "normale" pour un grimpeur donné — équivalent de getPersonalBaseline() mais sans
-// dépendre du grimpeur actif.
-function climberBaseline(c) {
+// Charge hebdomadaire (nWeeks dernières semaines) pour un grimpeur donné, pas forcément l'actif —
+// utilisée à la fois pour la charge de référence (climberBaseline) et pour un mini-graphe visuel
+// (aperçu "Mes athlètes").
+function climberWeeklyLoads(c, nWeeks) {
   const logs = c?.logs || [];
   const refRoute = getRefGrade(logs);
   const refBloc = getRefGradeBloc(logs) || c?.profile?.levelBloc || '6a';
   const now = new Date(); now.setHours(0,0,0,0);
-  const nWeeks = 12;
   const weeks = [];
   for (let i=nWeeks-1;i>=0;i--) {
     const start=new Date(now); start.setDate(start.getDate()-((now.getDay()||7)-1)-i*7);
@@ -5551,9 +5551,31 @@ function climberBaseline(c) {
     if (!w) return;
     w.load += sessionLoadFor(l, refRoute, refBloc);
   });
-  const vals = weeks.map(w=>Math.round(w.load)).filter(v=>v>0);
+  return weeks.map(w=>Math.round(w.load));
+}
+
+// Charge hebdo "normale" pour un grimpeur donné — équivalent de getPersonalBaseline() mais sans
+// dépendre du grimpeur actif.
+function climberBaseline(c) {
+  const vals = climberWeeklyLoads(c, 12).filter(v=>v>0);
   if (vals.length < 3) return 0;
   return vals.reduce((a,b)=>a+b,0)/vals.length;
+}
+
+// Mini-graphe en barres (plus lisible qu'une simple sparkline en ligne pour comparer des semaines
+// d'un coup d'œil) — utilisé pour l'aperçu de charge par athlète sur "Mes athlètes".
+function miniBarsSvg(values, color, w=180, h=44) {
+  if (!values || !values.length) return '';
+  const max = Math.max(...values, 1);
+  const gap = 3;
+  const barW = (w - gap*(values.length-1)) / values.length;
+  const bars = values.map((v,i) => {
+    const bh = Math.max(2, (v/max)*(h-2));
+    const x = i*(barW+gap);
+    const y = h - bh;
+    return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${bh.toFixed(1)}" rx="2" fill="${color}"/>`;
+  }).join('');
+  return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="width:100%;height:${h}px;display:block">${bars}</svg>`;
 }
 
 function getLoadRange(daysBack) {
@@ -14172,14 +14194,15 @@ async function renderCoachAthletesPage() {
         </select>
       </div>` : '';
     // Aperçu rapide de la charge sans devoir ouvrir la fiche de chaque athlète — répond au besoin
-    // "vision rapide d'une partie du tableau de bord" directement depuis "Mes athlètes".
+    // "vision rapide d'une partie du tableau de bord" directement depuis "Mes athlètes". Un
+    // mini-graphe en barres (8 dernières semaines) est plus visible/lisible d'un coup d'œil qu'un
+    // simple badge de niveau de charge.
     const l7 = climberLoadRange(c, 7), l28 = climberLoadRange(c, 28);
-    const baseline = climberBaseline(c);
-    const lvl = cLevel(l7, baseline);
+    const weeklyLoads = climberWeeklyLoads(c, 8);
     const loadPreview = stats.sessionCount ? `
-      <div style="display:flex;align-items:center;justify-content:center;gap:6px;margin:2px 0 8px;flex-wrap:wrap">
-        <span class="clevel ${lvl.cls}" style="padding:2px 8px;font-size:10px">${lvl.label}</span>
-        <span style="font-size:11px;color:var(--muted)">charge 7j ${l7} · 28j ${l28}</span>
+      <div style="margin:4px 0 10px">
+        ${miniBarsSvg(weeklyLoads, c.color || '#1f5a45')}
+        <div style="font-size:11px;color:var(--muted);text-align:center;margin-top:4px">Charge : 7j ${l7} · 28j ${l28}</div>
       </div>` : '';
     return `<div class="climber-card">
       <div class="cc-avatar" style="${avatarPhotoStyle(photo, c.color)}">${photo?'':initials}</div>
