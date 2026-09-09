@@ -123,6 +123,18 @@ async function initDB() {
       -- Lien vidéo (YouTube) optionnel illustrant la fiche — affiché en lecteur intégré dans le
       -- détail de la séance côté athlète/coach.
       ALTER TABLE session_bank ADD COLUMN IF NOT EXISTS video_url TEXT DEFAULT '';
+      -- Plusieurs vidéos YouTube possibles par fiche (retour : "rajouter la possibilité de mettre
+      -- plusieurs vidéos YouTube sur une séance") — remplace l'usage de video_url ci-dessus, gardé
+      -- pour compat mais plus écrit par le frontend. Tableau de chaînes (URLs).
+      ALTER TABLE session_bank ADD COLUMN IF NOT EXISTS video_urls JSONB DEFAULT '[]';
+      -- Backfill : une fiche déjà créée avec l'ancien champ video_url unique migre vers le nouveau
+      -- tableau, une seule fois (idempotent : ne touche que les lignes pas déjà migrées).
+      UPDATE session_bank SET video_urls = jsonb_build_array(video_url)
+        WHERE video_url IS NOT NULL AND video_url <> '' AND (video_urls IS NULL OR video_urls = '[]'::jsonb);
+      -- Images illustrant la fiche (retour : "possibilité d'y mettre une image ou plusieurs") —
+      -- tableau de data URLs (mêmes redimension/compression client que la photo de profil, cf.
+      -- resizeImageToDataUrl côté frontend) : pas de stockage fichier serveur séparé à gérer.
+      ALTER TABLE session_bank ADD COLUMN IF NOT EXISTS images JSONB DEFAULT '[]';
       -- Checklist de voies/blocs à valider un par un (fiches type "Voies par niveau" / "Bloc par
       -- couleur") : tableau [{id, level}] où level est une cotation (GRADES, ex. "7a") pour une
       -- fiche voies, ou une couleur (BLOC_COLORS, ex. "vert") pour une fiche bloc. Une ligne par
