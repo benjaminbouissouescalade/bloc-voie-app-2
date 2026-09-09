@@ -284,6 +284,25 @@ async function initDB() {
       );
       CREATE INDEX IF NOT EXISTS idx_general_tests_lookup ON general_tests(climber_id, test_type, test_date DESC);
 
+      -- Types de test personnalisés (retour utilisateur : "faire un mode création de test
+      -- physique") : contrairement aux tests codés en dur (Finger Profile, SmartBoard, edge hang,
+      -- tractions, tirage — chacun sa page dédiée), un coach/athlète peut ici déclarer un NOUVEAU
+      -- type de test (nom, catégorie, unité) sans toucher au code. Ne stocke QUE la définition du
+      -- type — les résultats loggués réutilisent la table générique general_tests existante
+      -- (test_type = id de cette table, payload = {value: number}), pas de nouvelle table de
+      -- résultats à dupliquer. Global/partagé comme session_bank (visible de tous les comptes du
+      -- même déploiement), pas par grimpeur.
+      CREATE TABLE IF NOT EXISTS custom_test_types (
+        id                TEXT PRIMARY KEY,
+        name              TEXT NOT NULL,
+        category          TEXT DEFAULT 'general',
+        unit              TEXT DEFAULT '',
+        higher_is_better  BOOLEAN DEFAULT true,
+        description       TEXT DEFAULT '',
+        created_by        TEXT,
+        created_at        TIMESTAMPTZ DEFAULT NOW()
+      );
+
       -- Communauté / mode jeu : crews indépendants de la relation coach-athlète (peuvent
       -- rassembler des grimpeurs de coachs différents, via un code d'invitation partagé).
       CREATE TABLE IF NOT EXISTS crews (
