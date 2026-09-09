@@ -106,7 +106,7 @@ async function computeProgress(climberId, metric, startDate, endDate, bankId) {
 router.post('/', async (req, res) => {
   const climberId = req.user?.climberId;
   if (!climberId) return res.status(400).json({ error: 'Aucun profil grimpeur associé à ce compte' });
-  const { name, description, metric, target, startDate, endDate, participantIds, bankId } = req.body;
+  const { name, description, metric, target, startDate, endDate, participantIds, bankId, image } = req.body;
   if (!name || !name.trim()) return res.status(400).json({ error: 'Nom requis' });
   if (!METRICS.includes(metric)) return res.status(400).json({ error: 'Métrique invalide' });
   if (metric === 'session' && !bankId) return res.status(400).json({ error: 'Séance ciblée requise' });
@@ -119,9 +119,9 @@ router.post('/', async (req, res) => {
   try {
     await client.query('BEGIN');
     await client.query(
-      `INSERT INTO challenges (id, created_by, name, description, metric, target, start_date, end_date, bank_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-      [id, climberId, name.trim(), (description || '').trim(), metric, targetNum, startDate, endDate, metric === 'session' ? bankId : null]
+      `INSERT INTO challenges (id, created_by, name, description, metric, target, start_date, end_date, bank_id, image)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+      [id, climberId, name.trim(), (description || '').trim(), metric, targetNum, startDate, endDate, metric === 'session' ? bankId : null, image || '']
     );
     for (const pid of participants) {
       await client.query(
@@ -176,6 +176,7 @@ router.get('/', async (req, res) => {
         metricLabel: METRIC_LABELS[ch.metric] || ch.metric,
         target: Number(ch.target), startDate: startStr, endDate: endStr,
         createdBy: ch.created_by, isMine: ch.created_by === climberId,
+        image: ch.image || '',
         bankSession, participants: withProgress
       });
     }
