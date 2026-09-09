@@ -15249,7 +15249,7 @@ async function renderCoachFeed() {
           <div style="font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:center;gap:6px">
             <span title="${esc(typeLabel)}" style="width:20px;height:20px;border-radius:50%;background:color-mix(in srgb, ${st.color||'var(--accent)'} 20%, var(--surface2));display:inline-flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0">${typeIcon}</span>
             <span style="font-weight:600">${esc(it.climberName)}</span>
-            ${shapeIcon ? `<span title="${esc(shapeTitle)}">${shapeIcon}</span>` : ''}
+            ${shapeIcon ? `<span title="${esc(shapeTitle)}" style="font-size:18px;line-height:1">${shapeIcon}</span>` : ''}
             <span style="color:var(--muted)"> · ${esc(typeLabel)} · ${it.minutes||0} min · ${fmtDate(it.date)}</span>
           </div>
           <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">${injuryTag}${commentBtn}</div>
