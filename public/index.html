@@ -2059,6 +2059,19 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
         <input class="form-control" type="text" id="ch-desc" placeholder="Ex. On se motive avant le trip">
       </div>
 
+      <!-- Retour utilisateur : "peux-tu mettre la possibilité de mettre une image" — même approche
+           que la photo de profil (resizeImageToDataUrl) : compressée côté client, stockée en data
+           URL, affichée en bandeau sur la carte du défi (cf. renderChallengesTab). -->
+      <div class="form-group">
+        <label class="form-label">Image (optionnel)</label>
+        <input type="file" id="ch-image-input" accept="image/*" onchange="chHandleImageChange(event)" style="display:block;font-size:12px">
+        <div id="ch-image-error" style="display:none;color:var(--warm);font-size:12px;margin-top:6px"></div>
+        <div id="ch-image-preview-wrap" style="display:none;margin-top:8px;position:relative;width:fit-content">
+          <img id="ch-image-preview" style="max-width:100%;max-height:140px;border-radius:var(--r-sm);border:1px solid var(--border);display:block">
+          <button type="button" onclick="chRemoveImage()" title="Retirer" style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;border:none;background:var(--warm);color:#fff;font-size:12px;line-height:20px;cursor:pointer">✕</button>
+        </div>
+      </div>
+
       <div class="form-group">
         <label class="form-label">Type de défi</label>
         <div style="display:flex;gap:8px">
@@ -11157,9 +11170,40 @@ function onChallengeBankSelectChange() {
 }
 window.onChallengeBankSelectChange = onChallengeBankSelectChange;
 
+// Image du défi — même pattern que les images de La Mine (sbImages) : redimensionnée/compressée
+// côté client via resizeImageToDataUrl, une seule image ici (bandeau de carte, pas une galerie).
+let chImageDataUrl = '';
+function chRenderImagePreview() {
+  const wrap = document.getElementById('ch-image-preview-wrap');
+  const img = document.getElementById('ch-image-preview');
+  if (!wrap || !img) return;
+  if (chImageDataUrl) { img.src = chImageDataUrl; wrap.style.display = ''; }
+  else { wrap.style.display = 'none'; img.src = ''; }
+}
+function chHandleImageChange(e) {
+  const file = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  const errEl = document.getElementById('ch-image-error');
+  if (errEl) errEl.style.display = 'none';
+  resizeImageToDataUrl(file, 900, 0.82).then(dataUrl => {
+    chImageDataUrl = dataUrl;
+    chRenderImagePreview();
+  }).catch(err => {
+    if (errEl) { errEl.textContent = "Impossible de charger cette image (" + (err?.message || 'erreur inconnue') + ")."; errEl.style.display = ''; }
+  });
+}
+window.chHandleImageChange = chHandleImageChange;
+function chRemoveImage() {
+  chImageDataUrl = '';
+  chRenderImagePreview();
+}
+window.chRemoveImage = chRemoveImage;
+
 async function openChallengeModal() {
   document.getElementById('ch-name').value = '';
   document.getElementById('ch-desc').value = '';
+  chImageDataUrl = ''; chRenderImagePreview();
   document.getElementById('ch-target').value = '';
   document.getElementById('ch-metric').selectedIndex = 0;
   document.getElementById('ch-newbank-name').value = '';
@@ -11255,7 +11299,7 @@ async function saveChallenge() {
   try {
     const r = await fetch('/api/challenges', {
       method: 'POST', headers: authHeaders(),
-      body: JSON.stringify({ name, description, metric, target, startDate, endDate, participantIds, bankId })
+      body: JSON.stringify({ name, description, metric, target, startDate, endDate, participantIds, bankId, image: chImageDataUrl })
     });
     const d = await r.json();
     if (!r.ok) { errEl.textContent = d.error || 'Erreur lors de la création.'; errEl.style.display = 'block'; return; }
@@ -11298,6 +11342,7 @@ async function renderChallengesTab() {
         ? `🎯 ${esc(ch.bankSession?.name || 'Séance ciblée')}${ch.bankSession?.description ? ' — ' + esc(ch.bankSession.description) : ''}${ch.target > 1 ? ` (×${ch.target})` : ''}`
         : esc(CHALLENGE_METRIC_LABELS[ch.metric] || ch.metric);
       return `<div class="panel" style="margin-bottom:12px">
+        ${ch.image ? `<img src="${ch.image}" style="width:100%;max-height:160px;object-fit:cover;border-radius:var(--r-sm);margin-bottom:12px">` : ''}
         <div class="panel-header">
           <div>
             <span class="panel-title">${esc(ch.name)}</span>
