@@ -135,6 +135,22 @@ async function initDB() {
       -- tableau de data URLs (mêmes redimension/compression client que la photo de profil, cf.
       -- resizeImageToDataUrl côté frontend) : pas de stockage fichier serveur séparé à gérer.
       ALTER TABLE session_bank ADD COLUMN IF NOT EXISTS images JSONB DEFAULT '[]';
+      -- Cloisonnement par coach (retour : "il va y avoir des nouveaux coachs, il va falloir
+      -- cloisonner des éléments" / "pour la mine il faudrait avoir moyen de choisir de partager ou
+      -- non") : chaque fiche appartient au compte (coach) qui l'a créée. visibility='private' =
+      -- visible seulement par son créateur + LES ATHLÈTES DE CE COACH (coach_athletes) ; 'shared' =
+      -- visible de tous les coachs (comportement historique, avant ce cloisonnement). Un owner voit
+      -- toujours tout, quelle que soit la visibilité — cf. GET /api/bank.
+      ALTER TABLE session_bank ADD COLUMN IF NOT EXISTS created_by TEXT;
+      ALTER TABLE session_bank ADD COLUMN IF NOT EXISTS visibility TEXT DEFAULT 'shared';
+      -- Backfill unique : les fiches créées AVANT ce cloisonnement n'ont pas de propriétaire connu
+      -- — on les attribue au premier compte owner trouvé (ne change rien à leur visibilité, déjà
+      -- 'shared' par défaut, donc personne ne perd l'accès à sa bibliothèque existante) plutôt que
+      -- de les laisser orpheline (owner=NULL empêcherait de les modifier/supprimer ensuite, cf.
+      -- vérification de propriété dans bank.js).
+      UPDATE session_bank SET created_by = (SELECT id FROM users WHERE role IN ('owner','admin') ORDER BY created_at ASC LIMIT 1)
+        WHERE created_by IS NULL;
+      UPDATE session_bank SET visibility = 'shared' WHERE visibility IS NULL;
       -- Checklist de voies/blocs à valider un par un (fiches type "Voies par niveau" / "Bloc par
       -- couleur") : tableau [{id, level}] où level est une cotation (GRADES, ex. "7a") pour une
       -- fiche voies, ou une couleur (BLOC_COLORS, ex. "vert") pour une fiche bloc. Une ligne par
