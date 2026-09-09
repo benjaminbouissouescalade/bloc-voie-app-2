@@ -6308,26 +6308,34 @@ function renderDashboard() {
   // Recent sessions
   const recent=getLogs().slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0,4);
   const rEl=document.getElementById('recent-sessions');
-  if(!recent.length){rEl.innerHTML='<div class="empty-state" style="padding:24px"><p>Aucune séance enregistrée</p></div>';return;}
-  rEl.innerHTML=recent.map(l=>{
-    const t=SESSION_TYPES[l.type]||SESSION_TYPES.autre;
-    const load=sessionLoad(l);
-    const top=(l.ascents||[]).filter(a=>['tete','av','flash'].includes(a.status)).map(a=>a.grade).sort((a,b)=>GRADE_IDX[b]-GRADE_IDX[a])[0];
-    return `<div class="log-item" onclick="editSession('${l.id}')">
-      <div class="log-item-header">
-        <div>
-          <div class="log-date" style="display:flex;align-items:center;gap:8px">
-            <span class="sess-dot" style="background:${t.color}"></span>
-            ${t.label} — ${fmtDate(l.date)}
+  // Retour utilisateur : "Chloé a rien rentré et pourtant elle a des séances par répartition type"
+  // — le `return;` ici sortait de TOUTE la fonction renderDashboard() dès qu'un profil n'avait
+  // aucune séance, donc le graphique "Répartition des types" plus bas n'était jamais reconstruit
+  // et gardait l'affichage du précédent profil consulté (ex. Ben) au lieu de se vider. On utilise
+  // un if/else pour ne sauter que le rendu de CE widget, jamais le reste de la fonction.
+  if(!recent.length){
+    rEl.innerHTML='<div class="empty-state" style="padding:24px"><p>Aucune séance enregistrée</p></div>';
+  } else {
+    rEl.innerHTML=recent.map(l=>{
+      const t=SESSION_TYPES[l.type]||SESSION_TYPES.autre;
+      const load=sessionLoad(l);
+      const top=(l.ascents||[]).filter(a=>['tete','av','flash'].includes(a.status)).map(a=>a.grade).sort((a,b)=>GRADE_IDX[b]-GRADE_IDX[a])[0];
+      return `<div class="log-item" onclick="editSession('${l.id}')">
+        <div class="log-item-header">
+          <div>
+            <div class="log-date" style="display:flex;align-items:center;gap:8px">
+              <span class="sess-dot" style="background:${t.color}"></span>
+              ${t.label} — ${fmtDate(l.date)}
+            </div>
+            <div class="log-meta">${l.minutes||0} min · intensité ${l.intensity||'—'} · charge ${load}${l.location?` · ${l.location}`:''}${l.support&&SUPPORTS[l.support]?` · <span style="font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:3px;padding:1px 7px">${SUPPORTS[l.support].icon} ${SUPPORTS[l.support].label}</span>`:''}</div>
           </div>
-          <div class="log-meta">${l.minutes||0} min · intensité ${l.intensity||'—'} · charge ${load}${l.location?` · ${l.location}`:''}${l.support&&SUPPORTS[l.support]?` · <span style="font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:3px;padding:1px 7px">${SUPPORTS[l.support].icon} ${SUPPORTS[l.support].label}</span>`:''}</div>
+          <div style="display:flex;align-items:center;gap:6px">
+            ${top?`<span class="grade ${gradeClass(top)}">${top}</span>`:''}
+          </div>
         </div>
-        <div style="display:flex;align-items:center;gap:6px">
-          ${top?`<span class="grade ${gradeClass(top)}">${top}</span>`:''}
-        </div>
-      </div>
-    </div>`;
-  }).join('');
+      </div>`;
+    }).join('');
+  }
 
   // Type chart — graphe en colonnes (une barre par type de séance, plus lisible qu'un donut
   // pour comparer les volumes entre types d'un coup d'œil). Filtré sur une fenêtre glissante
@@ -11257,9 +11265,12 @@ function updateSessionTypeUI(savedBNoGrade) {
   const selStyles = bData.styles || [];
 
   // ── Ascent hint ──
+  // Visible seulement si CE type de séance affiche des ascensions cotées ET que le formulaire n'est
+  // pas en vue planification (cf. currentFormIsPlanning, tenu à jour par applyPlanningView) — les
+  // deux conditions sont combinées ici pour rester correctes même si applyPlanningView() s'exécute
+  // après cette fonction (ordre d'appel différent selon newSession()/editSession()).
   const ascentPanel = document.getElementById('ascents-editor')?.closest('.panel');
-  const ascentBtn = document.getElementById('add-ascent-btn');
-  if (ascentPanel) ascentPanel.style.display = cfg.showAscents ? '' : 'none';
+  if (ascentPanel) ascentPanel.style.display = (cfg.showAscents && !currentFormIsPlanning) ? '' : 'none';
 
   // ── Nom libre (type "Autre" uniquement) ──
   const nameRow = document.getElementById('s-custom-name-row');
@@ -11450,6 +11461,13 @@ window.pickPpgBankFiche = pickPpgBankFiche;
 // ═══════════════ SAISIE VOCALE (dictée + IA) ═══════════════
 // — New Session —
 let editingId=null, sessionAscents=[];
+// État "vue planification" du formulaire actuellement ouvert, tenu à jour par applyPlanningView()
+// et relu par updateSessionTypeUI() pour que les deux fonctions s'accordent sur la visibilité du
+// panneau "Ascensions cotées" quel que soit leur ordre d'appel (cf. applyPlanningView ci-dessous —
+// retour utilisateur : "ascensions cotées" réapparaissait sur une séance Bloc déjà faite parce que
+// applyPlanningView s'exécutait après updateSessionTypeUI dans editSession() et réaffichait le
+// panneau sans se soucier du type de séance).
+let currentFormIsPlanning = false;
 let sNewSessionDateLocked=false; // évite que renderNewSession() n'écrase une date déjà fixée (ex. clic sur une case du calendrier)
 // Retour utilisateur : "je viens de proposer ma propre séance pour le futur, malheureusement la
 // fenêtre marche comme rentrer une séance et non pas planifier" — le formulaire "Nouvelle séance"
@@ -11660,10 +11678,21 @@ function editSession(id){
 function isPlanningView(log) { return !!(log && log.planned && isFutureDateStr(log.date)); }
 function applyPlanningView(log) {
   const planning = isPlanningView(log);
-  ['s-injury-group', 's-ascents-panel', 's-charge-panel'].forEach(id => {
+  currentFormIsPlanning = planning;
+  ['s-injury-group', 's-charge-panel'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = planning ? 'none' : '';
   });
+  // "Ascensions cotées" : pas géré par la boucle générique ci-dessus — sa visibilité dépend AUSSI du
+  // type de séance (cf. SESSION_CONFIG[type].showAscents), pas seulement de la vue planification.
+  // On recalcule donc la condition complète ici plutôt que d'écraser aveuglément en 'planning ?
+  // none : ""', pour ne pas réafficher le panneau sur un type qui ne le supporte pas (ex. Bloc
+  // salle) quand applyPlanningView() est appelée après updateSessionTypeUI() (cf. editSession()).
+  const ascentsPanelEl = document.getElementById('s-ascents-panel');
+  if (ascentsPanelEl) {
+    const cfg = SESSION_CONFIG[getCurrentSessionType()] || SESSION_CONFIG.autre;
+    ascentsPanelEl.style.display = (!planning && cfg.showAscents) ? '' : 'none';
+  }
   if (planning) {
     const chk = document.getElementById('s-checklist-panel');
     if (chk) chk.style.display = 'none';
