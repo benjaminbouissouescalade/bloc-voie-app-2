@@ -3699,9 +3699,19 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <textarea class="form-control" id="sb-description" placeholder="Détaille le déroulé : échauffement, exercices, intensités, volumes, temps de repos…" style="min-height:100px"></textarea>
     </div>
     <div class="form-group">
-      <label class="form-label">🎥 Lien vidéo YouTube <span style="font-weight:400;color:var(--muted)">(optionnel)</span></label>
-      <input class="form-control" type="url" id="sb-video-url" placeholder="https://www.youtube.com/watch?v=…">
-      <p style="font-size:11px;color:var(--muted);margin-top:4px">La vidéo s'affiche directement dans le détail de la fiche.</p>
+      <label class="form-label">🎥 Vidéos YouTube <span style="font-weight:400;color:var(--muted)">(optionnel, plusieurs possibles)</span></label>
+      <div style="display:flex;gap:8px">
+        <input class="form-control" type="url" id="sb-video-url-input" placeholder="https://www.youtube.com/watch?v=…" onkeydown="if(event.key==='Enter'){event.preventDefault();sbAddVideoUrl();}">
+        <button type="button" class="btn sm primary" onclick="sbAddVideoUrl()">+ Ajouter</button>
+      </div>
+      <div id="sb-video-list" style="display:flex;flex-direction:column;gap:6px;margin-top:8px"></div>
+      <p style="font-size:11px;color:var(--muted);margin-top:4px">Chaque vidéo s'affiche directement dans le détail de la fiche.</p>
+    </div>
+    <div class="form-group">
+      <label class="form-label">🖼️ Images <span style="font-weight:400;color:var(--muted)">(optionnel, plusieurs possibles)</span></label>
+      <input type="file" id="sb-image-input" accept="image/*" multiple onchange="sbHandleImageChange(event)" style="display:block;font-size:12px">
+      <div id="sb-image-error" style="display:none;color:var(--warm);font-size:12px;margin-top:6px"></div>
+      <div id="sb-image-list" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"></div>
     </div>
     <div class="form-group">
       <label class="form-label">Tags (styles travaillés)</label>
@@ -13602,7 +13612,8 @@ function sbSessionSummaryHtml(s) {
       <span class="sb-tag">${(s.contentType||'seance')==='exercice'?'Exercice':'Séance'}</span>
       ${s.source==='ai' ? `<span class="sb-tag">✦ IA</span>` : ''}
     </div>
-    ${ytEmbedHtml(s.videoUrl)}
+    ${((s.videoUrls && s.videoUrls.length) ? s.videoUrls : (s.videoUrl ? [s.videoUrl] : [])).map(ytEmbedHtml).join('')}
+    ${(s.images||[]).length ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">${s.images.map(img => `<a href="${img}" target="_blank" rel="noopener"><img src="${img}" style="width:120px;height:120px;object-fit:cover;border-radius:var(--r-sm);border:1px solid var(--border);cursor:zoom-in"></a>`).join('')}</div>` : ''}
     <div style="display:flex;align-items:center;gap:16px;margin-bottom:14px;font-size:13px;flex-wrap:wrap">
       <span>⏱️ ${s.duration||90} min</span>
       <span class="sb-intensity">${intDots}</span>
@@ -13737,6 +13748,76 @@ function sbChecklistRemoveItem(id) {
   sbRenderChecklistList();
 }
 window.sbChecklistRemoveItem = sbChecklistRemoveItem;
+
+// Vidéos YouTube multiples sur une fiche (retour : "rajouter la possibilité de mettre plusieurs
+// vidéos YouTube sur une séance quand on la crée") — remplace l'ancien champ unique sb-video-url.
+// Même pattern add/liste/remove que sbChecklistItems ci-dessus. Persisté via sbSave() (payload
+// videoUrls) ; sbVideoUrls réinitialisé par sbNewCard()/rechargé par sbEditCard().
+let sbVideoUrls = [];
+function sbRenderVideoList() {
+  const listEl = document.getElementById('sb-video-list');
+  if (!listEl) return;
+  listEl.innerHTML = sbVideoUrls.length
+    ? sbVideoUrls.map((url, idx) => `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2)">
+        <span style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${ytVideoId(url) ? '🎥' : '⚠️'} ${esc(url)}</span>
+        <button type="button" class="btn sm danger" onclick="sbRemoveVideoUrl(${idx})">✕</button>
+      </div>`).join('')
+    : `<p style="font-size:12px;color:var(--muted);margin:0">Aucune vidéo pour l'instant.</p>`;
+}
+function sbAddVideoUrl() {
+  const input = document.getElementById('sb-video-url-input');
+  const url = input?.value.trim();
+  if (!url) return;
+  if (!ytVideoId(url)) { alert('Lien YouTube non reconnu — vérifie l\'URL (ex. https://www.youtube.com/watch?v=…)'); return; }
+  sbVideoUrls.push(url);
+  input.value = '';
+  sbRenderVideoList();
+}
+window.sbAddVideoUrl = sbAddVideoUrl;
+function sbRemoveVideoUrl(idx) {
+  sbVideoUrls.splice(idx, 1);
+  sbRenderVideoList();
+}
+window.sbRemoveVideoUrl = sbRemoveVideoUrl;
+
+// Images multiples sur une fiche (retour : "mettre la possibilité d'y mettre une image ou
+// plusieurs") — même approche que la photo de profil (resizeImageToDataUrl, cf. plus bas dans ce
+// fichier) : redimensionnées/compressées côté client en data URL, stockées directement en JSONB
+// (pas de stockage fichier serveur séparé à gérer). maxSize plus grand que l'avatar (320) car ces
+// images illustrent le contenu d'une fiche, pas une simple vignette de profil.
+let sbImages = [];
+function sbRenderImageList() {
+  const listEl = document.getElementById('sb-image-list');
+  if (!listEl) return;
+  listEl.innerHTML = sbImages.map((dataUrl, idx) => `
+    <div style="position:relative;width:84px;height:84px">
+      <img src="${dataUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:8px;border:1px solid var(--border)">
+      <button type="button" onclick="sbRemoveImage(${idx})" title="Retirer" style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;border:none;background:var(--warm);color:#fff;font-size:12px;line-height:20px;cursor:pointer">✕</button>
+    </div>`).join('');
+}
+function sbHandleImageChange(e) {
+  const files = Array.from(e.target.files || []);
+  e.target.value = ''; // permet de resélectionner le même fichier plus tard
+  if (!files.length) return;
+  const errEl = document.getElementById('sb-image-error');
+  if (errEl) errEl.style.display = 'none';
+  Promise.all(files.map(f => resizeImageToDataUrl(f, 900, 0.82).catch(err => ({ __error: err }))))
+    .then(results => {
+      const errors = results.filter(r => r && r.__error);
+      results.filter(r => typeof r === 'string').forEach(dataUrl => sbImages.push(dataUrl));
+      sbRenderImageList();
+      if (errors.length && errEl) {
+        errEl.textContent = `${errors.length} image(s) n'ont pas pu être chargées (${errors[0].__error?.message || 'erreur inconnue'}).`;
+        errEl.style.display = '';
+      }
+    });
+}
+window.sbHandleImageChange = sbHandleImageChange;
+function sbRemoveImage(idx) {
+  sbImages.splice(idx, 1);
+  sbRenderImageList();
+}
+window.sbRemoveImage = sbRemoveImage;
 document.getElementById('sb-type')?.addEventListener('change', sbRenderChecklistSection);
 
 function sbEditCard(id) {
@@ -13753,8 +13834,10 @@ function sbEditCard(id) {
   document.getElementById('sb-intensity').value = s.intensity || 3;
   document.getElementById('sb-goal').value = s.goal || 'projet';
   document.getElementById('sb-description').value = s.description || '';
-  const sbVideoEl = document.getElementById('sb-video-url');
-  if (sbVideoEl) sbVideoEl.value = s.videoUrl || '';
+  sbVideoUrls = (s.videoUrls && s.videoUrls.length) ? [...s.videoUrls] : (s.videoUrl ? [s.videoUrl] : []);
+  sbRenderVideoList();
+  sbImages = [...(s.images || [])];
+  sbRenderImageList();
   const sbSupportEl = document.getElementById('sb-support');
   if (sbSupportEl) sbSupportEl.value = s.support || '';
   // Tags
@@ -13799,7 +13882,9 @@ function sbNewCard() {
   document.getElementById('sb-intensity').value = 3;
   document.getElementById('sb-goal').value = 'projet';
   document.getElementById('sb-description').value = '';
-  const sbVideoEl2 = document.getElementById('sb-video-url'); if (sbVideoEl2) sbVideoEl2.value = '';
+  sbVideoUrls = []; sbRenderVideoList();
+  const sbVideoInputEl = document.getElementById('sb-video-url-input'); if (sbVideoInputEl) sbVideoInputEl.value = '';
+  sbImages = []; sbRenderImageList();
   const sbSupEl = document.getElementById('sb-support'); if (sbSupEl) sbSupEl.value = '';
   document.querySelectorAll('#sb-tags-picker input').forEach(el => el.checked = false);
   const sbCatEl2 = document.getElementById('sb-category');
@@ -13835,7 +13920,9 @@ function sbSave() {
     goal:        document.getElementById('sb-goal').value,
     support:     document.getElementById('sb-support')?.value || '',
     description: document.getElementById('sb-description').value.trim(),
-    videoUrl:    document.getElementById('sb-video-url')?.value.trim() || '',
+    videoUrls:   sbVideoUrls,
+    videoUrl:    sbVideoUrls[0] || '', // compat arrière (ancien champ unique, cf. schema.js)
+    images:      sbImages,
     tags,
     category:    document.getElementById('sb-category')?.value || '',
     subcategory: document.getElementById('sb-subcategory')?.value || '',
@@ -15367,6 +15454,17 @@ function switchClimber(id) {
   db.activeId = id;
   saveDB();
   closeModal('climber-modal');
+  // Changer de profil pendant une vue "Coaching — {athlète}" doit en sortir (bandeau + bouton
+  // "Quitter le coaching") dès qu'on ne regarde plus CET athlète-là — sinon le bandeau reste affiché
+  // au nom de l'ancien athlète alors qu'on est revenu sur un autre profil (retour utilisateur : "il
+  // reste un bandeau en haut, cela devrait sortir direct du coaching quand on change de profil").
+  // openCoachingView() appelle switchClimber() avec CE MÊME id juste après avoir fixé
+  // coachingClimberId, donc ce cas ne déclenche jamais de sortie ici (id === coachingClimberId).
+  if (coachingClimberId && id !== coachingClimberId) {
+    coachingClimberId = null;
+    const banner = document.getElementById('coaching-view-banner');
+    if (banner) banner.style.display = 'none';
+  }
   renderSidebarStats();
   renderPage(document.querySelector('.nav-btn.active')?.dataset.page||'dashboard');
 }
