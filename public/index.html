@@ -11713,7 +11713,13 @@ function renderSessionComments(log) {
   const panel = document.getElementById('s-comments-panel');
   const listEl = document.getElementById('s-comments-list');
   if (!panel || !listEl) return;
-  if (log && log.planned) { panel.style.display = 'none'; return; }
+  // Retour utilisateur : "quand on valide une séance planifiée il n'y a pas l'encart commentaire"
+  // — ce panneau se basait sur log.planned SEUL, sans regarder la date comme le fait isPlanningView()
+  // partout ailleurs (ascensions, charge, bobo). Une séance planned:true dont la date est arrivée
+  // (en train d'être validée/complétée) n'est donc plus une vue "planification" à proprement parler,
+  // même si le flag planned n'a pas encore été basculé par saveCurrentSession() — on doit se fier à
+  // isPlanningView(log) pour rester cohérent avec le reste du formulaire.
+  if (isPlanningView(log)) { panel.style.display = 'none'; return; }
   panel.style.display = '';
   const comments = log?.comments || [];
   listEl.innerHTML = comments.length ? comments.map(c => {
