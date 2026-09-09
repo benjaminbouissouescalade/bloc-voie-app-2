@@ -29,6 +29,10 @@ router.get('/', async (req, res) => {
       crossTags: r.cross_tags || [],
       contentType: r.content_type || 'seance',
       videoUrl: r.video_url || '',
+      // videoUrls remplace videoUrl (unique) — fallback sur l'ancien champ pour une fiche jamais
+      // resauvegardée depuis la migration (video_urls encore à '[]' mais video_url non vide).
+      videoUrls: (r.video_urls && r.video_urls.length) ? r.video_urls : (r.video_url ? [r.video_url] : []),
+      images: r.images || [],
       checklist: r.checklist || [],
       createdAt: new Date(r.created_at).getTime()
     }));
@@ -40,19 +44,23 @@ router.get('/', async (req, res) => {
 
 // POST /api/bank — créer ou mettre à jour une séance type
 router.post('/', async (req, res) => {
-  const { id, name, type, support, level, duration, intensity, goal, description, tags, source, category, subcategory, crossTags, contentType, videoUrl, checklist } = req.body;
+  const { id, name, type, support, level, duration, intensity, goal, description, tags, source, category, subcategory, crossTags, contentType, videoUrl, videoUrls, images, checklist } = req.body;
   if (!id || !name) return res.status(400).json({ error: 'id et name requis' });
+  // videoUrls (tableau) remplace videoUrl (unique) — on garde video_url en écriture pour compat
+  // arrière (ex. intégration externe qui ne connaîtrait que l'ancien champ), rempli avec la
+  // première vidéo du tableau.
+  const urls = Array.isArray(videoUrls) ? videoUrls.filter(Boolean) : (videoUrl ? [videoUrl] : []);
   try {
     await pool.query(
-      `INSERT INTO session_bank (id, name, type, support, level, duration, intensity, goal, description, tags, source, category, subcategory, cross_tags, content_type, video_url, checklist)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+      `INSERT INTO session_bank (id, name, type, support, level, duration, intensity, goal, description, tags, source, category, subcategory, cross_tags, content_type, video_url, video_urls, images, checklist)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
        ON CONFLICT (id) DO UPDATE SET
          name=$2, type=$3, support=$4, level=$5, duration=$6, intensity=$7,
-         goal=$8, description=$9, tags=$10, source=$11, category=$12, subcategory=$13, cross_tags=$14, content_type=$15, video_url=$16, checklist=$17, updated_at=NOW()`,
+         goal=$8, description=$9, tags=$10, source=$11, category=$12, subcategory=$13, cross_tags=$14, content_type=$15, video_url=$16, video_urls=$17, images=$18, checklist=$19, updated_at=NOW()`,
       [id, name, type, support||'', level||'confirme', duration||90, intensity||3,
        goal||'projet', description||'', JSON.stringify(tags||[]), source||'manual',
        category||'', subcategory||'', JSON.stringify(crossTags||[]), contentType === 'exercice' ? 'exercice' : 'seance',
-       videoUrl||'', JSON.stringify(checklist||[])]
+       urls[0]||'', JSON.stringify(urls), JSON.stringify(images||[]), JSON.stringify(checklist||[])]
     );
     res.json({ ok: true });
   } catch (err) {
@@ -75,14 +83,16 @@ router.post('/sync', async (req, res) => {
     await client.query('BEGIN');
     await client.query('DELETE FROM session_bank');
     for (const s of items) {
+      const urls = Array.isArray(s.videoUrls) ? s.videoUrls.filter(Boolean) : (s.videoUrl ? [s.videoUrl] : []);
       await client.query(
-        `INSERT INTO session_bank (id, name, type, support, level, duration, intensity, goal, description, tags, source, category, subcategory, cross_tags, content_type, video_url, checklist)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
+        `INSERT INTO session_bank (id, name, type, support, level, duration, intensity, goal, description, tags, source, category, subcategory, cross_tags, content_type, video_url, video_urls, images, checklist)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
         [s.id, s.name, s.type, s.support||'', s.level||'confirme',
          s.duration||90, s.intensity||3, s.goal||'projet',
          s.description||'', JSON.stringify(s.tags||[]), s.source||'manual',
          s.category||'', s.subcategory||'', JSON.stringify(s.crossTags||[]),
-         s.contentType === 'exercice' ? 'exercice' : 'seance', s.videoUrl||'', JSON.stringify(s.checklist||[])]
+         s.contentType === 'exercice' ? 'exercice' : 'seance', urls[0]||'', JSON.stringify(urls),
+         JSON.stringify(s.images||[]), JSON.stringify(s.checklist||[])]
       );
     }
     await client.query('COMMIT');
