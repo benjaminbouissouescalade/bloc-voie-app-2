@@ -467,6 +467,10 @@ async function initDB() {
       -- Défi ciblant une séance précise de la banque (ex. "Voie rose, Salle X") plutôt
       -- qu'une métrique chiffrée générique. NULL pour les défis chiffrés classiques.
       ALTER TABLE challenges ADD COLUMN IF NOT EXISTS bank_id TEXT;
+      -- Image d'illustration optionnelle (retour utilisateur, écran "Créer un défi") — data URL
+      -- compressée côté client (même approche que la photo de profil / les images de La Mine, cf.
+      -- resizeImageToDataUrl), affichée en bandeau sur la carte du défi.
+      ALTER TABLE challenges ADD COLUMN IF NOT EXISTS image TEXT DEFAULT '';
 
       -- Salles : référentiel partagé (un seul, pas par coach) des lieux d'entraînement, avec
       -- leurs équipements disponibles (voies, bloc, vitesse, muscu, pan, poutre, smartboard).
