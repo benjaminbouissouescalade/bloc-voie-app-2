@@ -2203,6 +2203,102 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   </div>
 </div>
 
+<!-- Modal créer/modifier un TYPE de test physique personnalisé (retour : "faire un mode création
+     de test physique") — ne définit que le type (nom/catégorie/unité) ; les résultats se logguent
+     ensuite via custom-test-log-modal ci-dessous. -->
+<div class="modal-backdrop" id="custom-test-create-modal">
+  <div class="modal" style="width:min(480px,100%)">
+    <div class="modal-header">
+      <span class="modal-title" id="ct-create-title">Créer un test physique</span>
+      <button class="btn sm" onclick="closeModal('custom-test-create-modal')">Fermer</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="ct-edit-id">
+      <div class="form-group">
+        <label class="form-label">Nom du test</label>
+        <input class="form-control" type="text" id="ct-name" placeholder="Ex. Squat jump, Gainage planche, VO2 max…">
+      </div>
+      <div class="form-row form-row-2">
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Catégorie</label>
+          <select class="form-control" id="ct-category">
+            <option value="doigts">🖐️ Doigts</option>
+            <option value="bras">💪 Bras</option>
+            <option value="souplesse">🤸 Souplesse</option>
+            <option value="general" selected>📋 Général</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Unité mesurée</label>
+          <input class="form-control" type="text" id="ct-unit" list="ct-unit-suggestions" placeholder="Ex. cm, kg, s, reps…">
+          <datalist id="ct-unit-suggestions">
+            <option value="kg"><option value="cm"><option value="s"><option value="reps"><option value="%"><option value="pts"><option value="W">
+          </datalist>
+        </div>
+      </div>
+      <div class="form-group">
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+          <input type="checkbox" id="ct-higher-better" checked style="width:auto">
+          Une valeur plus haute = une meilleure performance
+        </label>
+        <p style="font-size:11px;color:var(--muted);margin-top:4px">Décoche pour un test où c'est l'inverse (ex. un temps à minimiser).</p>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Description / protocole <span style="font-weight:400;color:var(--muted)">(optionnel)</span></label>
+        <textarea class="form-control" id="ct-description" placeholder="Comment réaliser le test…" style="min-height:70px"></textarea>
+      </div>
+      <div id="ct-error" style="display:none;background:var(--warm2);color:var(--warm);border-radius:8px;padding:10px;font-size:13px;margin-bottom:12px"></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn primary" style="flex:1" onclick="ctSaveType()">Enregistrer</button>
+        <button class="btn danger" id="ct-delete-btn" style="display:none" onclick="ctDeleteType()">Supprimer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal logger un résultat + historique pour UN type de test personnalisé donné (ctCurrentTypeId
+     tient l'id du type actuellement ouvert). Réutilise la table générique general_tests côté
+     backend, comme les tests codés en dur (SmartBoard, tractions…). -->
+<div class="modal-backdrop" id="custom-test-log-modal">
+  <div class="modal" style="width:min(560px,100%)">
+    <div class="modal-header">
+      <span class="modal-title" id="ctlog-title">Test</span>
+      <button class="btn sm" onclick="closeModal('custom-test-log-modal')">Fermer</button>
+    </div>
+    <div class="modal-body">
+      <p id="ctlog-description" style="font-size:12px;color:var(--muted);margin-bottom:14px"></p>
+      <div class="form-row form-row-2">
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Date</label>
+          <input class="form-control" type="date" id="ctlog-date">
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label" id="ctlog-value-label">Valeur</label>
+          <input class="form-control" type="number" step="0.01" id="ctlog-value">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Notes <span style="font-weight:400;color:var(--muted)">(optionnel)</span></label>
+        <input class="form-control" type="text" id="ctlog-notes" placeholder="Conditions, ressenti…">
+      </div>
+      <button class="btn primary" style="width:100%;margin-bottom:16px" onclick="ctSaveLog()">Enregistrer le résultat</button>
+
+      <div id="ctlog-chart-panel" style="display:none;margin-bottom:16px">
+        <div style="font-size:12px;font-weight:600;margin-bottom:4px">Évolution</div>
+        <div class="chart-wrap" style="height:160px"><canvas id="ctlog-evo-chart"></canvas></div>
+      </div>
+
+      <div style="font-size:12px;font-weight:600;margin-bottom:8px">Historique</div>
+      <div id="ctlog-history-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px"></div>
+
+      <div style="display:flex;gap:8px;padding-top:12px;border-top:1px solid var(--border)">
+        <button class="btn" style="flex:1" onclick="ctEditTypeFromLog()">✏️ Modifier le test</button>
+        <button class="btn danger" onclick="ctDeleteTypeFromLog()">🗑️ Supprimer le test</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Modal cycle -->
 <div class="modal-backdrop" id="cycle-modal">
   <div class="modal" style="width:min(680px,100%)">
@@ -2340,11 +2436,16 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <div class="th-title">Souplesse</div>
       <div class="th-sub">Mobilité, ouverture de hanches</div>
     </div>
-    <div class="sb-card tests-hub-card disabled">
-      <span class="th-badge">Bientôt</span>
+    <!-- Retour utilisateur : "faire un mode création de test physique" — plutôt qu'une nouvelle
+         catégorie figée de plus (comme Doigts/Bras), cette carte ouvre un hub où on peut CRÉER
+         soi-même de nouveaux types de test (nom, catégorie, unité) puis y loguer des résultats,
+         pour tout ce qui ne rentre pas dans Doigts/Bras/Souplesse (endurance, gainage, sauts...).
+         Backend générique déjà en place (general_tests.test_type + payload JSONB) — cf.
+         customTestTypes.js, qui ne fait que déclarer le TYPE, le log réutilise general_tests. -->
+    <div class="sb-card tests-hub-card" onclick="switchPage('tests-custom')">
       <span class="th-icon">📋</span>
-      <div class="th-title">Tests généraux</div>
-      <div class="th-sub">Endurance, gainage, tests physiques</div>
+      <div class="th-title">Tests personnalisés</div>
+      <div class="th-sub">Endurance, gainage, sauts… crée tes propres tests</div>
     </div>
   </div>
 
@@ -2396,6 +2497,23 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     </div>
     <p id="thd-bras-empty" style="font-size:13px;color:var(--muted);display:none">Pas encore de test enregistré pour afficher une courbe.</p>
   </div>
+</div>
+
+<!-- ═══════════════ TESTS GÉNÉRAUX — PERSONNALISÉS ═══════════════
+     Retour utilisateur : "faire un mode création de test physique" — page listant les types de
+     test créés par l'utilisateur (ctRenderHub) + bouton de création. Cliquer une carte ouvre le
+     log/historique de CE test (ctOpenLog), cf. custom-test-log-modal plus haut dans le fichier. -->
+<div class="page" id="page-tests-custom">
+  <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px">
+    <div>
+      <div class="tests-breadcrumb" onclick="switchPage('tests-hub')">‹ Tests généraux</div>
+      <h2>Tests personnalisés</h2>
+      <p>Crée tes propres tests physiques (endurance, gainage, sauts…) et suis leur évolution</p>
+    </div>
+    <button class="btn primary" onclick="ctOpenCreateModal()">+ Créer un test</button>
+  </div>
+  <div id="ct-hub-grid" class="tests-hub-grid"></div>
+  <p id="ct-hub-empty" style="font-size:13px;color:var(--muted);display:none">Aucun test personnalisé pour l'instant — clique sur « + Créer un test » pour commencer.</p>
 </div>
 
 <!-- ═══════════════ TESTS GÉNÉRAUX — DOIGTS ═══════════════ -->
@@ -3609,6 +3727,18 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
           <option value="expert">Expert</option>
         </select>
       </div>
+    </div>
+    <!-- Retour utilisateur : "il va y avoir des nouveaux coachs, il va falloir cloisonner des
+         éléments" / "pour la mine il faudrait avoir moyen de choisir de partager ou non" — chaque
+         fiche appartient à son créateur ; ce sélecteur décide si les AUTRES coachs (et leurs
+         athlètes) la voient aussi. Une nouvelle fiche est privée par défaut (cf. sbNewCard) ; une
+         fiche déjà partagée avant ce cloisonnement le reste (migration schema.js). -->
+    <div class="form-group" id="sb-visibility-group">
+      <label class="form-label">👁️ Visibilité</label>
+      <select class="form-control" id="sb-visibility">
+        <option value="private">🔒 Privée — visible seulement par moi et mes athlètes</option>
+        <option value="shared">🌍 Partagée — visible par tous les coachs de l'app</option>
+      </select>
     </div>
     <div class="form-row form-row-3">
       <div class="form-group" style="margin:0">
@@ -5262,7 +5392,7 @@ function applyRoleUI() {
 }
 
 // ═══════════════ MODE MES DONNÉES / MON COACH ═══════════════
-const APPMODE_MINE_PAGES = ['dashboard','calendar','new-session','performance','workload','tests-hub','tests-doigts','finger-profile','tests-smartboard','tests-edgehang','tests-bras','tests-tractions','tests-tirage','badges','ai-coach','history','community'];
+const APPMODE_MINE_PAGES = ['dashboard','calendar','new-session','performance','workload','tests-hub','tests-doigts','finger-profile','tests-smartboard','tests-edgehang','tests-bras','tests-tractions','tests-tirage','tests-custom','badges','ai-coach','history','community'];
 const APPMODE_COACH_PAGES = ['coach-athletes','planning','session-bank'];
 let appMode = 'mine';
 try { appMode = localStorage.getItem('appMode') || 'mine'; } catch (e) {}
@@ -5880,6 +6010,7 @@ function renderPage(name) {
   if(name==='workload') renderWorkload();
   if(name==='finger-profile') renderFingerProfile();
   if(name==='tests-hub') renderTestsHubDashboard();
+  if(name==='tests-custom') ctRenderHub();
   if(name==='tests-smartboard') renderSmartboard();
   if(name==='tests-edgehang') renderEdgeHang();
   if(name==='tests-tractions') renderTractions();
@@ -9837,6 +9968,210 @@ makeArmTestPage({
   historyLine: p => `${p.load ?? '–'} kg`
 });
 
+// ═══════════════ TESTS GÉNÉRAUX — PERSONNALISÉS ═══════════════
+// Retour utilisateur : "faire un mode création de test physique" — contrairement aux tests
+// codés en dur ci-dessus (makeArmTestPage, une page par test connue à l'avance), ici l'utilisateur
+// déclare lui-même le TYPE de test (nom/catégorie/unité, cf. custom-test-create-modal), et les
+// résultats se logguent dans UNE seule modale générique (custom-test-log-modal) qui s'adapte au
+// type actuellement ouvert (ctCurrentTypeId) plutôt que d'avoir une page dédiée par test — nombre
+// de tests non borné, impossible à générer à l'avance comme pour Doigts/Bras.
+const CT_CATEGORY_ICONS = { doigts: '🖐️', bras: '💪', souplesse: '🤸', general: '📋' };
+const CT_CATEGORY_LABELS = { doigts: 'Doigts', bras: 'Bras', souplesse: 'Souplesse', general: 'Général' };
+let ctTypes = null;      // cache des types personnalisés, chargé au premier affichage de la page
+let ctLogsCache = [];    // résultats du type actuellement ouvert dans custom-test-log-modal
+let ctCurrentTypeId = null;
+
+async function ctFetchTypes(force) {
+  if (ctTypes && !force) return ctTypes;
+  try {
+    const r = await fetch('/api/custom-test-types', { headers: authHeaders() });
+    ctTypes = r.ok ? await r.json() : [];
+  } catch (e) { ctTypes = ctTypes || []; }
+  return ctTypes;
+}
+
+async function ctRenderHub() {
+  const grid = document.getElementById('ct-hub-grid');
+  const emptyEl = document.getElementById('ct-hub-empty');
+  if (!grid) return;
+  const types = await ctFetchTypes();
+  emptyEl.style.display = types.length ? 'none' : '';
+  grid.innerHTML = types.map(t => `
+    <div class="sb-card tests-hub-card" onclick="ctOpenLog('${t.id}')">
+      <span class="th-icon">${CT_CATEGORY_ICONS[t.category] || '📋'}</span>
+      <div class="th-title">${esc(t.name)}</div>
+      <div class="th-sub">${CT_CATEGORY_LABELS[t.category] || 'Général'}${t.unit ? ' · en ' + esc(t.unit) : ''}</div>
+    </div>`).join('');
+}
+window.ctRenderHub = ctRenderHub;
+
+// — Créer / modifier un type —
+function ctOpenCreateModal() {
+  document.getElementById('ct-create-title').textContent = 'Créer un test physique';
+  document.getElementById('ct-edit-id').value = '';
+  document.getElementById('ct-name').value = '';
+  document.getElementById('ct-category').value = 'general';
+  document.getElementById('ct-unit').value = '';
+  document.getElementById('ct-higher-better').checked = true;
+  document.getElementById('ct-description').value = '';
+  document.getElementById('ct-error').style.display = 'none';
+  document.getElementById('ct-delete-btn').style.display = 'none';
+  document.getElementById('custom-test-create-modal').classList.add('open');
+}
+window.ctOpenCreateModal = ctOpenCreateModal;
+
+function ctOpenEditModal(t) {
+  document.getElementById('ct-create-title').textContent = 'Modifier le test';
+  document.getElementById('ct-edit-id').value = t.id;
+  document.getElementById('ct-name').value = t.name;
+  document.getElementById('ct-category').value = t.category || 'general';
+  document.getElementById('ct-unit').value = t.unit || '';
+  document.getElementById('ct-higher-better').checked = t.higherIsBetter !== false;
+  document.getElementById('ct-description').value = t.description || '';
+  document.getElementById('ct-error').style.display = 'none';
+  document.getElementById('ct-delete-btn').style.display = '';
+  document.getElementById('custom-test-create-modal').classList.add('open');
+}
+
+async function ctSaveType() {
+  const name = document.getElementById('ct-name').value.trim();
+  const errEl = document.getElementById('ct-error');
+  errEl.style.display = 'none';
+  if (!name) { errEl.textContent = 'Donne un nom au test.'; errEl.style.display = ''; return; }
+  const editId = document.getElementById('ct-edit-id').value;
+  const body = {
+    id: editId || 'ct_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+    name,
+    category: document.getElementById('ct-category').value,
+    unit: document.getElementById('ct-unit').value.trim(),
+    higherIsBetter: document.getElementById('ct-higher-better').checked,
+    description: document.getElementById('ct-description').value.trim()
+  };
+  try {
+    const r = await fetch('/api/custom-test-types', { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) });
+    if (!r.ok) { const d = await r.json().catch(()=>({})); errEl.textContent = d.error || 'Erreur lors de l\'enregistrement.'; errEl.style.display = ''; return; }
+  } catch (e) { errEl.textContent = 'Erreur réseau.'; errEl.style.display = ''; return; }
+  closeModal('custom-test-create-modal');
+  await ctFetchTypes(true);
+  ctRenderHub();
+  // Si on modifiait le test actuellement ouvert dans la modale de log, rafraîchit son titre.
+  if (ctCurrentTypeId === body.id) ctOpenLog(body.id);
+}
+window.ctSaveType = ctSaveType;
+
+async function ctDeleteType() {
+  const id = document.getElementById('ct-edit-id').value;
+  if (!id) return;
+  if (!confirm('Supprimer ce test ? Les résultats déjà enregistrés resteront dans l\'historique général mais ce test n\'apparaîtra plus dans la liste.')) return;
+  try { await fetch('/api/custom-test-types/' + id, { method: 'DELETE', headers: authHeaders() }); } catch (e) {}
+  closeModal('custom-test-create-modal');
+  closeModal('custom-test-log-modal');
+  await ctFetchTypes(true);
+  ctRenderHub();
+}
+window.ctDeleteType = ctDeleteType;
+
+function ctEditTypeFromLog() {
+  const t = (ctTypes || []).find(x => x.id === ctCurrentTypeId);
+  if (!t) return;
+  closeModal('custom-test-log-modal');
+  ctOpenEditModal(t);
+}
+window.ctEditTypeFromLog = ctEditTypeFromLog;
+function ctDeleteTypeFromLog() {
+  document.getElementById('ct-edit-id').value = ctCurrentTypeId;
+  ctDeleteType();
+}
+window.ctDeleteTypeFromLog = ctDeleteTypeFromLog;
+
+// — Logger un résultat + historique, pour le type ctCurrentTypeId —
+async function ctOpenLog(typeId) {
+  const t = (ctTypes || []).find(x => x.id === typeId);
+  if (!t) return;
+  ctCurrentTypeId = typeId;
+  document.getElementById('ctlog-title').textContent = `${CT_CATEGORY_ICONS[t.category] || '📋'} ${t.name}`;
+  document.getElementById('ctlog-description').textContent = t.description || '';
+  document.getElementById('ctlog-value-label').textContent = 'Valeur' + (t.unit ? ` (${t.unit})` : '');
+  document.getElementById('ctlog-date').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('ctlog-value').value = '';
+  document.getElementById('ctlog-notes').value = '';
+  document.getElementById('custom-test-log-modal').classList.add('open');
+  await ctFetchLogs();
+}
+window.ctOpenLog = ctOpenLog;
+
+async function ctFetchLogs() {
+  const climber = getActive();
+  if (!climber || !ctCurrentTypeId) { ctLogsCache = []; ctRenderLogHistory(); ctRenderLogChart(); return; }
+  try {
+    const r = await fetch('/api/general-tests/' + climber.id + '?type=' + encodeURIComponent(ctCurrentTypeId), { headers: authHeaders() });
+    ctLogsCache = r.ok ? await r.json() : [];
+  } catch (e) { ctLogsCache = []; }
+  ctRenderLogHistory();
+  ctRenderLogChart();
+}
+
+function ctRenderLogHistory() {
+  const el = document.getElementById('ctlog-history-list');
+  if (!el) return;
+  const t = (ctTypes || []).find(x => x.id === ctCurrentTypeId);
+  const unit = t?.unit || '';
+  if (!ctLogsCache.length) { el.innerHTML = `<p style="font-size:13px;color:var(--muted)">Aucun résultat enregistré pour l'instant.</p>`; return; }
+  el.innerHTML = ctLogsCache.map(log => `<div class="fp-history-row" style="cursor:default">
+    <div style="flex:1">
+      <div style="font-size:14px;font-weight:600">${fmtDate(log.testDate)} — ${log.payload?.value ?? '–'}${unit ? ' ' + esc(unit) : ''}</div>
+      ${log.notes ? `<div style="font-size:12px;color:var(--muted)">${esc(log.notes)}</div>` : ''}
+    </div>
+    <button class="btn" style="padding:4px 8px;font-size:11px" onclick="ctDeleteLog('${log.id}')">Suppr.</button>
+  </div>`).join('');
+}
+
+function ctRenderLogChart() {
+  const panel = document.getElementById('ctlog-chart-panel');
+  if (!panel) return;
+  const pts = ctLogsCache.slice().sort((a, b) => a.testDate.localeCompare(b.testDate)).filter(log => log.payload?.value != null);
+  if (pts.length < 1) { panel.style.display = 'none'; destroyChart('ctlog-evo-chart'); return; }
+  panel.style.display = '';
+  makeChart('ctlog-evo-chart', {
+    type: 'line',
+    data: { labels: pts.map(log => fmtDate(log.testDate)), datasets: [{ data: pts.map(log => log.payload.value), borderColor: '#2d7a4e', backgroundColor: '#2d7a4e22', tension: .3, pointRadius: 3, fill: true }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { font: { size: 9 } } }, y: { ticks: { font: { size: 9 } } } } }
+  });
+}
+
+async function ctSaveLog() {
+  const climber = getActive();
+  if (!climber || !ctCurrentTypeId) return;
+  const date = document.getElementById('ctlog-date').value;
+  if (!date) { alert('Renseigne une date.'); return; }
+  const value = parseFloat(document.getElementById('ctlog-value').value);
+  if (Number.isNaN(value)) { alert('Renseigne une valeur.'); return; }
+  const t = (ctTypes || []).find(x => x.id === ctCurrentTypeId);
+  const body = {
+    id: 'gt_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+    category: t?.category || 'general',
+    testType: ctCurrentTypeId,
+    testDate: date,
+    payload: { value },
+    notes: document.getElementById('ctlog-notes').value.trim()
+  };
+  try {
+    await fetch('/api/general-tests/' + climber.id, { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) });
+  } catch (e) { alert("Erreur lors de l'enregistrement."); return; }
+  document.getElementById('ctlog-value').value = '';
+  document.getElementById('ctlog-notes').value = '';
+  await ctFetchLogs();
+}
+window.ctSaveLog = ctSaveLog;
+
+async function ctDeleteLog(logId) {
+  if (!confirm('Supprimer ce résultat ?')) return;
+  const climber = getActive();
+  try { await fetch('/api/general-tests/' + climber.id + '/' + logId, { method: 'DELETE', headers: authHeaders() }); } catch (e) {}
+  await ctFetchLogs();
+}
+window.ctDeleteLog = ctDeleteLog;
+
 // ═══════════════ COMMUNAUTÉ / CREWS (mode jeu) ═══════════════
 // Choix d'emoji pour les kudos entre coéquipiers — même liste côté backend (crews.js KUDOS_EMOJIS).
 const KUDOS_EMOJIS = [
@@ -13545,6 +13880,7 @@ function sbRenderGrid() {
     const picto = sbCardPicto(s);
     return `<div class="sb-card" draggable="true" ondragstart="onBankDragStart(event,'${s.id}')" ondragend="onBankDragEnd(event)" title="Glisse cette séance sur une case du calendrier pour la programmer, ou clique pour voir le détail" onclick="sbOpenDetail('${s.id}')">
       <button class="sb-fav-btn" onclick="sbToggleFavorite('${s.id}', event)" title="${isFav?'Retirer des pépites':'Ajouter aux pépites'}">${isFav?'★':'☆'}</button>
+      ${s.visibility !== 'shared' ? `<span style="position:absolute;top:10px;left:10px;font-size:12px" title="Fiche privée — visible seulement par toi et tes athlètes">🔒</span>` : ''}
       <div style="display:flex;align-items:flex-start;gap:8px;padding-right:24px;margin-bottom:2px">
         <div class="sb-picto" style="background:color-mix(in srgb, ${picto.color} 20%, var(--surface2))">${picto.icon}</div>
         <div style="font-weight:700;font-size:15px;line-height:1.3;margin-top:2px">${esc(s.name)}</div>
@@ -13632,8 +13968,16 @@ function sbOpenDetail(id) {
   sbDetailId = id;
   document.getElementById('sb-detail-title').textContent = s.name;
   const isFav = sbFavoriteIds.has(id);
+  const canManage = sbCanManage(s);
+  // Retour utilisateur : cloisonnement de La Mine par coach — Modifier/Supprimer ne s'affichent
+  // plus que pour le créateur de la fiche (ou un owner), même si elle est visible parce que
+  // partagée ou parce qu'on coache un de ses athlètes. "Dupliquer" reste ouvert à tout coach : ça
+  // crée SA PROPRE copie, ça ne touche jamais à la fiche d'origine.
   document.getElementById('sb-detail-body').innerHTML = sbSessionSummaryHtml(s) + `
-    <div style="display:flex;gap:8px;align-items:center;margin-top:18px;padding-top:14px;border-top:1px solid var(--border)">
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+      <span class="sb-tag">${s.visibility === 'shared' ? '🌍 Partagée' : '🔒 Privée'}</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:18px;padding-top:14px;border-top:1px solid var(--border)">
       <input type="date" id="sb-detail-schedule-date" class="form-control" style="max-width:160px" value="${new Date().toISOString().slice(0,10)}">
       <button class="btn primary" onclick="sbScheduleFromDetail('${id}')">📅 Programmer</button>
     </div>
@@ -13641,8 +13985,8 @@ function sbOpenDetail(id) {
       <button class="btn" onclick="sbToggleFavorite('${id}');sbOpenDetail('${id}')">${isFav?'★ Retirer des pépites':'☆ Ajouter aux pépites'}</button>
       <button class="btn" onclick="shareBankToCrew('${id}')">🔗 Partager avec le crew</button>
       <button class="btn coach-only-btn" onclick="sbDuplicateCard('${id}')">⧉ Dupliquer</button>
-      <button class="btn primary coach-only-btn" onclick="closeModal('sb-detail-modal');sbEditCard('${id}')">✏️ Modifier</button>
-      <button class="btn danger coach-only-btn" onclick="sbDeleteFromDetail('${id}')">🗑️ Supprimer</button>
+      ${canManage ? `<button class="btn primary coach-only-btn" onclick="closeModal('sb-detail-modal');sbEditCard('${id}')">✏️ Modifier</button>` : ''}
+      ${canManage ? `<button class="btn danger coach-only-btn" onclick="sbDeleteFromDetail('${id}')">🗑️ Supprimer</button>` : ''}
     </div>`;
   applyRoleUI();
   document.getElementById('sb-detail-modal').classList.add('open');
@@ -13665,7 +14009,11 @@ window.sbScheduleFromDetail = sbScheduleFromDetail;
 async function sbDuplicateCard(id) {
   const s = getBank().find(x => x.id === id);
   if (!s) return;
-  const copy = { ...s, id: 'sb_' + Date.now() + '_' + Math.random().toString(36).slice(2,6), name: s.name + ' (copie)', createdAt: Date.now() };
+  // La copie devient TA propre fiche, privée par défaut — ne jamais hériter createdBy/visibility
+  // de l'original (retour utilisateur : cloisonnement de La Mine par coach). Le serveur réattribue
+  // de toute façon created_by au compte connecté à la création, ceci n'est que pour la cohérence de
+  // l'état local avant le prochain fetch.
+  const copy = { ...s, id: 'sb_' + Date.now() + '_' + Math.random().toString(36).slice(2,6), name: s.name + ' (copie)', createdAt: Date.now(), createdBy: window.currentUser?.id || '', visibility: 'private' };
   getBank().push(copy);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
   try {
@@ -13680,7 +14028,9 @@ window.sbDuplicateCard = sbDuplicateCard;
 // /api/bank/:id, qui nettoie aussi les favoris liés), puis localement.
 async function sbDeleteFromDetail(id) {
   const s = getBank().find(x => x.id === id);
-  if (!s || !confirm(`Supprimer "${s.name}" de la banque de séances ?`)) return;
+  if (!s) return;
+  if (!sbCanManage(s)) { alert("Cette fiche appartient à un autre coach — tu ne peux pas la supprimer."); return; }
+  if (!confirm(`Supprimer "${s.name}" de la banque de séances ?`)) return;
   try {
     const res = await fetch('/api/bank/' + id, { method: 'DELETE', headers: authHeaders() });
     if (!res.ok) { alert('Suppression impossible.'); return; }
@@ -13820,9 +14170,22 @@ function sbRemoveImage(idx) {
 window.sbRemoveImage = sbRemoveImage;
 document.getElementById('sb-type')?.addEventListener('change', sbRenderChecklistSection);
 
+// Cloisonnement de La Mine par coach : un owner gère tout, un coach ne gère (modifie/supprime/
+// change la visibilité de) que ses PROPRES fiches — jamais celles d'un autre coach, même visibles
+// parce que partagées ou parce qu'il coache un de ses athlètes. Miroir exact de canManage() côté
+// backend (src/routes/bank.js) ; la vérification serveur reste la source de vérité (403 sinon),
+// ceci ne sert qu'à ne pas proposer une action vouée à échouer dans l'UI.
+function sbCanManage(item) {
+  return isOwnerRoleValue(window.currentUser?.role) || (!!item.createdBy && item.createdBy === window.currentUser?.id);
+}
+window.sbCanManage = sbCanManage;
+
 function sbEditCard(id) {
   const s = getBank().find(x => x.id === id);
   if (!s) return;
+  // Retour utilisateur : cloisonnement de La Mine par coach — impossible de modifier la fiche d'un
+  // autre coach, même si elle est visible (partagée, ou parce qu'on coache un de ses athlètes).
+  if (!sbCanManage(s)) { alert("Cette fiche appartient à un autre coach — tu ne peux pas la modifier."); return; }
   document.getElementById('sb-edit-id').value = id;
   document.getElementById('sb-editor-title').textContent = 'Modifier la séance';
   document.getElementById('sb-name').value = s.name;
@@ -13834,6 +14197,8 @@ function sbEditCard(id) {
   document.getElementById('sb-intensity').value = s.intensity || 3;
   document.getElementById('sb-goal').value = s.goal || 'projet';
   document.getElementById('sb-description').value = s.description || '';
+  const sbVisEl = document.getElementById('sb-visibility');
+  if (sbVisEl) sbVisEl.value = s.visibility === 'shared' ? 'shared' : 'private';
   sbVideoUrls = (s.videoUrls && s.videoUrls.length) ? [...s.videoUrls] : (s.videoUrl ? [s.videoUrl] : []);
   sbRenderVideoList();
   sbImages = [...(s.images || [])];
@@ -13882,6 +14247,7 @@ function sbNewCard() {
   document.getElementById('sb-intensity').value = 3;
   document.getElementById('sb-goal').value = 'projet';
   document.getElementById('sb-description').value = '';
+  const sbVisEl2 = document.getElementById('sb-visibility'); if (sbVisEl2) sbVisEl2.value = 'private'; // nouvelle fiche : privée par défaut
   sbVideoUrls = []; sbRenderVideoList();
   const sbVideoInputEl = document.getElementById('sb-video-url-input'); if (sbVideoInputEl) sbVideoInputEl.value = '';
   sbImages = []; sbRenderImageList();
@@ -13907,6 +14273,12 @@ function sbSave() {
   const tags = Array.from(document.querySelectorAll('#sb-tags-picker input:checked')).map(el=>el.value);
   const crossTags = Array.from(document.querySelectorAll('.sb-crosstag-cb:checked')).map(el=>el.value);
   const editId = document.getElementById('sb-edit-id').value;
+  // Garde-fou (l'entrée sbEditCard() bloque déjà ce cas, ceci couvre un état incohérent quelconque
+  // du formulaire) : jamais enregistrer par-dessus la fiche d'un autre coach.
+  if (editId) {
+    const existing = getBank().find(s => s.id === editId);
+    if (existing && !sbCanManage(existing)) { alert("Cette fiche appartient à un autre coach — tu ne peux pas la modifier."); return; }
+  }
   // Detect if this save comes from an AI-generated card being edited
   const isAiEdit = !editId && sbPendingAiCard !== null;
   const payload = {
@@ -13930,6 +14302,12 @@ function sbSave() {
     checklist:   sbChecklistTypeApplicable(document.getElementById('sb-type').value) ? sbChecklistItems : [],
     createdAt:   editId ? (getBank().find(s=>s.id===editId)?.createdAt || Date.now()) : Date.now(),
     source:      editId ? (getBank().find(s=>s.id===editId)?.source || 'manual') : (isAiEdit ? 'ai' : 'manual'),
+    // Cloisonnement par coach : visibility vient du formulaire (défaut 'private' pour une fiche
+    // neuve, cf. sbNewCard) ; createdBy n'est jamais réattribué depuis le client — le serveur force
+    // toujours sa propre valeur (compte connecté) à la création et l'ignore en modification, ceci
+    // n'est gardé côté frontend que pour un affichage cohérent avant le prochain fetch.
+    visibility:  document.getElementById('sb-visibility')?.value === 'shared' ? 'shared' : 'private',
+    createdBy:   editId ? (getBank().find(s=>s.id===editId)?.createdBy || window.currentUser?.id || '') : (window.currentUser?.id || ''),
   };
   if (editId) {
     const idx = db.sessionBank.findIndex(s => s.id === editId);
