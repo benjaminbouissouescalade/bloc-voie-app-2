@@ -713,6 +713,13 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 .fp-advanced summary::before { content: "⚙️ "; }
 .fp-advanced[open] summary { color: var(--text); margin-bottom: 8px; }
 
+/* Simplification formulaire création fiche banque — Dossier/Sous-dossier replié par défaut,
+   même traitement visuel que .fp-advanced ci-dessus mais sans son icône ⚙️ imposée (on garde
+   l'icône 📁 déjà présente dans le texte du <summary>). */
+#sb-category-details summary { cursor: pointer; font-size: 12.5px; font-weight: 600; color: var(--muted); padding: 8px 0; list-style: none; }
+#sb-category-details summary::-webkit-details-marker { display: none; }
+#sb-category-details[open] summary { color: var(--text); margin-bottom: 8px; }
+
 /* Refonte UX — Mon Profil : dimensions simplifiées */
 .fp-dim-row { margin-bottom: 18px; }
 .fp-dim-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
@@ -3693,24 +3700,33 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <button class="btn sm" onclick="sbCloseEditor()">✕ Fermer</button>
     </div>
     <input type="hidden" id="sb-edit-id">
-    <div class="form-row form-row-2">
-      <div class="form-group" style="margin:0">
-        <label class="form-label">📁 Dossier</label>
-        <select class="form-control" id="sb-category"></select>
-        <div id="sb-category-new-row" style="display:none;gap:6px;margin-top:6px">
-          <input class="form-control" type="text" id="sb-category-new-input" placeholder="Nom du nouveau dossier (ex. Footing)" style="flex:1">
-          <button type="button" class="btn sm primary" onclick="sbCreateNewCategory()">Créer</button>
+    <!-- Simplification formulaire création fiche (retour : "beaucoup de choses à remplir") —
+         Dossier/Sous-dossier replié par défaut sur une fiche neuve (le classement fin dans la
+         bibliothèque n'est pas nécessaire pour créer une fiche utilisable) ; rouvert automatiquement
+         en édition si la fiche a déjà un dossier renseigné (cf. sbEditCard/sbNewCard,
+         "#sb-category-details"). Les champs et leur comportement ne changent pas, juste leur
+         visibilité par défaut. -->
+    <details id="sb-category-details" style="margin-bottom:14px">
+      <summary>📁 Classement dans la bibliothèque (dossier / sous-dossier)</summary>
+      <div class="form-row form-row-2" style="margin-top:10px">
+        <div class="form-group" style="margin:0">
+          <label class="form-label">📁 Dossier</label>
+          <select class="form-control" id="sb-category"></select>
+          <div id="sb-category-new-row" style="display:none;gap:6px;margin-top:6px">
+            <input class="form-control" type="text" id="sb-category-new-input" placeholder="Nom du nouveau dossier (ex. Footing)" style="flex:1">
+            <button type="button" class="btn sm primary" onclick="sbCreateNewCategory()">Créer</button>
+          </div>
+        </div>
+        <div class="form-group" style="margin:0">
+          <label class="form-label">Sous-dossier</label>
+          <select class="form-control" id="sb-subcategory"></select>
+          <div id="sb-subcategory-new-row" style="display:none;gap:6px;margin-top:6px">
+            <input class="form-control" type="text" id="sb-subcategory-new-input" placeholder="Nom du nouveau sous-dossier (ex. Vélo)" style="flex:1">
+            <button type="button" class="btn sm primary" onclick="sbCreateNewSubcategory()">Créer</button>
+          </div>
         </div>
       </div>
-      <div class="form-group" style="margin:0">
-        <label class="form-label">Sous-dossier</label>
-        <select class="form-control" id="sb-subcategory"></select>
-        <div id="sb-subcategory-new-row" style="display:none;gap:6px;margin-top:6px">
-          <input class="form-control" type="text" id="sb-subcategory-new-input" placeholder="Nom du nouveau sous-dossier (ex. Vélo)" style="flex:1">
-          <button type="button" class="btn sm primary" onclick="sbCreateNewSubcategory()">Créer</button>
-        </div>
-      </div>
-    </div>
+    </details>
     <div class="form-group" style="margin:0 0 14px">
       <label class="form-label">Contenu</label>
       <select class="form-control" id="sb-content-type" style="max-width:220px">
@@ -13477,7 +13493,16 @@ const BANK_TAXONOMY = {
   "Rééducation": ["Retour blessure doigts","Retour blessure épaule","Retour blessure coude","Retour blessure genou"],
   "Récupération": ["Retour au calme","Étirements","Respiration","Automassage","Mobilité légère"]
 };
-const BANK_CROSS_TAGS = ["Exercices sans matériel","Exercices en binôme","Exercices en groupe","Exercices chronométrés","Exercices à contraintes","Exercices avec handicap","Exercices compétition","Exercices ludiques","Exercices d'évaluation","Exercices de coaching","Situations-problèmes","Circuits prêts à l'emploi","Séances complètes","Progressions pédagogiques","Variantes d'exercices","Exercices par niveau","Exercices par durée","Exercices par objectif"];
+// Simplification formulaire création fiche (retour : "beaucoup de choses à remplir") — la liste
+// comptait 18 cases, dont une bonne moitié redisait une info déjà donnée ailleurs dans la fiche
+// ("Séances complètes" ~ Contenu=séance, "Exercices par niveau/durée/objectif" ~ champs Niveau/
+// Durée/Objectif déjà remplis, "Exercices d'évaluation"/"de coaching"/"Situations-problèmes"/
+// "Circuits prêts à l'emploi"/"Progressions pédagogiques"/"Variantes d'exercices" décrivaient un
+// usage pédagogique plutôt qu'une contrainte logistique). On ne garde que les cases qui apportent
+// une info que rien d'autre dans la fiche ne donne déjà (matériel, format collectif, contrainte de
+// temps, contexte). Les fiches existantes qui avaient un des tags retirés gardent leur donnée en
+// base (session_bank.cross_tags) — ce tag n'est simplement plus proposé/filtrable à l'écran.
+const BANK_CROSS_TAGS = ["Exercices sans matériel","Exercices en binôme","Exercices en groupe","Exercices chronométrés","Exercices à contraintes","Exercices avec handicap","Exercices compétition","Exercices ludiques"];
 // Correspondance dossier → type existant (pour la couleur du calendrier, la charge, etc.)
 const BANK_CATEGORY_TO_TYPE = {
   "Échauffement":'ppg', "Bloc":'bloc', "Voie":'voies', "Spray Wall":'pan', "Kilter / Moon / Tension":'pan',
@@ -13905,11 +13930,28 @@ function sbUpdateSubcategoryOptions(preselect) {
 }
 // Repeuple le select #sb-category depuis BANK_TAXONOMY (+ option "+ Nouveau dossier…") — appelé
 // au premier rendu et après la création d'un nouveau dossier pour que celui-ci apparaisse aussitôt.
+// Simplification formulaire création fiche (retour : "beaucoup de choses à remplir") — les
+// dossiers dont le type correspondant (BANK_CATEGORY_TO_TYPE) est celui actuellement choisi dans
+// #sb-type remontent dans un premier groupe "Pertinents pour ce type" ; les autres restent
+// accessibles dans un second groupe, toujours présents (rien n'est masqué, juste réordonné) —
+// évite de scroller 19 dossiers pour en retrouver les 1 à 3 qui concernent vraiment ce type.
 function sbRefillCategorySelect(selectValue) {
   const catSel = document.getElementById('sb-category');
   if (!catSel) return;
-  catSel.innerHTML = `<option value="">— Aucun —</option>` + Object.keys(BANK_TAXONOMY).map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('')
-    + `<option value="__new_cat__">+ Nouveau dossier…</option>`;
+  const currentType = document.getElementById('sb-type')?.value;
+  const allCats = Object.keys(BANK_TAXONOMY);
+  const optHtml = (cats) => cats.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  const relevant = allCats.filter(c => BANK_CATEGORY_TO_TYPE[c] === currentType);
+  const others = allCats.filter(c => !relevant.includes(c));
+  let html = `<option value="">— Aucun —</option>`;
+  if (relevant.length) {
+    html += `<optgroup label="Pertinents pour ce type">${optHtml(relevant)}</optgroup>`;
+    html += `<optgroup label="Autres dossiers">${optHtml(others)}</optgroup>`;
+  } else {
+    html += `<optgroup label="Tous les dossiers">${optHtml(allCats)}</optgroup>`;
+  }
+  html += `<option value="__new_cat__">+ Nouveau dossier…</option>`;
+  catSel.innerHTML = html;
   if (selectValue !== undefined) catSel.value = selectValue;
 }
 // Retour : "il faudrait qu'il y ait une case Autre pour rajouter [un dossier] et que ce nouveau
@@ -14398,6 +14440,7 @@ function sbRenderSupportSection() {
 }
 document.getElementById('sb-type')?.addEventListener('change', sbRenderSupportSection);
 document.getElementById('sb-goal')?.addEventListener('change', (e) => sbAutoCheckStylesForGoal(e.target.value));
+document.getElementById('sb-type')?.addEventListener('change', () => sbRefillCategorySelect(document.getElementById('sb-category')?.value));
 
 // Cloisonnement de La Mine par coach : un owner gère tout, un coach ne gère (modifie/supprime/
 // change la visibilité de) que ses PROPRES fiches — jamais celles d'un autre coach, même visibles
@@ -14438,9 +14481,13 @@ function sbEditCard(id) {
   document.querySelectorAll('#sb-tags-picker input').forEach(el => {
     el.checked = (s.tags||[]).includes(el.value);
   });
-  // Dossier / sous-dossier
+  // Dossier / sous-dossier — regroupés selon le type (sbRefillCategorySelect) puisque #sb-type
+  // vient d'être positionné ci-dessus. Rouvre le <details> si la fiche a déjà un dossier, pour ne
+  // pas cacher une classification existante à l'ouverture.
   const sbCatEl = document.getElementById('sb-category');
-  if (sbCatEl) { sbCatEl.value = s.category || ''; sbUpdateSubcategoryOptions(s.subcategory || ''); }
+  if (sbCatEl) { sbRefillCategorySelect(s.category || ''); sbUpdateSubcategoryOptions(s.subcategory || ''); }
+  const sbCatDetails = document.getElementById('sb-category-details');
+  if (sbCatDetails) sbCatDetails.open = !!s.category;
   // Filtres transversaux
   document.querySelectorAll('.sb-crosstag-cb').forEach(el => {
     el.checked = (s.crossTags||[]).includes(el.value);
@@ -14484,7 +14531,9 @@ function sbNewCard() {
   const sbSupEl = document.getElementById('sb-support'); if (sbSupEl) sbSupEl.value = '';
   document.querySelectorAll('#sb-tags-picker input').forEach(el => el.checked = false);
   const sbCatEl2 = document.getElementById('sb-category');
-  if (sbCatEl2) { sbCatEl2.value = ''; sbUpdateSubcategoryOptions(''); }
+  if (sbCatEl2) { sbRefillCategorySelect(''); sbUpdateSubcategoryOptions(''); }
+  const sbCatDetails2 = document.getElementById('sb-category-details');
+  if (sbCatDetails2) sbCatDetails2.open = false;
   document.querySelectorAll('.sb-crosstag-cb').forEach(el => el.checked = false);
   sbChecklistItems = [];
   sbRenderChecklistSection();
