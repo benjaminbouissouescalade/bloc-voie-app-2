@@ -29,6 +29,7 @@ app.use('/api/finger-profile', fingerProfileRoutes);
 app.use('/api/finger-profile-expected', fingerProfileRoutes.expectedRouter);
 app.use('/api/general-tests', require('./routes/generalTests'));
 app.use('/api/custom-test-types', require('./routes/customTestTypes'));
+app.use('/api/test-assignments', require('./routes/testAssignments'));
 app.use('/api/references', require('./routes/references'));
 app.use('/api/crews', require('./routes/crews'));
 app.use('/api/partners', require('./routes/partners'));
