@@ -2280,6 +2280,9 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     </div>
     <div class="modal-body">
       <p id="ctlog-description" style="font-size:12px;color:var(--muted);margin-bottom:14px"></p>
+      <!-- Bannière visible par l'athlète quand le coach a programmé ce test pour lui/elle à une
+           date (cf. ctOpenLog / test_assignments) — masquée s'il n'y a rien en attente. -->
+      <div id="ctlog-pending-banner" style="display:none;background:var(--accent2);color:var(--accent);border-radius:8px;padding:8px 10px;font-size:12px;margin-bottom:14px"></div>
       <div class="form-row form-row-2">
         <div class="form-group" style="margin-bottom:0">
           <label class="form-label">Date</label>
@@ -2303,6 +2306,29 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 
       <div style="font-size:12px;font-weight:600;margin-bottom:8px">Historique</div>
       <div id="ctlog-history-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px"></div>
+
+      <!-- Retour utilisateur : "sur les tests personnalisés créés par le coach, la possibilité
+           de le mettre pour une personne à une date" — coach-only-btn : masqué pour un athlète
+           (cf. applyRoleUI). Programme ce test pour un(e) athlète à une date (POST
+           /api/test-assignments) et liste les programmations déjà en cours pour CE test. -->
+      <div class="coach-only-btn" id="ctassign-section" style="padding-top:12px;border-top:1px solid var(--border);margin-bottom:12px">
+        <div style="font-size:12px;font-weight:600;margin-bottom:8px">📅 Programmer pour un(e) athlète</div>
+        <div class="form-row form-row-2" style="margin-bottom:8px">
+          <div class="form-group" style="margin:0">
+            <label class="form-label">Athlète</label>
+            <select class="form-control" id="ctassign-climber"></select>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label class="form-label">Date</label>
+            <input class="form-control" type="date" id="ctassign-date">
+          </div>
+        </div>
+        <div class="form-group" style="margin-bottom:8px">
+          <input class="form-control" type="text" id="ctassign-note" placeholder="Note optionnelle (ex. contexte, objectif)">
+        </div>
+        <button class="btn primary sm" style="margin-bottom:12px" onclick="ctAssignTest()">Programmer</button>
+        <div id="ctassign-list" style="display:flex;flex-direction:column;gap:6px"></div>
+      </div>
 
       <div style="display:flex;gap:8px;padding-top:12px;border-top:1px solid var(--border)">
         <button class="btn" style="flex:1" onclick="ctEditTypeFromLog()">✏️ Modifier le test</button>
@@ -9998,6 +10024,11 @@ const CT_CATEGORY_LABELS = { doigts: 'Doigts', bras: 'Bras', souplesse: 'Souples
 let ctTypes = null;      // cache des types personnalisés, chargé au premier affichage de la page
 let ctLogsCache = [];    // résultats du type actuellement ouvert dans custom-test-log-modal
 let ctCurrentTypeId = null;
+// Retour utilisateur : "sur les tests personnalisés créés par le coach, la possibilité de le
+// mettre pour une personne à une date" — prescriptions (test_assignments) en attente pour
+// l'athlète actuellement affiché (getActive()), tous types de test confondus. Rechargé à chaque
+// affichage du hub et à chaque ouverture d'une fiche de test (cf. ctRenderHub / ctOpenLog).
+let ctAssignedForActive = [];
 
 async function ctFetchTypes(force) {
   if (ctTypes && !force) return ctTypes;
@@ -10008,18 +10039,34 @@ async function ctFetchTypes(force) {
   return ctTypes;
 }
 
+async function ctFetchAssignmentsForActive() {
+  const climber = getActive();
+  if (!climber) { ctAssignedForActive = []; return; }
+  try {
+    const r = await fetch('/api/test-assignments/' + climber.id, { headers: authHeaders() });
+    ctAssignedForActive = r.ok ? await r.json() : [];
+  } catch (e) { ctAssignedForActive = []; }
+}
+
 async function ctRenderHub() {
   const grid = document.getElementById('ct-hub-grid');
   const emptyEl = document.getElementById('ct-hub-empty');
   if (!grid) return;
   const types = await ctFetchTypes();
+  await ctFetchAssignmentsForActive();
   emptyEl.style.display = types.length ? 'none' : '';
-  grid.innerHTML = types.map(t => `
+  grid.innerHTML = types.map(t => {
+    // Retour utilisateur : petit badge quand ce test est programmé (par le coach) pour l'athlète
+    // actuellement affiché, pour le voir sans avoir à ouvrir chaque fiche une par une.
+    const pending = ctAssignedForActive.find(a => a.testTypeId === t.id && !a.done);
+    return `
     <div class="sb-card tests-hub-card" onclick="ctOpenLog('${t.id}')">
       <span class="th-icon">${CT_CATEGORY_ICONS[t.category] || '📋'}</span>
       <div class="th-title">${esc(t.name)}</div>
       <div class="th-sub">${CT_CATEGORY_LABELS[t.category] || 'Général'}${t.unit ? ' · en ' + esc(t.unit) : ''}</div>
-    </div>`).join('');
+      ${pending ? `<div style="margin-top:6px;font-size:11px;color:var(--accent);font-weight:600">📅 Prescrit pour le ${fmtDate(pending.date)}</div>` : ''}
+    </div>`;
+  }).join('');
 }
 window.ctRenderHub = ctRenderHub;
 
@@ -10102,6 +10149,68 @@ function ctDeleteTypeFromLog() {
 }
 window.ctDeleteTypeFromLog = ctDeleteTypeFromLog;
 
+// — Programmer ce test pour un(e) athlète à une date (retour utilisateur : "sur les tests
+// personnalisés créés par le coach, la possibilité de le mettre pour une personne à une date") —
+// section coach-only-btn de custom-test-log-modal, cf. sa description dans le HTML. —
+function ctRenderAssignClimberSelect() {
+  const sel = document.getElementById('ctassign-climber');
+  if (!sel) return;
+  const active = getActive();
+  sel.innerHTML = (db.climbers || []).map(cl => `<option value="${cl.id}">${esc(cl.name)}</option>`).join('');
+  if (active) sel.value = active.id;
+}
+
+async function ctRenderAssignList() {
+  const el = document.getElementById('ctassign-list');
+  if (!el || !ctCurrentTypeId || !isAdmin()) return;
+  let items = [];
+  try {
+    const r = await fetch('/api/test-assignments/mine?testTypeId=' + encodeURIComponent(ctCurrentTypeId), { headers: authHeaders() });
+    items = r.ok ? await r.json() : [];
+  } catch (e) { items = []; }
+  if (!items.length) { el.innerHTML = `<p style="font-size:12px;color:var(--muted);margin:0">Aucune programmation pour l'instant.</p>`; return; }
+  el.innerHTML = items.map(a => {
+    const cl = (db.climbers || []).find(c => c.id === a.climberId);
+    return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);font-size:12px">
+      <span>${esc(cl?.name || 'Athlète')} — ${fmtDate(a.date)}${a.note ? ' · ' + esc(a.note) : ''}</span>
+      ${a.done
+        ? `<span style="color:var(--accent);font-weight:600">✓ Fait</span>`
+        : `<button class="btn sm" style="padding:2px 8px" onclick="ctCancelAssign('${a.id}')">Annuler</button>`}
+    </div>`;
+  }).join('');
+}
+
+async function ctAssignTest() {
+  if (!ctCurrentTypeId) return;
+  const climberId = document.getElementById('ctassign-climber')?.value;
+  const date = document.getElementById('ctassign-date')?.value;
+  if (!climberId || !date) { alert("Choisis un(e) athlète et une date."); return; }
+  const body = {
+    id: 'cta_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+    climberId,
+    testTypeId: ctCurrentTypeId,
+    date,
+    note: document.getElementById('ctassign-note')?.value.trim() || ''
+  };
+  try {
+    const r = await fetch('/api/test-assignments', { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) });
+    if (!r.ok) { const d = await r.json().catch(()=>({})); alert(d.error || 'Erreur lors de la programmation.'); return; }
+  } catch (e) { alert('Erreur réseau.'); return; }
+  document.getElementById('ctassign-note').value = '';
+  await ctRenderAssignList();
+  // Si l'athlète programmé est celui actuellement affiché, rafraîchit aussi le badge/bannière.
+  if (climberId === getActive()?.id) { await ctFetchAssignmentsForActive(); }
+}
+window.ctAssignTest = ctAssignTest;
+
+async function ctCancelAssign(id) {
+  if (!confirm('Annuler cette programmation ?')) return;
+  try { await fetch('/api/test-assignments/' + id, { method: 'DELETE', headers: authHeaders() }); } catch (e) {}
+  await ctRenderAssignList();
+  await ctFetchAssignmentsForActive();
+}
+window.ctCancelAssign = ctCancelAssign;
+
 // — Logger un résultat + historique, pour le type ctCurrentTypeId —
 async function ctOpenLog(typeId) {
   const t = (ctTypes || []).find(x => x.id === typeId);
@@ -10110,9 +10219,24 @@ async function ctOpenLog(typeId) {
   document.getElementById('ctlog-title').textContent = `${CT_CATEGORY_ICONS[t.category] || '📋'} ${t.name}`;
   document.getElementById('ctlog-description').textContent = t.description || '';
   document.getElementById('ctlog-value-label').textContent = 'Valeur' + (t.unit ? ` (${t.unit})` : '');
-  document.getElementById('ctlog-date').value = new Date().toISOString().slice(0, 10);
+  await ctFetchAssignmentsForActive();
+  const pending = ctAssignedForActive.find(a => a.testTypeId === typeId && !a.done);
+  const bannerEl = document.getElementById('ctlog-pending-banner');
+  if (bannerEl) {
+    if (pending) {
+      bannerEl.style.display = '';
+      bannerEl.textContent = `📅 Prescrit par ton coach pour le ${fmtDate(pending.date)}${pending.note ? ' — ' + pending.note : ''}`;
+    } else {
+      bannerEl.style.display = 'none';
+    }
+  }
+  document.getElementById('ctlog-date').value = pending ? pending.date : new Date().toISOString().slice(0, 10);
   document.getElementById('ctlog-value').value = '';
   document.getElementById('ctlog-notes').value = '';
+  document.getElementById('ctassign-date').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('ctassign-note').value = '';
+  ctRenderAssignClimberSelect();
+  ctRenderAssignList();
   document.getElementById('custom-test-log-modal').classList.add('open');
   await ctFetchLogs();
 }
@@ -10176,8 +10300,19 @@ async function ctSaveLog() {
   try {
     await fetch('/api/general-tests/' + climber.id, { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) });
   } catch (e) { alert("Erreur lors de l'enregistrement."); return; }
+  // Retour utilisateur : "programmer un test pour une personne à une date" — si une prescription
+  // est encore en attente pour ce test/cet athlète, on la marque faite automatiquement plutôt que
+  // de laisser le coach l'annuler à la main après coup (cf. POST /api/test-assignments/:id/complete).
+  const pending = ctAssignedForActive.find(a => a.testTypeId === ctCurrentTypeId && !a.done);
+  if (pending) {
+    try { await fetch('/api/test-assignments/' + pending.id + '/complete', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ resultId: body.id }) }); } catch (e) {}
+  }
   document.getElementById('ctlog-value').value = '';
   document.getElementById('ctlog-notes').value = '';
+  await ctFetchAssignmentsForActive();
+  const bannerEl = document.getElementById('ctlog-pending-banner');
+  if (bannerEl) bannerEl.style.display = 'none';
+  ctRenderAssignList();
   await ctFetchLogs();
 }
 window.ctSaveLog = ctSaveLog;
