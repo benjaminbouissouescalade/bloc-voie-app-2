@@ -3935,8 +3935,23 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
         </div>
       </div>
     </div>
+    <!-- Retour utilisateur : bouton visible à côté d'Enregistrer pour prévenir que cette séance
+         nécessite d'être frais physiquement (délai de récupération minimum depuis une séance
+         similaire). Purement informatif pour l'athlète — cf. sbToggleWarningPanel/sbSetWarningHours
+         et l'affichage sur la carte + le détail (sbSessionSummaryHtml). -->
+    <div class="form-group coach-only-btn" id="sb-warning-panel" style="display:none;background:var(--warm2);border-radius:var(--r-sm);padding:12px 14px">
+      <label class="form-label" style="margin-bottom:6px">⚠️ Alerte récupération</label>
+      <p style="font-size:12px;color:var(--text);margin:0 0 10px">Affiche un message de prévention indiquant que cette séance nécessite d'être frais physiquement — à éviter en dessous d'un délai minimum depuis une séance similaire.</p>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <button type="button" class="btn sm" onclick="sbSetWarningHours(24)">24h</button>
+        <button type="button" class="btn sm" onclick="sbSetWarningHours(48)">48h</button>
+        <input class="form-control" type="number" min="0" max="240" id="sb-warning-hours" placeholder="Heures" style="max-width:100px" oninput="sbSyncWarningToggleUI()">
+        <button type="button" class="btn sm danger" onclick="sbSetWarningHours(0)">Désactiver</button>
+      </div>
+    </div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px">
       <button class="btn danger sm coach-only-btn" id="sb-delete-btn" style="display:none;margin-right:auto">Supprimer</button>
+      <button type="button" class="btn sm coach-only-btn" id="sb-warning-toggle-btn" onclick="sbToggleWarningPanel()" title="Avertir l'athlète que cette séance nécessite d'être frais physiquement">⚠️ Alerte récupération</button>
       <button class="btn" onclick="sbCloseEditor()">Fermer</button>
       <button class="btn primary coach-only-btn" id="sb-save-btn">Enregistrer</button>
     </div>
@@ -14137,6 +14152,7 @@ function sbRenderGrid() {
       </div>
       ${contextLabel ? `<div style="font-size:12px;color:var(--muted);margin-bottom:${freshness?'4px':'10px'}">${esc(contextLabel)}${s.goal?' · '+esc(SB_GOAL_LABELS[s.goal]||s.goal):''}</div>` : '<div style="margin-bottom:10px"></div>'}
       ${freshness ? `<div style="font-size:10.5px;color:var(--accent);text-transform:uppercase;letter-spacing:.02em;margin-bottom:8px">${esc(freshness)}</div>` : ''}
+      ${s.minRestHours ? `<div style="font-size:10.5px;color:var(--warm);font-weight:600;margin-bottom:8px">⚠️ Repos min. ${s.minRestHours}h</div>` : ''}
       <div style="display:flex;align-items:center;gap:8px">
         <span style="font-size:12px;color:var(--muted)">${s.duration||90} min</span>
         <span class="sb-intensity">${intDots}</span>
@@ -14191,6 +14207,7 @@ function sbSessionSummaryHtml(s) {
   const t = SESSION_TYPES[s.type] || SESSION_TYPES.autre;
   const intDots = Array.from({length:5},(_,i) => `<span class="${i < (s.intensity||3) ? 'on' : ''}"></span>`).join('');
   return `
+    ${s.minRestHours ? `<div style="background:var(--warm2);color:var(--warm);border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:14px">⚠️ Cette séance nécessite d'être frais physiquement — laisse au moins ${s.minRestHours}h depuis une séance similaire.</div>` : ''}
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
       <span class="sb-tag ${SB_TYPE_TAG_CLASS[s.type]||''}">${esc(t.label)}</span>
       ${s.category ? `<span class="sb-tag">📁 ${esc(s.category)}${s.subcategory?' › '+esc(s.subcategory):''}</span>` : ''}
@@ -14442,6 +14459,35 @@ document.getElementById('sb-type')?.addEventListener('change', sbRenderSupportSe
 document.getElementById('sb-goal')?.addEventListener('change', (e) => sbAutoCheckStylesForGoal(e.target.value));
 document.getElementById('sb-type')?.addEventListener('change', () => sbRefillCategorySelect(document.getElementById('sb-category')?.value));
 
+// Retour utilisateur : bouton "⚠️ Alerte récupération" — prévient l'athlète que cette séance
+// nécessite d'être physiquement frais, avec un délai de récupération minimum (en heures) depuis
+// une séance similaire. Panneau replié par défaut (cf. sbToggleWarningPanel), rouvert
+// automatiquement en édition si un délai est déjà renseigné (cf. sbEditCard).
+function sbToggleWarningPanel() {
+  const panel = document.getElementById('sb-warning-panel');
+  if (panel) panel.style.display = panel.style.display === 'none' ? '' : 'none';
+}
+window.sbToggleWarningPanel = sbToggleWarningPanel;
+
+function sbSetWarningHours(h) {
+  const input = document.getElementById('sb-warning-hours');
+  if (input) input.value = h > 0 ? h : '';
+  sbSyncWarningToggleUI();
+}
+window.sbSetWarningHours = sbSetWarningHours;
+
+// Reflète l'état actuel (heures > 0 ou pas) sur le bouton bascule, pour voir d'un coup d'œil si
+// l'alerte est active sans avoir à ouvrir le panneau.
+function sbSyncWarningToggleUI() {
+  const hours = parseInt(document.getElementById('sb-warning-hours')?.value, 10) || 0;
+  const btn = document.getElementById('sb-warning-toggle-btn');
+  if (btn) {
+    btn.classList.toggle('primary', hours > 0);
+    btn.textContent = hours > 0 ? `⚠️ Alerte récupération (${hours}h)` : '⚠️ Alerte récupération';
+  }
+}
+window.sbSyncWarningToggleUI = sbSyncWarningToggleUI;
+
 // Cloisonnement de La Mine par coach : un owner gère tout, un coach ne gère (modifie/supprime/
 // change la visibilité de) que ses PROPRES fiches — jamais celles d'un autre coach, même visibles
 // parce que partagées ou parce qu'il coache un de ses athlètes. Miroir exact de canManage() côté
@@ -14495,6 +14541,13 @@ function sbEditCard(id) {
   sbChecklistItems = JSON.parse(JSON.stringify(s.checklist || []));
   sbRenderChecklistSection();
   sbRenderSupportSection();
+  // ⚠️ Alerte récupération — rouvre le panneau si un délai est déjà renseigné sur cette fiche,
+  // pour ne pas cacher une alerte déjà en place.
+  const sbWarningInput = document.getElementById('sb-warning-hours');
+  if (sbWarningInput) sbWarningInput.value = s.minRestHours > 0 ? s.minRestHours : '';
+  const sbWarningPanel = document.getElementById('sb-warning-panel');
+  if (sbWarningPanel) sbWarningPanel.style.display = s.minRestHours > 0 ? '' : 'none';
+  sbSyncWarningToggleUI();
   sbAiReviewHistory = [];
   sbRenderAiReviewMessages();
   document.getElementById('sb-delete-btn').style.display = '';
@@ -14538,6 +14591,9 @@ function sbNewCard() {
   sbChecklistItems = [];
   sbRenderChecklistSection();
   sbRenderSupportSection();
+  const sbWarningInput2 = document.getElementById('sb-warning-hours'); if (sbWarningInput2) sbWarningInput2.value = '';
+  const sbWarningPanel2 = document.getElementById('sb-warning-panel'); if (sbWarningPanel2) sbWarningPanel2.style.display = 'none';
+  sbSyncWarningToggleUI();
   sbAiReviewHistory = [];
   sbRenderAiReviewMessages();
   document.getElementById('sb-delete-btn').style.display = 'none';
@@ -14580,6 +14636,9 @@ function sbSave() {
     subcategory: document.getElementById('sb-subcategory')?.value || '',
     crossTags,
     checklist:   sbChecklistTypeApplicable(document.getElementById('sb-type').value) ? sbChecklistItems : [],
+    // ⚠️ Alerte récupération — 0 si le champ est vide ou le panneau jamais ouvert (comportement
+    // par défaut inchangé pour toute fiche qui n'utilise pas ce bouton).
+    minRestHours: parseInt(document.getElementById('sb-warning-hours')?.value, 10) || 0,
     createdAt:   editId ? (getBank().find(s=>s.id===editId)?.createdAt || Date.now()) : Date.now(),
     source:      editId ? (getBank().find(s=>s.id===editId)?.source || 'manual') : (isAiEdit ? 'ai' : 'manual'),
     // Cloisonnement par coach : visibility vient du formulaire (défaut 'private' pour une fiche
@@ -15028,6 +15087,11 @@ window.sbAiEditBeforeAdd = function(card) {
   document.getElementById('sb-description').value = card.description || '';
   const sbSupEl2 = document.getElementById('sb-support'); if (sbSupEl2) sbSupEl2.value = card.support || '';
   sbRenderSupportSection();
+  const sbWarningInput3 = document.getElementById('sb-warning-hours');
+  if (sbWarningInput3) sbWarningInput3.value = card.minRestHours > 0 ? card.minRestHours : '';
+  const sbWarningPanel3 = document.getElementById('sb-warning-panel');
+  if (sbWarningPanel3) sbWarningPanel3.style.display = card.minRestHours > 0 ? '' : 'none';
+  sbSyncWarningToggleUI();
   document.querySelectorAll('#sb-tags-picker input').forEach(el => {
     el.checked = (card.tags||[]).includes(el.value);
   });
