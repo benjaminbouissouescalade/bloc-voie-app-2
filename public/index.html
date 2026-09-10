@@ -384,6 +384,7 @@ body.preview-mode #sidebar-user { color: var(--accent) !important; font-weight: 
 .cal-planned-badge { position: absolute; top: 4px; right: 4px; font-size: 13px; line-height: 1; filter: drop-shadow(0 1px 1px rgba(0,0,0,.25)); }
 .cal-avail-badge { position: absolute; top: 4px; right: 20px; font-size: 11px; line-height: 1; opacity: .85; }
 .cal-cycle-badge { position: absolute; top: 4px; right: 36px; font-size: 10px; line-height: 1; opacity: .9; }
+.cal-test-badge { position: absolute; top: 4px; right: 52px; font-size: 11px; line-height: 1; opacity: .9; }
 .cal-cell.drag-over { outline: 3px dashed var(--accent); outline-offset: -3px; background: var(--accent2); }
 .cal-bank-mini-card { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border: 1px solid var(--border); border-radius: var(--r-xs); background: var(--surface2); cursor: grab; }
 .cal-bank-mini-card:hover { border-color: var(--border2); background: var(--surface); }
@@ -907,6 +908,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   .cal-planned-badge { font-size: 11px; top: 2px; right: 2px; }
   .cal-avail-badge { font-size: 9px; top: 2px; right: 14px; }
   .cal-cycle-badge { font-size: 8px; top: 2px; right: 26px; }
+  .cal-test-badge { font-size: 8px; top: 2px; right: 38px; }
   /* Contrôles prev/mois/next/Aujourd'hui : une fois repassés à la ligne (cf. #page-calendar
      .page-header ci-dessus), on resserre encore le libellé du mois et les espacements pour que
      les 4 éléments tiennent sur la largeur d'un téléphone sans forcer un nouveau débordement. */
@@ -2315,32 +2317,49 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <div id="ctlog-history-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px"></div>
 
       <!-- Retour utilisateur : "sur les tests personnalisés créés par le coach, la possibilité
-           de le mettre pour une personne à une date" — coach-only-btn : masqué pour un athlète
-           (cf. applyRoleUI). Programme ce test pour un(e) athlète à une date (POST
-           /api/test-assignments) et liste les programmations déjà en cours pour CE test. -->
-      <div class="coach-only-btn" id="ctassign-section" style="padding-top:12px;border-top:1px solid var(--border);margin-bottom:12px">
-        <div style="font-size:12px;font-weight:600;margin-bottom:8px">📅 Programmer pour un(e) athlète</div>
-        <div class="form-row form-row-2" style="margin-bottom:8px">
-          <div class="form-group" style="margin:0">
-            <label class="form-label">Athlète</label>
-            <select class="form-control" id="ctassign-climber"></select>
-          </div>
-          <div class="form-group" style="margin:0">
-            <label class="form-label">Date</label>
-            <input class="form-control" type="date" id="ctassign-date">
-          </div>
-        </div>
-        <div class="form-group" style="margin-bottom:8px">
-          <input class="form-control" type="text" id="ctassign-note" placeholder="Note optionnelle (ex. contexte, objectif)">
-        </div>
-        <button class="btn primary sm" style="margin-bottom:12px" onclick="ctAssignTest()">Programmer</button>
-        <div id="ctassign-list" style="display:flex;flex-direction:column;gap:6px"></div>
+           de le mettre pour une personne à une date", généralisé ensuite à TOUS les tests (cf.
+           openTestAssignModal / #test-assign-modal ci-dessous, modale générique partagée par
+           toutes les pages de test, codées en dur ou personnalisées) — coach-only-btn : masqué
+           pour un athlète (cf. applyRoleUI). -->
+      <div class="coach-only-btn" style="margin-bottom:12px">
+        <button class="btn sm" onclick="openTestAssignModal(ctCurrentTypeId)">📅 Programmer pour un(e) athlète</button>
       </div>
 
       <div style="display:flex;gap:8px;padding-top:12px;border-top:1px solid var(--border)">
         <button class="btn" style="flex:1" onclick="ctEditTypeFromLog()">✏️ Modifier le test</button>
         <button class="btn danger" onclick="ctDeleteTypeFromLog()">🗑️ Supprimer le test</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal générique : programmer N'IMPORTE QUEL test pour un(e) athlète à une date (retour
+     utilisateur : "pour les tests, peux-tu faire que tous les tests soient programmables et
+     envoyables sur le calendrier d'un athlète"). Ouverte depuis n'importe quelle page/fiche de
+     test via openTestAssignModal(testTypeId) — cf. la logique JS associée un peu plus bas. -->
+<div class="modal-backdrop" id="test-assign-modal">
+  <div class="modal" style="width:min(480px,100%)">
+    <div class="modal-header">
+      <span class="modal-title" id="tassign-title">Programmer un test</span>
+      <button class="btn sm" onclick="closeModal('test-assign-modal')">Fermer</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row form-row-2">
+        <div class="form-group">
+          <label class="form-label">Athlète</label>
+          <select class="form-control" id="tassign-climber"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Date</label>
+          <input class="form-control" type="date" id="tassign-date">
+        </div>
+      </div>
+      <div class="form-group">
+        <input class="form-control" type="text" id="tassign-note" placeholder="Note optionnelle (ex. contexte, objectif)">
+      </div>
+      <button class="btn primary" style="width:100%;margin-bottom:16px" onclick="saveTestAssignment()">Programmer</button>
+      <div style="font-size:12px;font-weight:600;margin-bottom:8px">Programmations en cours pour ce test</div>
+      <div id="tassign-list" style="display:flex;flex-direction:column;gap:6px"></div>
     </div>
   </div>
 </div>
@@ -2599,6 +2618,10 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <p>Ton profil doigts, en un coup d'œil — <span id="fp-athlete-name"></span></p>
     </div>
   </div>
+  <!-- Bannière "prescrit par ton coach" + bouton coach "Programmer pour un(e) athlète", cf.
+       renderTestAssignBanner (généralise le mécanisme des tests personnalisés à ce test codé
+       en dur). -->
+  <div id="fp-assign-banner"></div>
 
   <div class="time-filters">
     <button class="time-filter-btn" data-fp-tab="test">Test</button>
@@ -2808,6 +2831,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <p>Poids, force max, rapport force/poids, déséquilibre — <span id="smb-athlete-name"></span></p>
     </div>
   </div>
+  <div id="smb-assign-banner"></div>
 
   <div class="panel" style="margin-bottom:20px">
     <div class="panel-header">
@@ -2890,6 +2914,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <p>Force max en % du poids de corps, par taille de réglette — <span id="eh-athlete-name"></span></p>
     </div>
   </div>
+  <div id="eh-assign-banner"></div>
 
   <div class="panel" style="margin-bottom:20px">
     <div class="panel-header">
@@ -2983,6 +3008,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <p>Nombre de tractions, puissance max, rapport puissance/poids — <span id="ptr-athlete-name"></span></p>
     </div>
   </div>
+  <div id="ptr-assign-banner"></div>
   <div class="panel" style="margin-bottom:20px">
     <div class="panel-header"><span class="panel-title">Nouveau test</span></div>
     <div class="form-row form-row-3">
@@ -3015,6 +3041,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <p>Charge maximale — <span id="ptg-athlete-name"></span></p>
     </div>
   </div>
+  <div id="ptg-assign-banner"></div>
   <div class="panel" style="margin-bottom:20px">
     <div class="panel-header"><span class="panel-title">Nouveau test</span></div>
     <div class="form-row form-row-2">
@@ -4356,6 +4383,10 @@ Utilise les raccourcis ci-dessus ou pose-moi directement une question. Par exemp
       <span class="modal-title" id="day-modal-title">Séances du jour</span>
       <button class="btn sm" onclick="closeModal('day-modal')">Fermer</button>
     </div>
+    <!-- Tests prescrits par le coach pour ce jour (cf. renderDayModalTestAssignments / test_assignments,
+         généralisé à tous les tests — retour utilisateur : "faire que tous les tests soient
+         programmables et envoyables sur le calendrier d'un athlète"). -->
+    <div id="day-modal-tests" style="padding:0 20px;display:none"></div>
     <div id="day-modal-cycles" style="padding:0 20px;display:none"></div>
     <div id="day-modal-availability" style="padding:0 20px 12px;display:none"></div>
     <div class="modal-body" id="day-modal-body"></div>
@@ -6078,13 +6109,13 @@ function renderPage(name) {
   if(name==='calendar') renderSimpleCalendar();
   if(name==='performance') { renderPerformance(); renderPyramidPage(); }
   if(name==='workload') renderWorkload();
-  if(name==='finger-profile') renderFingerProfile();
+  if(name==='finger-profile') { renderFingerProfile(); renderTestAssignBanner('fp-assign-banner', 'finger_profile'); }
   if(name==='tests-hub') renderTestsHubDashboard();
   if(name==='tests-custom') ctRenderHub();
-  if(name==='tests-smartboard') renderSmartboard();
-  if(name==='tests-edgehang') renderEdgeHang();
-  if(name==='tests-tractions') renderTractions();
-  if(name==='tests-tirage') renderTirage();
+  if(name==='tests-smartboard') { renderSmartboard(); renderTestAssignBanner('smb-assign-banner', 'smartboard'); }
+  if(name==='tests-edgehang') { renderEdgeHang(); renderTestAssignBanner('eh-assign-banner', 'edge_hang'); }
+  if(name==='tests-tractions') { renderTractions(); renderTestAssignBanner('ptr-assign-banner', 'tractions'); }
+  if(name==='tests-tirage') { renderTirage(); renderTestAssignBanner('ptg-assign-banner', 'tirage'); }
   if(name==='badges') renderBadges();
   if(name==='community') renderCommunityPage();
   if(name==='history') renderHistory();
@@ -6670,7 +6701,12 @@ function buildCalCell(ds, dayNum, isOther, todayStr, climberCycles) {
     ? `<div class="cal-avail-badge" title="Dispo déclarée : ${esc(dayAvail.map(a=>gymNameById(a.gymId)||'salle non précisée').join(', '))}">🏟</div>`
     : '';
   const cycleBadgeHtml = shouldShowCycleBadge(getActive(), ds) ? `<div class="cal-cycle-badge" title="Règles">🩸</div>` : '';
-  cell.innerHTML = `${plannedLogsForCell.length?`<div class="cal-planned-badge" title="${plannedLogsForCell.length} séance${plannedLogsForCell.length>1?'s':''} prévue${plannedLogsForCell.length>1?'s':''}">📌</div>`:''}${availBadgeHtml}${cycleBadgeHtml}<div class="cal-num">${dayNum}</div>${cycleTagsHtmlForDate(ds, climberCycles)}<div class="cal-dots">${dayLogs.map(l=>`<div class="cal-dot${l.planned?' cal-dot-planned':''}" style="${l.planned?`border-color:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`:`background:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`}" title="${esc(sessionDisplayLabel(l))}${l.planned?' (prévue)':''}"></div>`).join('')}</div>${typeLabelHtml}${load?`<div style="font-size:11px;font-weight:800;color:var(--text);margin-top:3px">⚡ ${load}</div>`:''}${hasInjury?`<div style="font-size:9px;font-weight:700;color:var(--warm);margin-top:2px">🩹 bobo</div>`:''}`;
+  // Retour utilisateur : "faire que tous les tests soient programmables et envoyables sur le
+  // calendrier d'un athlète" — badge 🧪 quand un test est prescrit (test_assignments) pour ce
+  // jour, cf. pendingTestAssignmentsOnDate / renderDayModalTestAssignments pour le détail.
+  const pendingTestsForCell = pendingTestAssignmentsOnDate(ds);
+  const testBadgeHtml = pendingTestsForCell.length ? `<div class="cal-test-badge" title="${pendingTestsForCell.length} test${pendingTestsForCell.length>1?'s':''} prévu${pendingTestsForCell.length>1?'s':''}">🧪</div>` : '';
+  cell.innerHTML = `${plannedLogsForCell.length?`<div class="cal-planned-badge" title="${plannedLogsForCell.length} séance${plannedLogsForCell.length>1?'s':''} prévue${plannedLogsForCell.length>1?'s':''}">📌</div>`:''}${availBadgeHtml}${cycleBadgeHtml}${testBadgeHtml}<div class="cal-num">${dayNum}</div>${cycleTagsHtmlForDate(ds, climberCycles)}<div class="cal-dots">${dayLogs.map(l=>`<div class="cal-dot${l.planned?' cal-dot-planned':''}" style="${l.planned?`border-color:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`:`background:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`}" title="${esc(sessionDisplayLabel(l))}${l.planned?' (prévue)':''}"></div>`).join('')}</div>${typeLabelHtml}${load?`<div style="font-size:11px;font-weight:800;color:var(--text);margin-top:3px">⚡ ${load}</div>`:''}${hasInjury?`<div style="font-size:9px;font-weight:700;color:var(--warm);margin-top:2px">🩹 bobo</div>`:''}`;
   cell.onclick = () => openDayQuickPick(ds);
   cell.ondragover = (e) => { e.preventDefault(); cell.classList.add('drag-over'); };
   cell.ondragleave = () => cell.classList.remove('drag-over');
@@ -6685,6 +6721,7 @@ function renderCalendar() {
   else renderCalendarMonth();
   renderCalBankMini();
   triggerAvailabilityLoad(getActive()?.id, renderCalendar);
+  triggerTestAssignmentsLoad(getActive()?.id, renderCalendar);
 }
 
 function renderCalendarMonth() {
@@ -7053,7 +7090,9 @@ function buildCal2Cell(ds, dayNum, isOther, todayStr, climberCycles) {
     ? `<div class="cal-avail-badge" title="Dispo déclarée : ${esc(dayAvail2.map(a=>gymNameById(a.gymId)||'salle non précisée').join(', '))}">🏟</div>`
     : '';
   const cycleBadgeHtml2 = shouldShowCycleBadge(getActive(), ds) ? `<div class="cal-cycle-badge" title="Règles">🩸</div>` : '';
-  cell.innerHTML = `${plannedLogsForCell.length?`<div class="cal-planned-badge" title="${plannedLogsForCell.length} séance${plannedLogsForCell.length>1?'s':''} prévue${plannedLogsForCell.length>1?'s':''}">📌</div>`:''}${availBadgeHtml2}${cycleBadgeHtml2}<div class="cal-num">${dayNum}</div>${cycleTagsHtmlForDate(ds, climberCycles)}<div class="cal-dots">${dayLogs.map(l=>`<div class="cal-dot${l.planned?' cal-dot-planned':''}" style="${l.planned?`border-color:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`:`background:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`}" title="${esc(sessionDisplayLabel(l))}${l.planned?' (prévue)':''}"></div>`).join('')}</div>${typeLabelHtml2}${load?`<div style="font-size:11px;font-weight:800;color:var(--text);margin-top:3px;display:flex;align-items:center;gap:4px">⚡ ${load}${shapeIconCell?`<span style="font-size:12.5px" title="${esc(shapeTitleCell)}">${shapeIconCell}</span>`:''}</div>`:''}${hasInjury?`<div style="font-size:9px;font-weight:700;color:var(--warm);margin-top:2px">🩹 bobo</div>`:''}`;
+  const pendingTestsForCell2 = pendingTestAssignmentsOnDate(ds);
+  const testBadgeHtml2 = pendingTestsForCell2.length ? `<div class="cal-test-badge" title="${pendingTestsForCell2.length} test${pendingTestsForCell2.length>1?'s':''} prévu${pendingTestsForCell2.length>1?'s':''}">🧪</div>` : '';
+  cell.innerHTML = `${plannedLogsForCell.length?`<div class="cal-planned-badge" title="${plannedLogsForCell.length} séance${plannedLogsForCell.length>1?'s':''} prévue${plannedLogsForCell.length>1?'s':''}">📌</div>`:''}${availBadgeHtml2}${cycleBadgeHtml2}${testBadgeHtml2}<div class="cal-num">${dayNum}</div>${cycleTagsHtmlForDate(ds, climberCycles)}<div class="cal-dots">${dayLogs.map(l=>`<div class="cal-dot${l.planned?' cal-dot-planned':''}" style="${l.planned?`border-color:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`:`background:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`}" title="${esc(sessionDisplayLabel(l))}${l.planned?' (prévue)':''}"></div>`).join('')}</div>${typeLabelHtml2}${load?`<div style="font-size:11px;font-weight:800;color:var(--text);margin-top:3px;display:flex;align-items:center;gap:4px">⚡ ${load}${shapeIconCell?`<span style="font-size:12.5px" title="${esc(shapeTitleCell)}">${shapeIconCell}</span>`:''}</div>`:''}${hasInjury?`<div style="font-size:9px;font-weight:700;color:var(--warm);margin-top:2px">🩹 bobo</div>`:''}`;
   cell.onclick = () => openDayQuickPick(ds);
   return { cell, dayLogs, isOther };
 }
@@ -7089,6 +7128,7 @@ function renderSimpleCalendar() {
   document.getElementById('cal2-load').textContent=totalLoad;
   document.getElementById('cal2-ascents').textContent=totalAscents;
   triggerAvailabilityLoad(getActive()?.id, renderSimpleCalendar);
+  triggerTestAssignmentsLoad(getActive()?.id, renderSimpleCalendar);
 }
 document.getElementById('cal2-prev').onclick=()=>{ cal2Date.setMonth(cal2Date.getMonth()-1); renderSimpleCalendar(); };
 document.getElementById('cal2-next').onclick=()=>{ cal2Date.setMonth(cal2Date.getMonth()+1); renderSimpleCalendar(); };
@@ -8985,6 +9025,7 @@ async function fpSaveTest() {
     const r = await fetch('/api/finger-profile/' + climber.id, { method: 'POST', headers: authHeaders(), body: JSON.stringify(payload) });
     const d = await r.json();
     if (!r.ok) { errEl.textContent = d.error || 'Erreur lors de l\'enregistrement'; errEl.style.display = ''; return; }
+    completeTestAssignmentIfPending('finger_profile', payload.id, 'fp-assign-banner');
     await fpFetchHistory(true);
     fpSwitchTab('profile'); // "Mon profil" affiche toujours le test le plus récent par date
   } catch (e) {
@@ -9354,6 +9395,199 @@ function autoLogTestToCalendar(date, logType, label) {
   saveDB();
   if (typeof renderDashboard === 'function') renderDashboard();
   if (typeof renderCalendar === 'function') renderCalendar();
+}
+
+// ═══════════════ PROGRAMMATION DE TESTS — GÉNÉRALISÉE À TOUS LES TESTS ═══════════════
+// Retour utilisateur : "pour les tests, peux-tu faire que TOUS les tests soient programmables et
+// envoyables sur le calendrier d'un athlète" — généralise à Finger Profile, SmartBoard, Suspension
+// sur réglette, Tractions et Tirage le mécanisme de prescription déjà en place pour les tests
+// personnalisés (cf. test_assignments / ctAssignedForActive un peu plus bas dans ce fichier, et
+// src/routes/testAssignments.js côté backend — testTypeId y est un simple TEXT libre, donc déjà
+// valable pour n'importe quel test, codé en dur ou personnalisé, sans changement de schéma).
+const BUILTIN_TEST_TYPES = {
+  finger_profile: { label: 'Finger Profile', page: 'finger-profile' },
+  smartboard:     { label: 'SmartBoard', page: 'tests-smartboard' },
+  edge_hang:      { label: 'Suspension sur réglette', page: 'tests-edgehang' },
+  tractions:      { label: 'Tractions', page: 'tests-tractions' },
+  tirage:         { label: 'Tirage', page: 'tests-tirage' }
+};
+// Libellé lisible d'un testTypeId, qu'il s'agisse d'un test codé en dur ou d'un test personnalisé
+// (ct_...) — sert à afficher les prescriptions sur le calendrier sans avoir à charger la fiche.
+function testTypeLabel(testTypeId) {
+  if (BUILTIN_TEST_TYPES[testTypeId]) return BUILTIN_TEST_TYPES[testTypeId].label;
+  const ct = (ctTypes || []).find(t => t.id === testTypeId);
+  return ct ? ct.name : testTypeId;
+}
+// Depuis un badge/une liste du calendrier : ouvre la page (test codé en dur) ou la fiche
+// (test personnalisé, via le hub + ctOpenLog) correspondant à ce testTypeId.
+function goToTestType(testTypeId) {
+  const bt = BUILTIN_TEST_TYPES[testTypeId];
+  if (bt) { switchPage(bt.page); return; }
+  switchPage('tests-custom');
+  if (typeof ctOpenLog === 'function') setTimeout(() => ctOpenLog(testTypeId), 0);
+}
+window.goToTestType = goToTestType;
+
+// Cache des prescriptions (test_assignments) du grimpeur actif, par grimpeur — même schéma que le
+// cache de disponibilités plus haut (ensureAvailabilityLoaded) : chargé une fois, sert à afficher
+// le badge 🧪 sur les cases du calendrier (buildCalCell/buildCal2Cell) et la liste "tests prévus"
+// de la fenêtre "Séances du jour" (renderDayModalTestAssignments), sans devoir d'abord ouvrir une
+// fiche de test. Invalidé dès qu'une prescription est créée/annulée/complétée pour ce grimpeur.
+let testAssignCache = {};
+let testAssignFetchedFor = {};
+async function ensureTestAssignmentsLoaded(climberId) {
+  if (!climberId) return [];
+  if (testAssignFetchedFor[climberId]) return testAssignCache[climberId] || [];
+  try {
+    const r = await fetch('/api/test-assignments/' + climberId, { headers: authHeaders() });
+    testAssignCache[climberId] = r.ok ? await r.json() : [];
+  } catch (e) { testAssignCache[climberId] = testAssignCache[climberId] || []; }
+  testAssignFetchedFor[climberId] = true;
+  return testAssignCache[climberId] || [];
+}
+function invalidateTestAssignmentsCache(climberId) { delete testAssignFetchedFor[climberId]; }
+function pendingTestAssignmentsOnDate(dateStr) {
+  const c = getActive();
+  if (!c) return [];
+  return (testAssignCache[c.id] || []).filter(a => a.date === dateStr && !a.done);
+}
+// Même schéma que triggerAvailabilityLoad : fetch async, pas de blocage de l'affichage initial de
+// la grille, ré-affichage une seule fois une fois les données arrivées.
+function triggerTestAssignmentsLoad(climberId, onLoaded) {
+  if (!climberId || testAssignFetchedFor[climberId]) return;
+  ensureTestAssignmentsLoaded(climberId).then(() => { if (typeof onLoaded === 'function') onLoaded(); });
+}
+
+// Bannière "prescrit par ton coach" (athlète) + bouton "Programmer pour un(e) athlète" (coach),
+// partagés par toutes les pages de test codées en dur — bannerId = id d'un <div> vide déjà présent
+// dans le page-header de la page (cf. fp-assign-banner, smb-assign-banner, etc.).
+async function renderTestAssignBanner(bannerId, testTypeId) {
+  const el = document.getElementById(bannerId);
+  if (!el) return;
+  const climber = getActive();
+  invalidateTestAssignmentsCache(climber?.id);
+  const items = await ensureTestAssignmentsLoaded(climber?.id);
+  const pending = items.find(a => a.testTypeId === testTypeId && !a.done);
+  const banner = pending ? `<div style="background:var(--accent2);color:var(--accent);border-radius:8px;padding:8px 10px;font-size:12px;margin-top:8px">📅 Prescrit par ton coach pour le ${fmtDate(pending.date)}${pending.note ? ' — ' + esc(pending.note) : ''}</div>` : '';
+  const coachBtn = isAdmin() ? `<button class="btn sm coach-only-btn" style="margin-top:8px" onclick="openTestAssignModal('${testTypeId}')">📅 Programmer pour un(e) athlète</button>` : '';
+  el.innerHTML = banner + coachBtn;
+}
+window.renderTestAssignBanner = renderTestAssignBanner;
+
+// Marque comme faite, côté serveur, la prescription en attente pour ce test — même logique que
+// ctSaveLog (tests personnalisés), généralisée. Appelée après l'enregistrement réussi d'un résultat
+// par smbSaveTest / ehSaveTest / saveTest (Tractions-Tirage, cf. makeArmTestPage) / fpSaveTest.
+async function completeTestAssignmentIfPending(testTypeId, resultId, bannerId) {
+  const climber = getActive();
+  const items = await ensureTestAssignmentsLoaded(climber?.id);
+  const pending = items.find(a => a.testTypeId === testTypeId && !a.done);
+  if (!pending) return;
+  try {
+    await fetch('/api/test-assignments/' + pending.id + '/complete', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ resultId: resultId || '' }) });
+  } catch (e) {}
+  invalidateTestAssignmentsCache(climber?.id);
+  await ensureTestAssignmentsLoaded(climber?.id);
+  if (bannerId) renderTestAssignBanner(bannerId, testTypeId);
+  if (document.getElementById('cal-grid')) renderCalendar();
+  if (document.getElementById('cal2-grid')) renderSimpleCalendar();
+}
+window.completeTestAssignmentIfPending = completeTestAssignmentIfPending;
+
+// — Modale générique : programmer N'IMPORTE QUEL test pour un(e) athlète à une date (cf.
+// #test-assign-modal dans le HTML) — remplace/généralise l'ancienne section ctassign-section
+// spécifique aux tests personnalisés.
+let taCurrentTypeId = null;
+function openTestAssignModal(testTypeId) {
+  taCurrentTypeId = testTypeId;
+  const titleEl = document.getElementById('tassign-title');
+  if (titleEl) titleEl.textContent = `📅 Programmer — ${testTypeLabel(testTypeId)}`;
+  const sel = document.getElementById('tassign-climber');
+  if (sel) {
+    const active = getActive();
+    sel.innerHTML = (db.climbers || []).map(cl => `<option value="${cl.id}">${esc(cl.name)}</option>`).join('');
+    if (active) sel.value = active.id;
+  }
+  const dateEl = document.getElementById('tassign-date');
+  if (dateEl) dateEl.value = new Date().toISOString().slice(0, 10);
+  const noteEl = document.getElementById('tassign-note');
+  if (noteEl) noteEl.value = '';
+  renderTestAssignList();
+  document.getElementById('test-assign-modal').classList.add('open');
+}
+window.openTestAssignModal = openTestAssignModal;
+
+async function renderTestAssignList() {
+  const el = document.getElementById('tassign-list');
+  if (!el || !taCurrentTypeId) return;
+  let items = [];
+  try {
+    const r = await fetch('/api/test-assignments/mine?testTypeId=' + encodeURIComponent(taCurrentTypeId), { headers: authHeaders() });
+    items = r.ok ? await r.json() : [];
+  } catch (e) { items = []; }
+  if (!items.length) { el.innerHTML = `<p style="font-size:12px;color:var(--muted);margin:0">Aucune programmation pour l'instant.</p>`; return; }
+  el.innerHTML = items.map(a => {
+    const cl = (db.climbers || []).find(c => c.id === a.climberId);
+    return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);font-size:12px">
+      <span>${esc(cl?.name || 'Athlète')} — ${fmtDate(a.date)}${a.note ? ' · ' + esc(a.note) : ''}</span>
+      ${a.done
+        ? `<span style="color:var(--accent);font-weight:600">✓ Fait</span>`
+        : `<button class="btn sm" style="padding:2px 8px" onclick="cancelTestAssignment('${a.id}')">Annuler</button>`}
+    </div>`;
+  }).join('');
+}
+window.renderTestAssignList = renderTestAssignList;
+
+async function saveTestAssignment() {
+  if (!taCurrentTypeId) return;
+  const climberId = document.getElementById('tassign-climber')?.value;
+  const date = document.getElementById('tassign-date')?.value;
+  if (!climberId || !date) { alert("Choisis un(e) athlète et une date."); return; }
+  const body = {
+    id: 'cta_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+    climberId, testTypeId: taCurrentTypeId, date,
+    note: document.getElementById('tassign-note')?.value.trim() || ''
+  };
+  try {
+    const r = await fetch('/api/test-assignments', { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) });
+    if (!r.ok) { const d = await r.json().catch(() => ({})); alert(d.error || 'Erreur lors de la programmation.'); return; }
+  } catch (e) { alert('Erreur réseau.'); return; }
+  const noteEl = document.getElementById('tassign-note');
+  if (noteEl) noteEl.value = '';
+  await renderTestAssignList();
+  invalidateTestAssignmentsCache(climberId);
+  if (climberId === getActive()?.id) {
+    await ensureTestAssignmentsLoaded(climberId);
+    if (document.getElementById('cal-grid')) renderCalendar();
+    if (document.getElementById('cal2-grid')) renderSimpleCalendar();
+  }
+}
+window.saveTestAssignment = saveTestAssignment;
+
+async function cancelTestAssignment(id) {
+  if (!confirm('Annuler cette programmation ?')) return;
+  try { await fetch('/api/test-assignments/' + id, { method: 'DELETE', headers: authHeaders() }); } catch (e) {}
+  await renderTestAssignList();
+  const active = getActive();
+  invalidateTestAssignmentsCache(active?.id);
+  await ensureTestAssignmentsLoaded(active?.id);
+  if (document.getElementById('cal-grid')) renderCalendar();
+  if (document.getElementById('cal2-grid')) renderSimpleCalendar();
+}
+window.cancelTestAssignment = cancelTestAssignment;
+
+// Liste, dans la fenêtre "Séances du jour" (day-modal), les tests prescrits pour cette date — même
+// principe que renderDayModalCycles, pour aller loguer le test directement depuis le calendrier.
+function renderDayModalTestAssignments(dateStr) {
+  const el = document.getElementById('day-modal-tests');
+  if (!el) return;
+  const items = pendingTestAssignmentsOnDate(dateStr);
+  if (!items.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.style.display = '';
+  el.innerHTML = items.map(a => `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--accent2);color:var(--accent);border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:13px">
+      <span>🧪 <strong>${esc(testTypeLabel(a.testTypeId))}</strong>${a.note ? ' — ' + esc(a.note) : ''}</span>
+      <button class="btn sm" onclick="closeModal('day-modal');goToTestType('${jsAttr(a.testTypeId)}')">Faire ce test</button>
+    </div>`).join('');
 }
 
 // ═══════════════ TESTS GÉNÉRAUX — TABLEAU DE BORD (hub) ═══════════════
@@ -9752,6 +9986,7 @@ async function smbSaveTest() {
     await fetch('/api/general-tests/' + climber.id, { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) });
   } catch (e) { alert("Erreur lors de l'enregistrement."); return; }
   autoLogTestToCalendar(date, 'doigts', 'SmartBoard');
+  completeTestAssignmentIfPending('smartboard', body.id, 'smb-assign-banner');
   ['smb-edge', 'smb-grip', 'smb-weight', 'smb-max-force', 'smb-ratio', 'smb-imbalance', 'smb-notes'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   await smbFetchHistory();
 }
@@ -9928,6 +10163,7 @@ async function ehSaveTest() {
     await fetch('/api/general-tests/' + climber.id, { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) });
   } catch (e) { alert("Erreur lors de l'enregistrement."); return; }
   autoLogTestToCalendar(date, 'doigts', 'Suspension sur réglette');
+  completeTestAssignmentIfPending('edge_hang', body.id, 'eh-assign-banner');
   ['eh-edge-mm', 'eh-pct-bw', 'eh-grip', 'eh-notes'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   await ehFetchHistory();
 }
@@ -10016,6 +10252,7 @@ function makeArmTestPage(cfg) {
       await fetch('/api/general-tests/' + climber.id, { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) });
     } catch (e) { alert("Erreur lors de l'enregistrement."); return; }
     autoLogTestToCalendar(date, 'musculation', cfg.displayLabel || cfg.label);
+    completeTestAssignmentIfPending(cfg.testType, body.id, cfg.prefix + '-assign-banner');
     cfg.fields.forEach(f => { const el = document.getElementById(cfg.prefix + '-' + f.id); if (el) el.value = ''; });
     const notesEl = document.getElementById(cfg.prefix + '-notes'); if (notesEl) notesEl.value = '';
     await fetchHistory();
@@ -10180,69 +10417,9 @@ function ctDeleteTypeFromLog() {
 }
 window.ctDeleteTypeFromLog = ctDeleteTypeFromLog;
 
-// — Programmer ce test pour un(e) athlète à une date (retour utilisateur : "sur les tests
-// personnalisés créés par le coach, la possibilité de le mettre pour une personne à une date") —
-// section coach-only-btn de custom-test-log-modal, cf. sa description dans le HTML. —
-function ctRenderAssignClimberSelect() {
-  const sel = document.getElementById('ctassign-climber');
-  if (!sel) return;
-  const active = getActive();
-  sel.innerHTML = (db.climbers || []).map(cl => `<option value="${cl.id}">${esc(cl.name)}</option>`).join('');
-  if (active) sel.value = active.id;
-}
-
-async function ctRenderAssignList() {
-  const el = document.getElementById('ctassign-list');
-  if (!el || !ctCurrentTypeId || !isAdmin()) return;
-  let items = [];
-  try {
-    const r = await fetch('/api/test-assignments/mine?testTypeId=' + encodeURIComponent(ctCurrentTypeId), { headers: authHeaders() });
-    items = r.ok ? await r.json() : [];
-  } catch (e) { items = []; }
-  if (!items.length) { el.innerHTML = `<p style="font-size:12px;color:var(--muted);margin:0">Aucune programmation pour l'instant.</p>`; return; }
-  el.innerHTML = items.map(a => {
-    const cl = (db.climbers || []).find(c => c.id === a.climberId);
-    return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);font-size:12px">
-      <span>${esc(cl?.name || 'Athlète')} — ${fmtDate(a.date)}${a.note ? ' · ' + esc(a.note) : ''}</span>
-      ${a.done
-        ? `<span style="color:var(--accent);font-weight:600">✓ Fait</span>`
-        : `<button class="btn sm" style="padding:2px 8px" onclick="ctCancelAssign('${a.id}')">Annuler</button>`}
-    </div>`;
-  }).join('');
-}
-
-async function ctAssignTest() {
-  if (!ctCurrentTypeId) return;
-  const climberId = document.getElementById('ctassign-climber')?.value;
-  const date = document.getElementById('ctassign-date')?.value;
-  if (!climberId || !date) { alert("Choisis un(e) athlète et une date."); return; }
-  const body = {
-    id: 'cta_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
-    climberId,
-    testTypeId: ctCurrentTypeId,
-    date,
-    note: document.getElementById('ctassign-note')?.value.trim() || ''
-  };
-  try {
-    const r = await fetch('/api/test-assignments', { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) });
-    if (!r.ok) { const d = await r.json().catch(()=>({})); alert(d.error || 'Erreur lors de la programmation.'); return; }
-  } catch (e) { alert('Erreur réseau.'); return; }
-  document.getElementById('ctassign-note').value = '';
-  await ctRenderAssignList();
-  // Si l'athlète programmé est celui actuellement affiché, rafraîchit aussi le badge/bannière.
-  if (climberId === getActive()?.id) { await ctFetchAssignmentsForActive(); }
-}
-window.ctAssignTest = ctAssignTest;
-
-async function ctCancelAssign(id) {
-  if (!confirm('Annuler cette programmation ?')) return;
-  try { await fetch('/api/test-assignments/' + id, { method: 'DELETE', headers: authHeaders() }); } catch (e) {}
-  await ctRenderAssignList();
-  await ctFetchAssignmentsForActive();
-}
-window.ctCancelAssign = ctCancelAssign;
-
-// — Logger un résultat + historique, pour le type ctCurrentTypeId —
+// — Logger un résultat + historique, pour le type ctCurrentTypeId — la programmation ("mettre pour
+// une personne à une date") passe désormais par la modale générique test-assign-modal, partagée
+// avec les tests codés en dur (cf. openTestAssignModal / bouton coach-only-btn dans le HTML).
 async function ctOpenLog(typeId) {
   const t = (ctTypes || []).find(x => x.id === typeId);
   if (!t) return;
@@ -10264,10 +10441,6 @@ async function ctOpenLog(typeId) {
   document.getElementById('ctlog-date').value = pending ? pending.date : new Date().toISOString().slice(0, 10);
   document.getElementById('ctlog-value').value = '';
   document.getElementById('ctlog-notes').value = '';
-  document.getElementById('ctassign-date').value = new Date().toISOString().slice(0, 10);
-  document.getElementById('ctassign-note').value = '';
-  ctRenderAssignClimberSelect();
-  ctRenderAssignList();
   document.getElementById('custom-test-log-modal').classList.add('open');
   await ctFetchLogs();
 }
@@ -10343,7 +10516,12 @@ async function ctSaveLog() {
   await ctFetchAssignmentsForActive();
   const bannerEl = document.getElementById('ctlog-pending-banner');
   if (bannerEl) bannerEl.style.display = 'none';
-  ctRenderAssignList();
+  // Répercute aussi sur le badge 🧪 du calendrier (cache séparé de ctAssignedForActive, cf.
+  // invalidateTestAssignmentsCache / renderDayModalTestAssignments).
+  invalidateTestAssignmentsCache(climber.id);
+  await ensureTestAssignmentsLoaded(climber.id);
+  if (document.getElementById('cal-grid')) renderCalendar();
+  if (document.getElementById('cal2-grid')) renderSimpleCalendar();
   await ctFetchLogs();
 }
 window.ctSaveLog = ctSaveLog;
@@ -12979,6 +13157,7 @@ function openDayModal(dateStr){
       ${l.bankRef&&getBank().find(b=>b.id===l.bankRef)?`<button class="btn sm" style="margin-top:8px" onclick="event.stopPropagation();closeModal('day-modal');switchPage('session-bank');sbEditCard('${l.bankRef}')">📋 Voir la fiche complète</button>`:''}
     </div>`;
   }).join(''):'<p style="color:var(--muted);text-align:center;padding:20px">Aucune séance ce jour</p>';
+  renderDayModalTestAssignments(dateStr);
   renderDayModalCycles(dateStr);
   const addBtn = document.getElementById('day-modal-add');
   const addPlanBtn = document.getElementById('day-modal-add-plan');
