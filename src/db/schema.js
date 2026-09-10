@@ -143,6 +143,12 @@ async function initDB() {
       -- toujours tout, quelle que soit la visibilité — cf. GET /api/bank.
       ALTER TABLE session_bank ADD COLUMN IF NOT EXISTS created_by TEXT;
       ALTER TABLE session_bank ADD COLUMN IF NOT EXISTS visibility TEXT DEFAULT 'shared';
+      -- Retour utilisateur : bouton "⚠️ Alerte récupération" dans l'éditeur de fiche — un coach
+      -- peut indiquer qu'une séance nécessite d'être physiquement frais, avec un délai de
+      -- récupération minimum (en heures) depuis une séance similaire. 0 = pas d'alerte (valeur
+      -- par défaut, aucune fiche existante n'est concernée). Purement informatif — affiché sur la
+      -- fiche (badge + détail), ne bloque jamais la programmation côté serveur.
+      ALTER TABLE session_bank ADD COLUMN IF NOT EXISTS min_rest_hours INTEGER DEFAULT 0;
       -- Backfill unique : les fiches créées AVANT ce cloisonnement n'ont pas de propriétaire connu
       -- — on les attribue au premier compte owner trouvé (ne change rien à leur visibilité, déjà
       -- 'shared' par défaut, donc personne ne perd l'accès à sa bibliothèque existante) plutôt que
