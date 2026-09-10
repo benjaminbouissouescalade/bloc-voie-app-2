@@ -319,6 +319,28 @@ async function initDB() {
         created_at        TIMESTAMPTZ DEFAULT NOW()
       );
 
+      -- Prescription d'un test personnalisé à un athlète pour une date donnée (retour
+      -- utilisateur : "sur les tests personnalisés créés par le coach, la possibilité de le
+      -- mettre pour une personne à une date") — un coach choisit un type de custom_test_types
+      -- ci-dessus et le programme pour un climber_id à faire à une date. Ne stocke qu'une
+      -- PRESCRIPTION : le résultat réel, une fois loggué par l'athlète, reste dans general_tests
+      -- comme avant (result_id fait juste le lien une fois fait, cf. testAssignments.js).
+      -- test_type_id en TEXT simple (pas de FK stricte), comme general_tests.test_type, pour
+      -- tolérer la suppression d'un type de test sans casser l'historique des prescriptions déjà
+      -- faites.
+      CREATE TABLE IF NOT EXISTS test_assignments (
+        id                    TEXT PRIMARY KEY,
+        climber_id            TEXT NOT NULL REFERENCES climbers(id) ON DELETE CASCADE,
+        test_type_id          TEXT NOT NULL,
+        date                  DATE NOT NULL,
+        note                  TEXT DEFAULT '',
+        assigned_by_coach_id  TEXT,
+        done                  BOOLEAN DEFAULT false,
+        result_id             TEXT,
+        created_at            TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_test_assignments_climber ON test_assignments(climber_id, date);
+
       -- Communauté / mode jeu : crews indépendants de la relation coach-athlète (peuvent
       -- rassembler des grimpeurs de coachs différents, via un code d'invitation partagé).
       CREATE TABLE IF NOT EXISTS crews (
