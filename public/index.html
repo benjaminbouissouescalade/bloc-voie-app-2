@@ -3797,7 +3797,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
         </select>
       </div>
     </div>
-    <div class="form-group">
+    <div class="form-group" id="sb-support-group">
       <label class="form-label">Support d'entraînement principal</label>
       <select class="form-control" id="sb-support">
         <option value="">— Aucun / non précisé —</option>
@@ -13408,6 +13408,29 @@ const BANK_TYPE_TO_OBJECTIF_FALLBACK = {
   mobilite:'recuperation', yoga:'recuperation', recup_active:'recuperation', 'kiné':'recuperation',
   video:'technique', mentale:'technique', competition:'technique', via_ferrata:'technique', autre:'technique'
 };
+// Simplification formulaire création fiche (retour : "beaucoup de choses à remplir") — les tags
+// STYLES (picker "Tags (styles travaillés)") recoupent souvent l'Objectif principal déjà choisi
+// juste au-dessus (ex. goal='dalle' => tag "Dalle" ; goal='devers' => tags "Dévers"+"Compression").
+// Plutôt que de faire recocher au coach une info qu'il vient de donner, on pré-coche automatiquement
+// le(s) tag(s) correspondants quand il choisit/change l'Objectif (cf. écouteur 'change' sur #sb-goal
+// plus bas). Additif seulement : ne décoche jamais un tag déjà coché à la main, et le coach reste
+// libre d'ajouter/retirer des tags ensuite — le picker et le filtre par tag ne changent pas.
+const BANK_GOAL_TO_STYLES = {
+  puissance: ['Puissance'],
+  doigts_max: ['Doigts'],
+  resi: ['Rési'],
+  technique: ['Technique'],
+  dalle: ['Dalle', 'Équilibre'],
+  devers: ['Dévers', 'Compression'],
+  coordination: ['Coordination'],
+};
+function sbAutoCheckStylesForGoal(goal) {
+  const styles = BANK_GOAL_TO_STYLES[goal];
+  if (!styles || !styles.length) return;
+  document.querySelectorAll('#sb-tags-picker input').forEach(el => {
+    if (styles.includes(el.value)) el.checked = true;
+  });
+}
 // Petit picto rond sur les cartes de La Mine — retour utilisateur : "rendre la banque plus
 // sexy". Icône = celle de la famille objectif (déjà utilisée sur les pastilles de filtre
 // Force/Résistance/Doigts…), couleur de fond = celle du type de séance (SESSION_TYPES),
@@ -14220,6 +14243,27 @@ function sbRemoveImage(idx) {
 window.sbRemoveImage = sbRemoveImage;
 document.getElementById('sb-type')?.addEventListener('change', sbRenderChecklistSection);
 
+// Simplification formulaire création fiche (retour : "beaucoup de choses à remplir") — le
+// Support d'entraînement (poutre, pan, salle, outdoor...) n'a de sens que pour une partie des
+// types de séance : pour Footing, Yoga, Prépa mentale, Analyse vidéo, Compétition, etc. il reste
+// systématiquement sur "— Aucun / non précisé —". On masque le champ pour les types où il n'aide
+// jamais, au lieu de le laisser toujours visible. La donnée n'est jamais effacée par ce masquage :
+// la valeur reste dans le <select> et repart normalement si le type change à nouveau vers un type
+// concerné, ou à la sauvegarde d'une fiche déjà renseignée.
+const SB_SUPPORT_RELEVANT_TYPES = new Set([
+  'bloc', 'voies', 'falaise', 'bloc_exterieur', 'kilter', 'pan', 'doigts', 'prehension', 'musculation', 'ppg'
+]);
+function sbSupportTypeApplicable(type) {
+  return SB_SUPPORT_RELEVANT_TYPES.has(type);
+}
+function sbRenderSupportSection() {
+  const type = document.getElementById('sb-type')?.value;
+  const group = document.getElementById('sb-support-group');
+  if (group) group.style.display = sbSupportTypeApplicable(type) ? '' : 'none';
+}
+document.getElementById('sb-type')?.addEventListener('change', sbRenderSupportSection);
+document.getElementById('sb-goal')?.addEventListener('change', (e) => sbAutoCheckStylesForGoal(e.target.value));
+
 // Cloisonnement de La Mine par coach : un owner gère tout, un coach ne gère (modifie/supprime/
 // change la visibilité de) que ses PROPRES fiches — jamais celles d'un autre coach, même visibles
 // parce que partagées ou parce qu'il coache un de ses athlètes. Miroir exact de canManage() côté
@@ -14268,6 +14312,7 @@ function sbEditCard(id) {
   });
   sbChecklistItems = JSON.parse(JSON.stringify(s.checklist || []));
   sbRenderChecklistSection();
+  sbRenderSupportSection();
   sbAiReviewHistory = [];
   sbRenderAiReviewMessages();
   document.getElementById('sb-delete-btn').style.display = '';
@@ -14308,6 +14353,7 @@ function sbNewCard() {
   document.querySelectorAll('.sb-crosstag-cb').forEach(el => el.checked = false);
   sbChecklistItems = [];
   sbRenderChecklistSection();
+  sbRenderSupportSection();
   sbAiReviewHistory = [];
   sbRenderAiReviewMessages();
   document.getElementById('sb-delete-btn').style.display = 'none';
@@ -14797,6 +14843,7 @@ window.sbAiEditBeforeAdd = function(card) {
   document.getElementById('sb-goal').value = card.goal || 'projet';
   document.getElementById('sb-description').value = card.description || '';
   const sbSupEl2 = document.getElementById('sb-support'); if (sbSupEl2) sbSupEl2.value = card.support || '';
+  sbRenderSupportSection();
   document.querySelectorAll('#sb-tags-picker input').forEach(el => {
     el.checked = (card.tags||[]).includes(el.value);
   });
