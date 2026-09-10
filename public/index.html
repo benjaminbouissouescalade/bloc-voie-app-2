@@ -3947,21 +3947,6 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       </div>
       <div id="sb-checklist-list" style="display:flex;flex-direction:column;gap:6px"></div>
     </div>
-    <div class="form-group coach-only-btn" id="sb-ai-review-group">
-      <label class="form-label" style="margin-bottom:6px">✦ Avis de l'IA sur cette fiche</label>
-      <div class="sb-ai-chat">
-        <div class="sb-ai-messages" id="sb-ai-review-messages">
-          <div class="ai-msg assistant">
-            <div class="ai-sender">IA</div>
-            <div class="ai-bubble">Demande-moi un avis sur cette fiche, une correction, ou pose une question — je peux voir tous les champs déjà remplis. Tu peux enchaîner les questions ensuite.</div>
-          </div>
-        </div>
-        <div class="sb-ai-input-bar">
-          <textarea id="sb-ai-review-input" placeholder="Ex : Cette séance est-elle adaptée à un niveau intermédiaire ?" rows="1" onkeydown="sbAiReviewKeydown(event)"></textarea>
-          <button class="ai-send-btn" id="sb-ai-review-send-btn" onclick="sbAskAiReview()" title="Envoyer">↑</button>
-        </div>
-      </div>
-    </div>
     <!-- Retour utilisateur : bouton visible à côté d'Enregistrer pour prévenir que cette séance
          nécessite d'être frais physiquement (délai de récupération minimum depuis une séance
          similaire). Purement informatif pour l'athlète — cf. sbToggleWarningPanel/sbSetWarningHours
