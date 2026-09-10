@@ -2461,6 +2461,94 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   </div>
 </div>
 
+<!-- Copier un bloc de N semaines déjà présentes sur le calendrier, pour soit le recoller ailleurs
+     immédiatement (en cycle), soit l'enregistrer comme modèle nommé réutilisable (cf. "📁 Mes
+     modèles" / week-templates-modal juste après) — retour utilisateur : "il me faut une option de
+     copie de semaine pour pouvoir copier 3 semaines ou 2 ou 1 ou plus, mais aussi la possibilité de
+     les mémoriser et les nommer et les utiliser comme cycle". -->
+<div class="modal-backdrop" id="copy-week-modal">
+  <div class="modal" style="width:min(560px,100%)">
+    <div class="modal-header">
+      <span class="modal-title">📋 Copier des semaines</span>
+      <button class="btn sm" onclick="closeModal('copy-week-modal')">Fermer</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Reprend les séances déjà présentes sur le calendrier de <strong id="cw-athlete-name"></strong> sur la période choisie, pour les recopier ailleurs ou les enregistrer comme modèle réutilisable.</p>
+
+      <div class="form-row form-row-2">
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Semaine de départ (à copier)</label>
+          <input class="form-control" type="date" id="cw-source-start" onchange="cwUpdatePreview()">
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Nombre de semaines</label>
+          <input class="form-control" type="number" min="1" max="12" value="1" id="cw-weeks" oninput="cwUpdatePreview()">
+        </div>
+      </div>
+
+      <p id="cw-preview" style="font-size:12px;color:var(--muted);margin:10px 0 16px">—</p>
+
+      <div style="height:1px;background:var(--border);margin:6px 0 16px"></div>
+
+      <div class="form-group">
+        <label class="form-label">Nom <span style="font-weight:400;color:var(--muted)">(pour le coller comme cycle et/ou l'enregistrer comme modèle)</span></label>
+        <input class="form-control" type="text" id="cw-name" placeholder="Ex. Semaine type prépa compét">
+      </div>
+
+      <div class="form-row form-row-2">
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Coller à partir du</label>
+          <input class="form-control" type="date" id="cw-target-start">
+        </div>
+        <div class="form-group" style="margin-bottom:0;display:flex;align-items:flex-end">
+          <button type="button" class="btn primary" style="width:100%" onclick="cwPasteNow()">📋 Coller ici (crée un cycle)</button>
+        </div>
+      </div>
+
+      <button type="button" class="btn" style="width:100%;margin-top:10px" onclick="cwSaveAsTemplate()">💾 Enregistrer comme modèle réutilisable</button>
+
+      <div id="cw-error" style="display:none;background:var(--warm2);color:var(--warm);border-radius:8px;padding:10px;font-size:13px;margin-top:12px"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Bibliothèque des modèles enregistrés — réapplique un modèle comme un nouveau cycle, sur la
+     période et pour l'athlète (ou les athlètes) de son choix. -->
+<div class="modal-backdrop" id="week-templates-modal">
+  <div class="modal" style="width:min(560px,100%)">
+    <div class="modal-header">
+      <span class="modal-title">📁 Mes modèles de semaines</span>
+      <button class="btn sm" onclick="closeModal('week-templates-modal')">Fermer</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Réapplique un modèle enregistré comme un nouveau cycle, sur la période et pour l'athlète (ou les athlètes) de ton choix.</p>
+      <div id="wt-list" style="display:flex;flex-direction:column;gap:8px"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Appliquer un modèle : choisir athlète(s) + date de départ, même principe que "Créer un cycle". -->
+<div class="modal-backdrop" id="apply-template-modal">
+  <div class="modal" style="width:min(480px,100%)">
+    <div class="modal-header">
+      <span class="modal-title" id="apply-template-title">Appliquer le modèle</span>
+      <button class="btn sm" onclick="closeModal('apply-template-modal')">Fermer</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group coach-only-btn" id="apply-template-targets-group">
+        <label class="form-label">Appliquer à <span style="font-weight:400;color:var(--muted)">(un ou plusieurs athlètes)</span></label>
+        <div id="apply-template-targets-list" style="display:flex;flex-direction:column;gap:6px;max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px"></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Date de départ</label>
+        <input class="form-control" type="date" id="apply-template-start">
+      </div>
+      <div id="apply-template-error" style="display:none;background:var(--warm2);color:var(--warm);border-radius:8px;padding:10px;font-size:13px;margin-bottom:12px"></div>
+      <button class="btn primary" style="width:100%" onclick="applyWeekTemplateSubmit()">Générer le cycle</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal "créneau objectif libre" : l'athlète choisit sa séance parmi la banque, filtrée sur
      l'objectif fixé par le coach (voir flexGoal sur logs, généré par le cycle "Objectif libre"). -->
 <div class="modal-backdrop" id="flex-choice-modal">
@@ -3296,8 +3384,13 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <h2>Planification</h2>
       <p id="plan-ctx-bar" style="color:var(--muted);font-size:13px">—</p>
     </div>
-    <div style="display:flex;gap:8px">
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn" id="open-cycle-btn" style="font-size:14px;padding:12px 20px" onclick="openCycleModal()">🔁 Créer un cycle</button>
+      <!-- Retour utilisateur : "il me faut une option de copie de semaine pour pouvoir copier 3
+           semaines ou 2 ou 1 ou plus, mais aussi la possibilité de les mémoriser et les nommer et
+           les utiliser comme cycle" — cf. copy-week-modal / week-templates-modal ci-dessous. -->
+      <button class="btn" id="open-copy-week-btn" style="font-size:14px;padding:12px 20px" onclick="openCopyWeekModal()">📋 Copier des semaines</button>
+      <button class="btn" id="open-week-templates-btn" style="font-size:14px;padding:12px 20px" onclick="openWeekTemplatesModal()">📁 Mes modèles</button>
     </div>
   </div>
 
@@ -7890,6 +7983,239 @@ function generateCycle() {
   }
   alert(msg);
 }
+
+// ═══════════════ MODÈLES DE SEMAINES RÉUTILISABLES ═══════════════
+// Retour utilisateur : "il me faut une option de copie de semaine pour pouvoir copier 3 semaines
+// ou 2 ou 1 ou plus, mais aussi la possibilité de les mémoriser et les nommer et les utiliser
+// comme cycle" — capture un bloc de séances déjà présentes sur le calendrier (peu importe si
+// elles viennent de la banque ou ont été saisies à la main), pour soit les recoller ailleurs tout
+// de suite (en cycle), soit les enregistrer comme modèle nommé réutilisable (cf. week_templates
+// côté backend — stockage brut, toute la logique reste ici). Appliquer un modèle (immédiatement ou
+// plus tard depuis la bibliothèque) reprend exactement le même mécanisme que generateCycle()
+// ci-dessus (mêmes champs de log, cycleId/cycleName) pour que le résultat soit un vrai cycle, suivi
+// comme tel dans "Cycles en cours" — cf. renderCoachObjectivesPanel/getClimberCycles.
+let cwCapturedDays = [];
+let cwCapturedWeeks = 1;
+
+// Lit les séances (faites ou prévues) de l'athlète actif sur [startDateStr, +weeks semaines), et
+// les ramène à des offsets de jour relatifs au début du bloc (0 = premier jour) — c'est cette
+// forme relative qui permet de recoller/réappliquer le motif à n'importe quelle nouvelle date.
+function cwCaptureBlock(startDateStr, weeks) {
+  const climber = getActive();
+  if (!climber || !startDateStr) return [];
+  const start = new Date(startDateStr + 'T00:00:00');
+  const totalDays = Math.max(1, weeks) * 7;
+  const end = new Date(start.getTime() + totalDays * 86400000);
+  return (climber.logs || [])
+    .filter(l => { const d = new Date(l.date + 'T00:00:00'); return d >= start && d < end; })
+    .map(l => ({
+      dayIndex: Math.round((new Date(l.date + 'T00:00:00') - start) / 86400000),
+      type: l.type || 'autre',
+      minutes: l.minutes || 90,
+      intensity: l.intensity || 3,
+      support: l.support || '',
+      location: l.location || '',
+      notes: l.notes || '',
+      customName: l.customName || '',
+      bankRef: l.bankRef || null,
+      flexGoal: l.flexGoal || null
+    }))
+    .sort((a, b) => a.dayIndex - b.dayIndex);
+}
+
+function openCopyWeekModal() {
+  const c = getActive();
+  const nameEl = document.getElementById('cw-athlete-name');
+  if (nameEl) nameEl.textContent = c?.name || '—';
+  const startEl = document.getElementById('cw-source-start');
+  if (!startEl.value) {
+    // Lundi de la semaine actuellement affichée sur le calendrier de planification, par défaut.
+    const d = new Date(calDate || new Date());
+    d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+    startEl.value = d.toISOString().slice(0, 10);
+  }
+  document.getElementById('cw-weeks').value = 1;
+  document.getElementById('cw-name').value = '';
+  document.getElementById('cw-target-start').value = '';
+  document.getElementById('cw-error').style.display = 'none';
+  cwUpdatePreview();
+  document.getElementById('copy-week-modal').classList.add('open');
+}
+window.openCopyWeekModal = openCopyWeekModal;
+
+function cwUpdatePreview() {
+  const start = document.getElementById('cw-source-start').value;
+  const weeks = Math.max(1, Math.min(12, +document.getElementById('cw-weeks').value || 1));
+  cwCapturedWeeks = weeks;
+  cwCapturedDays = cwCaptureBlock(start, weeks);
+  const el = document.getElementById('cw-preview');
+  if (el) {
+    el.textContent = cwCapturedDays.length
+      ? `${cwCapturedDays.length} séance${cwCapturedDays.length > 1 ? 's' : ''} trouvée${cwCapturedDays.length > 1 ? 's' : ''} sur ${weeks} semaine${weeks > 1 ? 's' : ''} à partir du ${start ? fmtDate(start) : '—'}.`
+      : `Aucune séance trouvée sur cette période — vérifie la date de départ.`;
+  }
+}
+window.cwUpdatePreview = cwUpdatePreview;
+
+// Construit les logs "cycle" prêts à pousser dans climber.logs pour un bloc capturé (ou un modèle
+// chargé depuis la bibliothèque), à partir d'une nouvelle date de départ — même forme que les logs
+// créés par generateCycle(), donc suivi comme un vrai cycle une fois enregistré.
+function cwBuildLogsForTarget(days, targetStartStr, cycleId, cycleName, climberId) {
+  const targetStart = new Date(targetStartStr + 'T00:00:00');
+  const isCoachPrescribing = climberId !== window.currentUser?.climberId && isCoachRoleValue(window.currentUser?.role);
+  return days.map(d => ({
+    id: 'log_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6) + '_' + climberId.slice(-4),
+    date: new Date(targetStart.getTime() + d.dayIndex * 86400000).toISOString().slice(0, 10),
+    type: d.type,
+    minutes: d.minutes,
+    intensity: d.intensity,
+    shape: 'normal',
+    location: d.location || '',
+    support: d.support || '',
+    notes: d.notes || '',
+    customName: d.customName || '',
+    ascents: [],
+    bNoGrade: {},
+    planned: true,
+    bankRef: d.bankRef || null,
+    flexGoal: d.flexGoal || null,
+    cycleId,
+    cycleName,
+    source: isCoachPrescribing ? 'coach' : 'self',
+    assignedByCoachId: isCoachPrescribing ? window.currentUser.id : null
+  }));
+}
+
+function cwPasteNow() {
+  const errEl = document.getElementById('cw-error');
+  errEl.style.display = 'none';
+  const climber = getActive();
+  const targetStart = document.getElementById('cw-target-start').value;
+  if (!climber) return;
+  if (!cwCapturedDays.length) { errEl.textContent = 'Aucune séance à copier sur la période source.'; errEl.style.display = ''; return; }
+  if (!targetStart) { errEl.textContent = 'Choisis une date pour coller le bloc copié.'; errEl.style.display = ''; return; }
+  const name = (document.getElementById('cw-name').value || '').trim() || ('Copie du ' + fmtDate(targetStart));
+  const cycleId = 'cyc_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+  if (!climber.logs) climber.logs = [];
+  climber.logs.push(...cwBuildLogsForTarget(cwCapturedDays, targetStart, cycleId, name, climber.id));
+  saveDB();
+  closeModal('copy-week-modal');
+  renderCalendar();
+  if (document.getElementById('cal2-grid')) renderSimpleCalendar();
+  renderCoachObjectivesPanel('dash-cycle-objectives-panel', 'dash-cycle-objectives-list');
+  renderCoachObjectivesPanel('plan-cycle-objectives-panel', 'plan-cycle-objectives-list');
+}
+window.cwPasteNow = cwPasteNow;
+
+async function cwSaveAsTemplate() {
+  const errEl = document.getElementById('cw-error');
+  errEl.style.display = 'none';
+  if (!cwCapturedDays.length) { errEl.textContent = 'Aucune séance à enregistrer sur la période source.'; errEl.style.display = ''; return; }
+  const name = (document.getElementById('cw-name').value || '').trim();
+  if (!name) { errEl.textContent = "Donne un nom à ce modèle avant de l'enregistrer."; errEl.style.display = ''; return; }
+  const body = { id: 'wt_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8), name, weeks: cwCapturedWeeks, days: cwCapturedDays };
+  try {
+    const r = await fetch('/api/week-templates', { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) });
+    if (!r.ok) { const d = await r.json().catch(() => ({})); errEl.textContent = d.error || "Erreur lors de l'enregistrement."; errEl.style.display = ''; return; }
+  } catch (e) { errEl.textContent = 'Erreur réseau.'; errEl.style.display = ''; return; }
+  closeModal('copy-week-modal');
+  alert(`Modèle "${name}" enregistré (${cwCapturedDays.length} séance${cwCapturedDays.length > 1 ? 's' : ''} sur ${cwCapturedWeeks} semaine${cwCapturedWeeks > 1 ? 's' : ''}).`);
+}
+window.cwSaveAsTemplate = cwSaveAsTemplate;
+
+// — Bibliothèque de modèles ("📁 Mes modèles") —
+let weekTemplatesCache = [];
+async function fetchWeekTemplates() {
+  try {
+    const r = await fetch('/api/week-templates/mine', { headers: authHeaders() });
+    weekTemplatesCache = r.ok ? await r.json() : [];
+  } catch (e) { weekTemplatesCache = []; }
+  return weekTemplatesCache;
+}
+
+async function openWeekTemplatesModal() {
+  await fetchWeekTemplates();
+  renderWeekTemplatesList();
+  document.getElementById('week-templates-modal').classList.add('open');
+}
+window.openWeekTemplatesModal = openWeekTemplatesModal;
+
+function renderWeekTemplatesList() {
+  const el = document.getElementById('wt-list');
+  if (!el) return;
+  if (!weekTemplatesCache.length) { el.innerHTML = `<p style="font-size:13px;color:var(--muted)">Aucun modèle enregistré pour l'instant — copie un bloc de semaines depuis "📋 Copier des semaines" puis "Enregistrer comme modèle réutilisable".</p>`; return; }
+  el.innerHTML = weekTemplatesCache.map(t => `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--r-xs);background:var(--surface2)">
+      <div>
+        <div style="font-size:14px;font-weight:600">${esc(t.name)}</div>
+        <div style="font-size:12px;color:var(--muted)">${t.days.length} séance${t.days.length > 1 ? 's' : ''} sur ${t.weeks} semaine${t.weeks > 1 ? 's' : ''}</div>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button class="btn sm primary" onclick="openApplyTemplateModal('${jsAttr(t.id)}')">Appliquer</button>
+        <button class="btn sm danger" onclick="deleteWeekTemplate('${jsAttr(t.id)}')">🗑</button>
+      </div>
+    </div>`).join('');
+}
+
+async function deleteWeekTemplate(id) {
+  if (!confirm('Supprimer ce modèle ?')) return;
+  try { await fetch('/api/week-templates/' + id, { method: 'DELETE', headers: authHeaders() }); } catch (e) {}
+  await fetchWeekTemplates();
+  renderWeekTemplatesList();
+}
+window.deleteWeekTemplate = deleteWeekTemplate;
+
+let applyTemplateCurrentId = null;
+function openApplyTemplateModal(templateId) {
+  const t = weekTemplatesCache.find(x => x.id === templateId);
+  if (!t) return;
+  applyTemplateCurrentId = templateId;
+  document.getElementById('apply-template-title').textContent = `Appliquer — ${t.name}`;
+  const targetsGroup = document.getElementById('apply-template-targets-group');
+  const targetsList = document.getElementById('apply-template-targets-list');
+  if (targetsGroup) targetsGroup.style.display = isAdmin() ? '' : 'none';
+  const active = getActive();
+  if (targetsList) {
+    targetsList.innerHTML = (db.climbers || []).map(cl => `
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+        <input type="checkbox" class="apply-template-target-cb" value="${cl.id}" ${cl.id === active?.id ? 'checked' : ''} style="width:15px;height:15px;accent-color:var(--accent)">
+        ${esc(cl.name)}
+      </label>`).join('');
+  }
+  document.getElementById('apply-template-start').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('apply-template-error').style.display = 'none';
+  closeModal('week-templates-modal');
+  document.getElementById('apply-template-modal').classList.add('open');
+}
+window.openApplyTemplateModal = openApplyTemplateModal;
+
+function applyWeekTemplateSubmit() {
+  const errEl = document.getElementById('apply-template-error');
+  errEl.style.display = 'none';
+  const t = weekTemplatesCache.find(x => x.id === applyTemplateCurrentId);
+  if (!t) return;
+  const start = document.getElementById('apply-template-start').value;
+  if (!start) { errEl.textContent = 'Choisis une date de départ.'; errEl.style.display = ''; return; }
+  let targetIds = isAdmin()
+    ? Array.from(document.querySelectorAll('.apply-template-target-cb:checked')).map(el => el.value)
+    : [];
+  if (!targetIds.length) { const a = getActive(); if (a) targetIds = [a.id]; }
+  if (!targetIds.length) { errEl.textContent = 'Sélectionne au moins un athlète.'; errEl.style.display = ''; return; }
+  const cycleId = 'cyc_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+  targetIds.forEach(climberId => {
+    const climber = db.climbers.find(cl => cl.id === climberId);
+    if (!climber) return;
+    if (!climber.logs) climber.logs = [];
+    climber.logs.push(...cwBuildLogsForTarget(t.days, start, cycleId, t.name, climberId));
+  });
+  saveDB();
+  closeModal('apply-template-modal');
+  renderCalendar();
+  if (document.getElementById('cal2-grid')) renderSimpleCalendar();
+  renderCoachObjectivesPanel('dash-cycle-objectives-panel', 'dash-cycle-objectives-list');
+  renderCoachObjectivesPanel('plan-cycle-objectives-panel', 'plan-cycle-objectives-list');
+}
+window.applyWeekTemplateSubmit = applyWeekTemplateSubmit;
 
 // — Performance —
 let perfRange='6m', pyrCtx='all', pyrLoc='all';
