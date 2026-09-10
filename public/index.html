@@ -3970,8 +3970,8 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <label class="form-label" style="margin-bottom:6px">⚠️ Alerte récupération</label>
       <p style="font-size:12px;color:var(--text);margin:0 0 10px">Affiche un message de prévention indiquant que cette séance nécessite d'être frais physiquement — à éviter en dessous d'un délai minimum depuis une séance similaire.</p>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <button type="button" class="btn sm" onclick="sbSetWarningHours(24)">24h</button>
         <button type="button" class="btn sm" onclick="sbSetWarningHours(48)">48h</button>
+        <button type="button" class="btn sm" onclick="sbSetWarningHours(24)">24h (au choix)</button>
         <input class="form-control" type="number" min="0" max="240" id="sb-warning-hours" placeholder="Heures" style="max-width:100px" oninput="sbSyncWarningToggleUI()">
         <button type="button" class="btn sm danger" onclick="sbSetWarningHours(0)">Désactiver</button>
       </div>
