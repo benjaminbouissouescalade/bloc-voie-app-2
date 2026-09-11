@@ -158,7 +158,13 @@ async function initDB() {
       -- toute la logique du timer vit côté client (public/index.html).
       ALTER TABLE session_bank ADD COLUMN IF NOT EXISTS timer_effort_sec INTEGER DEFAULT 0;
       ALTER TABLE session_bank ADD COLUMN IF NOT EXISTS timer_rest_sec INTEGER DEFAULT 0;
+      -- timer_series est le nombre de SÉRIES (0/1 = une seule série, comportement simple) ;
+      -- timer_reps est le nombre de répétitions (effort+repos) PAR série — retour utilisateur
+      -- précisant la structure attendue : "3s suspension, 7s de repos, 10 fois, 4mn de repos, 3x
+      -- la série" (10 = timer_reps, 3 = timer_series, 4min = timer_series_rest_sec).
       ALTER TABLE session_bank ADD COLUMN IF NOT EXISTS timer_series INTEGER DEFAULT 0;
+      ALTER TABLE session_bank ADD COLUMN IF NOT EXISTS timer_reps INTEGER DEFAULT 0;
+      ALTER TABLE session_bank ADD COLUMN IF NOT EXISTS timer_series_rest_sec INTEGER DEFAULT 0;
       -- Backfill unique : les fiches créées AVANT ce cloisonnement n'ont pas de propriétaire connu
       -- — on les attribue au premier compte owner trouvé (ne change rien à leur visibilité, déjà
       -- 'shared' par défaut, donc personne ne perd l'accès à sa bibliothèque existante) plutôt que
