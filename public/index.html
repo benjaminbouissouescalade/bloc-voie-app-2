@@ -3544,11 +3544,15 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px">
     <div>
       <h2>La Mine</h2>
-      <p>Séances types réutilisables pour la planification — créées manuellement ou par l'IA</p>
+      <p>Séances types réutilisables pour la planification</p>
     </div>
     <div style="display:flex;gap:8px">
+      <!-- Retour utilisateur : "enlève l'option IA sur la création de séance" — bouton "✦ Générer
+           avec l'IA" retiré (déjà fait pour le panneau "Avis de l'IA" dans l'éditeur de fiche ;
+           ceci retire aussi ce second point d'entrée IA, sur la création). La box IA et sa
+           logique (sbAiGenerate, sbAiQuick…) restent dans le code, mais ne sont plus jamais
+           affichées — cf. la garde ajoutée sur son branchement d'événement plus bas. -->
       <button class="btn coach-only-btn" id="sb-new-btn">+ Créer manuellement</button>
-      <button class="btn primary coach-only-btn" id="sb-ai-btn">✦ Générer avec l'IA</button>
     </div>
   </div>
 
@@ -16039,7 +16043,11 @@ function sbAiQuick(preset) {
 // Wire up all events
 document.addEventListener('DOMContentLoaded', () => {}, false); // safety
 document.getElementById('sb-new-btn').onclick = sbNewCard;
-document.getElementById('sb-ai-btn').onclick = () => {
+// Retour utilisateur : bouton "✦ Générer avec l'IA" retiré du DOM (cf. plus haut) — ce branchement
+// n'a donc plus de bouton à câbler ; gardé optionnel (au lieu de supprimer la ligne) pour ne rien
+// casser si un jour ce point d'entrée revient.
+const sbAiBtnEl = document.getElementById('sb-ai-btn');
+if (sbAiBtnEl) sbAiBtnEl.onclick = () => {
   const box = document.getElementById('sb-ai-box');
   const opening = box.style.display === 'none';
   box.style.display = opening ? '' : 'none';
