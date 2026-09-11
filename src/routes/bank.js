@@ -34,11 +34,14 @@ function rowToItem(r) {
     // Retour utilisateur : bouton "⚠️ Alerte récupération" — délai de récupération minimum (en
     // heures) avant de refaire cette séance ; 0 = pas d'alerte (cf. schema.js).
     minRestHours: r.min_rest_hours || 0,
-    // Retour utilisateur : timer d'effort optionnel (temps d'effort / repos entre séries / nombre
-    // de séries) — 0 partout = pas de timer sur cette fiche (cf. schema.js).
+    // Retour utilisateur : timer d'effort optionnel — effort / repos entre répétitions / nombre de
+    // répétitions PAR série / nombre de séries / repos entre séries. 0 partout = pas de timer sur
+    // cette fiche (cf. schema.js).
     timerEffortSec: r.timer_effort_sec || 0,
     timerRestSec: r.timer_rest_sec || 0,
+    timerReps: r.timer_reps || 0,
     timerSeries: r.timer_series || 0,
+    timerSeriesRestSec: r.timer_series_rest_sec || 0,
     createdAt: new Date(r.created_at).getTime()
   };
 }
@@ -79,14 +82,19 @@ router.get('/', async (req, res) => {
 
 // POST /api/bank — créer ou mettre à jour une séance type
 router.post('/', async (req, res) => {
-  const { id, name, type, support, level, duration, intensity, goal, description, tags, source, category, subcategory, crossTags, contentType, videoUrl, videoUrls, images, checklist, visibility, minRestHours, timerEffortSec, timerRestSec, timerSeries } = req.body;
+  const { id, name, type, support, level, duration, intensity, goal, description, tags, source, category, subcategory, crossTags, contentType, videoUrl, videoUrls, images, checklist, visibility, minRestHours, timerEffortSec, timerRestSec, timerReps, timerSeries, timerSeriesRestSec } = req.body;
   if (!id || !name) return res.status(400).json({ error: 'id et name requis' });
   const urls = Array.isArray(videoUrls) ? videoUrls.filter(Boolean) : (videoUrl ? [videoUrl] : []);
   const vis = visibility === 'shared' ? 'shared' : 'private'; // défaut : privée, cohérent avec le cloisonnement par défaut d'une NOUVELLE fiche
   const restHours = Math.max(0, parseInt(minRestHours, 10) || 0);
+  // Timer d'effort : effort/repos entre répétitions, répétitions par série, nombre de séries,
+  // repos entre séries (retour utilisateur : "3s suspension, 7s de repos, 10 fois, 4mn de repos,
+  // 3x la série").
   const timerEffort = Math.max(0, parseInt(timerEffortSec, 10) || 0);
   const timerRest = Math.max(0, parseInt(timerRestSec, 10) || 0);
-  const timerReps = Math.max(0, parseInt(timerSeries, 10) || 0);
+  const timerRepsVal = Math.max(0, parseInt(timerReps, 10) || 0);
+  const timerSeriesVal = Math.max(0, parseInt(timerSeries, 10) || 0);
+  const timerSeriesRest = Math.max(0, parseInt(timerSeriesRestSec, 10) || 0);
   try {
     const existing = await pool.query('SELECT created_by FROM session_bank WHERE id=$1', [id]);
     if (existing.rows.length && !canManage(req.user, existing.rows[0])) {
@@ -96,16 +104,16 @@ router.post('/', async (req, res) => {
     // un INSERT neuf, la valeur ci-dessous (le compte connecté) est utilisée ; sur une mise à jour,
     // la valeur déjà en base est conservée quoi qu'envoie le client.
     await pool.query(
-      `INSERT INTO session_bank (id, name, type, support, level, duration, intensity, goal, description, tags, source, category, subcategory, cross_tags, content_type, video_url, video_urls, images, checklist, created_by, visibility, min_rest_hours, timer_effort_sec, timer_rest_sec, timer_series)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)
+      `INSERT INTO session_bank (id, name, type, support, level, duration, intensity, goal, description, tags, source, category, subcategory, cross_tags, content_type, video_url, video_urls, images, checklist, created_by, visibility, min_rest_hours, timer_effort_sec, timer_rest_sec, timer_series, timer_reps, timer_series_rest_sec)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)
        ON CONFLICT (id) DO UPDATE SET
          name=$2, type=$3, support=$4, level=$5, duration=$6, intensity=$7,
-         goal=$8, description=$9, tags=$10, source=$11, category=$12, subcategory=$13, cross_tags=$14, content_type=$15, video_url=$16, video_urls=$17, images=$18, checklist=$19, visibility=$21, min_rest_hours=$22, timer_effort_sec=$23, timer_rest_sec=$24, timer_series=$25, updated_at=NOW()`,
+         goal=$8, description=$9, tags=$10, source=$11, category=$12, subcategory=$13, cross_tags=$14, content_type=$15, video_url=$16, video_urls=$17, images=$18, checklist=$19, visibility=$21, min_rest_hours=$22, timer_effort_sec=$23, timer_rest_sec=$24, timer_series=$25, timer_reps=$26, timer_series_rest_sec=$27, updated_at=NOW()`,
       [id, name, type, support||'', level||'confirme', duration||90, intensity||3,
        goal||'projet', description||'', JSON.stringify(tags||[]), source||'manual',
        category||'', subcategory||'', JSON.stringify(crossTags||[]), contentType === 'exercice' ? 'exercice' : 'seance',
        urls[0]||'', JSON.stringify(urls), JSON.stringify(images||[]), JSON.stringify(checklist||[]),
-       req.user.id, vis, restHours, timerEffort, timerRest, timerReps]
+       req.user.id, vis, restHours, timerEffort, timerRest, timerSeriesVal, timerRepsVal, timerSeriesRest]
     );
     res.json({ ok: true });
   } catch (err) {
@@ -136,17 +144,19 @@ router.post('/sync', async (req, res) => {
       const restHours = Math.max(0, parseInt(s.minRestHours, 10) || 0);
       const timerEffort = Math.max(0, parseInt(s.timerEffortSec, 10) || 0);
       const timerRest = Math.max(0, parseInt(s.timerRestSec, 10) || 0);
-      const timerReps = Math.max(0, parseInt(s.timerSeries, 10) || 0);
+      const timerRepsVal = Math.max(0, parseInt(s.timerReps, 10) || 0);
+      const timerSeriesVal = Math.max(0, parseInt(s.timerSeries, 10) || 0);
+      const timerSeriesRest = Math.max(0, parseInt(s.timerSeriesRestSec, 10) || 0);
       await client.query(
-        `INSERT INTO session_bank (id, name, type, support, level, duration, intensity, goal, description, tags, source, category, subcategory, cross_tags, content_type, video_url, video_urls, images, checklist, created_by, visibility, min_rest_hours, timer_effort_sec, timer_rest_sec, timer_series)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)`,
+        `INSERT INTO session_bank (id, name, type, support, level, duration, intensity, goal, description, tags, source, category, subcategory, cross_tags, content_type, video_url, video_urls, images, checklist, created_by, visibility, min_rest_hours, timer_effort_sec, timer_rest_sec, timer_series, timer_reps, timer_series_rest_sec)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)`,
         [s.id, s.name, s.type, s.support||'', s.level||'confirme',
          s.duration||90, s.intensity||3, s.goal||'projet',
          s.description||'', JSON.stringify(s.tags||[]), s.source||'manual',
          s.category||'', s.subcategory||'', JSON.stringify(s.crossTags||[]),
          s.contentType === 'exercice' ? 'exercice' : 'seance', urls[0]||'', JSON.stringify(urls),
          JSON.stringify(s.images||[]), JSON.stringify(s.checklist||[]), req.user.id, vis, restHours,
-         timerEffort, timerRest, timerReps]
+         timerEffort, timerRest, timerSeriesVal, timerRepsVal, timerSeriesRest]
       );
     }
     await client.query('COMMIT');
