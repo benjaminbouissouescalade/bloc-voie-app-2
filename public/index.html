@@ -2059,26 +2059,40 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <button class="btn sm" onclick="timerHandleClose()">Fermer</button>
     </div>
     <div class="modal-body" style="text-align:center">
+      <!-- Retour utilisateur : "3s suspension, 7s de repos, 10 fois, 4mn de repos, 3x la série" —
+           structure à deux niveaux : des répétitions (effort + repos court) regroupées en séries,
+           avec un repos plus long entre chaque série. Une série de 1 répétition (valeur par
+           défaut) redonne exactement le comportement simple d'avant. -->
       <div id="timer-setup-fields">
-        <div class="form-row form-row-3">
+        <div class="form-row form-row-2">
           <div class="form-group" style="margin:0">
             <label class="form-label">Effort (s)</label>
             <input class="form-control" type="number" min="1" id="timer-effort-input" value="7" oninput="timerReset()">
           </div>
           <div class="form-group" style="margin:0">
-            <label class="form-label">Repos entre séries (s)</label>
+            <label class="form-label">Repos entre répétitions (s)</label>
             <input class="form-control" type="number" min="0" id="timer-rest-input" value="3" oninput="timerReset()">
           </div>
+        </div>
+        <div class="form-row form-row-2" style="margin-top:8px">
           <div class="form-group" style="margin:0">
-            <label class="form-label">Nb séries</label>
-            <input class="form-control" type="number" min="1" id="timer-series-input" value="6" oninput="timerReset()">
+            <label class="form-label">Répétitions par série</label>
+            <input class="form-control" type="number" min="1" id="timer-reps-input" value="6" oninput="timerReset()">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label class="form-label">Nombre de séries</label>
+            <input class="form-control" type="number" min="1" id="timer-series-input" value="1" oninput="timerReset()">
           </div>
         </div>
+        <div class="form-group" style="margin:8px 0 0">
+          <label class="form-label">Repos entre séries (s)</label>
+          <input class="form-control" type="number" min="0" id="timer-series-rest-input" value="0" oninput="timerReset()">
+        </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin:12px 0 4px">
-          <button type="button" class="btn sm" onclick="timerApplyPreset(7,3,6)">Répéteurs 7s/3s ×6</button>
-          <button type="button" class="btn sm" onclick="timerApplyPreset(10,5,6)">10s/5s ×6</button>
-          <button type="button" class="btn sm" onclick="timerApplyPreset(30,30,5)">30s/30s ×5</button>
-          <button type="button" class="btn sm" onclick="timerApplyPreset(60,60,4)">1min/1min ×4</button>
+          <button type="button" class="btn sm" onclick="timerApplyPreset(7,3,6,1,0)">Répéteurs 7s/3s ×6</button>
+          <button type="button" class="btn sm" onclick="timerApplyPreset(3,7,10,3,240)">3s/7s ×10, repos 4min ×3</button>
+          <button type="button" class="btn sm" onclick="timerApplyPreset(10,5,6,1,0)">10s/5s ×6</button>
+          <button type="button" class="btn sm" onclick="timerApplyPreset(30,30,5,1,0)">30s/30s ×5</button>
         </div>
       </div>
       <div id="timer-face" style="margin:22px 0 18px">
@@ -4117,25 +4131,36 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
          configuré — cf. sbToggleTimerPanel/sbSyncTimerToggleUI, sbEditCard/sbNewCard/sbSave). -->
     <div class="form-group" id="sb-timer-panel" style="display:none;background:var(--surface2);border-radius:var(--r-sm);padding:12px 14px">
       <label class="form-label" style="margin-bottom:6px">⏱️ Timer d'effort</label>
-      <p style="font-size:12px;color:var(--muted);margin:0 0 10px">Rattache un timer de séries à cette fiche (répéteurs, circuits chronométrés…) — l'athlète pourra le lancer directement depuis la séance.</p>
-      <div class="form-row form-row-3" style="margin-bottom:8px">
+      <p style="font-size:12px;color:var(--muted);margin:0 0 10px">Rattache un timer à cette fiche (répéteurs, circuits chronométrés…) — l'athlète pourra le lancer directement depuis la séance. Ex. "3s de suspension, 7s de repos, 10 fois, 4min de repos, 3 séries".</p>
+      <div class="form-row form-row-2" style="margin-bottom:8px">
         <div class="form-group" style="margin:0">
           <label class="form-label">Effort (s)</label>
           <input class="form-control" type="number" min="1" id="sb-timer-effort" placeholder="7" oninput="sbSyncTimerToggleUI()">
         </div>
         <div class="form-group" style="margin:0">
-          <label class="form-label">Repos entre séries (s)</label>
+          <label class="form-label">Repos entre répétitions (s)</label>
           <input class="form-control" type="number" min="0" id="sb-timer-rest" placeholder="3" oninput="sbSyncTimerToggleUI()">
+        </div>
+      </div>
+      <div class="form-row form-row-3" style="margin-bottom:8px">
+        <div class="form-group" style="margin:0">
+          <label class="form-label">Répétitions par série</label>
+          <input class="form-control" type="number" min="1" id="sb-timer-reps" placeholder="6" oninput="sbSyncTimerToggleUI()">
         </div>
         <div class="form-group" style="margin:0">
           <label class="form-label">Nombre de séries</label>
-          <input class="form-control" type="number" min="1" id="sb-timer-series" placeholder="6" oninput="sbSyncTimerToggleUI()">
+          <input class="form-control" type="number" min="1" id="sb-timer-series" placeholder="1" oninput="sbSyncTimerToggleUI()">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label class="form-label">Repos entre séries (s)</label>
+          <input class="form-control" type="number" min="0" id="sb-timer-series-rest" placeholder="0" oninput="sbSyncTimerToggleUI()">
         </div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <button type="button" class="btn sm" onclick="sbSetTimerPreset(7,3,6)">Répéteurs 7s/3s ×6</button>
-        <button type="button" class="btn sm" onclick="sbSetTimerPreset(30,30,5)">30s/30s ×5</button>
-        <button type="button" class="btn sm danger" onclick="sbSetTimerPreset(0,0,0)">Désactiver</button>
+        <button type="button" class="btn sm" onclick="sbSetTimerPreset(7,3,6,1,0)">Répéteurs 7s/3s ×6</button>
+        <button type="button" class="btn sm" onclick="sbSetTimerPreset(3,7,10,3,240)">3s/7s ×10, repos 4min ×3</button>
+        <button type="button" class="btn sm" onclick="sbSetTimerPreset(30,30,5,1,0)">30s/30s ×5</button>
+        <button type="button" class="btn sm danger" onclick="sbSetTimerPreset(0,0,0,0,0)">Désactiver</button>
       </div>
     </div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px">
@@ -13551,7 +13576,7 @@ function openDayModal(dateStr){
       ${!l.planned&&l.injury&&l.injuryNote?`<div style="font-size:12px;color:var(--warm);margin-top:6px">🩹 ${esc(l.injuryNote)}</div>`:''}
       ${l.planned&&l.notes?`<div style="font-size:12px;color:var(--muted);margin-top:6px">${esc(l.notes.length>140?l.notes.slice(0,140)+'…':l.notes)}</div>`:''}
       ${l.bankRef&&getBank().find(b=>b.id===l.bankRef)?`<button class="btn sm" style="margin-top:8px" onclick="event.stopPropagation();closeModal('day-modal');switchPage('session-bank');sbEditCard('${l.bankRef}')">📋 Voir la fiche complète</button>`:''}
-      ${l.bankRef&&getBank().find(b=>b.id===l.bankRef)?.timerSeries?`<button class="btn sm primary" style="margin-top:8px" onclick="event.stopPropagation();sbLaunchTimer('${l.bankRef}')">▶️ Lancer le timer</button>`:''}
+      ${l.bankRef&&getBank().find(b=>b.id===l.bankRef)?.timerReps?`<button class="btn sm primary" style="margin-top:8px" onclick="event.stopPropagation();sbLaunchTimer('${l.bankRef}')">▶️ Lancer le timer</button>`:''}
     </div>`;
   }).join(''):'<p style="color:var(--muted);text-align:center;padding:20px">Aucune séance ce jour</p>';
   renderDayModalTestAssignments(dateStr);
@@ -13788,22 +13813,28 @@ window.deleteSessionFromDayModal = deleteSessionFromDayModal;
 function closeModal(id){document.getElementById(id).classList.remove('open');}
 document.getElementById('day-modal').addEventListener('click',e=>{if(e.target.id==='day-modal')closeModal('day-modal');});
 
-// ═══════════════ ⏱️ TIMER D'EFFORT (répéteurs / séries) ═══════════════
-// Retour utilisateur : "est-ce que nous pouvons rajouter un timer à l'application […] il me faut
-// un timer où l'on puisse régler les temps d'effort, les temps de repos entre les séries et le
-// nombre de série" — timer générique (bouton "Timer" dans la sidebar, cf. openTimerModal()) qui
-// peut aussi être pré-rempli depuis une fiche de la banque ayant activé "⏱️ Timer d'effort" dans
-// son éditeur (cf. sbLaunchTimer, champs sb-timer-effort/rest/series). Toute la logique vit ici,
-// côté client — rien de spécifique en base au-delà des 3 colonnes stockées sur la fiche.
+// ═══════════════ ⏱️ TIMER D'EFFORT (répétitions groupées en séries) ═══════════════
+// Retour utilisateur : "il me faut un timer où l'on puisse régler les temps d'effort, les temps
+// de repos entre les séries et le nombre de série" puis, la structure exacte demandée : "3s
+// suspension, 7s de repos, 10 fois, 4mn de repos, 3x la série" — deux niveaux imbriqués :
+// - une RÉPÉTITION = effort + repos court, répétée N fois → forme une SÉRIE ;
+// - une SÉRIE peut elle-même se répéter M fois, avec un repos plus long entre deux séries.
+// M=1 (valeur par défaut) redonne exactement le comportement simple d'une seule série de N
+// répétitions. Timer générique (bouton "Timer" dans la sidebar, cf. openTimerModal()), pré-
+// remplissable depuis une fiche de la banque (cf. sbLaunchTimer). Toute la logique vit ici, côté
+// client — rien de spécifique en base au-delà des colonnes stockées sur la fiche (schema.js).
 let timerIntervalId = null;
 let timerAudioCtx = null;
 let timerState = {
-  phase: 'idle',      // 'idle' | 'effort' | 'rest' | 'done'
-  remaining: 7,       // secondes restantes dans la phase en cours
-  seriesDone: 0,
-  totalSeries: 6,
+  phase: 'idle',        // 'idle' | 'effort' | 'rest' | 'seriesRest' | 'done'
+  remaining: 7,         // secondes restantes dans la phase en cours
+  repsDone: 0,           // répétitions faites dans la série en cours
+  repsPerSeries: 6,
+  seriesDone: 0,         // séries complètes
+  totalSeries: 1,
   effortSec: 7,
-  restSec: 3,
+  restSec: 3,            // repos entre répétitions
+  seriesRestSec: 0,      // repos entre séries
 };
 
 function timerFmt(sec) {
@@ -13837,31 +13868,45 @@ function timerBeep(freq, durationMs) {
 function timerReadInputs() {
   timerState.effortSec = Math.max(1, parseInt(document.getElementById('timer-effort-input')?.value, 10) || 7);
   timerState.restSec = Math.max(0, parseInt(document.getElementById('timer-rest-input')?.value, 10) || 0);
+  timerState.repsPerSeries = Math.max(1, parseInt(document.getElementById('timer-reps-input')?.value, 10) || 1);
   timerState.totalSeries = Math.max(1, parseInt(document.getElementById('timer-series-input')?.value, 10) || 1);
+  timerState.seriesRestSec = Math.max(0, parseInt(document.getElementById('timer-series-rest-input')?.value, 10) || 0);
 }
 
 function timerRenderFace() {
   const labelEl = document.getElementById('timer-phase-label');
   const dispEl = document.getElementById('timer-display');
   const seriesEl = document.getElementById('timer-series-label');
-  const labels = { idle: 'Prêt', effort: '💪 Effort', rest: '😌 Repos', done: '✓ Terminé' };
-  const colors = { idle: 'var(--muted)', effort: '#c0392b', rest: '#1f7a3d', done: 'var(--accent)' };
+  const labels = { idle: 'Prêt', effort: '💪 Effort', rest: '😌 Repos', seriesRest: '🧘 Repos entre séries', done: '✓ Terminé' };
+  const colors = { idle: 'var(--muted)', effort: '#c0392b', rest: '#1f7a3d', seriesRest: '#1f6f7a', done: 'var(--accent)' };
   if (labelEl) { labelEl.textContent = labels[timerState.phase] || ''; labelEl.style.color = colors[timerState.phase] || ''; }
   if (dispEl) { dispEl.textContent = timerFmt(timerState.phase === 'idle' ? timerState.effortSec : timerState.remaining); dispEl.style.color = colors[timerState.phase] || ''; }
   if (seriesEl) {
-    if (timerState.phase === 'effort') seriesEl.textContent = `Série ${timerState.seriesDone + 1} / ${timerState.totalSeries}`;
-    else if (timerState.phase === 'rest') seriesEl.textContent = `Repos après la série ${timerState.seriesDone} / ${timerState.totalSeries}`;
-    else if (timerState.phase === 'done') seriesEl.textContent = `${timerState.totalSeries} série${timerState.totalSeries>1?'s':''} terminée${timerState.totalSeries>1?'s':''} !`;
-    else seriesEl.textContent = `${timerState.totalSeries} série${timerState.totalSeries>1?'s':''} au programme`;
+    const multiSeries = timerState.totalSeries > 1;
+    const seriesTag = multiSeries ? ` — série ${timerState.seriesDone + 1}/${timerState.totalSeries}` : '';
+    if (timerState.phase === 'effort' || timerState.phase === 'rest') {
+      seriesEl.textContent = `Répétition ${timerState.repsDone + 1} / ${timerState.repsPerSeries}${seriesTag}`;
+    } else if (timerState.phase === 'seriesRest') {
+      seriesEl.textContent = `Repos avant la série ${timerState.seriesDone + 1} / ${timerState.totalSeries}`;
+    } else if (timerState.phase === 'done') {
+      seriesEl.textContent = multiSeries ? `${timerState.totalSeries} séries terminées !` : `${timerState.repsPerSeries} répétitions terminées !`;
+    } else {
+      seriesEl.textContent = multiSeries
+        ? `${timerState.repsPerSeries} répétitions × ${timerState.totalSeries} séries au programme`
+        : `${timerState.repsPerSeries} répétition${timerState.repsPerSeries>1?'s':''} au programme`;
+    }
   }
 }
 
 // Réglages rapides (répéteurs doigts classiques, circuits chronométrés…) — remplit les champs
-// puis réinitialise l'affichage sur ces nouvelles valeurs.
-function timerApplyPreset(effort, rest, series) {
+// puis réinitialise l'affichage sur ces nouvelles valeurs. Signature : effort(s), repos entre
+// répétitions(s), répétitions par série, nombre de séries, repos entre séries(s).
+function timerApplyPreset(effort, rest, reps, series, seriesRest) {
   document.getElementById('timer-effort-input').value = effort;
   document.getElementById('timer-rest-input').value = rest;
-  document.getElementById('timer-series-input').value = series;
+  document.getElementById('timer-reps-input').value = reps;
+  document.getElementById('timer-series-input').value = series || 1;
+  document.getElementById('timer-series-rest-input').value = seriesRest || 0;
   timerReset();
 }
 window.timerApplyPreset = timerApplyPreset;
@@ -13871,6 +13916,7 @@ function timerReset() {
   timerReadInputs();
   timerState.phase = 'idle';
   timerState.remaining = timerState.effortSec;
+  timerState.repsDone = 0;
   timerState.seriesDone = 0;
   const setup = document.getElementById('timer-setup-fields'); if (setup) setup.style.display = '';
   const startBtn = document.getElementById('timer-start-btn'); if (startBtn) startBtn.style.display = '';
@@ -13884,18 +13930,31 @@ function timerTick() {
   timerState.remaining -= 1;
   if (timerState.remaining > 0) { timerRenderFace(); return; }
   if (timerState.phase === 'effort') {
-    timerState.seriesDone += 1;
-    if (timerState.seriesDone >= timerState.totalSeries) { timerFinish(); return; }
-    if (timerState.restSec > 0) {
+    timerState.repsDone += 1;
+    if (timerState.repsDone >= timerState.repsPerSeries) {
+      // Série complète.
+      timerState.seriesDone += 1;
+      if (timerState.seriesDone >= timerState.totalSeries) { timerFinish(); return; }
+      timerState.repsDone = 0;
+      if (timerState.seriesRestSec > 0) {
+        timerState.phase = 'seriesRest';
+        timerState.remaining = timerState.seriesRestSec;
+        timerBeep(330, 260);
+      } else {
+        timerState.phase = 'effort';
+        timerState.remaining = timerState.effortSec;
+        timerBeep(880, 180);
+      }
+    } else if (timerState.restSec > 0) {
       timerState.phase = 'rest';
       timerState.remaining = timerState.restSec;
       timerBeep(440, 220);
     } else {
-      // Pas de repos configuré : on repart directement sur une nouvelle série d'effort.
+      // Pas de repos entre répétitions configuré : on repart directement sur la suivante.
       timerState.remaining = timerState.effortSec;
       timerBeep(880, 180);
     }
-  } else { // 'rest' terminé → nouvelle série d'effort
+  } else { // 'rest' ou 'seriesRest' terminé → nouvelle répétition (même série ou nouvelle)
     timerState.phase = 'effort';
     timerState.remaining = timerState.effortSec;
     timerBeep(880, 180);
@@ -13908,6 +13967,7 @@ function timerStart() {
   if (timerState.phase === 'idle' || timerState.phase === 'done') {
     timerState.phase = 'effort';
     timerState.remaining = timerState.effortSec;
+    timerState.repsDone = 0;
     timerState.seriesDone = 0;
     timerBeep(880, 180);
   }
@@ -13946,8 +14006,9 @@ function timerFinish() {
   document.getElementById('timer-start-btn').style.display = '';
 }
 
-// prefill optionnel : {name, effortSec, restSec, series} — depuis une fiche de la banque
-// (sbLaunchTimer) ; sans argument, ouvre le timer générique avec les derniers réglages saisis.
+// prefill optionnel : {name, effortSec, restSec, reps, series, seriesRestSec} — depuis une fiche
+// de la banque (sbLaunchTimer) ; sans argument, ouvre le timer générique avec les derniers
+// réglages saisis.
 function openTimerModal(prefill) {
   timerStop();
   const title = document.getElementById('timer-modal-title');
@@ -13955,7 +14016,9 @@ function openTimerModal(prefill) {
   if (prefill) {
     document.getElementById('timer-effort-input').value = prefill.effortSec || 7;
     document.getElementById('timer-rest-input').value = prefill.restSec != null ? prefill.restSec : 3;
-    document.getElementById('timer-series-input').value = prefill.series || 6;
+    document.getElementById('timer-reps-input').value = prefill.reps || 6;
+    document.getElementById('timer-series-input').value = prefill.series || 1;
+    document.getElementById('timer-series-rest-input').value = prefill.seriesRestSec || 0;
   }
   timerReset();
   document.getElementById('timer-modal').classList.add('open');
@@ -14909,7 +14972,7 @@ function sbRenderGrid() {
       ${contextLabel ? `<div style="font-size:12px;color:var(--muted);margin-bottom:${freshness?'4px':'10px'}">${esc(contextLabel)}${s.goal?' · '+esc(SB_GOAL_LABELS[s.goal]||s.goal):''}</div>` : '<div style="margin-bottom:10px"></div>'}
       ${freshness ? `<div style="font-size:10.5px;color:var(--accent);text-transform:uppercase;letter-spacing:.02em;margin-bottom:8px">${esc(freshness)}</div>` : ''}
       ${s.minRestHours ? `<div style="font-size:10.5px;color:var(--warm);font-weight:600;margin-bottom:8px">⚠️ Repos min. ${s.minRestHours}h</div>` : ''}
-      ${s.timerSeries ? `<div style="font-size:10.5px;color:var(--accent);font-weight:600;margin-bottom:8px">⏱️ ${s.timerEffortSec||0}s/${s.timerRestSec||0}s × ${s.timerSeries}</div>` : ''}
+      ${s.timerReps ? `<div style="font-size:10.5px;color:var(--accent);font-weight:600;margin-bottom:8px">⏱️ ${s.timerEffortSec||0}s/${s.timerRestSec||0}s × ${s.timerReps}${s.timerSeries>1?` × ${s.timerSeries} séries`:''}</div>` : ''}
       <div style="display:flex;align-items:center;gap:8px">
         <span style="font-size:12px;color:var(--muted)">${s.duration||90} min</span>
         <span class="sb-intensity">${intDots}</span>
@@ -14965,7 +15028,7 @@ function sbSessionSummaryHtml(s) {
   const intDots = Array.from({length:5},(_,i) => `<span class="${i < (s.intensity||3) ? 'on' : ''}"></span>`).join('');
   return `
     ${s.minRestHours ? `<div style="background:var(--warm2);color:var(--warm);border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:14px">⚠️ Cette séance nécessite d'être frais physiquement — laisse au moins ${s.minRestHours}h depuis une séance similaire.</div>` : ''}
-    ${s.timerSeries ? `<div style="background:var(--surface2);border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span>⏱️ Timer : ${s.timerEffortSec||0}s effort / ${s.timerRestSec||0}s repos × ${s.timerSeries} séries</span><button class="btn sm primary" onclick="sbLaunchTimer('${s.id}')">▶️ Lancer le timer</button></div>` : ''}
+    ${s.timerReps ? `<div style="background:var(--surface2);border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span>⏱️ Timer : ${s.timerEffortSec||0}s effort / ${s.timerRestSec||0}s repos × ${s.timerReps}${s.timerSeries>1?` — repos ${s.timerSeriesRestSec||0}s × ${s.timerSeries} séries`:''}</span><button class="btn sm primary" onclick="sbLaunchTimer('${s.id}')">▶️ Lancer le timer</button></div>` : ''}
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
       <span class="sb-tag ${SB_TYPE_TAG_CLASS[s.type]||''}">${esc(t.label)}</span>
       ${s.category ? `<span class="sb-tag">📁 ${esc(s.category)}${s.subcategory?' › '+esc(s.subcategory):''}</span>` : ''}
@@ -15022,8 +15085,8 @@ function sbOpenDetail(id) {
 // où sbSessionSummaryHtml est affiché.
 function sbLaunchTimer(bankId) {
   const s = getBank().find(x => x.id === bankId);
-  if (!s || !s.timerSeries) return;
-  openTimerModal({ name: s.name, effortSec: s.timerEffortSec, restSec: s.timerRestSec, series: s.timerSeries });
+  if (!s || !s.timerReps) return;
+  openTimerModal({ name: s.name, effortSec: s.timerEffortSec, restSec: s.timerRestSec, reps: s.timerReps, series: s.timerSeries || 1, seriesRestSec: s.timerSeriesRestSec || 0 });
 }
 window.sbLaunchTimer = sbLaunchTimer;
 window.sbOpenDetail = sbOpenDetail;
@@ -15264,22 +15327,27 @@ function sbToggleTimerPanel() {
 }
 window.sbToggleTimerPanel = sbToggleTimerPanel;
 
-function sbSetTimerPreset(effort, rest, series) {
+// effort(s), repos entre répétitions(s), répétitions par série, nombre de séries, repos entre
+// séries(s) — 0 partout (bouton "Désactiver") vide tous les champs.
+function sbSetTimerPreset(effort, rest, reps, series, seriesRest) {
   document.getElementById('sb-timer-effort').value = effort > 0 ? effort : '';
-  document.getElementById('sb-timer-rest').value = series > 0 ? rest : '';
-  document.getElementById('sb-timer-series').value = series > 0 ? series : '';
+  document.getElementById('sb-timer-rest').value = reps > 0 ? rest : '';
+  document.getElementById('sb-timer-reps').value = reps > 0 ? reps : '';
+  document.getElementById('sb-timer-series').value = reps > 0 ? (series || 1) : '';
+  document.getElementById('sb-timer-series-rest').value = reps > 0 ? (seriesRest || 0) : '';
   sbSyncTimerToggleUI();
 }
 window.sbSetTimerPreset = sbSetTimerPreset;
 
 function sbSyncTimerToggleUI() {
   const effort = parseInt(document.getElementById('sb-timer-effort')?.value, 10) || 0;
-  const series = parseInt(document.getElementById('sb-timer-series')?.value, 10) || 0;
-  const active = effort > 0 && series > 0;
+  const reps = parseInt(document.getElementById('sb-timer-reps')?.value, 10) || 0;
+  const series = parseInt(document.getElementById('sb-timer-series')?.value, 10) || 1;
+  const active = effort > 0 && reps > 0;
   const btn = document.getElementById('sb-timer-toggle-btn');
   if (btn) {
     btn.classList.toggle('primary', active);
-    btn.textContent = active ? `⏱️ Timer (×${series})` : '⏱️ Timer';
+    btn.textContent = active ? (series > 1 ? `⏱️ Timer (×${reps} × ${series})` : `⏱️ Timer (×${reps})`) : '⏱️ Timer';
   }
 }
 window.sbSyncTimerToggleUI = sbSyncTimerToggleUI;
@@ -15345,14 +15413,19 @@ function sbEditCard(id) {
   if (sbWarningPanel) sbWarningPanel.style.display = s.minRestHours > 0 ? '' : 'none';
   sbSyncWarningToggleUI();
   // ⏱️ Timer d'effort — rouvre le panneau si déjà configuré sur cette fiche.
+  const sbTimerReps0 = s.timerReps > 0 ? s.timerReps : 0;
   const sbTimerEffortInput = document.getElementById('sb-timer-effort');
   if (sbTimerEffortInput) sbTimerEffortInput.value = s.timerEffortSec > 0 ? s.timerEffortSec : '';
   const sbTimerRestInput = document.getElementById('sb-timer-rest');
-  if (sbTimerRestInput) sbTimerRestInput.value = s.timerRestSec > 0 ? s.timerRestSec : '';
+  if (sbTimerRestInput) sbTimerRestInput.value = sbTimerReps0 > 0 ? (s.timerRestSec || 0) : '';
+  const sbTimerRepsInput = document.getElementById('sb-timer-reps');
+  if (sbTimerRepsInput) sbTimerRepsInput.value = sbTimerReps0 > 0 ? sbTimerReps0 : '';
   const sbTimerSeriesInput = document.getElementById('sb-timer-series');
-  if (sbTimerSeriesInput) sbTimerSeriesInput.value = s.timerSeries > 0 ? s.timerSeries : '';
+  if (sbTimerSeriesInput) sbTimerSeriesInput.value = sbTimerReps0 > 0 ? (s.timerSeries || 1) : '';
+  const sbTimerSeriesRestInput = document.getElementById('sb-timer-series-rest');
+  if (sbTimerSeriesRestInput) sbTimerSeriesRestInput.value = sbTimerReps0 > 0 ? (s.timerSeriesRestSec || 0) : '';
   const sbTimerPanel = document.getElementById('sb-timer-panel');
-  if (sbTimerPanel) sbTimerPanel.style.display = s.timerSeries > 0 ? '' : 'none';
+  if (sbTimerPanel) sbTimerPanel.style.display = sbTimerReps0 > 0 ? '' : 'none';
   sbSyncTimerToggleUI();
   sbAiReviewHistory = [];
   sbRenderAiReviewMessages();
@@ -15402,7 +15475,9 @@ function sbNewCard() {
   sbSyncWarningToggleUI();
   const sbTimerEffortInput2 = document.getElementById('sb-timer-effort'); if (sbTimerEffortInput2) sbTimerEffortInput2.value = '';
   const sbTimerRestInput2 = document.getElementById('sb-timer-rest'); if (sbTimerRestInput2) sbTimerRestInput2.value = '';
+  const sbTimerRepsInput2 = document.getElementById('sb-timer-reps'); if (sbTimerRepsInput2) sbTimerRepsInput2.value = '';
   const sbTimerSeriesInput2 = document.getElementById('sb-timer-series'); if (sbTimerSeriesInput2) sbTimerSeriesInput2.value = '';
+  const sbTimerSeriesRestInput2 = document.getElementById('sb-timer-series-rest'); if (sbTimerSeriesRestInput2) sbTimerSeriesRestInput2.value = '';
   const sbTimerPanel2 = document.getElementById('sb-timer-panel'); if (sbTimerPanel2) sbTimerPanel2.style.display = 'none';
   sbSyncTimerToggleUI();
   sbAiReviewHistory = [];
@@ -15451,11 +15526,15 @@ function sbSave() {
     // par défaut inchangé pour toute fiche qui n'utilise pas ce bouton).
     minRestHours: parseInt(document.getElementById('sb-warning-hours')?.value, 10) || 0,
     // ⏱️ Timer d'effort — optionnel (retour utilisateur : "puis-je mettre ou pas mettre le timer
-    // pour cette séance") ; 0 partout = pas de timer rattaché, comportement inchangé pour toute
-    // fiche qui n'active pas ce bouton (cf. sbLaunchTimer, qui vérifie timerSeries > 0).
-    timerEffortSec: parseInt(document.getElementById('sb-timer-effort')?.value, 10) || 0,
-    timerRestSec:   parseInt(document.getElementById('sb-timer-rest')?.value, 10) || 0,
-    timerSeries:    parseInt(document.getElementById('sb-timer-series')?.value, 10) || 0,
+    // pour cette séance", puis "3s suspension, 7s de repos, 10 fois, 4mn de repos, 3x la série") ;
+    // 0 partout = pas de timer rattaché, comportement inchangé pour toute fiche qui n'active pas
+    // ce bouton (cf. sbLaunchTimer, qui vérifie timerReps > 0). timerReps = répétitions par série
+    // (effort+repos) ; timerSeries = nombre de séries (1 = comportement simple, une seule série).
+    timerEffortSec:    parseInt(document.getElementById('sb-timer-effort')?.value, 10) || 0,
+    timerRestSec:      parseInt(document.getElementById('sb-timer-rest')?.value, 10) || 0,
+    timerReps:         parseInt(document.getElementById('sb-timer-reps')?.value, 10) || 0,
+    timerSeries:       parseInt(document.getElementById('sb-timer-series')?.value, 10) || 0,
+    timerSeriesRestSec: parseInt(document.getElementById('sb-timer-series-rest')?.value, 10) || 0,
     createdAt:   editId ? (getBank().find(s=>s.id===editId)?.createdAt || Date.now()) : Date.now(),
     source:      editId ? (getBank().find(s=>s.id===editId)?.source || 'manual') : (isAiEdit ? 'ai' : 'manual'),
     // Cloisonnement par coach : visibility vient du formulaire (défaut 'private' pour une fiche
@@ -15909,10 +15988,13 @@ window.sbAiEditBeforeAdd = function(card) {
   const sbWarningPanel3 = document.getElementById('sb-warning-panel');
   if (sbWarningPanel3) sbWarningPanel3.style.display = card.minRestHours > 0 ? '' : 'none';
   sbSyncWarningToggleUI();
+  const sbTimerReps3 = card.timerReps > 0 ? card.timerReps : 0;
   const sbTimerEffortInput3 = document.getElementById('sb-timer-effort'); if (sbTimerEffortInput3) sbTimerEffortInput3.value = card.timerEffortSec > 0 ? card.timerEffortSec : '';
-  const sbTimerRestInput3 = document.getElementById('sb-timer-rest'); if (sbTimerRestInput3) sbTimerRestInput3.value = card.timerRestSec > 0 ? card.timerRestSec : '';
-  const sbTimerSeriesInput3 = document.getElementById('sb-timer-series'); if (sbTimerSeriesInput3) sbTimerSeriesInput3.value = card.timerSeries > 0 ? card.timerSeries : '';
-  const sbTimerPanel3 = document.getElementById('sb-timer-panel'); if (sbTimerPanel3) sbTimerPanel3.style.display = card.timerSeries > 0 ? '' : 'none';
+  const sbTimerRestInput3 = document.getElementById('sb-timer-rest'); if (sbTimerRestInput3) sbTimerRestInput3.value = sbTimerReps3 > 0 ? (card.timerRestSec || 0) : '';
+  const sbTimerRepsInput3 = document.getElementById('sb-timer-reps'); if (sbTimerRepsInput3) sbTimerRepsInput3.value = sbTimerReps3 > 0 ? sbTimerReps3 : '';
+  const sbTimerSeriesInput3 = document.getElementById('sb-timer-series'); if (sbTimerSeriesInput3) sbTimerSeriesInput3.value = sbTimerReps3 > 0 ? (card.timerSeries || 1) : '';
+  const sbTimerSeriesRestInput3 = document.getElementById('sb-timer-series-rest'); if (sbTimerSeriesRestInput3) sbTimerSeriesRestInput3.value = sbTimerReps3 > 0 ? (card.timerSeriesRestSec || 0) : '';
+  const sbTimerPanel3 = document.getElementById('sb-timer-panel'); if (sbTimerPanel3) sbTimerPanel3.style.display = sbTimerReps3 > 0 ? '' : 'none';
   sbSyncTimerToggleUI();
   document.querySelectorAll('#sb-tags-picker input').forEach(el => {
     el.checked = (card.tags||[]).includes(el.value);
