@@ -1553,9 +1553,13 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
         <div class="panel-header"><span class="panel-title">💬 Commentaires</span></div>
         <p style="font-size:12px;color:var(--muted);margin-bottom:8px">Échange entre l'athlète et son coach sur cette séance.</p>
         <div id="s-comments-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px"></div>
+        <!-- Retour utilisateur : "enlève le bouton envoyé et que cela soit automatique" — plus de
+             bouton "Envoyer" : le commentaire part de lui-même dès que l'athlète quitte le champ
+             (onblur), en plus de l'envoi par Entrée déjà en place. postSessionComment() ne fait
+             rien si le champ est vide (cf. la fonction), donc perdre le focus sans avoir écrit ne
+             déclenche aucun envoi vide. -->
         <div style="display:flex;gap:8px">
-          <input type="text" class="form-control" id="s-comment-input" placeholder="Écrire un commentaire…" onkeydown="if(event.key==='Enter'){event.preventDefault();postSessionComment();}">
-          <button class="btn sm primary" onclick="postSessionComment()">Envoyer</button>
+          <input type="text" class="form-control" id="s-comment-input" placeholder="Écrire un commentaire… (envoyé automatiquement)" onkeydown="if(event.key==='Enter'){event.preventDefault();postSessionComment();}" onblur="postSessionComment()">
         </div>
       </div>
 
@@ -12668,6 +12672,13 @@ function newSession(date=null, planning=false){
   document.getElementById('s-injury-note-row').style.display='none';
   document.getElementById('delete-session-btn').style.display='none';
   document.getElementById('s-together-panel').style.display='none';
+  // Retour utilisateur : "le commentaire de la séance d'hier est apparu dans le champ commentaire
+  // de la séance qu'elle remplissait aujourd'hui" — #s-comment-input est UN SEUL champ HTML
+  // partagé par toutes les séances (le formulaire est réutilisé), jamais vidé jusqu'ici en dehors
+  // d'un envoi réussi (cf. postSessionComment) : un brouillon non envoyé restait donc affiché en
+  // ouvrant la séance suivante, comme s'il lui appartenait.
+  const sCommentInputEl = document.getElementById('s-comment-input');
+  if (sCommentInputEl) sCommentInputEl.value = '';
   renderSessionComments(null);
   renderChecklistFill(null, null);
   applyPlanningView(null);
@@ -12827,6 +12838,10 @@ function editSession(id){
   if (!log.planned) { renderTogetherPanel(id); } else { document.getElementById('s-together-panel').style.display='none'; }
   applyPrescriptionLock(log);
   updateFlexChangeButton(log);
+  // Même correctif que dans newSession() : repart d'un champ vide, jamais du brouillon laissé par
+  // la précédente séance ouverte (cf. commentaire détaillé ci-dessus dans newSession()).
+  const sCommentInputEl2 = document.getElementById('s-comment-input');
+  if (sCommentInputEl2) sCommentInputEl2.value = '';
   renderSessionComments(log);
   renderChecklistFill(log.bankRef ? getBank().find(b=>b.id===log.bankRef) : null, log);
   applyPlanningView(log);
