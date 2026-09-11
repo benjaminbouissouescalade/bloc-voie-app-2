@@ -149,6 +149,16 @@ async function initDB() {
       -- par défaut, aucune fiche existante n'est concernée). Purement informatif — affiché sur la
       -- fiche (badge + détail), ne bloque jamais la programmation côté serveur.
       ALTER TABLE session_bank ADD COLUMN IF NOT EXISTS min_rest_hours INTEGER DEFAULT 0;
+      -- Retour utilisateur : "il me faut un timer où l'on puisse régler les temps d'effort, les
+      -- temps de repos entre les séries et le nombre de série" + "puis-je mettre ou pas mettre le
+      -- timer pour cette séance" — timer optionnel rattaché à une fiche. 0 sur les trois colonnes
+      -- (valeur par défaut, aucune fiche existante concernée) = pas de timer sur cette fiche ;
+      -- l'athlète peut toujours ouvrir le timer générique depuis la sidebar sans passer par une
+      -- fiche (cf. openTimerModal). Purement informatif côté serveur (stocké/renvoyé tel quel),
+      -- toute la logique du timer vit côté client (public/index.html).
+      ALTER TABLE session_bank ADD COLUMN IF NOT EXISTS timer_effort_sec INTEGER DEFAULT 0;
+      ALTER TABLE session_bank ADD COLUMN IF NOT EXISTS timer_rest_sec INTEGER DEFAULT 0;
+      ALTER TABLE session_bank ADD COLUMN IF NOT EXISTS timer_series INTEGER DEFAULT 0;
       -- Backfill unique : les fiches créées AVANT ce cloisonnement n'ont pas de propriétaire connu
       -- — on les attribue au premier compte owner trouvé (ne change rien à leur visibilité, déjà
       -- 'shared' par défaut, donc personne ne perd l'accès à sa bibliothèque existante) plutôt que
@@ -346,6 +356,26 @@ async function initDB() {
         created_at            TIMESTAMPTZ DEFAULT NOW()
       );
       CREATE INDEX IF NOT EXISTS idx_test_assignments_climber ON test_assignments(climber_id, date);
+
+      -- Modèles de semaines réutilisables (retour utilisateur : "il me faut une option de copie
+      -- de semaine pour pouvoir copier 3 semaines ou 2 ou 1 ou plus, mais aussi la possibilité de
+      -- les mémoriser et les nommer et les utiliser comme cycle") — capture un bloc de séances
+      -- déjà présentes sur un calendrier (peu importe leur origine), stocké tel quel en JSONB.
+      -- "days" est un tableau de {dayIndex, type, minutes, intensity, support, location, notes,
+      -- customName, bankRef, flexGoal} — dayIndex est un offset de jour relatif au premier jour du
+      -- bloc (0 = premier jour), ce qui permet de réappliquer le motif à n'importe quelle nouvelle
+      -- date de départ. Toute la logique de capture/application vit côté client (cf.
+      -- cwCaptureBlock/cwBuildLogsForTarget/applyWeekTemplateSubmit dans public/index.html) — ce
+      -- backend ne fait que stocker/lister/supprimer, comme test_assignments ci-dessus.
+      CREATE TABLE IF NOT EXISTS week_templates (
+        id          TEXT PRIMARY KEY,
+        coach_id    TEXT NOT NULL,
+        name        TEXT NOT NULL,
+        weeks       INTEGER NOT NULL,
+        days        JSONB NOT NULL DEFAULT '[]',
+        created_at  TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_week_templates_coach ON week_templates(coach_id);
 
       -- Communauté / mode jeu : crews indépendants de la relation coach-athlète (peuvent
       -- rassembler des grimpeurs de coachs différents, via un code d'invitation partagé).
