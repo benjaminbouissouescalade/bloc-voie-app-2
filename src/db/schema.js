@@ -462,6 +462,20 @@ async function initDB() {
       CREATE INDEX IF NOT EXISTS idx_partnerships_a ON partnerships(climber_a);
       CREATE INDEX IF NOT EXISTS idx_partnerships_b ON partnerships(climber_b);
 
+      -- Connexion partenaire sans code : on recherche un grimpeur par son nom, on lui envoie une
+      -- demande, il l'accepte (ou la refuse) d'un clic. Complète le flux par code existant
+      -- (partner_invites) sans le remplacer. Une ligne = une demande en attente ; acceptée ou
+      -- refusée, elle est supprimée (pas de statut à gérer, l'historique n'a pas d'intérêt ici).
+      CREATE TABLE IF NOT EXISTS partner_requests (
+        id            TEXT PRIMARY KEY,
+        from_climber  TEXT NOT NULL REFERENCES climbers(id) ON DELETE CASCADE,
+        to_climber    TEXT NOT NULL REFERENCES climbers(id) ON DELETE CASCADE,
+        created_at    TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(from_climber, to_climber)
+      );
+      CREATE INDEX IF NOT EXISTS idx_partner_requests_to ON partner_requests(to_climber);
+      CREATE INDEX IF NOT EXISTS idx_partner_requests_from ON partner_requests(from_climber);
+
       -- Réactions Digger (5 types fixes) sur une séance loguée — une réaction active par utilisateur.
       CREATE TABLE IF NOT EXISTS session_reactions (
         log_id      TEXT NOT NULL,
