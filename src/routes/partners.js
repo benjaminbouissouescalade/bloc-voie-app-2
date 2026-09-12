@@ -20,6 +20,7 @@ function inviteCode() {
   return Array.from(bytes).map(b => charset[b % charset.length]).join('');
 }
 function partnershipId() { return 'pt_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8); }
+function requestId() { return 'pr_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8); }
 // Stocke toujours (climber_a, climber_b) triés pour éviter les doublons inversés.
 function orderPair(x, y) { return x < y ? [x, y] : [y, x]; }
 
@@ -164,6 +165,130 @@ router.delete('/:partnerId', async (req, res) => {
     // crew, dans les deux sens) — best-effort, cf. commentaire dans /accept.
     ensureAutoCrew(climberId).catch(() => {});
     ensureAutoCrew(req.params.partnerId).catch(() => {});
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ═══ Connexion sans code : recherche par nom + demande/acceptation ═══
+
+// GET /api/partners/search?q=... — recherche des grimpeurs par nom (hors soi-même et hors
+// partenaires déjà connectés) pour leur envoyer une demande de connexion, sans code.
+router.get('/search', async (req, res) => {
+  const climberId = req.user?.climberId;
+  if (!climberId) return res.json([]);
+  const q = (req.query.q || '').trim();
+  if (q.length < 2) return res.json([]);
+  try {
+    const { rows } = await pool.query(
+      `SELECT c.id, c.name, c.color, c.level,
+              EXISTS(SELECT 1 FROM partner_requests WHERE from_climber=$1 AND to_climber=c.id) AS request_sent,
+              EXISTS(SELECT 1 FROM partner_requests WHERE from_climber=c.id AND to_climber=$1) AS request_received
+       FROM climbers c
+       WHERE c.id <> $1
+         AND c.name ILIKE $2
+         AND NOT EXISTS (
+           SELECT 1 FROM partnerships p WHERE (p.climber_a=$1 AND p.climber_b=c.id) OR (p.climber_a=c.id AND p.climber_b=$1)
+         )
+       ORDER BY c.name ASC
+       LIMIT 20`,
+      [climberId, `%${q}%`]
+    );
+    res.json(rows.map(r => ({
+      id: r.id, name: r.name, color: r.color, level: r.level,
+      requestSent: r.request_sent, requestReceived: r.request_received
+    })));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/partners/requests — mes demandes de connexion reçues, en attente
+router.get('/requests', async (req, res) => {
+  const climberId = req.user?.climberId;
+  if (!climberId) return res.json([]);
+  try {
+    const { rows } = await pool.query(
+      `SELECT pr.id, cl.id AS climber_id, cl.name, cl.color, cl.level, pr.created_at
+       FROM partner_requests pr JOIN climbers cl ON cl.id = pr.from_climber
+       WHERE pr.to_climber = $1 ORDER BY pr.created_at DESC`,
+      [climberId]
+    );
+    res.json(rows.map(r => ({ id: r.id, climberId: r.climber_id, name: r.name, color: r.color, level: r.level, createdAt: r.created_at })));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/partners/request — body {toClimberId} : envoie une demande de connexion sans code.
+// Si l'autre m'a déjà envoyé une demande de son côté, on connecte directement (pas de doublon).
+router.post('/request', async (req, res) => {
+  const climberId = req.user?.climberId;
+  if (!climberId) return res.status(400).json({ error: 'Aucun profil grimpeur associé à ce compte' });
+  const { toClimberId } = req.body;
+  if (!toClimberId) return res.status(400).json({ error: 'Destinataire requis' });
+  if (toClimberId === climberId) return res.status(400).json({ error: 'Tu ne peux pas te connecter à toi-même' });
+  try {
+    const [a, b] = orderPair(climberId, toClimberId);
+    const { rows: already } = await pool.query('SELECT 1 FROM partnerships WHERE climber_a=$1 AND climber_b=$2', [a, b]);
+    if (already.length) return res.status(400).json({ error: 'Vous êtes déjà partenaires' });
+    const { rows: reverse } = await pool.query('SELECT id FROM partner_requests WHERE from_climber=$1 AND to_climber=$2', [toClimberId, climberId]);
+    if (reverse.length) {
+      await pool.query('DELETE FROM partner_requests WHERE id=$1', [reverse[0].id]);
+      await pool.query('INSERT INTO partnerships (id, climber_a, climber_b) VALUES ($1,$2,$3) ON CONFLICT (climber_a, climber_b) DO NOTHING', [partnershipId(), a, b]);
+      ensureAutoCrew(climberId).catch(() => {});
+      ensureAutoCrew(toClimberId).catch(() => {});
+      return res.json({ ok: true, connected: true });
+    }
+    await pool.query(
+      'INSERT INTO partner_requests (id, from_climber, to_climber) VALUES ($1,$2,$3) ON CONFLICT (from_climber, to_climber) DO NOTHING',
+      [requestId(), climberId, toClimberId]
+    );
+    res.json({ ok: true, connected: false });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/partners/requests/:id/accept — accepte une demande reçue → crée le partenariat
+router.post('/requests/:id/accept', async (req, res) => {
+  const climberId = req.user?.climberId;
+  if (!climberId) return res.status(400).json({ error: 'Aucun profil grimpeur associé à ce compte' });
+  try {
+    const { rows } = await pool.query('SELECT * FROM partner_requests WHERE id=$1 AND to_climber=$2', [req.params.id, climberId]);
+    if (!rows.length) return res.status(404).json({ error: 'Demande introuvable' });
+    const request = rows[0];
+    const [a, b] = orderPair(request.from_climber, climberId);
+    await pool.query('INSERT INTO partnerships (id, climber_a, climber_b) VALUES ($1,$2,$3) ON CONFLICT (climber_a, climber_b) DO NOTHING', [partnershipId(), a, b]);
+    await pool.query('DELETE FROM partner_requests WHERE id=$1', [request.id]);
+    const { rows: partnerRows } = await pool.query('SELECT id, name, color, level FROM climbers WHERE id=$1', [request.from_climber]);
+    ensureAutoCrew(request.from_climber).catch(() => {});
+    ensureAutoCrew(climberId).catch(() => {});
+    res.json({ ok: true, partner: partnerRows[0] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/partners/requests/:id/decline — refuse une demande reçue
+router.post('/requests/:id/decline', async (req, res) => {
+  const climberId = req.user?.climberId;
+  if (!climberId) return res.status(400).json({ error: 'Aucun profil grimpeur associé à ce compte' });
+  try {
+    await pool.query('DELETE FROM partner_requests WHERE id=$1 AND to_climber=$2', [req.params.id, climberId]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/partners/requests/:id — annule une demande que j'ai envoyée
+router.delete('/requests/:id', async (req, res) => {
+  const climberId = req.user?.climberId;
+  if (!climberId) return res.status(400).json({ error: 'Aucun profil grimpeur associé à ce compte' });
+  try {
+    await pool.query('DELETE FROM partner_requests WHERE id=$1 AND from_climber=$2', [req.params.id, climberId]);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
