@@ -3256,23 +3256,32 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   <div class="community-subpage" id="community-tab-feed">
     <div class="panel">
       <div class="panel-header"><span class="panel-title">Mes partenaires</span></div>
-      <div class="form-row form-row-2">
-        <div class="form-group">
-          <label class="form-label">Inviter un partenaire</label>
-          <div style="display:flex;gap:8px;align-items:center">
-            <button class="btn primary" onclick="partnerGenerateInvite()">Générer un code</button>
-            <span id="partner-invite-code-display" style="font-weight:700;letter-spacing:.06em;font-size:15px;display:none"></span>
-          </div>
-          <p style="font-size:12px;color:var(--muted);margin-top:6px">Partage ce code à un partenaire pour qu'il te rejoigne.</p>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Rejoindre avec un code reçu</label>
-          <div style="display:flex;gap:8px">
-            <input class="form-control" type="text" id="partner-accept-code" placeholder="Ex. AB3D9K" style="text-transform:uppercase">
-            <button class="btn primary" onclick="partnerAccept()">Se connecter</button>
-          </div>
-        </div>
+      <div class="form-group">
+        <label class="form-label">Ajouter un partenaire</label>
+        <input class="form-control" type="text" id="partner-search-input" placeholder="Rechercher un grimpeur par son nom…" oninput="partnerSearchInputHandler()">
+        <div id="partner-search-results" style="margin-top:8px"></div>
       </div>
+      <div id="partner-requests-box" style="display:none;margin-top:12px"></div>
+      <details style="margin-top:12px">
+        <summary style="cursor:pointer;font-size:13px;color:var(--muted)">Ou utiliser un code d'invitation</summary>
+        <div class="form-row form-row-2" style="margin-top:10px">
+          <div class="form-group">
+            <label class="form-label">Inviter un partenaire</label>
+            <div style="display:flex;gap:8px;align-items:center">
+              <button class="btn primary" onclick="partnerGenerateInvite()">Générer un code</button>
+              <span id="partner-invite-code-display" style="font-weight:700;letter-spacing:.06em;font-size:15px;display:none"></span>
+            </div>
+            <p style="font-size:12px;color:var(--muted);margin-top:6px">Partage ce code à un partenaire pour qu'il te rejoigne.</p>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Rejoindre avec un code reçu</label>
+            <div style="display:flex;gap:8px">
+              <input class="form-control" type="text" id="partner-accept-code" placeholder="Ex. AB3D9K" style="text-transform:uppercase">
+              <button class="btn primary" onclick="partnerAccept()">Se connecter</button>
+            </div>
+          </div>
+        </div>
+      </details>
       <div id="partner-action-error" style="display:none;background:var(--warm2);color:var(--warm);border-radius:8px;padding:10px;font-size:13px;margin-top:8px"></div>
       <div id="partner-action-success" style="display:none;background:var(--accent2);color:var(--accent);border-radius:8px;padding:10px;font-size:13px;margin-top:8px"></div>
       <div id="partner-list" style="margin-top:14px"></div>
@@ -11348,6 +11357,7 @@ window.copyPartnerSession = copyPartnerSession;
 
 async function renderPartnersPanel() {
   renderPrivacyPanel();
+  loadPartnerRequests();
   const el = document.getElementById('partner-list');
   if (!el) return;
   el.innerHTML = '<p style="font-size:13px;color:var(--muted)">Chargement…</p>';
@@ -11403,6 +11413,116 @@ async function partnerAccept() {
   } catch (e) { partnerShowError('Erreur réseau'); }
 }
 window.partnerAccept = partnerAccept;
+
+// ─── Connexion sans code : recherche par nom + demandes ───
+let partnerSearchTimer = null;
+function partnerSearchInputHandler() {
+  clearTimeout(partnerSearchTimer);
+  const q = document.getElementById('partner-search-input').value.trim();
+  const resEl = document.getElementById('partner-search-results');
+  if (q.length < 2) { resEl.innerHTML = ''; return; }
+  partnerSearchTimer = setTimeout(() => partnerSearchClimbers(q), 300);
+}
+window.partnerSearchInputHandler = partnerSearchInputHandler;
+
+function partnerResultRow(p, action) {
+  const initials = p.name.trim().split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 2);
+  return `<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;background:var(--surface2)">
+    <div class="crew-member-avatar" style="background:${p.color}">${initials}</div>
+    <div style="flex:1"><div style="font-weight:600;font-size:13px">${esc(p.name)}</div><div style="font-size:12px;color:var(--muted)">Niveau ${esc(p.level || '—')}</div></div>
+    ${action}
+  </div>`;
+}
+
+async function partnerSearchClimbers(q) {
+  const resEl = document.getElementById('partner-search-results');
+  resEl.innerHTML = '<p style="font-size:12px;color:var(--muted)">Recherche…</p>';
+  try {
+    const r = await fetch('/api/partners/search?q=' + encodeURIComponent(q), { headers: authHeaders() });
+    const list = await r.json();
+    if (!r.ok) { resEl.innerHTML = `<p style="color:var(--warm);font-size:12px">${esc(list.error || 'Erreur')}</p>`; return; }
+    if (!list.length) { resEl.innerHTML = '<p style="font-size:12px;color:var(--muted)">Aucun grimpeur trouvé.</p>'; return; }
+    resEl.innerHTML = `<div style="display:flex;flex-direction:column;gap:6px">${list.map(p => {
+      let action;
+      if (p.requestReceived) action = `<button class="btn sm primary" onclick="partnerSearchAcceptFromResult('${p.id}')">Accepter sa demande</button>`;
+      else if (p.requestSent) action = `<span style="font-size:12px;color:var(--muted)">Demande envoyée</span>`;
+      else action = `<button class="btn sm primary" onclick="partnerSendRequest('${p.id}')">Envoyer une demande</button>`;
+      return partnerResultRow(p, action);
+    }).join('')}</div>`;
+  } catch (e) { resEl.innerHTML = '<p style="color:var(--warm);font-size:12px">Erreur réseau</p>'; }
+}
+window.partnerSearchClimbers = partnerSearchClimbers;
+
+async function partnerSendRequest(id) {
+  try {
+    const r = await fetch('/api/partners/request', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ toClimberId: id }) });
+    const d = await r.json();
+    if (!r.ok) { partnerShowError(d.error || 'Erreur'); return; }
+    if (d.connected) {
+      partnerShowSuccess(`Vous êtes maintenant connectés !`);
+      document.getElementById('partner-search-input').value = '';
+      document.getElementById('partner-search-results').innerHTML = '';
+      renderPartnersPanel();
+    } else {
+      partnerShowSuccess('Demande envoyée.');
+      const q = document.getElementById('partner-search-input').value.trim();
+      if (q.length >= 2) partnerSearchClimbers(q);
+    }
+  } catch (e) { partnerShowError('Erreur réseau'); }
+}
+window.partnerSendRequest = partnerSendRequest;
+
+async function partnerSearchAcceptFromResult(fromClimberId) {
+  const reqs = await loadPartnerRequests();
+  const match = (reqs || []).find(r => r.climberId === fromClimberId);
+  if (match) partnerAcceptRequest(match.id);
+}
+window.partnerSearchAcceptFromResult = partnerSearchAcceptFromResult;
+
+let partnerRequestsCache = [];
+async function loadPartnerRequests() {
+  const box = document.getElementById('partner-requests-box');
+  try {
+    const r = await fetch('/api/partners/requests', { headers: authHeaders() });
+    const reqs = await r.json();
+    if (!r.ok) return [];
+    partnerRequestsCache = reqs;
+    if (!box) return reqs;
+    if (!reqs.length) { box.style.display = 'none'; box.innerHTML = ''; return reqs; }
+    box.style.display = '';
+    box.innerHTML = `<div style="background:var(--accent2);border-radius:8px;padding:10px">
+      <div style="font-weight:600;font-size:13px;margin-bottom:6px">Demandes reçues</div>
+      <div style="display:flex;flex-direction:column;gap:6px">${reqs.map(r2 => `
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="crew-member-avatar" style="background:${r2.color}">${r2.name.trim().split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 2)}</div>
+          <div style="flex:1;font-size:13px;font-weight:600">${esc(r2.name)}</div>
+          <button class="btn sm primary" onclick="partnerAcceptRequest('${r2.id}')">Accepter</button>
+          <button class="btn sm" onclick="partnerDeclineRequest('${r2.id}')">Refuser</button>
+        </div>`).join('')}</div>
+    </div>`;
+    return reqs;
+  } catch (e) { return []; }
+}
+window.loadPartnerRequests = loadPartnerRequests;
+
+async function partnerAcceptRequest(id) {
+  try {
+    const r = await fetch('/api/partners/requests/' + id + '/accept', { method: 'POST', headers: authHeaders() });
+    const d = await r.json();
+    if (!r.ok) { partnerShowError(d.error || 'Erreur'); return; }
+    partnerShowSuccess(`Tu es maintenant connecté avec ${esc(d.partner?.name || 'ce partenaire')} !`);
+    renderPartnersPanel();
+  } catch (e) { partnerShowError('Erreur réseau'); }
+}
+window.partnerAcceptRequest = partnerAcceptRequest;
+
+async function partnerDeclineRequest(id) {
+  try {
+    await fetch('/api/partners/requests/' + id + '/decline', { method: 'POST', headers: authHeaders() });
+    loadPartnerRequests();
+  } catch (e) { /* best-effort */ }
+}
+window.partnerDeclineRequest = partnerDeclineRequest;
 
 async function partnerRemove(id) {
   if (!confirm('Retirer ce partenaire ?')) return;
