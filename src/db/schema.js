@@ -21,6 +21,13 @@ async function initDB() {
       -- Modèle de rôles owner/coach/athlete : l'ancien rôle unique "admin" (= coach unique de
       -- l'app à l'origine) devient "owner". Idempotent : sans ligne 'admin' restante, no-op.
       UPDATE users SET role = 'owner' WHERE role = 'admin';
+      -- Un seul owner possible dans tout le déploiement (bootstrap : le tout premier compte créé,
+      -- cf. POST /api/auth/register). Avant cet index, deux inscriptions concurrentes juste après
+      -- un déploiement neuf pouvaient toutes les deux voir "0 compte existant" et devenir owner
+      -- (race condition classique vérifier-puis-écrire, sans aucune barrière côté base). L'index
+      -- unique partiel fait respecter la règle de façon atomique : la deuxième insertion échoue
+      -- avec une violation de contrainte plutôt que de créer un second owner.
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_users_single_owner ON users(role) WHERE role = 'owner';
       CREATE TABLE IF NOT EXISTS climbers (
         id          TEXT PRIMARY KEY,
         name        TEXT NOT NULL,
@@ -429,6 +436,23 @@ async function initDB() {
       CREATE INDEX IF NOT EXISTS idx_crew_members_climber ON crew_members(climber_id);
       CREATE INDEX IF NOT EXISTS idx_crew_activity_crew ON crew_activity(crew_id, created_at DESC);
       CREATE INDEX IF NOT EXISTS idx_crew_kudos_lookup ON crew_kudos(crew_id, to_climber_id, week_start);
+      -- Un seul kudos actif par (crew, expéditeur, destinataire, semaine) : le frontend masque déjà
+      -- le bouton une fois le kudos donné cette semaine-là, mais rien ne l'empêchait côté serveur —
+      -- un appel direct répété à POST /:crewId/kudos pouvait empiler des kudos en boucle vers le
+      -- même coéquipier la même semaine. Dédoublonnage (garde la ligne la plus ancienne de chaque
+      -- groupe) avant d'ajouter la contrainte, au cas où des doublons existent déjà en base.
+      DELETE FROM crew_kudos a WHERE EXISTS (
+        SELECT 1 FROM crew_kudos b
+        WHERE b.crew_id = a.crew_id AND b.from_climber_id = a.from_climber_id
+          AND b.to_climber_id = a.to_climber_id AND b.week_start = a.week_start
+          AND b.ctid > a.ctid
+      );
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'crew_kudos_week_unique') THEN
+          ALTER TABLE crew_kudos ADD CONSTRAINT crew_kudos_week_unique
+            UNIQUE (crew_id, from_climber_id, to_climber_id, week_start);
+        END IF;
+      END $$;
 
       -- Défi collectif mensuel : un objectif chiffré par crew et par mois, la progression
       -- d'équipe est la somme des progressions individuelles (mêmes métriques que les
