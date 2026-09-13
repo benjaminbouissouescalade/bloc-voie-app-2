@@ -1826,17 +1826,55 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     <button class="time-filter-btn" data-wl-range="all">Tout</button>
   </div>
 
-  <div class="panel">
-    <div class="panel-header">
-      <span class="panel-title">Volume d'entraînement hebdo</span>
-      <div style="display:flex;align-items:center;gap:8px">
-        <span class="panel-sub" id="wl-vol-sub">16 dernières semaines</span>
-        <button class="time-filter-btn active" id="wl-vol-charge-btn" style="padding:3px 10px;font-size:11px" onclick="toggleWlChargeOverlay()">✓ Charge</button>
-        <button class="time-filter-btn" id="wl-vol-overlay-btn" style="padding:3px 10px;font-size:11px" onclick="toggleWlIntensityOverlay()">+ Intensité</button>
-        <button class="time-filter-btn" id="wl-vol-time-btn" style="padding:3px 10px;font-size:11px" onclick="toggleWlTimeOverlay()">+ Temps</button>
+  <div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;align-items:start">
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Volume d'entraînement hebdo</span>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="panel-sub" id="wl-vol-sub">16 dernières semaines</span>
+          <button class="time-filter-btn active" id="wl-vol-charge-btn" style="padding:3px 10px;font-size:11px" onclick="toggleWlChargeOverlay()">✓ Charge</button>
+          <button class="time-filter-btn" id="wl-vol-overlay-btn" style="padding:3px 10px;font-size:11px" onclick="toggleWlIntensityOverlay()">+ Intensité</button>
+          <button class="time-filter-btn" id="wl-vol-time-btn" style="padding:3px 10px;font-size:11px" onclick="toggleWlTimeOverlay()">+ Temps</button>
+        </div>
+      </div>
+      <div class="chart-wrap" style="height:200px"><canvas id="volChart" aria-label="Volume hebdomadaire">Volume hebdomadaire</canvas></div>
+      <div class="legend" id="wl-vol-legend" style="margin-top:10px">
+        <span class="legend-item"><span class="legend-swatch" style="background:var(--stone)"></span>Charge hebdomadaire</span>
+        <span class="legend-item"><span style="display:inline-block;width:12px;border-top:2px dashed var(--text)"></span>Moyenne de référence (4 dernières semaines)</span>
       </div>
     </div>
-    <div class="chart-wrap" style="height:200px"><canvas id="volChart" aria-label="Volume hebdomadaire">Volume hebdomadaire</canvas></div>
+    <div class="panel" id="wl-vol-detail-panel">
+      <div class="panel-header"><span class="panel-title">Détail</span></div>
+      <div style="display:flex;flex-direction:column">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;padding:8px 0;border-bottom:1px solid var(--border)">
+          <span style="font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)">Charge cette semaine</span>
+          <span style="font-family:var(--serif);font-size:16px;font-weight:600" id="wl-detail-week">—</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;padding:8px 0;border-bottom:1px solid var(--border)">
+          <span style="font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)">Rythme habituel (moy. 4 sem.)</span>
+          <span style="font-family:var(--serif);font-size:16px;font-weight:600" id="wl-detail-habitual">—</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;padding:8px 0">
+          <span style="font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)">Écart</span>
+          <span style="font-family:var(--serif);font-size:16px;font-weight:600" id="wl-detail-gap">—</span>
+        </div>
+      </div>
+      <div style="height:1px;background:var(--border2);margin:4px 0 10px"></div>
+      <div style="display:flex;flex-direction:column">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;padding:8px 0;border-bottom:1px solid var(--border)">
+          <span style="font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)">4 dernières sem.</span>
+          <span style="font-family:var(--serif);font-size:16px;font-weight:600" id="wl-detail-last4">—</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;padding:8px 0;border-bottom:1px solid var(--border)">
+          <span style="font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)">4 sem. précédentes</span>
+          <span style="font-family:var(--serif);font-size:16px;font-weight:600" id="wl-detail-prev4">—</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;padding:8px 0">
+          <span style="font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)">Évolution</span>
+          <span class="wl-acwr-pill" id="wl-detail-evol">—</span>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div class="panel">
@@ -8633,8 +8671,28 @@ function renderWorkload() {
   document.getElementById('wl-ref-grade').textContent=getRefGrade();
 
   renderAcwrGauge(l7, l28);
-  renderLoadTrend(l28, getLoadRange(56) - l28);
+  const prev28 = getLoadRange(56) - l28;
+  renderLoadTrend(l28, prev28);
   renderInjuryChargeSignal();
+
+  // Panneau "Détail" à côté du graphique hebdo — mêmes chiffres que le bandeau "Ton rythme en ce
+  // moment" ci-dessus, présentés en tableau pour qui veut les valeurs exactes plutôt que la phrase.
+  const chronic = l28 / 4;
+  const gapPct = chronic > 0 ? Math.round(((l7 - chronic) / chronic) * 100) : null;
+  const evolPct = prev28 > 0 ? Math.round(((l28 - prev28) / prev28) * 100) : null;
+  const setDetail = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  setDetail('wl-detail-week', Math.round(l7));
+  setDetail('wl-detail-habitual', Math.round(chronic));
+  setDetail('wl-detail-gap', gapPct === null ? '—' : `${gapPct > 0 ? '+' : ''}${gapPct}%`);
+  setDetail('wl-detail-last4', l28);
+  setDetail('wl-detail-prev4', prev28);
+  const evolEl = document.getElementById('wl-detail-evol');
+  if (evolEl) {
+    const trendZone = loadTrendZone(evolPct);
+    evolEl.textContent = evolPct === null ? '—' : `${trendZone.label} (${evolPct > 0 ? '+' : ''}${evolPct}%)`;
+    evolEl.style.background = trendZone.bg;
+    evolEl.style.color = trendZone.color;
+  }
 
   const wData=weeklyData(perfWeeksForRange(wlRange));
   const wlSub=document.getElementById('wl-vol-sub');
@@ -8645,12 +8703,26 @@ function renderWorkload() {
   if (overlayBtn) { overlayBtn.classList.toggle('active', wlShowIntensityOverlay); overlayBtn.textContent = wlShowIntensityOverlay ? '✓ Intensité' : '+ Intensité'; }
   const timeBtn=document.getElementById('wl-vol-time-btn');
   if (timeBtn) { timeBtn.classList.toggle('active', wlShowTimeOverlay); timeBtn.textContent = wlShowTimeOverlay ? '✓ Temps' : '+ Temps'; }
+  const volLegend=document.getElementById('wl-vol-legend');
+  if (volLegend) volLegend.style.display = wlShowCharge ? '' : 'none';
   const volDatasets=[];
   if (wlShowCharge) {
+    const chargeVals=wData.map(w=>w.load);
+    // Moyenne glissante sur 4 semaines (fenêtre semaine courante + 3 précédentes) — même logique
+    // que "Ton rythme habituel" du bandeau ci-dessus, affichée ici point par point sur le graphique.
+    const rollingAvg=chargeVals.map((_,i)=>{
+      const start=Math.max(0,i-3);
+      const win=chargeVals.slice(start,i+1);
+      return win.reduce((s,v)=>s+v,0)/win.length;
+    });
     volDatasets.push({
-      label:'Charge',data:wData.map(w=>w.load),
+      label:'Charge',data:chargeVals,
       backgroundColor:wData.map(w=>{const c=cLevel(w.load);return c.cls==='c1'?'rgba(45,90,61,.85)':c.cls==='c2'?'rgba(176,122,16,.8)':c.cls==='c3'?'rgba(196,80,26,.85)':'rgba(90,45,130,.9)';}),
       borderRadius:5,borderSkipped:false,order:2,yAxisID:'y'
+    });
+    volDatasets.push({
+      type:'line',label:'Moyenne (4 sem.)',data:rollingAvg,
+      borderColor:'rgba(17,17,15,.55)',borderDash:[5,4],borderWidth:1.5,pointRadius:0,fill:false,tension:.25,order:1,yAxisID:'y'
     });
   }
   // Intensité et Temps sont désormais des barres (comme Charge), pas des lignes — retour :
