@@ -6410,26 +6410,25 @@ function dailyWorkloadData(nDays) {
   return days.map(d=>({start:d.start,end:d.end,load:Math.round(d.load),sessions:d.sessions,avgInt:d.sessions?Math.round(d.intSum/d.sessions*10)/10:0,minutes:Math.round(d.minutes),label:d.label}));
 }
 
-// Badge "Repos conseillé" (cf. wl-rest-advice-line) : ≥2 jours consécutifs sans repos (aujourd'hui +
-// hier au moins, sans jour à 0 séance entre les deux) ET l'un de ces jours classé C4 par rapport au
-// rythme HEBDOMADAIRE habituel (getPersonalBaseline()). cLevel() attend une charge hebdomadaire (cf.
-// son propre commentaire) : on ramène donc la charge d'UNE journée à un équivalent hebdo (×7) avant
-// classification — même normalisation que tripStats() (load/days*7) ailleurs dans ce fichier. Sans ce
-// ×7, un seul jour aurait dû dépasser 1.5× TOUTE une semaine habituelle pour être classé C4 (repéré via
-// un cas réel de Ben : semaine à 1186 avec un rythme habituel à 1006, donc plafond C4 brut = 1509 —
-// mathématiquement impossible à atteindre en une seule journée). Retour utilisateur : "début de
-// semaine léger, puis week-end très lourd, je reste en 'Bon rythme' (ratio 7j/28j) mais ce serait
-// raisonnable de me reposer demain" — capte ce cas que le ratio glissant ne voit pas. Seuils choisis
-// par l'utilisateur : streak ≥2 jours, charge "très importante" = C4 (pas C3+C4).
+// Badge "Repos conseillé" (cf. wl-rest-advice-line) : ≥2 jours consécutifs classés C4 (charge très
+// élevée) en remontant depuis aujourd'hui — pas simplement 2 jours sans repos dont un seul serait
+// chargé (1ère version, ajustée sur retour utilisateur : "mettre le message si 2 jours chargés à la
+// suite, pas seulement si 2"). cLevel() attend une charge hebdomadaire (cf. son propre commentaire) :
+// on ramène donc la charge d'UNE journée à un équivalent hebdo (×7) avant classification — même
+// normalisation que tripStats() (load/days*7) ailleurs dans ce fichier ; sans ce ×7, un seul jour
+// aurait dû dépasser 1.5× TOUTE une semaine habituelle pour être classé C4, ce qui est quasi impossible
+// (repéré sur un cas réel de Ben : semaine à 1186 pour un rythme habituel à 1006). Un jour de repos
+// (charge 0) casse naturellement le streak, pas besoin de le tester à part. Retour utilisateur
+// d'origine : "début de semaine léger, puis week-end très lourd, je reste en 'Bon rythme' (ratio 7j/28j)
+// mais ce serait raisonnable de me reposer demain" — capte ce cas que le ratio glissant ne voit pas.
 function restAdviceStatus() {
   const days = dailyWorkloadData(7); // du plus ancien au plus récent, dernier = aujourd'hui
-  let streak = 0, heavyInStreak = false;
+  let heavyStreak = 0;
   for (let i = days.length - 1; i >= 0; i--) {
-    if (days[i].sessions === 0) break; // jour de repos = fin du streak en remontant depuis aujourd'hui
-    streak++;
-    if (cLevel(days[i].load * 7).cls === 'c4') heavyInStreak = true;
+    if (cLevel(days[i].load * 7).cls !== 'c4') break;
+    heavyStreak++;
   }
-  return { streak, heavyInStreak, advise: streak >= 2 && heavyInStreak };
+  return { heavyStreak, advise: heavyStreak >= 2 };
 }
 
 function miniSparkSvg(values, color) {
@@ -8751,7 +8750,7 @@ function renderRestAdvice() {
   const s = restAdviceStatus();
   lineEl.style.display = s.advise ? '' : 'none';
   if (s.advise) {
-    detailEl.textContent = `${s.streak} jours d'affilée sans repos, dont un très chargé — une journée de récup ferait du bien.`;
+    detailEl.textContent = `${s.heavyStreak} jours d'affilée à charge très élevée — une journée de récup ferait du bien.`;
   }
 }
 // ═══════════════ CHARGE × PETITES DOULEURS (signal observationnel) ═══════════════
