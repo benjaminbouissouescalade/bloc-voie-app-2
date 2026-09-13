@@ -1786,6 +1786,14 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
         <div style="font-size:12.5px;color:var(--muted);margin-top:2px" id="wl-trend-line">
           <span id="wl-trend-emoji">➡️</span> <span class="wl-acwr-pill" id="wl-trend-pill" style="font-size:11px;padding:2px 8px;vertical-align:1px"></span> <span id="wl-trend-detail"></span>
         </div>
+        <!-- Badge "Repos conseillé" — retour utilisateur : le ratio 7j/28j peut rester "Bon rythme"
+             alors qu'un enchaînement de 2 jours sans repos dont un très chargé (C4) justifierait
+             quand même une journée de récup (cf. exemple "semaine légère puis week-end très lourd").
+             Masqué par défaut, affiché seulement quand renderRestAdvice() détecte la situation. -->
+        <div style="font-size:12.5px;color:var(--muted);margin-top:6px;display:none" id="wl-rest-advice-line">
+          <span class="wl-acwr-pill" id="wl-rest-advice-pill" style="font-size:11px;padding:2px 8px;vertical-align:1px;background:#c4501a;color:#fff">🛌 Repos conseillé</span>
+          <span id="wl-rest-advice-detail"></span>
+        </div>
       </div>
     </div>
     <div class="wl-acwr-gauge">
@@ -6402,6 +6410,26 @@ function dailyWorkloadData(nDays) {
   return days.map(d=>({start:d.start,end:d.end,load:Math.round(d.load),sessions:d.sessions,avgInt:d.sessions?Math.round(d.intSum/d.sessions*10)/10:0,minutes:Math.round(d.minutes),label:d.label}));
 }
 
+// Badge "Repos conseillé" (cf. wl-rest-advice-line) : ≥2 jours consécutifs sans repos (aujourd'hui +
+// hier au moins, sans jour à 0 séance entre les deux) ET l'un de ces jours classé C4 — même
+// classification que les couleurs du graphe journalier ci-dessus (cLevel(charge du jour), comparée au
+// rythme HEBDOMADAIRE habituel via getPersonalBaseline() : un seul jour très chargé peut donc déjà
+// dépasser le seuil C4 sans qu'il soit besoin de ramener sa charge à une semaine complète). Retour
+// utilisateur : "début de semaine léger, puis week-end très lourd, je reste en 'Bon rythme' (ratio
+// 7j/28j) mais ce serait raisonnable de me reposer demain" — capte ce cas que le ratio glissant ne
+// voit pas. Seuils choisis par l'utilisateur : streak ≥2 jours, charge "très importante" = C4 (pas
+// C3+C4).
+function restAdviceStatus() {
+  const days = dailyWorkloadData(7); // du plus ancien au plus récent, dernier = aujourd'hui
+  let streak = 0, heavyInStreak = false;
+  for (let i = days.length - 1; i >= 0; i--) {
+    if (days[i].sessions === 0) break; // jour de repos = fin du streak en remontant depuis aujourd'hui
+    streak++;
+    if (cLevel(days[i].load).cls === 'c4') heavyInStreak = true;
+  }
+  return { streak, heavyInStreak, advise: streak >= 2 && heavyInStreak };
+}
+
 function miniSparkSvg(values, color) {
   if (!values || !values.length) return '';
   const max = Math.max(...values, 1);
@@ -8713,6 +8741,17 @@ function renderLoadTrend(l28, prev28) {
     ? 'Pas encore assez d\'historique (8 semaines) pour calculer une tendance.'
     : `4 dernières semaines : ${l28} · 4 semaines précédentes : ${prev28} (${pct>0?'+':''}${pct}%)`;
 }
+// Badge "Repos conseillé" — cf. restAdviceStatus() pour les seuils exacts.
+function renderRestAdvice() {
+  const lineEl = document.getElementById('wl-rest-advice-line');
+  const detailEl = document.getElementById('wl-rest-advice-detail');
+  if (!lineEl || !detailEl) return;
+  const s = restAdviceStatus();
+  lineEl.style.display = s.advise ? '' : 'none';
+  if (s.advise) {
+    detailEl.textContent = `${s.streak} jours d'affilée sans repos, dont un très chargé — une journée de récup ferait du bien.`;
+  }
+}
 // ═══════════════ CHARGE × PETITES DOULEURS (signal observationnel) ═══════════════
 // Retour utilisateur : "un signal simple du genre pic de charge la semaine avant cette petite
 // douleur" — reprend le même calcul de ratio aigu(7j)/chronique(28j÷4) que la jauge ACWR
@@ -8811,6 +8850,7 @@ function renderWorkload() {
   renderAcwrGauge(l7, l28);
   const prev28 = getLoadRange(56) - l28;
   renderLoadTrend(l28, prev28);
+  renderRestAdvice();
   renderInjuryChargeSignal();
 
   // Panneau "Détail" à côté du graphique hebdo — mêmes chiffres que le bandeau "Ton rythme en ce
