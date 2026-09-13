@@ -4237,7 +4237,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     <div class="form-group" id="sb-finger-panel" style="display:none;background:var(--surface2);border-radius:var(--r-sm);padding:12px 14px">
       <label class="form-label" style="margin-bottom:6px">🤏 Valeurs par défaut — Force doigts</label>
       <p style="font-size:12px;color:var(--muted);margin:0 0 10px">Pré-remplit séries / répétitions / % du max quand l'athlète choisit cette fiche pour une séance — toujours modifiable ensuite en fonction de la séance réelle.</p>
-      <div class="form-row form-row-3">
+      <div class="form-row form-row-3" style="margin-bottom:8px">
         <div class="form-group" style="margin:0">
           <label class="form-label">Séries</label>
           <input class="form-control" type="number" min="0" id="sb-finger-sets" placeholder="6">
@@ -4250,6 +4250,14 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
           <label class="form-label">% du max</label>
           <input class="form-control" type="number" min="0" max="150" id="sb-finger-pct" placeholder="90">
         </div>
+      </div>
+      <div class="form-group" style="margin:0">
+        <label class="form-label">Préhension</label>
+        <select class="form-control" id="sb-finger-grip">
+          <option value="tendu">Tendu</option>
+          <option value="semi_arque">Semi-arqué</option>
+          <option value="arque">Arqué</option>
+        </select>
       </div>
     </div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px">
@@ -4940,14 +4948,25 @@ const SESSION_RPE_MULT = 2;
 // avec l'ancienne méthode) — constante fixe comme SESSION_RPE_MULT/FOOTING_LOAD_FACTOR ci-dessous,
 // pas un coefficient par activité réglable via #load-coef-modal (cf. SESSION_LOAD_FACTOR plus bas).
 const FINGER_LOAD_K = 7;
-// Une séance 'doigts' loguée AVANT ce changement n'a que minutes/intensity (pas de
-// fingerSets/fingerReps dans b_no_grade) — fingerLoad() bascule automatiquement sur l'ancienne
-// formule pour ces séances historiques, pour ne jamais leur faire perdre leur charge déjà calculée.
+// Retour utilisateur : "rajouter le poids mis, que le % soit calculé automatiquement, pouvoir
+// changer le poids soulevé par série (si la charge diminue au fil des séries), et distinguer
+// tendu/semi-arqué/arqué par série" — b.fingerSeries = un tableau, une entrée par série RÉELLEMENT
+// faite (cf. fingerSeriesRows/renderFingerSeriesEditor), chaque entrée portant son propre poids (et
+// donc son propre %, dérivé du poids de référence du grimpeur AU MOMENT de la saisie — cf.
+// profile.fingerRefWeightKg) et son propre type de préhension (grip, informatif — n'entre pas dans
+// le calcul, comme le grip des tests SmartBoard/réglette). Séries sans % connu (poids de référence
+// pas encore renseigné) : comptent pour 0, plutôt que de fausser la charge sur une estimation.
 function fingerLoad(log) {
   const b = log.bNoGrade || {};
+  if (Array.isArray(b.fingerSeries) && b.fingerSeries.length) {
+    return Math.round(b.fingerSeries.reduce((sum, s) => sum + (s.reps||0) * ((s.pct||0)/100), 0) * FINGER_LOAD_K);
+  }
+  // Ancien format agrégé (première version de ce calcul, sans détail poids/préhension par série).
   if (b.fingerSets || b.fingerReps) {
     return Math.round((b.fingerSets||0) * (b.fingerReps||0) * ((b.fingerPct||0)/100) * FINGER_LOAD_K);
   }
+  // Séance loguée avant l'un ou l'autre changement : pas de champs doigts du tout, repli sur
+  // durée × intensité pour ne jamais perdre la charge déjà calculée d'une séance historique.
   return Math.round((log.minutes||0) * (log.intensity||3) * SESSION_RPE_MULT * sessionLoadFactor(log.type));
 }
 // Le footing (course à pied) suit la même formule session-RPE que le PPG, mais avec un facteur
@@ -12838,33 +12857,31 @@ function updateSessionTypeUI(savedBNoGrade) {
 
   // ── Extra panel content ──
   if (type === 'doigts') {
-    // Retour utilisateur : "enlever la valorisation de la charge par le temps sur les exercices de
-    // force doigts et plutôt le faire par le nombre de répétitions et séries et le pourcentage" —
-    // panneau dédié avec séries/répétitions/% du max (cf. FINGER_LOAD_K/fingerLoad). Durée et
-    // intensité restent saisissables plus haut dans le formulaire (utile pour le suivi/journal),
-    // mais n'entrent plus dans le calcul de charge pour ce type de séance.
+    // Retour utilisateur : "rajouter le poids mis, que ça calcule le % automatiquement, poids de
+    // référence pris des résultats de test sinon saisi par le grimpeur (persiste, toujours
+    // modifiable), pouvoir changer le poids par série (charge qui diminue au fil des séries), et
+    // distinguer tendu/semi-arqué/arqué par série" — panneau reconstruit autour d'un éditeur de
+    // séries (cf. fingerSeriesRows/renderFingerSeriesEditor, même pattern que sessionAscents pour
+    // les ascensions cotées) plutôt que 3 champs agrégés. Durée et intensité restent saisissables
+    // plus haut dans le formulaire (suivi/journal), mais n'entrent plus dans le calcul de charge.
+    const climberForRef = getActive();
     panel.innerHTML = `
       <div class="panel-header"><span class="panel-title">Force doigts (dead-hangs)</span></div>
-      <p style="font-size:13px;color:var(--muted);margin-bottom:12px">La charge se calcule à partir des séries × répétitions × % du max (au lieu de la durée × intensité) — plus fidèle à l'effort réel d'une séance de suspension.</p>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px">La charge se calcule à partir des séries × répétitions × % du max (poids soulevé ÷ poids de référence) — plus fidèle à l'effort réel qu'une estimation basée sur la durée.</p>
       ${bankPickerHtml}
-      <div class="form-row form-row-3">
-        <div class="form-group" style="margin:0">
-          <label class="form-label">Séries</label>
-          <input class="form-control" type="number" min="0" id="s-finger-sets" value="${bData.fingerSets||0}" oninput="updateLoadPreview()">
-        </div>
-        <div class="form-group" style="margin:0">
-          <label class="form-label">Répétitions / série</label>
-          <input class="form-control" type="number" min="0" id="s-finger-reps" value="${bData.fingerReps||0}" oninput="updateLoadPreview()">
-        </div>
-        <div class="form-group" style="margin:0">
-          <label class="form-label">% du max</label>
-          <input class="form-control" type="number" min="0" max="150" id="s-finger-pct" value="${bData.fingerPct||0}" oninput="updateLoadPreview()">
-        </div>
+      <div class="form-group" style="margin:0 0 12px">
+        <label class="form-label">Poids de référence (100%)</label>
+        <input class="form-control" type="number" min="0" step="0.1" id="s-finger-refweight" value="${climberForRef?.profile?.fingerRefWeightKg || ''}" placeholder="Ex. 42" oninput="onFingerRefWeightChange()">
+        <div id="s-finger-refweight-hint" style="font-size:11px;color:var(--muted);margin-top:4px">Repris automatiquement de ton dernier test SmartBoard si disponible, sinon à saisir toi-même — reste modifiable à tout moment, pour toutes tes séances doigts.</div>
       </div>
+      <div id="s-finger-series-editor"></div>
+      <button type="button" class="btn sm" style="margin-bottom:12px" onclick="addFingerSeriesRow()">+ Ajouter une série</button>
       <div class="form-group" style="margin:0">
         <label class="form-label">Charge estimée séance</label>
         <input class="form-control" id="s-b-preview" disabled value="—">
       </div>`;
+    renderFingerSeriesEditor();
+    autoFillFingerRefWeight(climberForRef);
   } else if (cfg.extraPanel === 'ppg') {
     // Pas de voies, pas de bloc à saisir — la charge se calcule automatiquement à partir de la
     // durée et de l'intensité déjà renseignées plus haut dans le formulaire.
@@ -13005,15 +13022,25 @@ function pickPpgBankFiche() {
   if (intensityEl && item.intensity) intensityEl.value = item.intensity;
   if (descEl) descEl.textContent = item.description || '';
   // Retour utilisateur : "avoir quand cela vient de la mine l'ensemble pré-rempli que l'utilisateur
-  // peut modifier en fonction de la séance" — séries/répétitions/% par défaut de la fiche (si elle
-  // en définit, cf. éditeur de La Mine), toujours modifiables ensuite pour cette séance précise.
-  // Les champs n'existent que pour le type 'doigts' (cf. updateSessionTypeUI) : absents sinon.
-  const setsEl = document.getElementById('s-finger-sets');
-  if (setsEl && item.fingerSets) setsEl.value = item.fingerSets;
-  const repsEl = document.getElementById('s-finger-reps');
-  if (repsEl && item.fingerReps) repsEl.value = item.fingerReps;
-  const pctEl = document.getElementById('s-finger-pct');
-  if (pctEl && item.fingerPct) pctEl.value = item.fingerPct;
+  // peut modifier en fonction de la séance" — la fiche prescrit séries/répétitions/%/préhension de
+  // façon générique (valable pour n'importe quel grimpeur, cf. éditeur de La Mine) ; on génère ici
+  // fingerSeriesRows à partir de ces valeurs + du poids de référence DE CE grimpeur (déjà rempli ou
+  // pas plus haut dans le panneau) pour obtenir un poids en kg par série, toujours modifiable
+  // ensuite pour cette séance précise. N'a d'effet que pour le type 'doigts' (seul type où
+  // #s-finger-refweight existe, cf. updateSessionTypeUI).
+  const refWeightEl = document.getElementById('s-finger-refweight');
+  if (refWeightEl && item.fingerSets) {
+    const refWeight = parseFloat(refWeightEl.value) || 0;
+    const pct = item.fingerPct || 0;
+    const weightKg = refWeight ? Math.round(refWeight * pct / 100 * 10) / 10 : null;
+    fingerSeriesRows = Array.from({length: item.fingerSets}, () => ({
+      grip: item.fingerGrip || 'tendu',
+      reps: item.fingerReps || 0,
+      weightKg,
+      pct
+    }));
+    renderFingerSeriesEditor();
+  }
   updateLoadPreview();
 }
 window.pickPpgBankFiche = pickPpgBankFiche;
@@ -13021,6 +13048,12 @@ window.pickPpgBankFiche = pickPpgBankFiche;
 // ═══════════════ SAISIE VOCALE (dictée + IA) ═══════════════
 // — New Session —
 let editingId=null, sessionAscents=[];
+// Séries d'une séance "Force doigts" en cours d'édition — même pattern que sessionAscents ci-dessus
+// (tableau en mémoire, un objet par ligne, muté directement par les onchange de chaque champ,
+// re-rendu par renderFingerSeriesEditor()). Chaque entrée : { grip, reps, weightKg, pct } — pct
+// dérivé de weightKg ÷ poids de référence AU MOMENT de la saisie (cf. onFingerRefWeightChange).
+// Réinitialisé dans newSession()/rempli dans editSession() à partir de log.bNoGrade.fingerSeries.
+let fingerSeriesRows = [];
 // État "vue planification" du formulaire actuellement ouvert, tenu à jour par applyPlanningView()
 // et relu par updateSessionTypeUI() pour que les deux fonctions s'accordent sur la visibilité du
 // panneau "Ascensions cotées" quel que soit leur ordre d'appel (cf. applyPlanningView ci-dessous —
@@ -13044,7 +13077,7 @@ let sPlanningIntentDate = null;
 // formulaire (nouvelle séance ou édition) pour ne jamais fuiter sur la séance suivante.
 let prefillBankRef = null;
 function newSession(date=null, planning=false){
-  editingId=null; sessionAscents=[];
+  editingId=null; sessionAscents=[]; fingerSeriesRows=[];
   sPlanningIntentDate = planning ? date : null;
   prefillBankRef = null;
   freshlyCompletedLogId=null; // formulaire vierge : pas de séance en cours de complétion
@@ -13209,6 +13242,18 @@ function editSession(id){
   if (freshlyCompletedLogId !== id) freshlyCompletedLogId=null; // on ouvre une autre séance : n'hérite pas d'un état laissé par une séance abandonnée sans clic "Enregistrer"
   prefillBankRef = null; // la séance éditée a déjà (ou non) son propre bankRef, cf. existingLog?.bankRef ci-dessous
   editingId=id; sessionAscents=JSON.parse(JSON.stringify(log.ascents||[]));
+  // Reprend les séries doigts déjà enregistrées (nouveau format détaillé par série) ; à défaut,
+  // convertit l'ancien format agrégé (fingerSets/fingerReps/fingerPct, sans poids/préhension par
+  // série) en autant de lignes identiques pour ne pas perdre une séance déjà loguée entre-temps.
+  const fsSaved = log.bNoGrade?.fingerSeries;
+  fingerSeriesRows = Array.isArray(fsSaved) ? JSON.parse(JSON.stringify(fsSaved))
+    : log.bNoGrade?.fingerSets ? Array.from({length: log.bNoGrade.fingerSets}, () => ({
+        grip: log.bNoGrade.fingerGrip || 'tendu',
+        reps: log.bNoGrade.fingerReps || 0,
+        weightKg: null,
+        pct: log.bNoGrade.fingerPct || 0
+      }))
+    : [];
   document.getElementById('edit-log-id').value=id;
   document.getElementById('session-form-title').textContent='Modifier la séance';
   document.getElementById('s-date').value=log.date;
@@ -13574,6 +13619,101 @@ const ASCENT_STATUS_OPTIONS_ROUTE = [
 const ASCENT_STATUS_OPTIONS_BLOC = [
   ['tete','Enchaîné tête'], ['moulinette','Moulinette'], ['av','À vue'], ['try','Essai / travail'], ['flash','Flash']
 ];
+// ═══════════════ ÉDITEUR DE SÉRIES "FORCE DOIGTS" ═══════════════
+// Retour utilisateur : poids soulevé par série (au lieu d'un % saisi à la main), % calculé
+// automatiquement à partir d'un poids de référence, poids modifiable série par série (la charge
+// diminue souvent au fil des séries), et distinction tendu/semi-arqué/arqué par série — réutilise
+// GRIP_TYPES (déjà utilisé par les tests SmartBoard/réglette, cf. plus haut dans ce fichier).
+function fingerRefWeight() {
+  return parseFloat(document.getElementById('s-finger-refweight')?.value) || 0;
+}
+// Persiste le poids de référence sur le PROFIL du grimpeur (pas sur la séance : c'est un attribut
+// du grimpeur, valable pour toutes ses séances doigts, comme profile.levelBloc) dès qu'il est
+// modifié, puis recalcule le % de chaque série déjà saisie et l'aperçu de charge.
+function onFingerRefWeightChange() {
+  const climber = getActive();
+  if (climber) {
+    if (!climber.profile) climber.profile = {};
+    climber.profile.fingerRefWeightKg = fingerRefWeight() || null;
+    saveDB();
+  }
+  const hint = document.getElementById('s-finger-refweight-hint');
+  if (hint && fingerRefWeight()) hint.style.display = 'none';
+  renderFingerSeriesEditor();
+  updateLoadPreview();
+}
+window.onFingerRefWeightChange = onFingerRefWeightChange;
+// Retour utilisateur : "un poids de référence soit mis par les résultats du test si non [disponible]
+// le grimpeur le rentre" — si le grimpeur n'a PAS ENCORE de poids de référence enregistré, on va
+// chercher son dernier test SmartBoard (force max mesurée, convertie de Newtons en kilogrammes-force
+// — cf. smbSaveTest) et on le pré-remplit automatiquement ; sans test, le champ reste vide et
+// attend une saisie manuelle. Ne touche JAMAIS un poids de référence déjà réglé (même ancien) — la
+// valeur du grimpeur, une fois entrée ou confirmée, prime toujours sur une resuggestion.
+async function autoFillFingerRefWeight(climber) {
+  if (!climber || climber.profile?.fingerRefWeightKg) return;
+  try {
+    const r = await fetch('/api/general-tests/' + climber.id + '?type=smartboard', { headers: authHeaders() });
+    const tests = r.ok ? await r.json() : [];
+    const withForce = tests.filter(t => t.payload?.maxForceN != null).sort((a,b)=>b.testDate.localeCompare(a.testDate));
+    if (!withForce.length) return;
+    if (climber.profile?.fingerRefWeightKg) return; // réglé pendant l'attente du fetch : on ne l'écrase pas
+    const kgf = Math.round((withForce[0].payload.maxForceN / 9.81) * 10) / 10;
+    if (!climber.profile) climber.profile = {};
+    climber.profile.fingerRefWeightKg = kgf;
+    saveDB();
+    const input = document.getElementById('s-finger-refweight');
+    if (input && getCurrentSessionType() === 'doigts' && !input.value) {
+      input.value = kgf;
+      const hint = document.getElementById('s-finger-refweight-hint');
+      if (hint) hint.textContent = `Repris de ton test SmartBoard du ${fmtDate(withForce[0].testDate)} — modifiable à tout moment.`;
+      renderFingerSeriesEditor();
+      updateLoadPreview();
+    }
+  } catch (e) { /* silencieux — la saisie manuelle reste possible */ }
+}
+function renderFingerSeriesEditor() {
+  const el = document.getElementById('s-finger-series-editor');
+  if (!el) return;
+  const refWeight = fingerRefWeight();
+  el.innerHTML = fingerSeriesRows.length ? fingerSeriesRows.map((s,i) => {
+    // % recalculé à l'affichage à partir du poids de référence courant (pas figé à la saisie),
+    // pour qu'ajuster le poids de référence mette aussi à jour les séries déjà entrées.
+    const pct = refWeight && s.weightKg != null ? Math.round((s.weightKg/refWeight)*1000)/10 : (s.pct||0);
+    fingerSeriesRows[i].pct = pct;
+    return `<div style="display:grid;grid-template-columns:1fr 70px 80px 70px auto;gap:8px;align-items:end;margin-bottom:8px">
+      <div>
+        <label style="font-size:10px;color:var(--muted)">${i===0?'Préhension':''}</label>
+        <select class="form-control" style="font-size:12px;padding:6px 8px" onchange="fingerSeriesRows[${i}].grip=this.value">
+          ${Object.entries(GRIP_TYPES).map(([k,l])=>`<option value="${k}" ${s.grip===k?'selected':''}>${l}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <label style="font-size:10px;color:var(--muted)">${i===0?'Répét.':''}</label>
+        <input class="form-control" type="number" min="0" style="font-size:12px;padding:6px 8px" value="${s.reps||0}" oninput="fingerSeriesRows[${i}].reps=+this.value||0;updateLoadPreview()">
+      </div>
+      <div>
+        <label style="font-size:10px;color:var(--muted)">${i===0?'Poids (kg)':''}</label>
+        <input class="form-control" type="number" min="0" step="0.1" style="font-size:12px;padding:6px 8px" value="${s.weightKg!=null?s.weightKg:''}" oninput="fingerSeriesRows[${i}].weightKg=this.value===''?null:+this.value;renderFingerSeriesEditor();updateLoadPreview()">
+      </div>
+      <div style="text-align:center">
+        <label style="font-size:10px;color:var(--muted)">${i===0?'%':''}</label>
+        <div style="font-size:13px;font-weight:600;padding:6px 0">${refWeight && s.weightKg!=null ? pct+'%' : '—'}</div>
+      </div>
+      <button type="button" class="btn sm danger" onclick="fingerSeriesRows.splice(${i},1);renderFingerSeriesEditor();updateLoadPreview()">✕</button>
+    </div>`;
+  }).join('') : `<p style="font-size:12px;color:var(--muted);font-style:italic;margin:0 0 8px">Aucune série — ajoute la première série faite.</p>`;
+}
+function addFingerSeriesRow() {
+  // Reprend la dernière série (préhension + poids) comme point de départ — cas le plus fréquent
+  // (mêmes réglages série après série, seul le poids baisse parfois en fin de séance) — plutôt que
+  // de repartir de zéro à chaque ajout.
+  const last = fingerSeriesRows[fingerSeriesRows.length-1];
+  fingerSeriesRows.push(last ? { ...last } : { grip:'tendu', reps:6, weightKg: fingerRefWeight()||null, pct:0 });
+  renderFingerSeriesEditor();
+  updateLoadPreview();
+}
+window.addFingerSeriesRow = addFingerSeriesRow;
+
 function renderAscentsEditor(){
   const el=document.getElementById('ascents-editor');
   document.getElementById('ascents-empty').style.display=sessionAscents.length?'none':'';
@@ -13676,12 +13816,14 @@ function updateLoadPreview(){
   // Panneau complémentaire (bloc non coté / volume additionnel / séance hors escalade)
   let bLoad;
   if (type === 'doigts') {
-    // Retour utilisateur : charge des séances "Force doigts" calculée sur séries × répétitions ×
-    // % du max plutôt que durée × intensité (cf. FINGER_LOAD_K/fingerLoad ci-dessus).
-    const sets = fieldVal('s-finger-sets', 0);
-    const reps = fieldVal('s-finger-reps', 0);
-    const pct = fieldVal('s-finger-pct', 0);
-    bLoad = Math.round(sets * reps * (pct/100) * FINGER_LOAD_K);
+    // Retour utilisateur : charge des séances "Force doigts" calculée série par série (poids ÷
+    // poids de référence = %, × répétitions) plutôt que durée × intensité (cf. FINGER_LOAD_K/
+    // fingerLoad ci-dessus, et fingerSeriesRows/renderFingerSeriesEditor pour la saisie).
+    const refWeight = fingerRefWeight();
+    bLoad = Math.round(fingerSeriesRows.reduce((s,row) => {
+      const pct = refWeight && row.weightKg != null ? (row.weightKg/refWeight)*100 : (row.pct||0);
+      return s + (row.reps||0) * (pct/100);
+    }, 0) * FINGER_LOAD_K);
   } else if (cfg.extraPanel === 'ppg' || cfg.extraPanel === 'footing') {
     // Séance hors escalade (dont footing) : charge = durée × intensité (méthode session-RPE),
     // pas de saisie manuelle — la distance (km) du footing est informative, elle n'entre pas
@@ -13825,9 +13967,10 @@ function saveCurrentSession() {
     travailSent:     fieldVal('s-b-travail', 0),
     travailTries:    fieldVal('s-b-travail-tries', 0)
   } : sType === 'doigts' ? {
-    fingerSets: fieldVal('s-finger-sets', 0),
-    fingerReps: fieldVal('s-finger-reps', 0),
-    fingerPct:  fieldVal('s-finger-pct', 0)
+    // fingerSeriesRows est déjà à jour (chaque onchange du panneau mute directement le tableau,
+    // même pattern que sessionAscents pour les ascensions cotées) — on le clone juste pour ne
+    // jamais partager la référence avec l'état vivant du formulaire.
+    fingerSeries: JSON.parse(JSON.stringify(fingerSeriesRows))
   } : sCfg.extraPanel === 'ppg' ? {} : sCfg.extraPanel === 'footing' ? {
     distanceKm: fieldVal('s-b-distance-km', 0)
   } : {
@@ -15865,6 +16008,8 @@ function sbEditCard(id) {
   if (sbFingerRepsInput) sbFingerRepsInput.value = s.fingerReps > 0 ? s.fingerReps : '';
   const sbFingerPctInput = document.getElementById('sb-finger-pct');
   if (sbFingerPctInput) sbFingerPctInput.value = s.fingerPct > 0 ? s.fingerPct : '';
+  const sbFingerGripInput = document.getElementById('sb-finger-grip');
+  if (sbFingerGripInput) sbFingerGripInput.value = s.fingerGrip || 'tendu';
   sbSyncFingerPanelUI();
   sbAiReviewHistory = [];
   sbRenderAiReviewMessages();
@@ -15922,6 +16067,7 @@ function sbNewCard() {
   const sbFingerSetsInput2 = document.getElementById('sb-finger-sets'); if (sbFingerSetsInput2) sbFingerSetsInput2.value = '';
   const sbFingerRepsInput2 = document.getElementById('sb-finger-reps'); if (sbFingerRepsInput2) sbFingerRepsInput2.value = '';
   const sbFingerPctInput2 = document.getElementById('sb-finger-pct'); if (sbFingerPctInput2) sbFingerPctInput2.value = '';
+  const sbFingerGripInput2 = document.getElementById('sb-finger-grip'); if (sbFingerGripInput2) sbFingerGripInput2.value = 'tendu';
   sbSyncFingerPanelUI();
   sbAiReviewHistory = [];
   sbRenderAiReviewMessages();
@@ -15983,6 +16129,7 @@ function sbSave() {
     fingerSets: parseInt(document.getElementById('sb-finger-sets')?.value, 10) || 0,
     fingerReps: parseInt(document.getElementById('sb-finger-reps')?.value, 10) || 0,
     fingerPct:  parseInt(document.getElementById('sb-finger-pct')?.value, 10) || 0,
+    fingerGrip: document.getElementById('sb-finger-grip')?.value || 'tendu',
     createdAt:   editId ? (getBank().find(s=>s.id===editId)?.createdAt || Date.now()) : Date.now(),
     source:      editId ? (getBank().find(s=>s.id===editId)?.source || 'manual') : (isAiEdit ? 'ai' : 'manual'),
     // Cloisonnement par coach : visibility vient du formulaire (défaut 'private' pour une fiche
