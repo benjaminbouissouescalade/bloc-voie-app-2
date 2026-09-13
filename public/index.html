@@ -4530,17 +4530,31 @@ Utilise les raccourcis ci-dessus ou pose-moi directement une question. Par exemp
           </label>
         </div>
       </div>
-      <div class="form-row form-row-2">
-        <div class="form-group">
-          <label class="form-label">Discipline principale <span style="font-weight:400;color:var(--muted)">(niveau affiché + référence pour le calcul de charge)</span></label>
-          <div style="display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden">
-            <button type="button" id="pd-discipline-voie" onclick="pdSetPrimaryDiscipline('voie')" class="btn sm" style="flex:1;border-radius:0">Voie</button>
-            <button type="button" id="pd-discipline-bloc" onclick="pdSetPrimaryDiscipline('bloc')" class="btn sm" style="flex:1;border-radius:0">Bloc</button>
-          </div>
+      <div class="form-group">
+        <label class="form-label">Discipline principale <span style="font-weight:400;color:var(--muted)">(pilote seulement le niveau mis en avant dans la sidebar et les cartes grimpeur — les deux niveaux ci-dessous sont toujours utilisables pour le calcul de charge, quelle que soit la discipline choisie)</span></label>
+        <div style="display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;max-width:320px">
+          <button type="button" id="pd-discipline-voie" onclick="pdSetPrimaryDiscipline('voie')" class="btn sm" style="flex:1;border-radius:0">Voie</button>
+          <button type="button" id="pd-discipline-bloc" onclick="pdSetPrimaryDiscipline('bloc')" class="btn sm" style="flex:1;border-radius:0">Bloc</button>
         </div>
+      </div>
+      <!-- Retour utilisateur : un profil "Bloc" ne pouvait déclarer que son niveau bloc, jamais son
+           niveau voie (et inversement pour "Voie") — problème pour les grimpeurs mixtes (bloc en
+           priorité mais qui font de la diff de temps en temps, ou l'inverse). Les deux niveaux sont
+           maintenant TOUJOURS visibles et modifiables ici, indépendamment de la discipline
+           principale choisie ci-dessus. pd-level-voie réutilise le champ historique c.level (déjà
+           utilisé partout ailleurs comme "niveau voie déclaré" — sidebar, cartes, comparaison
+           Finger Profile) : pas de nouveau champ dupliqué, juste rendu éditable ici aussi. Sert
+           aussi de repli pour le calcul de charge voie quand aucune ascension cotée récente n'est
+           disponible (cf. getRefGrade), symétrique au repli déjà en place pour le bloc
+           (profile.levelBloc, cf. getRefGradeBloc). -->
+      <div class="form-row form-row-2">
         <div class="form-group">
           <label class="form-label">Niveau bloc actuel</label>
           <select class="form-control" id="pd-level-bloc"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Niveau voie actuel</label>
+          <select class="form-control" id="pd-level-voie"></select>
         </div>
       </div>
       <div class="form-row form-row-3">
@@ -5899,14 +5913,26 @@ function refGradeVotes(a, gradeIdx) {
   }
   return [];
 }
-function getRefGrade(logs=null, daysBack=90) {
+// declaredLevel : niveau voie déclaré à utiliser comme repli quand aucune ascension cotée n'est
+// disponible sur la fenêtre (daysBack). Si omis, on retombe sur le grimpeur ACTIF (getActive()?.level)
+// — c'est pourquoi tout appelant qui calcule pour un grimpeur qui n'est PAS forcément l'actif (ex.
+// climberLoadRange/climberWeeklyLoads) DOIT passer ce grimpeur explicitement, sous peine d'utiliser
+// par erreur le niveau déclaré d'un autre athlète. Même principe que getRefGradeBloc() ||
+// profile.levelBloc côté bloc (cf. commentaire au-dessus) : avant ce correctif, il n'existait aucun
+// repli ici et le calcul de charge retombait toujours sur un 6b arbitraire, quel que soit le niveau
+// réellement déclaré par le grimpeur (retour utilisateur sur l'absence de niveau voie saisissable
+// pour les profils "Bloc").
+function getRefGrade(logs=null, daysBack=90, declaredLevel) {
   const all = routeLogs(logs || getLogs());
   const cutoff = new Date(); cutoff.setDate(cutoff.getDate()-daysBack);
   const eligible = all
     .filter(l=>new Date(l.date)>=cutoff)
     .flatMap(l=>(l.ascents||[]).flatMap(a=>refGradeVotes(a, GRADE_IDX)))
     .sort((a,b)=>a-b);
-  if (!eligible.length) return '6b';
+  if (!eligible.length) {
+    const declared = declaredLevel !== undefined ? declaredLevel : getActive()?.level;
+    return (declared && GRADE_IDX[declared] !== undefined) ? declared : '6b';
+  }
   const idx = Math.floor(eligible.length*0.7);
   return GRADES[eligible[Math.min(idx, eligible.length-1)]];
 }
@@ -6121,7 +6147,7 @@ function sessionLoadFor(log, refRoute, refBloc) {
 // même logique d'exclusion des séances planifiées/futures que getLoadRange().
 function climberLoadRange(c, daysBack) {
   const logs = c?.logs || [];
-  const refRoute = getRefGrade(logs);
+  const refRoute = getRefGrade(logs, 90, c?.level);
   const refBloc = getRefGradeBloc(logs) || c?.profile?.levelBloc || '6a';
   const cutoff = new Date(); cutoff.setDate(cutoff.getDate()-daysBack);
   const now = new Date();
@@ -6149,7 +6175,7 @@ function climberSourceBreakdown(c, daysBack) {
 // (aperçu "Mes athlètes").
 function climberWeeklyLoads(c, nWeeks) {
   const logs = c?.logs || [];
-  const refRoute = getRefGrade(logs);
+  const refRoute = getRefGrade(logs, 90, c?.level);
   const refBloc = getRefGradeBloc(logs) || c?.profile?.levelBloc || '6a';
   const now = new Date(); now.setHours(0,0,0,0);
   const weeks = [];
@@ -17056,6 +17082,15 @@ function openProfileDetailModal(climberId) {
     lvlBEl.dataset.filled = '1';
   }
   if (lvlBEl) lvlBEl.value = p.levelBloc || '6a';
+  // Niveau voie : réutilise c.level (déjà le champ "niveau voie déclaré" historique, cf. commentaire
+  // au-dessus du form-group) — pré-rempli avec la valeur existante s'il y en a une, sinon 6b (même
+  // valeur par défaut que le repli de getRefGrade()).
+  const lvlVEl = document.getElementById('pd-level-voie');
+  if (lvlVEl && !lvlVEl.dataset.filled) {
+    lvlVEl.innerHTML = GRADES.map(g => `<option value="${g}">${g}</option>`).join('');
+    lvlVEl.dataset.filled = '1';
+  }
+  if (lvlVEl) lvlVEl.value = (c.level && GRADE_IDX[c.level] !== undefined) ? c.level : '6b';
   pdSetPrimaryDiscipline(p.primaryDiscipline === 'bloc' ? 'bloc' : 'voie');
   migrateLegacyGoals(c);
   pdGoals = Array.isArray(c.objectives) ? c.objectives.slice() : [];
@@ -17124,10 +17159,13 @@ function pdRatingChanged() {
   if (toggleCoachLabel && (pdHasCoachData || touched)) toggleCoachLabel.style.display = 'flex';
 }
 
-// Discipline principale du profil (bloc/voie) — pilote le niveau affiché (sidebar, cartes) et le
-// grade de référence utilisé pour le calcul de charge. N'affecte jamais le classement des
-// séances de voie elles-mêmes : elles restent toujours scorées sur l'échelle voie, et les
-// séances de bloc extérieur toujours sur l'échelle bloc (cf. sessionLoad/scaleRefGrade).
+// Discipline principale du profil (bloc/voie) — ne pilote QUE le niveau mis en avant dans la
+// sidebar/les cartes grimpeur (cf. renderSidebarStats). N'affecte jamais le classement des séances
+// elles-mêmes : elles restent toujours scorées sur leur échelle naturelle (voie ou bloc selon le
+// type de séance, cf. sessionLoad/scaleRefGrade), et les DEUX niveaux déclarés (pd-level-bloc et
+// pd-level-voie) sont toujours pris en compte comme repli du calcul de charge quand aucune
+// ascension cotée récente n'existe sur l'échelle correspondante — quelle que soit la discipline
+// principale choisie ici.
 let pdPrimaryDiscipline = 'voie';
 function pdSetPrimaryDiscipline(d) {
   pdPrimaryDiscipline = d === 'bloc' ? 'bloc' : 'voie';
@@ -17229,6 +17267,10 @@ async function saveProfileDetail() {
   const equipment = Array.prototype.map.call(document.querySelectorAll('.pd-equip-cb:checked'), cb => cb.value);
   const canEditSelf = climberId === window.currentUser?.climberId;
   const canEditCoach = isAdmin();
+  // Niveau voie déclaré — stocké sur c.level (champ historique, pas dans profile) pour rester
+  // compatible avec tous les endroits qui le lisent déjà ainsi (sidebar, cartes, IA, getRefGrade...).
+  const lvlVEl = document.getElementById('pd-level-voie');
+  if (lvlVEl) c.level = lvlVEl.value;
   c.profile = {
     ...(c.profile || {}),
     gender: document.getElementById('pd-gender').value || null,
