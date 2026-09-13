@@ -1767,26 +1767,25 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     </div>
   </div>
 
+  <!-- Retour utilisateur (design) : les deux indicateurs "rythme actuel" (ratio 7j/4sem) et
+       "tendance long terme" (4 dernières sem. vs 4 précédentes) étaient deux blocs empilés,
+       redondants au premier regard. Réunis en un seul bandeau — un statut principal + la
+       tendance en une ligne juste en dessous — et le paragraphe d'explication permanent est
+       déplacé dans une modale à la demande (ℹ️), même pattern que "Comment la charge est
+       calculée ?" ci-dessous. -->
   <div class="panel" id="wl-acwr-panel">
     <div class="panel-header">
       <span class="panel-title">Ton rythme en ce moment</span>
-      <span class="panel-sub">7 derniers jours vs tes 4 dernières semaines</span>
+      <button class="btn sm" onclick="document.getElementById('wl-rhythm-info-modal').classList.add('open')">ℹ️ Comment ça marche ?</button>
     </div>
-    <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:16px">
+    <div style="display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:16px">
       <div style="font-size:38px;line-height:1" id="wl-acwr-emoji">🙂</div>
       <div>
         <span class="wl-acwr-pill" id="wl-acwr-zone-pill">—</span>
-        <div style="font-size:12px;color:var(--muted);margin-top:5px" id="wl-acwr-detail"></div>
-      </div>
-    </div>
-    <!-- Tendance long terme : distincte du ratio aigu/chronique ci-dessus, qui reste "bon" même en
-         baisse continue tant que la dernière semaine est proche de la moyenne récente. Compare les
-         4 dernières semaines aux 4 précédentes pour voir la trajectoire globale du volume. -->
-    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px;padding-top:14px;border-top:1px solid var(--border)">
-      <div style="font-size:24px;line-height:1" id="wl-trend-emoji">➡️</div>
-      <div>
-        <span class="wl-acwr-pill" id="wl-trend-pill">—</span>
-        <div style="font-size:12px;color:var(--muted);margin-top:5px" id="wl-trend-detail"></div>
+        <div style="font-size:12.5px;color:var(--muted);margin-top:6px;line-height:1.5" id="wl-acwr-detail"></div>
+        <div style="font-size:12.5px;color:var(--muted);margin-top:2px" id="wl-trend-line">
+          <span id="wl-trend-emoji">➡️</span> <span class="wl-acwr-pill" id="wl-trend-pill" style="font-size:11px;padding:2px 8px;vertical-align:1px"></span> <span id="wl-trend-detail"></span>
+        </div>
       </div>
     </div>
     <div class="wl-acwr-gauge">
@@ -1802,9 +1801,6 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <span style="left:75%">Attention</span>
       <span style="left:100%">Trop vite</span>
     </div>
-    <p style="font-size:12.5px;color:var(--muted);margin:14px 0 0;line-height:1.55">
-      On compare ta charge des <strong>7 derniers jours</strong> à ton rythme habituel des <strong>4 dernières semaines</strong>, pour voir si tu accélères, tu tiens le rythme, ou tu lèves le pied. Une baisse après une semaine de repos, c'est normal et même bon signe — ça ne devient un signal à surveiller que si ça dure sans que ce soit voulu. À l'inverse, si tu montes trop vite par rapport à ce à quoi ton corps est habitué, le risque de blessure augmente. <strong>Attention :</strong> cet indicateur ne dit rien de ta tendance sur plusieurs mois — s'il reste "bon" alors que ton volume baisse depuis des semaines, regarde la tendance ci-dessus, qui compare tes 4 dernières semaines aux 4 précédentes.
-    </p>
   </div>
 
   <!-- Retour utilisateur : "un signal simple du genre pic de charge la semaine avant cette petite
@@ -1903,6 +1899,21 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 
       <p style="margin-bottom:0"><strong>7. Les niveaux C1 à C4</strong><br>
       Ils classent ta charge <strong>par rapport à ta propre moyenne</strong> hebdomadaire des 12 dernières semaines — pas une échelle universelle. <strong>C1</strong> (moins de 50% de ta moyenne) charge légère, <strong>C2</strong> (50–100%) modérée, <strong>C3</strong> (100–150%) soutenue, <strong>C4</strong> (plus de 150%) très élevée. Ça t'aide à repérer en un coup d'œil si tu es en sous-charge ou en surcharge par rapport à ton propre rythme habituel.</p>
+    </div>
+  </div>
+</div>
+
+<!-- Explication de la jauge "Ton rythme en ce moment" — déplacée depuis un paragraphe permanent
+     sous la jauge vers une modale à la demande (ℹ️), cf. commentaire sur wl-acwr-panel ci-dessus. -->
+<div class="modal-backdrop" id="wl-rhythm-info-modal">
+  <div class="modal" style="width:min(520px,100%)">
+    <div class="modal-header">
+      <span class="modal-title">Comment lire ton rythme</span>
+      <button class="btn sm" onclick="closeModal('wl-rhythm-info-modal')">Fermer</button>
+    </div>
+    <div class="modal-body" style="font-size:13.5px;line-height:1.6">
+      <p style="margin-top:0">On compare ta charge des <strong>7 derniers jours</strong> à ton rythme habituel des <strong>4 dernières semaines</strong>, pour voir si tu accélères, tu tiens le rythme, ou tu lèves le pied. Une baisse après une semaine de repos, c'est normal et même bon signe — ça ne devient un signal à surveiller que si ça dure sans que ce soit voulu. À l'inverse, si tu montes trop vite par rapport à ce à quoi ton corps est habitué, le risque de blessure augmente.</p>
+      <p style="margin-bottom:0"><strong>Attention :</strong> cet indicateur ne dit rien de ta tendance sur plusieurs mois — s'il reste "bon" alors que ton volume baisse depuis des semaines, regarde la ligne de tendance juste en dessous du statut, qui compare tes 4 dernières semaines aux 4 précédentes.</p>
     </div>
   </div>
 </div>
@@ -8498,7 +8509,8 @@ function renderAcwrGauge(l7, l28) {
     markerEl.style.left='0%';
     return;
   }
-  detailEl.textContent = `7 derniers jours : ${Math.round(l7)} · Ton rythme habituel : ${Math.round(chronic)}`;
+  const pct = Math.round(ratio * 100);
+  detailEl.textContent = `${Math.round(l7)} sur les 7 derniers jours — ${pct}% de ton rythme habituel (moy. 4 dernières semaines : ${Math.round(chronic)})`;
   markerEl.style.left = Math.max(0, Math.min(100, (ratio/2)*100)) + '%';
 }
 // Tendance long terme : 4 dernières semaines vs les 4 précédentes — complète le ratio aigu/chronique
@@ -8710,6 +8722,7 @@ document.querySelectorAll('[data-wl-range]').forEach(b=>{
   b.onclick=()=>{document.querySelectorAll('[data-wl-range]').forEach(x=>x.classList.remove('active'));b.classList.add('active');wlRange=b.dataset.wlRange;renderWorkload();};
 });
 document.getElementById('wl-info-modal').addEventListener('click',e=>{if(e.target.id==='wl-info-modal')closeModal('wl-info-modal');});
+document.getElementById('wl-rhythm-info-modal').addEventListener('click',e=>{if(e.target.id==='wl-rhythm-info-modal')closeModal('wl-rhythm-info-modal');});
 
 // — Trips (comparaison de périodes) —
 let selectedTripIds = [];
