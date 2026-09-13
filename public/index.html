@@ -6052,9 +6052,16 @@ function countCompletedCycles(logs) {
   });
   return Object.keys(planned).filter(cid => (done[cid]||0) >= planned[cid]).length;
 }
+// routeLogs() exclut les séances bloc gradué (Bloc extérieur/Kilter) : leurs cotations viennent de
+// l'échelle Fontainebleau (GRADE_IDX_BLOC), pas de l'échelle voie (GRADE_IDX) utilisée ici — les
+// libellés se recoupant lexicalement entre les deux échelles ("7a" n'a pas le même niveau physique
+// en bloc et en voie), un filtre par type de séance est nécessaire, pas juste par cotation trouvée
+// dans GRADE_IDX. Sans ce filtre, un grimpeur qui bloque en extérieur/Kilter à un niveau donné
+// voyait le badge "Paliers de difficulté" (route) se débloquer à tort (retour utilisateur : "le
+// profil indique niveau actuel 7c, alors que les badges 8A/8B/8C paraissent débloqués").
 function bestSentGradeIdx(logs) {
   let best = -1;
-  (logs||[]).forEach(l => (l.ascents||[]).forEach(a => {
+  routeLogs(logs).forEach(l => (l.ascents||[]).forEach(a => {
     if (['tete','av','flash','moulinette'].includes(a.status) && GRADE_IDX[a.grade]!==undefined) {
       best = Math.max(best, GRADE_IDX[a.grade]);
     }
@@ -6841,7 +6848,9 @@ function renderDashboard() {
     rEl.innerHTML=recent.map(l=>{
       const t=SESSION_TYPES[l.type]||SESSION_TYPES.autre;
       const load=sessionLoad(l);
-      const top=(l.ascents||[]).filter(a=>['tete','av','flash'].includes(a.status)).map(a=>a.grade).sort((a,b)=>GRADE_IDX[b]-GRADE_IDX[a])[0];
+      // Échelle selon le type de séance (bloc gradué → Fontainebleau, sinon voie) — cf. gradeClass()
+      const topScale=isBlocGradedType(l.type)?'bloc':'route', topIdx=scaleGradeIdx(topScale);
+      const top=(l.ascents||[]).filter(a=>['tete','av','flash'].includes(a.status)&&topIdx[a.grade]!==undefined).map(a=>a.grade).sort((a,b)=>topIdx[b]-topIdx[a])[0];
       return `<div class="log-item" onclick="editSession('${l.id}')">
         <div class="log-item-header">
           <div>
@@ -6852,7 +6861,7 @@ function renderDashboard() {
             <div class="log-meta">${l.minutes||0} min · intensité ${l.intensity||'—'} · charge ${load}${l.location?` · ${l.location}`:''}${l.support&&SUPPORTS[l.support]?` · <span style="font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:3px;padding:1px 7px">${SUPPORTS[l.support].icon} ${SUPPORTS[l.support].label}</span>`:''}</div>
           </div>
           <div style="display:flex;align-items:center;gap:6px">
-            ${top?`<span class="grade ${gradeClass(top)}">${top}</span>`:''}
+            ${top?`<span class="grade ${gradeClass(top,topScale)}">${top}</span>`:''}
           </div>
         </div>
       </div>`;
@@ -8847,7 +8856,11 @@ function tripStats(trip) {
   const totalAscents = ascents.length;
   const avgInt = logs.length ? logs.reduce((s,l)=>s+(l.intensity||3),0)/logs.length : 0;
   const days = Math.max(1, Math.round((new Date(trip.end)-new Date(trip.start))/86400000)+1);
-  const validAscents = ascents.filter(a=>GRADE_IDX[a.grade]!==undefined);
+  // hardestTried/hardestSent/avgGrade ci-dessous ne concernent que l'échelle voie (GRADE_IDX) — on
+  // repart des séances filtrées par routeLogs() (exclut Bloc extérieur/Kilter), pas de `ascents`
+  // (toutes séances confondues) ci-dessus, sinon une cotation Fontainebleau ("7a" en bloc extérieur)
+  // serait relue comme une cotation voie de même libellé.
+  const validAscents = routeLogs(logs).flatMap(l=>l.ascents||[]).filter(a=>GRADE_IDX[a.grade]!==undefined);
   const sentAscents = validAscents.filter(a=>a.status!=='try');
   const hardestTried = validAscents.length ? validAscents.map(a=>a.grade).sort((x,y)=>GRADE_IDX[y]-GRADE_IDX[x])[0] : '—';
   const hardestSent = sentAscents.length ? sentAscents.map(a=>a.grade).sort((x,y)=>GRADE_IDX[y]-GRADE_IDX[x])[0] : '—';
@@ -9239,7 +9252,11 @@ function openTripDetail(id) {
   const s = tripStats(t);
   const logs = getLogs().filter(l => l.date >= t.start && l.date <= t.end).sort((a,b)=>a.date.localeCompare(b.date));
   const byGrade = {};
-  logs.flatMap(l=>l.ascents||[]).forEach(a=>{
+  // routeLogs() : la pyramide ci-dessous est sur l'échelle voie (GRADES/GRADE_IDX) — on exclut les
+  // séances bloc gradué (Bloc extérieur/Kilter) plutôt que de risquer de relire une cotation
+  // Fontainebleau comme une cotation voie. `logs` (non filtré) reste utilisé plus bas pour la liste
+  // "Séances" du trip, qui doit elle lister TOUS les types de séance.
+  routeLogs(logs).flatMap(l=>l.ascents||[]).forEach(a=>{
     if (!GRADES.includes(a.grade)) return;
     if (!byGrade[a.grade]) byGrade[a.grade] = {sent:0, try:0};
     if (a.status==='try') byGrade[a.grade].try++; else byGrade[a.grade].sent++;
@@ -12504,7 +12521,11 @@ async function crewGiveKudos(crewId, toClimberId, emoji) {
 let pyrFullRange='3m',pyrFullLoc='all';
 function renderPyramidPage() {
   const since=rangeToDate(pyrFullRange);
-  const logs=getLogs().filter(l=>!since||new Date(l.date)>=since);
+  // routeLogs() : exclut les séances bloc gradué (Bloc extérieur/Kilter), même filtre que
+  // renderSmallPyramid() ci-dessus — sinon leurs cotations Fontainebleau seraient comptées dans la
+  // pyramide voie sous les mêmes libellés ("6a","7a"...), faussant les comptes en vue "Toutes"
+  // (pyrFullLoc==='all').
+  const logs=routeLogs(getLogs()).filter(l=>!since||new Date(l.date)>=since);
   let ascents=logs.flatMap(l=>{
     const isLoc=(pyrFullLoc==='all')||(pyrFullLoc==='salle'&&['bloc','voies'].includes(l.type))||(pyrFullLoc==='falaise'&&l.type==='falaise');
     return isLoc?(l.ascents||[]).map(a=>({...a,sessionType:l.type})):[];
@@ -12555,7 +12576,9 @@ function renderHistory() {
   el.innerHTML=logs.map(l=>{
     const t=SESSION_TYPES[l.type]||SESSION_TYPES.autre;
     const load=sessionLoad(l);
-    const topGrades=(l.ascents||[]).filter(a=>['tete','av','flash','moulinette'].includes(a.status)).map(a=>a.grade).sort((a,b)=>GRADE_IDX[b]-GRADE_IDX[a]).slice(0,3);
+    // Échelle selon le type de séance (bloc gradué → Fontainebleau, sinon voie) — cf. gradeClass()
+    const hScale=isBlocGradedType(l.type)?'bloc':'route', hIdx=scaleGradeIdx(hScale);
+    const topGrades=(l.ascents||[]).filter(a=>['tete','av','flash','moulinette'].includes(a.status)&&hIdx[a.grade]!==undefined).map(a=>a.grade).sort((a,b)=>hIdx[b]-hIdx[a]).slice(0,3);
     return `<div class="log-item" style="${l.planned?'border-style:dashed':''}" onclick="editSession('${l.id}')">
       <div class="log-item-header">
         <div>
@@ -12570,7 +12593,7 @@ function renderHistory() {
           <div class="log-meta">${l.minutes||0} min · intensité ${l.intensity||'—'}${l.planned?'':` · charge ${load}`}</div>
         </div>
         <div style="display:flex;align-items:center;gap:6px">
-          ${topGrades.map(g=>`<span class="grade ${gradeClass(g)}">${g}</span>`).join('')}
+          ${topGrades.map(g=>`<span class="grade ${gradeClass(g,hScale)}">${g}</span>`).join('')}
         </div>
       </div>
       ${l.notes?`<div class="log-tags"><span style="font-size:12px;color:var(--muted)">${l.notes.slice(0,100)}${l.notes.length>100?'…':''}</span></div>`:''}
@@ -17648,7 +17671,20 @@ function fmtHM(mins) {
   return `${h}h${String(m).padStart(2,'0')}`;
 }
 window.fmtHM = fmtHM;
-function gradeClass(g){const i=GRADE_IDX[g]||0;return i<16?'g-easy':i<22?'g-mid':i<28?'g-hard':'g-elite';}
+// scale ('route'|'bloc') : les seuils sont exprimés en POSITION RELATIVE dans l'échelle (0 à 1)
+// plutôt qu'en index absolu, pour donner un classement de difficulté cohérent sur les deux échelles
+// (GRADES et GRADES_BLOC n'ont pas le même nombre d'échelons ni les mêmes libellés à chaque
+// position) — avant ce correctif, gradeClass() ne connaissait que GRADE_IDX (voie) : une cotation
+// bloc gradué (Bloc extérieur/Kilter) transmise ici lisait un index sur l'échelle Fontainebleau
+// comme si c'était un index voie, avec des seuils voie, ce qui pouvait afficher une couleur de
+// difficulté n'importe quoi. Les seuils 0.5/0.7/0.9 reproduisent exactement les seuils historiques
+// 16/22/28 sur les 32 échelons de GRADES (16/31≈0.516 tombe juste au-dessus de 0.5, etc.).
+function gradeClass(g, scale='route'){
+  const arr = scaleGrades(scale), idx = scaleGradeIdx(scale)[g];
+  const i = idx===undefined ? 0 : idx;
+  const pct = arr.length>1 ? i/(arr.length-1) : 0;
+  return pct<0.5?'g-easy':pct<0.7?'g-mid':pct<0.9?'g-hard':'g-elite';
+}
 function statusLabel(s){return {tete:'Tête',moulinette:'Moulinette',av:'À vue',flash:'Flash',try:'Essai'}[s]||s;}
 // Nombre de semaines à afficher dans le graphe "Évolution des meilleures cotations" selon la période sélectionnée
 function perfWeeksForRange(range) {
@@ -17691,14 +17727,22 @@ function buildClimberContext() {
   const recent = logs.slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0,20);
   const sessionsSummary = recent.map(l => {
     const load = sessionLoad(l);
-    const topGrades = (l.ascents||[]).filter(a=>['tete','av','flash','moulinette'].includes(a.status))
-      .map(a=>a.grade).sort((a,b)=>GRADE_IDX[b]-GRADE_IDX[a]).slice(0,3);
+    // Cotations lues sur l'échelle de CETTE séance (bloc gradué → GRADE_IDX_BLOC, sinon voie →
+    // GRADE_IDX) — sans ce branchement, une séance Bloc extérieur/Kilter était toujours relue sur
+    // l'échelle voie (mêmes libellés "6a","7a"... pour des niveaux physiques différents), et le tri
+    // par GRADE_IDX[a.grade] undefined/NaN pour la cotation bloc-only "3" pouvait aussi désordonner
+    // le classement.
+    const gIdx = scaleGradeIdx(isBlocGradedType(l.type) ? 'bloc' : 'route');
+    const topGrades = (l.ascents||[]).filter(a=>['tete','av','flash','moulinette'].includes(a.status) && gIdx[a.grade]!==undefined)
+      .map(a=>a.grade).sort((a,b)=>gIdx[b]-gIdx[a]).slice(0,3);
     return `- ${l.date} | ${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).label} | ${l.minutes||0}min | intensité ${l.intensity||3}/5 | charge ${load}${topGrades.length?' | top: '+topGrades.join(', '):''}${l.notes?' | note: '+l.notes.slice(0,60):''}`;
   }).join('\n');
 
-  // Grade pyramid last 3 months
+  // Grade pyramid last 3 months — routeLogs() exclut les séances bloc gradué (Bloc extérieur/
+  // Kilter), même filtre que renderPyramidPage/renderSmallPyramid : cette pyramide est sur
+  // l'échelle voie, jamais mélangée à l'échelle bloc.
   const cutoff3m = new Date(); cutoff3m.setMonth(cutoff3m.getMonth()-3);
-  const asc3m = logs.filter(l=>new Date(l.date)>=cutoff3m).flatMap(l=>l.ascents||[]);
+  const asc3m = routeLogs(logs).filter(l=>new Date(l.date)>=cutoff3m).flatMap(l=>l.ascents||[]);
   const byGrade = {};
   asc3m.forEach(a => {
     if (!GRADES.includes(a.grade)) return;
