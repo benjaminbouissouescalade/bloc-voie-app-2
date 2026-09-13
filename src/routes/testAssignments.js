@@ -105,10 +105,17 @@ router.post('/', async (req, res) => {
   }
 });
 
-// DELETE /api/test-assignments/:id — annule une prescription (coach uniquement)
+// DELETE /api/test-assignments/:id — annule une prescription (coach ayant accès à ce grimpeur).
+// Avant ce correctif, seul le rôle coach était vérifié (pas l'accès au grimpeur concerné,
+// contrairement à POST / et /:id/complete ci-dessus) : n'importe quel coach pouvait annuler la
+// prescription d'un autre coach sur un athlète qu'il ne suit pas du tout.
 router.delete('/:id', async (req, res) => {
   if (!isCoachRole(req.user?.role)) return res.status(403).json({ error: 'Réservé aux coachs.' });
   try {
+    const { rows } = await pool.query('SELECT climber_id FROM test_assignments WHERE id=$1', [req.params.id]);
+    if (!rows.length) return res.json({ ok: true }); // déjà absente/annulée : idempotent
+    const ok = await canAccessClimber(req.user, rows[0].climber_id);
+    if (!ok) return res.status(403).json({ error: 'Accès refusé à ce grimpeur' });
     await pool.query('DELETE FROM test_assignments WHERE id=$1', [req.params.id]);
     res.json({ ok: true });
   } catch (err) {

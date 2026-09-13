@@ -606,8 +606,12 @@ router.post('/:crewId/kudos', requireCrewMembership(), async (req, res) => {
     const targetOk = await isCrewMember(toClimberId, req.params.crewId);
     if (!targetOk) return res.status(400).json({ error: 'Ce grimpeur ne fait pas partie du crew' });
     const { start } = currentWeekBounds();
+    // ON CONFLICT sur crew_kudos_week_unique (cf. schema.js) : un seul kudos actif par (crew,
+    // expéditeur, destinataire, semaine) — un appel répété (double-clic, requête rejouée) met à
+    // jour l'emoji au lieu d'empiler des doublons.
     await pool.query(
-      `INSERT INTO crew_kudos (id, crew_id, from_climber_id, to_climber_id, week_start, emoji) VALUES ($1,$2,$3,$4,$5,$6)`,
+      `INSERT INTO crew_kudos (id, crew_id, from_climber_id, to_climber_id, week_start, emoji) VALUES ($1,$2,$3,$4,$5,$6)
+       ON CONFLICT (crew_id, from_climber_id, to_climber_id, week_start) DO UPDATE SET emoji=$6, created_at=NOW()`,
       [kudosId(), req.params.crewId, req.user.climberId, toClimberId, start, chosenEmoji]
     );
     res.json({ ok: true, emoji: chosenEmoji });

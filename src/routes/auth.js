@@ -5,17 +5,20 @@ const jwt      = require('jsonwebtoken');
 const crypto   = require('crypto');
 const router   = express.Router();
 const { pool } = require('../db/schema');
-const { JWT_SECRET } = require('../middleware/auth');
+const { JWT_SECRET, requireAuth } = require('../middleware/auth');
 const { isOwnerRole, isCoachRole } = require('../lib/roles');
 const { canAccessClimber } = require('../middleware/access');
 
-// Décode un Bearer token sans lever d'exception (retourne null si absent/invalide) —
-// utilisé pour les vérifications de rôle optionnelles sur des routes historiquement publiques.
-function decodeBearer(req) {
-  const header = req.headers.authorization;
-  if (!header || !header.startsWith('Bearer ')) return null;
-  try { return jwt.verify(header.slice(7), JWT_SECRET); } catch (e) { return null; }
-}
+// Toutes les routes protégées ci-dessous utilisent requireAuth (middleware/auth.js), qui relit le
+// rôle/climberId en base à CHAQUE requête plutôt que de faire confiance au contenu d'un JWT déjà
+// émis (valable 30 jours). Avant ce correctif, ces routes décodaient le token directement
+// (decodeBearer, désormais retiré) et faisaient confiance à son rôle/climberId figés au moment de
+// la connexion — exactement le problème que le commentaire de requireAuth dit avoir corrigé
+// ailleurs, mais qui restait ouvert ici : un compte coach rétrogradé en athlète (POST /set-role)
+// gardait un token encore valide qui disait toujours role:'coach', et pouvait par exemple s'en
+// servir sur POST /set-primary-climber pour prendre le contrôle d'un profil d'ex-athlète via ses
+// lignes coach_athletes restées en base (rétrogradation volontairement non destructive, cf.
+// commentaire sur /set-role plus bas).
 
 // Ordre de restriction croissante — utilisé pour choisir le mode le plus restrictif quand un
 // athlète a plusieurs coachs (cas rare mais possible via coach_athletes).
@@ -24,6 +27,24 @@ const PLANNING_MODE_RANK = { free: 0, shared: 1, coach_only: 2 };
 function uid() { return 'u_' + Date.now() + '_' + Math.random().toString(36).slice(2,8); }
 function cid() { return 'c_' + Date.now() + '_' + Math.random().toString(36).slice(2,8); }
 function invToken() { return crypto.randomBytes(24).toString('hex'); }
+
+// POST /register reste public par défaut (création d'un compte athlète), sauf pour créer un compte
+// owner/coach, qui nécessite d'être déjà owner (cf. plus bas) — ne peut donc pas utiliser le
+// middleware requireAuth (qui rejetterait tout appel sans token, cassant l'inscription normale).
+// Revérifie quand même le rôle en base plutôt que de faire confiance à un JWT déjà émis, même
+// logique que requireAuth : sans ça, un ancien token valide de quelqu'un qui a depuis perdu son
+// rôle owner (aucune voie actuelle pour ça, mais la même prudence que partout ailleurs) resterait
+// utilisable ici indéfiniment.
+async function verifyOwnerCaller(req) {
+  const header = req.headers.authorization;
+  if (!header || !header.startsWith('Bearer ')) return null;
+  let decoded;
+  try { decoded = jwt.verify(header.slice(7), JWT_SECRET); } catch (e) { return null; }
+  try {
+    const { rows } = await pool.query('SELECT id, role FROM users WHERE id=$1', [decoded.id]);
+    return rows[0] || null;
+  } catch (e) { return null; }
+}
 
 router.post('/register', async (req, res) => {
   const { email, password, name, role, color, level } = req.body;
@@ -40,7 +61,7 @@ router.post('/register', async (req, res) => {
     } else if (requestedRole === 'owner' || requestedRole === 'coach') {
       // Créer un compte owner/coach nécessite d'être déjà owner — empêche l'auto-élévation
       // de rôle (avant ce correctif, il suffisait d'envoyer role:'admin' sans authentification).
-      const caller = decodeBearer(req);
+      const caller = await verifyOwnerCaller(req);
       if (!caller || !isOwnerRole(caller.role)) {
         return res.status(403).json({ error: 'Seul un owner peut créer un compte coach' });
       }
@@ -57,7 +78,16 @@ router.post('/register', async (req, res) => {
     const token = jwt.sign({ id: userId, email: email.toLowerCase(), name, role: userRole, climberId }, JWT_SECRET, { expiresIn: '30d' });
     res.json({ token, user: { id: userId, email, name, role: userRole, climberId } });
   } catch (err) {
-    if (err.code === '23505') return res.status(409).json({ error: 'Email déjà utilisé' });
+    if (err.code === '23505') {
+      // idx_users_single_owner (cf. schema.js) : deux inscriptions concurrentes juste après un
+      // déploiement neuf peuvent toutes les deux passer le check isFirst avant qu'aucune n'ait
+      // encore inséré sa ligne — la contrainte unique tranche de façon atomique en base plutôt que
+      // de laisser une race condition créer deux owners.
+      if (err.constraint === 'idx_users_single_owner') {
+        return res.status(409).json({ error: 'Un compte owner existe déjà pour cette application' });
+      }
+      return res.status(409).json({ error: 'Email déjà utilisé' });
+    }
     res.status(500).json({ error: err.message });
   }
 });
@@ -78,25 +108,14 @@ router.post('/login', async (req, res) => {
   }
 });
 
-router.get('/me', async (req, res) => {
-  const header = req.headers.authorization;
-  if (!header) return res.status(401).json({ error: 'Non authentifié' });
-  try {
-    const token = header.slice(7);
-    const user = jwt.verify(token, JWT_SECRET);
-    res.json({ user });
-  } catch (e) {
-    res.status(401).json({ error: 'Token invalide' });
-  }
+router.get('/me', requireAuth, async (req, res) => {
+  res.json({ user: req.user });
 });
 
-router.get('/athletes', async (req, res) => {
-  const header = req.headers.authorization;
-  if (!header) return res.status(401).json({ error: 'Non authentifié' });
+router.get('/athletes', requireAuth, async (req, res) => {
+  const user = req.user;
+  if (!isCoachRole(user.role)) return res.status(403).json({ error: 'Coach requis' });
   try {
-    const token = header.slice(7);
-    const user  = jwt.verify(token, JWT_SECRET);
-    if (!isCoachRole(user.role)) return res.status(403).json({ error: 'Coach requis' });
     let rows;
     if (isOwnerRole(user.role)) {
       // Un owner voit tous les athlètes de l'app, avec leur(s) coach(s) actuel(s) — utile pour
@@ -143,9 +162,8 @@ router.get('/athletes', async (req, res) => {
 });
 
 // GET /api/auth/coaches — liste des coachs dédiés (owner uniquement, hors owner lui-même)
-router.get('/coaches', async (req, res) => {
-  const caller = decodeBearer(req);
-  if (!caller || !isOwnerRole(caller.role)) return res.status(403).json({ error: 'Owner requis' });
+router.get('/coaches', requireAuth, async (req, res) => {
+  if (!isOwnerRole(req.user.role)) return res.status(403).json({ error: 'Owner requis' });
   try {
     const { rows } = await pool.query(
       `SELECT u.id, u.email, u.name, u.role, u.climber_id, u.created_at,
@@ -164,9 +182,8 @@ router.get('/coaches', async (req, res) => {
 // POST /api/auth/create-coach — crée un compte coach (owner uniquement).
 // Le coach reçoit aussi son propre profil grimpeur (rôle professionnel et profil sportif
 // restent deux choses indépendantes, voir src/lib/roles.js).
-router.post('/create-coach', async (req, res) => {
-  const caller = decodeBearer(req);
-  if (!caller || !isOwnerRole(caller.role)) return res.status(403).json({ error: 'Owner requis' });
+router.post('/create-coach', requireAuth, async (req, res) => {
+  if (!isOwnerRole(req.user.role)) return res.status(403).json({ error: 'Owner requis' });
   const { email, password, name, color, level } = req.body;
   if (!email || !password || !name) return res.status(400).json({ error: 'email, password, name requis' });
   if (password.length < 6) return res.status(400).json({ error: 'Le mot de passe doit faire au moins 6 caractères' });
@@ -188,9 +205,8 @@ router.post('/create-coach', async (req, res) => {
 // restent intacts quel que soit le rôle (rôle professionnel et profil sportif sont indépendants,
 // voir src/lib/roles.js). Rétrograder un coach ne supprime pas ses lignes coach_athletes : une
 // repromotion ultérieure retrouve automatiquement son roster précédent.
-router.post('/set-role', async (req, res) => {
-  const caller = decodeBearer(req);
-  if (!caller || !isOwnerRole(caller.role)) return res.status(403).json({ error: 'Owner requis' });
+router.post('/set-role', requireAuth, async (req, res) => {
+  if (!isOwnerRole(req.user.role)) return res.status(403).json({ error: 'Owner requis' });
   const { userId, role } = req.body || {};
   if (!userId || !['athlete', 'coach'].includes(role)) {
     return res.status(400).json({ error: 'userId et role (athlete ou coach) requis' });
@@ -209,9 +225,8 @@ router.post('/set-role', async (req, res) => {
 // POST /api/auth/assign-athlete — attribue un athlète (climberId) à un coach (owner uniquement).
 // exclusive=true retire d'abord les autres relations existantes pour ce grimpeur (changement de coach,
 // voir section "Relations de coaching" : on ne change que la relation, jamais le profil grimpeur).
-router.post('/assign-athlete', async (req, res) => {
-  const caller = decodeBearer(req);
-  if (!caller || !isOwnerRole(caller.role)) return res.status(403).json({ error: 'Owner requis' });
+router.post('/assign-athlete', requireAuth, async (req, res) => {
+  if (!isOwnerRole(req.user.role)) return res.status(403).json({ error: 'Owner requis' });
   const { coachId, climberId, exclusive } = req.body || {};
   if (!coachId || !climberId) return res.status(400).json({ error: 'coachId et climberId requis' });
   try {
@@ -228,9 +243,8 @@ router.post('/assign-athlete', async (req, res) => {
 });
 
 // DELETE /api/auth/assign-athlete/:coachId/:climberId — retire un athlète d'un coach (owner uniquement)
-router.delete('/assign-athlete/:coachId/:climberId', async (req, res) => {
-  const caller = decodeBearer(req);
-  if (!caller || !isOwnerRole(caller.role)) return res.status(403).json({ error: 'Owner requis' });
+router.delete('/assign-athlete/:coachId/:climberId', requireAuth, async (req, res) => {
+  if (!isOwnerRole(req.user.role)) return res.status(403).json({ error: 'Owner requis' });
   try {
     await pool.query('DELETE FROM coach_athletes WHERE coach_id=$1 AND climber_id=$2', [req.params.coachId, req.params.climberId]);
     res.json({ ok: true });
@@ -243,9 +257,9 @@ router.delete('/assign-athlete/:coachId/:climberId', async (req, res) => {
 // pour une relation coach-athlète donnée. Un coach ne peut régler que sur ses propres athlètes ;
 // un owner peut le faire pour n'importe quelle relation. Appliqué côté interface uniquement
 // (voir commentaire sur la colonne dans src/db/schema.js).
-router.post('/set-planning-mode', async (req, res) => {
-  const caller = decodeBearer(req);
-  if (!caller || !isCoachRole(caller.role)) return res.status(403).json({ error: 'Coach requis' });
+router.post('/set-planning-mode', requireAuth, async (req, res) => {
+  const caller = req.user;
+  if (!isCoachRole(caller.role)) return res.status(403).json({ error: 'Coach requis' });
   const { coachId, climberId, mode } = req.body || {};
   if (!coachId || !climberId || !['free', 'shared', 'coach_only'].includes(mode)) {
     return res.status(400).json({ error: 'coachId, climberId et mode (free/shared/coach_only) requis' });
@@ -268,9 +282,8 @@ router.post('/set-planning-mode', async (req, res) => {
 // GET /api/auth/my-planning-mode — mode applicable au compte connecté : le plus restrictif parmi
 // ses relations de coaching, ou 'free' si aucun coach (un athlète doit pouvoir utiliser Digger
 // même sans coach, voir section "Athlete" du modèle de rôles).
-router.get('/my-planning-mode', async (req, res) => {
-  const caller = decodeBearer(req);
-  if (!caller) return res.status(401).json({ error: 'Non authentifié' });
+router.get('/my-planning-mode', requireAuth, async (req, res) => {
+  const caller = req.user;
   try {
     const { rows } = await pool.query(
       `SELECT ca.planning_mode, u.name AS coach_name FROM coach_athletes ca
@@ -288,13 +301,10 @@ router.get('/my-planning-mode', async (req, res) => {
   }
 });
 
-router.post('/invite', async (req, res) => {
-  const header = req.headers.authorization;
-  if (!header) return res.status(401).json({ error: 'Non authentifié' });
+router.post('/invite', requireAuth, async (req, res) => {
+  const admin = req.user;
+  if (!isCoachRole(admin.role)) return res.status(403).json({ error: 'Coach requis' });
   try {
-    const token = header.slice(7);
-    const admin = jwt.verify(token, JWT_SECRET);
-    if (!isCoachRole(admin.role)) return res.status(403).json({ error: 'Coach requis' });
     const { email, password, name, color, level } = req.body;
     if (!email || !password || !name) return res.status(400).json({ error: 'email, password, name requis' });
     const hash = await bcrypt.hash(password, 10);
@@ -312,12 +322,9 @@ router.post('/invite', async (req, res) => {
 
 // POST /api/auth/set-primary-climber — relie le compte connecté à un autre profil grimpeur
 // (utile quand le compte a été créé avant qu'un profil existant ne lui soit rattaché)
-router.post('/set-primary-climber', async (req, res) => {
-  const header = req.headers.authorization;
-  if (!header) return res.status(401).json({ error: 'Non authentifié' });
+router.post('/set-primary-climber', requireAuth, async (req, res) => {
+  const user = req.user;
   try {
-    const token = header.slice(7);
-    const user = jwt.verify(token, JWT_SECRET);
     const { climberId } = req.body;
     if (!climberId) return res.status(400).json({ error: 'climberId requis' });
     // Vérifie l'accès : son propre profil actuel, un profil coaché (coach_athletes),
@@ -346,12 +353,10 @@ router.post('/set-primary-climber', async (req, res) => {
 });
 
 // POST /api/auth/create-invite-link — génère un lien d'inscription (admin uniquement)
-router.post('/create-invite-link', async (req, res) => {
-  const header = req.headers.authorization;
-  if (!header) return res.status(401).json({ error: 'Non authentifié' });
+router.post('/create-invite-link', requireAuth, async (req, res) => {
+  const admin = req.user;
+  if (!isCoachRole(admin.role)) return res.status(403).json({ error: 'Coach requis' });
   try {
-    const admin = jwt.verify(header.slice(7), JWT_SECRET);
-    if (!isCoachRole(admin.role)) return res.status(403).json({ error: 'Coach requis' });
     const { email } = req.body || {};
     const token = invToken();
     const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000); // 14 jours
@@ -424,12 +429,9 @@ router.post('/accept-invite', async (req, res) => {
   }
 });
 
-router.post('/change-password', async (req, res) => {
-  const header = req.headers.authorization;
-  if (!header) return res.status(401).json({ error: 'Non authentifié' });
+router.post('/change-password', requireAuth, async (req, res) => {
+  const user = req.user;
   try {
-    const token = header.slice(7);
-    const user = jwt.verify(token, JWT_SECRET);
     const { currentPassword, newPassword } = req.body;
     if (!currentPassword || !newPassword) return res.status(400).json({ error: 'currentPassword et newPassword requis' });
     if (newPassword.length < 6) return res.status(400).json({ error: 'Le nouveau mot de passe doit faire au moins 6 caractères' });

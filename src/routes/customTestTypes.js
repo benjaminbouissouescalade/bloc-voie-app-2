@@ -10,6 +10,7 @@ const express = require('express');
 const router = express.Router();
 const { pool } = require('../db/schema');
 const { requireAuth } = require('../middleware/auth');
+const { isCoachRole } = require('../lib/roles');
 
 router.use(requireAuth);
 
@@ -58,7 +59,11 @@ router.post('/', async (req, res) => {
 // DELETE /api/custom-test-types/:id — supprime la définition du type (les résultats déjà loggués
 // dans general_tests restent en base, orphelins de leur définition mais pas perdus — cohérent avec
 // le fait que general_tests.test_type est une simple chaîne, pas une clé étrangère stricte).
+// Réservé aux coachs : type global/partagé par tout le déploiement (cf. commentaire en tête de
+// fichier), donc une suppression touche potentiellement les autres coachs — avant ce correctif,
+// n'importe quel compte authentifié (y compris un simple athlète) pouvait en supprimer un.
 router.delete('/:id', async (req, res) => {
+  if (!isCoachRole(req.user?.role)) return res.status(403).json({ error: 'Réservé aux coachs.' });
   try {
     await pool.query('DELETE FROM custom_test_types WHERE id=$1', [req.params.id]);
     res.json({ ok: true });

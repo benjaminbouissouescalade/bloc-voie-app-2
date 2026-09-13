@@ -154,7 +154,12 @@ router.delete('/:id', async (req, res) => {
     // gardait alors un climber_id fantôme, provoquant plus tard des erreurs de contrainte de clé
     // étrangère sur toute table qui, elle, référence bien climbers(id) (ex. partner_invites,
     // logs...). On nettoie donc explicitement toute référence pendante avant de supprimer.
+    // coach_athletes n'a pas non plus de clé étrangère (coach_id référence users, pas climbers) —
+    // même nettoyage explicite, sinon une ligne coach_athletes fantôme pouvait plus tard réaccorder
+    // un accès sur un climberId réutilisé par erreur (cf. correctif JWT périmé dans set-role/
+    // set-primary-climber).
     await pool.query('UPDATE users SET climber_id=NULL WHERE climber_id=$1', [req.params.id]);
+    await pool.query('DELETE FROM coach_athletes WHERE climber_id=$1', [req.params.id]);
     await pool.query('DELETE FROM climbers WHERE id=$1', [req.params.id]);
     res.json({ ok: true });
   } catch (err) {

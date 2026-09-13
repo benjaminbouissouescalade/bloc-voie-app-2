@@ -27,6 +27,16 @@ function orderPair(x, y) { return x < y ? [x, y] : [y, x]; }
 // ═══ Charge — même formule que public/index.html, crews.js et challenges.js (dupliquée, garder synchro) ═══
 const GRADES = ["4a","4a+","4b","4b+","4c","4c+","5a","5a+","5b","5b+","5c","5c+","6a","6a+","6b","6b+","6c","6c+","7a","7a+","7b","7b+","7c","7c+","8a","8a+","8b","8b+","8c","8c+","9a","9a+"];
 const GRADE_IDX = Object.fromEntries(GRADES.map((g, i) => [g, i]));
+// Types de séance cotés sur l'échelle bloc (Fontainebleau, ex. "7a" y désigne un niveau bloc, pas
+// route), même liste que gradeScale:'bloc' dans SESSION_CONFIG côté public/index.html. Les libellés
+// de cotation se recoupent lexicalement entre les deux échelles ("6a", "7a"... ne veulent pas dire
+// la même chose en bloc et en voie) : sans ce filtre, GRADE_IDX[a.grade] ci-dessous relirait une
+// cotation bloc comme si c'était une cotation voie. On exclut donc ces séances des calculs
+// "niveau"/"charge" du profil partenaire plutôt que de les compter sur la mauvaise échelle — ce
+// fichier ne duplique pas (encore) le calcul de charge bloc du frontend.
+const BLOC_GRADED_TYPES = new Set(['bloc_exterieur', 'kilter']);
+function isBlocGradedType(type) { return BLOC_GRADED_TYPES.has(type); }
+function routeLogs(logs) { return (logs || []).filter(l => !isBlocGradedType(l.type)); }
 const KAYA_BASE = 100, KAYA_GROWTH = 1.18;
 const BOULDER_DIFF_OFFSET = {
   echauffement: -11.25, easy: -9.25, facile: -9.25,
@@ -366,11 +376,16 @@ router.get('/feed', async (req, res) => {
 const REACTION_TYPES = ['fort', 'propre', 'allez', 'jaloux', 'jepars'];
 
 // POST /api/partners/feed/:logId/react — body {reaction} ('' ou absent pour retirer sa réaction
+// session_reactions.log_id n'a pas de clé étrangère vers logs(id) (cf. schema.js) : on vérifie donc
+// ici que la séance existe réellement avant d'accrocher une réaction, pour éviter qu'un appel
+// direct à cette route avec un logId arbitraire/inexistant n'insère des lignes orphelines.
 router.post('/feed/:logId/react', async (req, res) => {
   const climberId = req.user?.climberId;
   if (!climberId) return res.status(400).json({ error: 'Aucun profil grimpeur associé à ce compte' });
   const { reaction } = req.body;
   try {
+    const { rows: logRows } = await pool.query('SELECT 1 FROM logs WHERE id=$1', [req.params.logId]);
+    if (!logRows.length) return res.status(404).json({ error: 'Séance introuvable' });
     if (!reaction) {
       await pool.query('DELETE FROM session_reactions WHERE log_id=$1 AND climber_id=$2', [req.params.logId, climberId]);
       return res.json({ ok: true, reaction: null });
@@ -413,14 +428,19 @@ router.get('/:id/profile', async (req, res) => {
       id: l.id, date: l.date.toISOString().slice(0, 10), type: l.type, minutes: l.minutes,
       ascents: l.ascents || [], b_no_grade: l.b_no_grade || {}
     }));
-    const ref = refGradeFromLogs(logs);
+    // "niveau"/"charge" ci-dessous restent sur l'échelle voie (GRADE_IDX) : on les calcule donc
+    // uniquement sur les séances voie (routeLogs), jamais sur les séances bloc gradué (Bloc
+    // extérieur/Kilter), qui utilisent une échelle différente non gérée ici (cf. commentaire sur
+    // BLOC_GRADED_TYPES plus haut).
+    const voieLogs = routeLogs(logs);
+    const ref = refGradeFromLogs(voieLogs);
 
     const profile = {
       id: climber.id, name: climber.name, color: climber.color, level: climber.level
     };
 
     if (visible('niveau')) {
-      const sent = logs.flatMap(l => (l.ascents || []).filter(a => ['tete', 'moulinette', 'av', 'flash'].includes(a.status) && GRADE_IDX[a.grade] !== undefined));
+      const sent = voieLogs.flatMap(l => (l.ascents || []).filter(a => ['tete', 'moulinette', 'av', 'flash'].includes(a.status) && GRADE_IDX[a.grade] !== undefined));
       const bestIdx = sent.length ? Math.max(...sent.map(a => GRADE_IDX[a.grade])) : null;
       profile.niveau = { grade: bestIdx !== null ? GRADES[bestIdx] : null, sends90d: sent.length, refGrade: ref };
     }
@@ -434,7 +454,7 @@ router.get('/:id/profile', async (req, res) => {
       profile.statistiques = { totalSessions90d: logs.length, avgPerWeek: Math.round((logs.length / weeks) * 10) / 10 };
     }
     if (visible('charge')) {
-      const last7 = logs.filter(l => new Date(l.date) >= new Date(Date.now() - 7 * 86400000));
+      const last7 = voieLogs.filter(l => new Date(l.date) >= new Date(Date.now() - 7 * 86400000));
       const weeklyLoad = Math.round(last7.reduce((s, l) => s + logLoad(l, ref), 0));
       profile.charge = { weeklyLoad };
     }
