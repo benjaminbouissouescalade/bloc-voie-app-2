@@ -182,6 +182,11 @@ async function initDB() {
       ALTER TABLE session_bank ADD COLUMN IF NOT EXISTS finger_sets INTEGER DEFAULT 0;
       ALTER TABLE session_bank ADD COLUMN IF NOT EXISTS finger_reps INTEGER DEFAULT 0;
       ALTER TABLE session_bank ADD COLUMN IF NOT EXISTS finger_pct INTEGER DEFAULT 0;
+      -- Préhension par défaut (tendu/semi-arqué/arqué, cf. GRIP_TYPES côté client, déjà utilisé par
+      -- les tests SmartBoard/réglette) associée à la prescription séries/répétitions/% ci-dessus.
+      -- '' = non renseigné (fiche créée avant ce changement, ou d'un autre type) ; le client retombe
+      -- alors sur 'tendu' par défaut.
+      ALTER TABLE session_bank ADD COLUMN IF NOT EXISTS finger_grip TEXT DEFAULT '';
       -- Backfill unique : les fiches créées AVANT ce cloisonnement n'ont pas de propriétaire connu
       -- — on les attribue au premier compte owner trouvé (ne change rien à leur visibilité, déjà
       -- 'shared' par défaut, donc personne ne perd l'accès à sa bibliothèque existante) plutôt que
