@@ -1826,7 +1826,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     <button class="time-filter-btn" data-wl-range="all">Tout</button>
   </div>
 
-  <div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;align-items:start">
+  <div style="display:grid;grid-template-columns:5fr 2fr;gap:16px;align-items:start">
     <div class="panel">
       <div class="panel-header">
         <span class="panel-title">Volume d'entraînement hebdo</span>
@@ -1843,34 +1843,34 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
         <span class="legend-item"><span style="display:inline-block;width:12px;border-top:2px dashed var(--text)"></span>Moyenne de référence (4 dernières semaines)</span>
       </div>
     </div>
-    <div class="panel" id="wl-vol-detail-panel">
-      <div class="panel-header"><span class="panel-title">Détail</span></div>
+    <div class="panel" id="wl-vol-detail-panel" style="padding:16px">
+      <div class="panel-header" style="margin-bottom:10px"><span class="panel-title" style="font-size:13px">Détail</span></div>
       <div style="display:flex;flex-direction:column">
-        <div style="display:flex;justify-content:space-between;align-items:baseline;padding:8px 0;border-bottom:1px solid var(--border)">
-          <span style="font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)">Charge cette semaine</span>
-          <span style="font-family:var(--serif);font-size:16px;font-weight:600" id="wl-detail-week">—</span>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--border)">
+          <span style="font-size:10.5px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;color:var(--muted)">Charge cette semaine</span>
+          <span style="font-family:var(--serif);font-size:14px;font-weight:600" id="wl-detail-week">—</span>
         </div>
-        <div style="display:flex;justify-content:space-between;align-items:baseline;padding:8px 0;border-bottom:1px solid var(--border)">
-          <span style="font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)">Rythme habituel (moy. 4 sem.)</span>
-          <span style="font-family:var(--serif);font-size:16px;font-weight:600" id="wl-detail-habitual">—</span>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--border)">
+          <span style="font-size:10.5px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;color:var(--muted)">Rythme habituel (moy. 4 sem.)</span>
+          <span style="font-family:var(--serif);font-size:14px;font-weight:600" id="wl-detail-habitual">—</span>
         </div>
-        <div style="display:flex;justify-content:space-between;align-items:baseline;padding:8px 0">
-          <span style="font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)">Écart</span>
-          <span style="font-family:var(--serif);font-size:16px;font-weight:600" id="wl-detail-gap">—</span>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;padding:6px 0">
+          <span style="font-size:10.5px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;color:var(--muted)">Écart</span>
+          <span style="font-family:var(--serif);font-size:14px;font-weight:600" id="wl-detail-gap">—</span>
         </div>
       </div>
       <div style="height:1px;background:var(--border2);margin:4px 0 10px"></div>
       <div style="display:flex;flex-direction:column">
-        <div style="display:flex;justify-content:space-between;align-items:baseline;padding:8px 0;border-bottom:1px solid var(--border)">
-          <span style="font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)">4 dernières sem.</span>
-          <span style="font-family:var(--serif);font-size:16px;font-weight:600" id="wl-detail-last4">—</span>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--border)">
+          <span style="font-size:10.5px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;color:var(--muted)">4 dernières sem.</span>
+          <span style="font-family:var(--serif);font-size:14px;font-weight:600" id="wl-detail-last4">—</span>
         </div>
-        <div style="display:flex;justify-content:space-between;align-items:baseline;padding:8px 0;border-bottom:1px solid var(--border)">
-          <span style="font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)">4 sem. précédentes</span>
-          <span style="font-family:var(--serif);font-size:16px;font-weight:600" id="wl-detail-prev4">—</span>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--border)">
+          <span style="font-size:10.5px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;color:var(--muted)">4 sem. précédentes</span>
+          <span style="font-family:var(--serif);font-size:14px;font-weight:600" id="wl-detail-prev4">—</span>
         </div>
-        <div style="display:flex;justify-content:space-between;align-items:baseline;padding:8px 0">
-          <span style="font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)">Évolution</span>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;padding:6px 0">
+          <span style="font-size:10.5px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;color:var(--muted)">Évolution</span>
           <span class="wl-acwr-pill" id="wl-detail-evol">—</span>
         </div>
       </div>
