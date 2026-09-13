@@ -4942,12 +4942,16 @@ const SESSION_RPE_MULT = 2;
 // force doigts et plutôt le faire par le nombre de répétitions et séries et le pourcentage" — pour
 // le type 'doigts' (dead-hangs/suspension) uniquement, la charge ne suit plus durée×intensité
 // (SESSION_RPE_MULT ci-dessus) mais séries × répétitions × (%du max/100), une mesure plus fidèle à
-// l'effort réel d'une séance de suspension qu'une estimation basée sur le temps passé. FINGER_LOAD_K
-// calibré empiriquement pour rester sur un ordre de grandeur comparable à l'ancienne formule (ex.
-// 6 séries × 6 répétitions × 90% × 7 ≈ 227, proche des ~225 qu'aurait donné 45min à intensité 5/5
-// avec l'ancienne méthode) — constante fixe comme SESSION_RPE_MULT/FOOTING_LOAD_FACTOR ci-dessous,
-// pas un coefficient par activité réglable via #load-coef-modal (cf. SESSION_LOAD_FACTOR plus bas).
-const FINGER_LOAD_K = 7;
+// l'effort réel d'une séance de suspension qu'une estimation basée sur le temps passé. Retour
+// utilisateur : "je trouve le résultat de charge faible" — recalibré sur un protocole max hangs
+// RÉALISTE (celui de l'appli elle-même : 6 séries, 1 tirage/série, 80-85%, cf. la fiche "Force
+// doigts — Tirage du sol 20mm") plutôt que sur "6 séries × 6 répétitions" (confusion initiale avec
+// un protocole répéteurs) : 6×1×85% × 18 ≈ 92, dans la fourchette "modeste mais nettement visible"
+// choisie par l'utilisateur (~80-120), nettement en dessous des charges bloc/voies (~300-400). Une
+// séance répéteurs (plus de répétitions par série, cf. preset "7s/3s × 6") monte plus haut à K égal
+// — cohérent : elle représente un volume de répétitions réellement plus élevé. Constante fixe comme
+// SESSION_RPE_MULT/FOOTING_LOAD_FACTOR ci-dessous, pas un coefficient réglable via #load-coef-modal.
+const FINGER_LOAD_K = 18;
 // Retour utilisateur : "rajouter le poids mis, que le % soit calculé automatiquement, pouvoir
 // changer le poids soulevé par série (si la charge diminue au fil des séries), et distinguer
 // tendu/semi-arqué/arqué par série" — b.fingerSeries = un tableau, une entrée par série RÉELLEMENT
