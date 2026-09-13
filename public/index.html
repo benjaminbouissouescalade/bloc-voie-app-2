@@ -4229,6 +4229,29 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
         <button type="button" class="btn sm danger" onclick="sbSetTimerPreset(0,0,0,0,0)">Désactiver</button>
       </div>
     </div>
+    <!-- Retour utilisateur : "avoir quand cela vient de la mine l'ensemble pré-rempli que
+         l'utilisateur peut modifier en fonction de la séance" — valeurs par défaut séries/
+         répétitions/% du max pour une fiche de type "Force doigts", reprises par pickPpgBankFiche()
+         au moment de choisir cette fiche dans une séance (cf. sbSyncFingerPanelUI, affiché
+         seulement quand #sb-type vaut 'doigts'). -->
+    <div class="form-group" id="sb-finger-panel" style="display:none;background:var(--surface2);border-radius:var(--r-sm);padding:12px 14px">
+      <label class="form-label" style="margin-bottom:6px">🤏 Valeurs par défaut — Force doigts</label>
+      <p style="font-size:12px;color:var(--muted);margin:0 0 10px">Pré-remplit séries / répétitions / % du max quand l'athlète choisit cette fiche pour une séance — toujours modifiable ensuite en fonction de la séance réelle.</p>
+      <div class="form-row form-row-3">
+        <div class="form-group" style="margin:0">
+          <label class="form-label">Séries</label>
+          <input class="form-control" type="number" min="0" id="sb-finger-sets" placeholder="6">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label class="form-label">Répétitions / série</label>
+          <input class="form-control" type="number" min="0" id="sb-finger-reps" placeholder="6">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label class="form-label">% du max</label>
+          <input class="form-control" type="number" min="0" max="150" id="sb-finger-pct" placeholder="90">
+        </div>
+      </div>
+    </div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px">
       <button class="btn danger sm coach-only-btn" id="sb-delete-btn" style="display:none;margin-right:auto">Supprimer</button>
       <button type="button" class="btn sm" id="sb-timer-toggle-btn" onclick="sbToggleTimerPanel()" title="Ajouter un timer d'effort à cette séance">⏱️ Timer</button>
@@ -4907,6 +4930,26 @@ const KAYA_BASE = 100, KAYA_GROWTH = 1.18;
 // aux charges bloc/voies calculées via KAYA_BASE/KAYA_GROWTH ci-dessus (calibré empiriquement, ex: 60min à
 // intensité 3/5 → 360, comparable à une séance bloc salle moyenne).
 const SESSION_RPE_MULT = 2;
+// Retour utilisateur : "enlever la valorisation de la charge par le temps sur les exercices de
+// force doigts et plutôt le faire par le nombre de répétitions et séries et le pourcentage" — pour
+// le type 'doigts' (dead-hangs/suspension) uniquement, la charge ne suit plus durée×intensité
+// (SESSION_RPE_MULT ci-dessus) mais séries × répétitions × (%du max/100), une mesure plus fidèle à
+// l'effort réel d'une séance de suspension qu'une estimation basée sur le temps passé. FINGER_LOAD_K
+// calibré empiriquement pour rester sur un ordre de grandeur comparable à l'ancienne formule (ex.
+// 6 séries × 6 répétitions × 90% × 7 ≈ 227, proche des ~225 qu'aurait donné 45min à intensité 5/5
+// avec l'ancienne méthode) — constante fixe comme SESSION_RPE_MULT/FOOTING_LOAD_FACTOR ci-dessous,
+// pas un coefficient par activité réglable via #load-coef-modal (cf. SESSION_LOAD_FACTOR plus bas).
+const FINGER_LOAD_K = 7;
+// Une séance 'doigts' loguée AVANT ce changement n'a que minutes/intensity (pas de
+// fingerSets/fingerReps dans b_no_grade) — fingerLoad() bascule automatiquement sur l'ancienne
+// formule pour ces séances historiques, pour ne jamais leur faire perdre leur charge déjà calculée.
+function fingerLoad(log) {
+  const b = log.bNoGrade || {};
+  if (b.fingerSets || b.fingerReps) {
+    return Math.round((b.fingerSets||0) * (b.fingerReps||0) * ((b.fingerPct||0)/100) * FINGER_LOAD_K);
+  }
+  return Math.round((log.minutes||0) * (log.intensity||3) * SESSION_RPE_MULT * sessionLoadFactor(log.type));
+}
 // Le footing (course à pied) suit la même formule session-RPE que le PPG, mais avec un facteur
 // réducteur : sollicitation cardio/aérobie générale, beaucoup moins spécifique à l'escalade qu'une
 // séance de PPG (souvent antagonistes/gainage/doigts) ou qu'une vraie séance de grimpe — retour
@@ -6031,10 +6074,14 @@ function sessionLoad(log) {
   const bl = boulderLoad(log.bNoGrade||{}, ref);
   // Séances hors escalade (pas d'ascensions/blocs saisis), dont footing : charge = durée × intensité
   // (méthode session-RPE) — la distance (km) du footing est juste informative dans b_no_grade.
+  // 'doigts' (dead-hangs) est un cas particulier depuis fingerLoad() ci-dessus : séries × répétitions
+  // × %, avec repli automatique sur durée×intensité pour les séances loguées avant ce changement.
   const cfg = SESSION_CONFIG[log.type] || SESSION_CONFIG.autre;
-  const srpe = (cfg.extraPanel === 'ppg' || cfg.extraPanel === 'footing')
-    ? (log.minutes||0) * (log.intensity||3) * SESSION_RPE_MULT * sessionLoadFactor(log.type)
-    : 0;
+  const srpe = log.type === 'doigts'
+    ? fingerLoad(log)
+    : (cfg.extraPanel === 'ppg' || cfg.extraPanel === 'footing')
+      ? (log.minutes||0) * (log.intensity||3) * SESSION_RPE_MULT * sessionLoadFactor(log.type)
+      : 0;
   return Math.round(al+bl+srpe);
 }
 
@@ -6144,9 +6191,11 @@ function sessionLoadFor(log, refRoute, refBloc) {
   const al = (log.ascents||[]).reduce((s,a)=>s+ascentLoad(a,refRoute),0);
   const bl = boulderLoad(log.bNoGrade||{}, refRoute);
   const cfg = SESSION_CONFIG[log.type] || SESSION_CONFIG.autre;
-  const srpe = (cfg.extraPanel === 'ppg' || cfg.extraPanel === 'footing')
-    ? (log.minutes||0) * (log.intensity||3) * SESSION_RPE_MULT * sessionLoadFactor(log.type)
-    : 0;
+  const srpe = log.type === 'doigts'
+    ? fingerLoad(log)
+    : (cfg.extraPanel === 'ppg' || cfg.extraPanel === 'footing')
+      ? (log.minutes||0) * (log.intensity||3) * SESSION_RPE_MULT * sessionLoadFactor(log.type)
+      : 0;
   return Math.round(al+bl+srpe);
 }
 
@@ -6297,6 +6346,37 @@ function weeklyData(nWeeks=16) {
     w.minutes += (l.minutes||0);
   });
   return weeks.map(w=>({start:w.start,end:w.end,load:Math.round(w.load),sessions:w.sessions,avgInt:w.sessions?Math.round(w.intSum/w.sessions*10)/10:0,minutes:Math.round(w.minutes),label:w.label}));
+}
+
+// Variante JOUR PAR JOUR de weeklyData() ci-dessus — même construction (bornes puis un seul passage
+// sur getLogs()) et même forme d'objet en sortie (load/sessions/avgInt/minutes/label), pour que
+// renderWorkload() puisse l'utiliser à la place de weeklyData() sans rien changer au reste du calcul
+// des datasets. Retour utilisateur : "mettre une vision au jour sur la vision semaine et 2 semaines"
+// — sur les filtres "Cette semaine"/"2 dernières semaines", l'agrégation hebdomadaire ne produisait
+// qu'1 ou 2 barres (cf. perfWeeksForRange), illisible.
+function dailyWorkloadData(nDays) {
+  const now = new Date(); now.setHours(0,0,0,0);
+  const days = [];
+  for (let i=nDays-1;i>=0;i--) {
+    const start=new Date(now); start.setDate(start.getDate()-i);
+    const end=new Date(start); end.setDate(end.getDate()+1);
+    const label=start.toLocaleDateString('fr',{weekday:'short',day:'numeric',month:'short'});
+    days.push({start,end,label,load:0,sessions:0,intSum:0,minutes:0});
+  }
+  const rangeStart = days[0].start, rangeEnd = days[days.length-1].end;
+  const msPerDay = 24*3600*1000;
+  getLogs().forEach(l=>{
+    if (l.planned) return;
+    const d=new Date(l.date);
+    if (d<rangeStart || d>=rangeEnd) return;
+    const day = days[Math.floor((d-rangeStart)/msPerDay)];
+    if (!day) return;
+    day.load += sessionLoad(l);
+    day.sessions++;
+    day.intSum += (l.intensity||3);
+    day.minutes += (l.minutes||0);
+  });
+  return days.map(d=>({start:d.start,end:d.end,load:Math.round(d.load),sessions:d.sessions,avgInt:d.sessions?Math.round(d.intSum/d.sessions*10)/10:0,minutes:Math.round(d.minutes),label:d.label}));
 }
 
 function miniSparkSvg(values, color) {
@@ -8729,7 +8809,12 @@ function renderWorkload() {
     evolEl.style.color = trendZone.color;
   }
 
-  const wData=weeklyData(perfWeeksForRange(wlRange));
+  // Retour utilisateur : "mettre une vision au jour sur la vision semaine et 2 semaines" — sur ces
+  // deux filtres, l'agrégation hebdomadaire (perfWeeksForRange('week')===1, '2w'===2) ne produisait
+  // qu'1 ou 2 barres, illisible. dailyWorkloadData() renvoie la même forme d'objet que weeklyData(),
+  // donc tout le reste du calcul des datasets ci-dessous fonctionne sans changement.
+  const isDailyView = wlRange === 'week' || wlRange === '2w';
+  const wData = isDailyView ? dailyWorkloadData(wlRange === 'week' ? 7 : 14) : weeklyData(perfWeeksForRange(wlRange));
   const wlSub=document.getElementById('wl-vol-sub');
   if (wlSub) wlSub.textContent = WL_RANGE_LABELS[wlRange] || '';
   const chargeBtn=document.getElementById('wl-vol-charge-btn');
@@ -8739,24 +8824,39 @@ function renderWorkload() {
   const timeBtn=document.getElementById('wl-vol-time-btn');
   if (timeBtn) { timeBtn.classList.toggle('active', wlShowTimeOverlay); timeBtn.textContent = wlShowTimeOverlay ? '✓ Temps' : '+ Temps'; }
   const volLegend=document.getElementById('wl-vol-legend');
-  if (volLegend) volLegend.style.display = wlShowCharge ? '' : 'none';
+  if (volLegend) {
+    volLegend.style.display = wlShowCharge ? '' : 'none';
+    // Libellés adaptés à la vue journalière (cf. isDailyView ci-dessus) — la légende est du HTML
+    // statique (pas piloté par Chart.js), donc reconstruite ici à chaque rendu.
+    volLegend.innerHTML = isDailyView
+      ? `<span class="legend-item"><span class="legend-swatch" style="background:var(--stone)"></span>Charge journalière</span>
+         <span class="legend-item"><span style="display:inline-block;width:12px;border-top:2px dashed var(--text)"></span>Moyenne habituelle (charge/jour)</span>`
+      : `<span class="legend-item"><span class="legend-swatch" style="background:var(--stone)"></span>Charge hebdomadaire</span>
+         <span class="legend-item"><span style="display:inline-block;width:12px;border-top:2px dashed var(--text)"></span>Moyenne de référence (4 dernières semaines)</span>`;
+  }
   const volDatasets=[];
   if (wlShowCharge) {
     const chargeVals=wData.map(w=>w.load);
-    // Moyenne glissante sur 4 semaines (fenêtre semaine courante + 3 précédentes) — même logique
-    // que "Ton rythme habituel" du bandeau ci-dessus, affichée ici point par point sur le graphique.
-    const rollingAvg=chargeVals.map((_,i)=>{
-      const start=Math.max(0,i-3);
-      const win=chargeVals.slice(start,i+1);
-      return win.reduce((s,v)=>s+v,0)/win.length;
-    });
+    // Vue journalière : une moyenne glissante sur 4 JOURS ne représenterait pas la même chose
+    // qu'une moyenne sur "4 dernières semaines" — on affiche donc une ligne de référence PLATE, au
+    // niveau de la charge chronique habituelle ramenée à un jour (chronic/7, chronic déjà calculé
+    // plus haut pour la jauge ACWR), plutôt qu'une moyenne glissante qui n'aurait pas de sens ici.
+    // Vue hebdomadaire (inchangée) : moyenne glissante sur 4 semaines (semaine courante + 3
+    // précédentes), même logique que "Ton rythme habituel" du bandeau ci-dessus.
+    const refLine = isDailyView
+      ? chargeVals.map(()=>Math.round((chronic/7)*10)/10)
+      : chargeVals.map((_,i)=>{
+          const start=Math.max(0,i-3);
+          const win=chargeVals.slice(start,i+1);
+          return win.reduce((s,v)=>s+v,0)/win.length;
+        });
     volDatasets.push({
       label:'Charge',data:chargeVals,
       backgroundColor:wData.map(w=>{const c=cLevel(w.load);return c.cls==='c1'?'rgba(45,90,61,.85)':c.cls==='c2'?'rgba(176,122,16,.8)':c.cls==='c3'?'rgba(196,80,26,.85)':'rgba(90,45,130,.9)';}),
       borderRadius:5,borderSkipped:false,order:2,yAxisID:'y'
     });
     volDatasets.push({
-      type:'line',label:'Moyenne (4 sem.)',data:rollingAvg,
+      type:'line',label: isDailyView ? 'Moyenne habituelle/jour' : 'Moyenne (4 sem.)',data:refLine,
       borderColor:'rgba(17,17,15,.55)',borderDash:[5,4],borderWidth:1.5,pointRadius:0,fill:false,tension:.25,order:1,yAxisID:'y'
     });
   }
@@ -12737,7 +12837,35 @@ function updateSessionTypeUI(savedBNoGrade) {
   }
 
   // ── Extra panel content ──
-  if (cfg.extraPanel === 'ppg') {
+  if (type === 'doigts') {
+    // Retour utilisateur : "enlever la valorisation de la charge par le temps sur les exercices de
+    // force doigts et plutôt le faire par le nombre de répétitions et séries et le pourcentage" —
+    // panneau dédié avec séries/répétitions/% du max (cf. FINGER_LOAD_K/fingerLoad). Durée et
+    // intensité restent saisissables plus haut dans le formulaire (utile pour le suivi/journal),
+    // mais n'entrent plus dans le calcul de charge pour ce type de séance.
+    panel.innerHTML = `
+      <div class="panel-header"><span class="panel-title">Force doigts (dead-hangs)</span></div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px">La charge se calcule à partir des séries × répétitions × % du max (au lieu de la durée × intensité) — plus fidèle à l'effort réel d'une séance de suspension.</p>
+      ${bankPickerHtml}
+      <div class="form-row form-row-3">
+        <div class="form-group" style="margin:0">
+          <label class="form-label">Séries</label>
+          <input class="form-control" type="number" min="0" id="s-finger-sets" value="${bData.fingerSets||0}" oninput="updateLoadPreview()">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label class="form-label">Répétitions / série</label>
+          <input class="form-control" type="number" min="0" id="s-finger-reps" value="${bData.fingerReps||0}" oninput="updateLoadPreview()">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label class="form-label">% du max</label>
+          <input class="form-control" type="number" min="0" max="150" id="s-finger-pct" value="${bData.fingerPct||0}" oninput="updateLoadPreview()">
+        </div>
+      </div>
+      <div class="form-group" style="margin:0">
+        <label class="form-label">Charge estimée séance</label>
+        <input class="form-control" id="s-b-preview" disabled value="—">
+      </div>`;
+  } else if (cfg.extraPanel === 'ppg') {
     // Pas de voies, pas de bloc à saisir — la charge se calcule automatiquement à partir de la
     // durée et de l'intensité déjà renseignées plus haut dans le formulaire.
     panel.innerHTML = `
@@ -12876,6 +13004,16 @@ function pickPpgBankFiche() {
   const intensityEl = document.getElementById('s-intensity');
   if (intensityEl && item.intensity) intensityEl.value = item.intensity;
   if (descEl) descEl.textContent = item.description || '';
+  // Retour utilisateur : "avoir quand cela vient de la mine l'ensemble pré-rempli que l'utilisateur
+  // peut modifier en fonction de la séance" — séries/répétitions/% par défaut de la fiche (si elle
+  // en définit, cf. éditeur de La Mine), toujours modifiables ensuite pour cette séance précise.
+  // Les champs n'existent que pour le type 'doigts' (cf. updateSessionTypeUI) : absents sinon.
+  const setsEl = document.getElementById('s-finger-sets');
+  if (setsEl && item.fingerSets) setsEl.value = item.fingerSets;
+  const repsEl = document.getElementById('s-finger-reps');
+  if (repsEl && item.fingerReps) repsEl.value = item.fingerReps;
+  const pctEl = document.getElementById('s-finger-pct');
+  if (pctEl && item.fingerPct) pctEl.value = item.fingerPct;
   updateLoadPreview();
 }
 window.pickPpgBankFiche = pickPpgBankFiche;
@@ -13537,7 +13675,14 @@ function updateLoadPreview(){
 
   // Panneau complémentaire (bloc non coté / volume additionnel / séance hors escalade)
   let bLoad;
-  if (cfg.extraPanel === 'ppg' || cfg.extraPanel === 'footing') {
+  if (type === 'doigts') {
+    // Retour utilisateur : charge des séances "Force doigts" calculée sur séries × répétitions ×
+    // % du max plutôt que durée × intensité (cf. FINGER_LOAD_K/fingerLoad ci-dessus).
+    const sets = fieldVal('s-finger-sets', 0);
+    const reps = fieldVal('s-finger-reps', 0);
+    const pct = fieldVal('s-finger-pct', 0);
+    bLoad = Math.round(sets * reps * (pct/100) * FINGER_LOAD_K);
+  } else if (cfg.extraPanel === 'ppg' || cfg.extraPanel === 'footing') {
     // Séance hors escalade (dont footing) : charge = durée × intensité (méthode session-RPE),
     // pas de saisie manuelle — la distance (km) du footing est informative, elle n'entre pas
     // dans le calcul de charge. Chaque activité a son propre facteur d'atténuation (cf.
@@ -13679,6 +13824,10 @@ function saveCurrentSession() {
     moyenSent:       fieldVal('s-b-moyen', 0),
     travailSent:     fieldVal('s-b-travail', 0),
     travailTries:    fieldVal('s-b-travail-tries', 0)
+  } : sType === 'doigts' ? {
+    fingerSets: fieldVal('s-finger-sets', 0),
+    fingerReps: fieldVal('s-finger-reps', 0),
+    fingerPct:  fieldVal('s-finger-pct', 0)
   } : sCfg.extraPanel === 'ppg' ? {} : sCfg.extraPanel === 'footing' ? {
     distanceKm: fieldVal('s-b-distance-km', 0)
   } : {
@@ -15562,6 +15711,14 @@ function sbRenderSupportSection() {
 document.getElementById('sb-type')?.addEventListener('change', sbRenderSupportSection);
 document.getElementById('sb-goal')?.addEventListener('change', (e) => sbAutoCheckStylesForGoal(e.target.value));
 document.getElementById('sb-type')?.addEventListener('change', () => sbRefillCategorySelect(document.getElementById('sb-category')?.value));
+// Panneau "Valeurs par défaut — Force doigts" (cf. #sb-finger-panel ci-dessus) : visible seulement
+// pour une fiche de type 'doigts'.
+function sbSyncFingerPanelUI() {
+  const type = document.getElementById('sb-type')?.value;
+  const panel = document.getElementById('sb-finger-panel');
+  if (panel) panel.style.display = type === 'doigts' ? '' : 'none';
+}
+document.getElementById('sb-type')?.addEventListener('change', sbSyncFingerPanelUI);
 
 // Retour utilisateur : bouton "⚠️ Alerte récupération" — prévient l'athlète que cette séance
 // nécessite d'être physiquement frais, avec un délai de récupération minimum (en heures) depuis
@@ -15700,6 +15857,15 @@ function sbEditCard(id) {
   const sbTimerPanel = document.getElementById('sb-timer-panel');
   if (sbTimerPanel) sbTimerPanel.style.display = sbTimerReps0 > 0 ? '' : 'none';
   sbSyncTimerToggleUI();
+  // 🤏 Valeurs par défaut Force doigts — panneau affiché seulement pour une fiche de type 'doigts'
+  // (cf. sbSyncFingerPanelUI), rempli ici si déjà renseigné sur la fiche.
+  const sbFingerSetsInput = document.getElementById('sb-finger-sets');
+  if (sbFingerSetsInput) sbFingerSetsInput.value = s.fingerSets > 0 ? s.fingerSets : '';
+  const sbFingerRepsInput = document.getElementById('sb-finger-reps');
+  if (sbFingerRepsInput) sbFingerRepsInput.value = s.fingerReps > 0 ? s.fingerReps : '';
+  const sbFingerPctInput = document.getElementById('sb-finger-pct');
+  if (sbFingerPctInput) sbFingerPctInput.value = s.fingerPct > 0 ? s.fingerPct : '';
+  sbSyncFingerPanelUI();
   sbAiReviewHistory = [];
   sbRenderAiReviewMessages();
   document.getElementById('sb-delete-btn').style.display = '';
@@ -15753,6 +15919,10 @@ function sbNewCard() {
   const sbTimerSeriesRestInput2 = document.getElementById('sb-timer-series-rest'); if (sbTimerSeriesRestInput2) sbTimerSeriesRestInput2.value = '';
   const sbTimerPanel2 = document.getElementById('sb-timer-panel'); if (sbTimerPanel2) sbTimerPanel2.style.display = 'none';
   sbSyncTimerToggleUI();
+  const sbFingerSetsInput2 = document.getElementById('sb-finger-sets'); if (sbFingerSetsInput2) sbFingerSetsInput2.value = '';
+  const sbFingerRepsInput2 = document.getElementById('sb-finger-reps'); if (sbFingerRepsInput2) sbFingerRepsInput2.value = '';
+  const sbFingerPctInput2 = document.getElementById('sb-finger-pct'); if (sbFingerPctInput2) sbFingerPctInput2.value = '';
+  sbSyncFingerPanelUI();
   sbAiReviewHistory = [];
   sbRenderAiReviewMessages();
   document.getElementById('sb-delete-btn').style.display = 'none';
@@ -15808,6 +15978,11 @@ function sbSave() {
     timerReps:         parseInt(document.getElementById('sb-timer-reps')?.value, 10) || 0,
     timerSeries:       parseInt(document.getElementById('sb-timer-series')?.value, 10) || 0,
     timerSeriesRestSec: parseInt(document.getElementById('sb-timer-series-rest')?.value, 10) || 0,
+    // 🤏 Valeurs par défaut Force doigts (cf. #sb-finger-panel) — 0 partout pour une fiche d'un
+    // autre type (panneau masqué, jamais renseigné), repris par pickPpgBankFiche() côté séance.
+    fingerSets: parseInt(document.getElementById('sb-finger-sets')?.value, 10) || 0,
+    fingerReps: parseInt(document.getElementById('sb-finger-reps')?.value, 10) || 0,
+    fingerPct:  parseInt(document.getElementById('sb-finger-pct')?.value, 10) || 0,
     createdAt:   editId ? (getBank().find(s=>s.id===editId)?.createdAt || Date.now()) : Date.now(),
     source:      editId ? (getBank().find(s=>s.id===editId)?.source || 'manual') : (isAiEdit ? 'ai' : 'manual'),
     // Cloisonnement par coach : visibility vient du formulaire (défaut 'private' pour une fiche
