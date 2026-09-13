@@ -172,6 +172,16 @@ async function initDB() {
       ALTER TABLE session_bank ADD COLUMN IF NOT EXISTS timer_series INTEGER DEFAULT 0;
       ALTER TABLE session_bank ADD COLUMN IF NOT EXISTS timer_reps INTEGER DEFAULT 0;
       ALTER TABLE session_bank ADD COLUMN IF NOT EXISTS timer_series_rest_sec INTEGER DEFAULT 0;
+      -- Retour utilisateur : "enlever la valorisation de la charge par le temps sur les exercices
+      -- de force doigts et plutôt le faire par le nombre de répétitions et séries et le
+      -- pourcentage" + "avoir quand cela vient de la mine l'ensemble pré-rempli que l'utilisateur
+      -- peut modifier" — valeurs par défaut séries/répétitions/% du max pour une fiche de type
+      -- 'doigts', reprises lors du choix de la fiche dans une séance (cf. pickPpgBankFiche côté
+      -- client). 0 partout (valeur par défaut) = fiche sans valeurs par défaut, comportement
+      -- inchangé pour toute fiche existante ou d'un autre type.
+      ALTER TABLE session_bank ADD COLUMN IF NOT EXISTS finger_sets INTEGER DEFAULT 0;
+      ALTER TABLE session_bank ADD COLUMN IF NOT EXISTS finger_reps INTEGER DEFAULT 0;
+      ALTER TABLE session_bank ADD COLUMN IF NOT EXISTS finger_pct INTEGER DEFAULT 0;
       -- Backfill unique : les fiches créées AVANT ce cloisonnement n'ont pas de propriétaire connu
       -- — on les attribue au premier compte owner trouvé (ne change rien à leur visibilité, déjà
       -- 'shared' par défaut, donc personne ne perd l'accès à sa bibliothèque existante) plutôt que
