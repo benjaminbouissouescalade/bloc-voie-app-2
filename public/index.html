@@ -2125,6 +2125,15 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
            avec un repos plus long entre chaque série. Une série de 1 répétition (valeur par
            défaut) redonne exactement le comportement simple d'avant. -->
       <div id="timer-setup-fields">
+        <!-- Retour utilisateur : "il faut aussi mettre un temps de lancement avant, pour pouvoir se
+             mettre en place" — un compte à rebours de préparation joué une seule fois avant la
+             première répétition (pas entre chaque répétition, cf. "Repos entre répétitions" qui
+             existe déjà pour ça), pour laisser le temps de s'installer sur le mur/pan avant que
+             l'effort ne démarre. 0 = désactivé (comportement d'avant, démarrage immédiat). -->
+        <div class="form-group" style="margin:0 0 8px">
+          <label class="form-label">Temps de lancement avant le début (s)</label>
+          <input class="form-control" type="number" min="0" id="timer-prep-input" value="5" oninput="timerReset()">
+        </div>
         <div class="form-row form-row-2">
           <div class="form-group" style="margin:0">
             <label class="form-label">Effort (s)</label>
@@ -6349,6 +6358,18 @@ function cLevel(load, baseline) {
   for (const c of C_LEVELS) if (ratio<=c.max) return c;
   return C_LEVELS[3];
 }
+// Couleur de barre pour un niveau de charge : reprend la palette C1-C4 standard, mais quand on
+// dépasse largement C4 (ratio charge/référence > 2, soit plus du double du seuil "à surveiller")
+// bascule sur une couleur nettement plus intense pour que ces barres ressortent au milieu des
+// autres barres violettes C4 — retour : "mettre une couleur plus intense quand on dépasse C4".
+// Ne touche pas à cLevel()/C_LEVELS (le libellé du badge reste "C4") : uniquement une variante
+// de couleur pour les graphiques.
+function loadBarColor(load, baseline) {
+  if (baseline===undefined) baseline = getPersonalBaseline();
+  const lv = cLevel(load, baseline);
+  if (lv.cls==='c4' && baseline && (load/baseline) > 2) return 'rgba(199,24,24,.95)';
+  return { c1:'rgba(45,90,61,.85)', c2:'rgba(176,122,16,.8)', c3:'rgba(196,80,26,.85)', c4:'rgba(90,45,130,.9)' }[lv.cls];
+}
 
 function weeklyData(nWeeks=16) {
   const now = new Date(); now.setHours(0,0,0,0);
@@ -6936,14 +6957,13 @@ function renderDashboard() {
   // (page Charge, cartes "Mes athlètes"...) — même niveau de charge, deux couleurs différentes
   // selon la page. On reprend ici cette palette standard, une vraie progression verte → dorée →
   // orange → violette (léger → dans la norme → élevé → à surveiller).
-  const C_LEVEL_COLORS = { c1:'rgba(45,90,61,.85)', c2:'rgba(176,122,16,.8)', c3:'rgba(196,80,26,.85)', c4:'rgba(90,45,130,.9)' };
   makeChart('weeklyChart',{
     type:'bar',
     data:{
       labels:wData.map(w=>w.label),
       datasets:[{
         data:wData.map(w=>w.load),
-        backgroundColor:wData.map(w=>C_LEVEL_COLORS[cLevel(w.load).cls]),
+        backgroundColor:wData.map(w=>loadBarColor(w.load)),
         borderRadius:6,borderSkipped:false
       }]
     },
@@ -8916,7 +8936,7 @@ function renderWorkload() {
         });
     volDatasets.push({
       label:'Charge',data:chargeVals,
-      backgroundColor:wData.map(w=>{const c=cLevel(w.load);return c.cls==='c1'?'rgba(45,90,61,.85)':c.cls==='c2'?'rgba(176,122,16,.8)':c.cls==='c3'?'rgba(196,80,26,.85)':'rgba(90,45,130,.9)';}),
+      backgroundColor:wData.map(w=>loadBarColor(w.load)),
       borderRadius:5,borderSkipped:false,order:2,yAxisID:'y'
     });
     volDatasets.push({
@@ -13725,7 +13745,11 @@ function renderFingerSeriesEditor() {
     // pour qu'ajuster le poids de référence mette aussi à jour les séries déjà entrées.
     const pct = refWeight && s.weightKg != null ? Math.round((s.weightKg/refWeight)*1000)/10 : (s.pct||0);
     fingerSeriesRows[i].pct = pct;
-    return `<div style="display:grid;grid-template-columns:1fr 70px 80px 70px auto;gap:8px;align-items:end;margin-bottom:8px">
+    // Retour utilisateur : "il faudrait rajouter le temps de tirage sur ces fiches" — durée de
+    // suspension par répétition (secondes), purement informative comme le grip (n'entre pas dans le
+    // calcul de charge, cf. fingerLoad() : charge = séries × répétitions × % du max, volontairement
+    // indépendante de la durée depuis le retour "enlever la valorisation de la charge par le temps").
+    return `<div style="display:grid;grid-template-columns:1fr 70px 70px 80px 70px auto;gap:8px;align-items:end;margin-bottom:8px">
       <div>
         <label style="font-size:10px;color:var(--muted)">${i===0?'Préhension':''}</label>
         <select class="form-control" style="font-size:12px;padding:6px 8px" onchange="fingerSeriesRows[${i}].grip=this.value">
@@ -13735,6 +13759,10 @@ function renderFingerSeriesEditor() {
       <div>
         <label style="font-size:10px;color:var(--muted)">${i===0?'Répét.':''}</label>
         <input class="form-control" type="number" min="0" style="font-size:12px;padding:6px 8px" value="${s.reps||0}" oninput="fingerSeriesRows[${i}].reps=+this.value||0;updateLoadPreview()">
+      </div>
+      <div>
+        <label style="font-size:10px;color:var(--muted)">${i===0?'Tirage (s)':''}</label>
+        <input class="form-control" type="number" min="0" style="font-size:12px;padding:6px 8px" value="${s.hangSec!=null?s.hangSec:''}" oninput="fingerSeriesRows[${i}].hangSec=this.value===''?null:+this.value">
       </div>
       <div>
         <label style="font-size:10px;color:var(--muted)">${i===0?'Poids (kg)':''}</label>
@@ -13753,7 +13781,7 @@ function addFingerSeriesRow() {
   // (mêmes réglages série après série, seul le poids baisse parfois en fin de séance) — plutôt que
   // de repartir de zéro à chaque ajout.
   const last = fingerSeriesRows[fingerSeriesRows.length-1];
-  fingerSeriesRows.push(last ? { ...last } : { grip:'tendu', reps:6, weightKg: fingerRefWeight()||null, pct:0 });
+  fingerSeriesRows.push(last ? { ...last } : { grip:'tendu', reps:6, hangSec:7, weightKg: fingerRefWeight()||null, pct:0 });
   renderFingerSeriesEditor();
   updateLoadPreview();
 }
@@ -14436,7 +14464,7 @@ document.getElementById('day-modal').addEventListener('click',e=>{if(e.target.id
 let timerIntervalId = null;
 let timerAudioCtx = null;
 let timerState = {
-  phase: 'idle',        // 'idle' | 'effort' | 'rest' | 'seriesRest' | 'done'
+  phase: 'idle',        // 'idle' | 'prep' | 'effort' | 'rest' | 'seriesRest' | 'done'
   remaining: 7,         // secondes restantes dans la phase en cours
   repsDone: 0,           // répétitions faites dans la série en cours
   repsPerSeries: 6,
@@ -14445,6 +14473,7 @@ let timerState = {
   effortSec: 7,
   restSec: 3,            // repos entre répétitions
   seriesRestSec: 0,      // repos entre séries
+  prepSec: 5,            // temps de lancement/mise en place, joué une fois avant la 1re répétition
 };
 
 function timerFmt(sec) {
@@ -14481,20 +14510,27 @@ function timerReadInputs() {
   timerState.repsPerSeries = Math.max(1, parseInt(document.getElementById('timer-reps-input')?.value, 10) || 1);
   timerState.totalSeries = Math.max(1, parseInt(document.getElementById('timer-series-input')?.value, 10) || 1);
   timerState.seriesRestSec = Math.max(0, parseInt(document.getElementById('timer-series-rest-input')?.value, 10) || 0);
+  // 0 est une valeur valide (pas de temps de lancement) — contrairement aux autres champs ci-dessus
+  // dont le fallback "|| 0" ne pose pas de problème, ici le fallback par défaut est 5, donc on ne
+  // l'applique qu'en cas de champ vide/non numérique (NaN), pas quand l'utilisateur saisit 0.
+  const prepRaw = parseInt(document.getElementById('timer-prep-input')?.value, 10);
+  timerState.prepSec = Math.max(0, isNaN(prepRaw) ? 5 : prepRaw);
 }
 
 function timerRenderFace() {
   const labelEl = document.getElementById('timer-phase-label');
   const dispEl = document.getElementById('timer-display');
   const seriesEl = document.getElementById('timer-series-label');
-  const labels = { idle: 'Prêt', effort: '💪 Effort', rest: '😌 Repos', seriesRest: '🧘 Repos entre séries', done: '✓ Terminé' };
-  const colors = { idle: 'var(--muted)', effort: '#c0392b', rest: '#1f7a3d', seriesRest: '#1f6f7a', done: 'var(--accent)' };
+  const labels = { idle: 'Prêt', prep: '🧭 Mise en place', effort: '💪 Effort', rest: '😌 Repos', seriesRest: '🧘 Repos entre séries', done: '✓ Terminé' };
+  const colors = { idle: 'var(--muted)', prep: '#1a4a7a', effort: '#c0392b', rest: '#1f7a3d', seriesRest: '#1f6f7a', done: 'var(--accent)' };
   if (labelEl) { labelEl.textContent = labels[timerState.phase] || ''; labelEl.style.color = colors[timerState.phase] || ''; }
-  if (dispEl) { dispEl.textContent = timerFmt(timerState.phase === 'idle' ? timerState.effortSec : timerState.remaining); dispEl.style.color = colors[timerState.phase] || ''; }
+  if (dispEl) { dispEl.textContent = timerFmt(timerState.phase === 'idle' ? (timerState.prepSec > 0 ? timerState.prepSec : timerState.effortSec) : timerState.remaining); dispEl.style.color = colors[timerState.phase] || ''; }
   if (seriesEl) {
     const multiSeries = timerState.totalSeries > 1;
     const seriesTag = multiSeries ? ` — série ${timerState.seriesDone + 1}/${timerState.totalSeries}` : '';
-    if (timerState.phase === 'effort' || timerState.phase === 'rest') {
+    if (timerState.phase === 'prep') {
+      seriesEl.textContent = 'Installe-toi, ça démarre…';
+    } else if (timerState.phase === 'effort' || timerState.phase === 'rest') {
       seriesEl.textContent = `Répétition ${timerState.repsDone + 1} / ${timerState.repsPerSeries}${seriesTag}`;
     } else if (timerState.phase === 'seriesRest') {
       seriesEl.textContent = `Repos avant la série ${timerState.seriesDone + 1} / ${timerState.totalSeries}`;
@@ -14564,7 +14600,7 @@ function timerTick() {
       timerState.remaining = timerState.effortSec;
       timerBeep(880, 180);
     }
-  } else { // 'rest' ou 'seriesRest' terminé → nouvelle répétition (même série ou nouvelle)
+  } else { // 'prep', 'rest' ou 'seriesRest' terminé → (nouvelle) répétition, sans toucher repsDone/seriesDone
     timerState.phase = 'effort';
     timerState.remaining = timerState.effortSec;
     timerBeep(880, 180);
@@ -14575,11 +14611,19 @@ function timerTick() {
 function timerStart() {
   timerReadInputs();
   if (timerState.phase === 'idle' || timerState.phase === 'done') {
-    timerState.phase = 'effort';
-    timerState.remaining = timerState.effortSec;
     timerState.repsDone = 0;
     timerState.seriesDone = 0;
-    timerBeep(880, 180);
+    if (timerState.prepSec > 0) {
+      // Compte à rebours de mise en place, joué une seule fois avant la 1re répétition — à la fin
+      // duquel timerTick() enchaîne naturellement sur 'effort' (même branche que fin de repos).
+      timerState.phase = 'prep';
+      timerState.remaining = timerState.prepSec;
+      timerBeep(523, 150);
+    } else {
+      timerState.phase = 'effort';
+      timerState.remaining = timerState.effortSec;
+      timerBeep(880, 180);
+    }
   }
   const setup = document.getElementById('timer-setup-fields'); if (setup) setup.style.display = 'none';
   document.getElementById('timer-start-btn').style.display = 'none';
@@ -16862,8 +16906,16 @@ function renderClimberCards() {
   grid.innerHTML = visibleClimbers.map(c => {
     const initials = c.name.trim().split(/\s+/).map(w=>w[0]).join('').toUpperCase().slice(0,2);
     const isActive = c.id === db.activeId;
-    const stats = climberStats(c);
-    const declaredLevel = c.level || null;
+    // Retour utilisateur : "mon athlète a choisi bloc en profil, sur sa fiche on ne voit pas le
+    // niveau bloc" — avant ce correctif, la carte calculait toujours "Meilleure perf"/"Niveau
+    // actuel" sur l'échelle voie (climberStats scale='route' par défaut) et n'affichait que le
+    // niveau déclaré voie (c.level), quelle que soit la discipline principale choisie dans le
+    // profil (cf. profile.primaryDiscipline, déjà utilisé pour la sidebar — même logique reprise
+    // ici pour la carte).
+    const isBlocPrimary = c.profile?.primaryDiscipline === 'bloc';
+    const stats = climberStats(c, isBlocPrimary ? 'bloc' : 'route');
+    const declaredLevel = (isBlocPrimary ? c.profile?.levelBloc : c.level) || null;
+    const disciplineSuffix = isBlocPrimary ? ' (bloc)' : '';
 
     const gradeCell = (label, grade, cls='') => `
       <div class="cc-grade-cell ${cls}">
@@ -16890,9 +16942,9 @@ function renderClimberCards() {
       <div class="cc-name">${esc(c.name)}</div>
       <div class="cc-stats">${stats.sessionCount} séance${stats.sessionCount!==1?'s':''}</div>
       <div class="cc-grade-row">
-        ${gradeCell('Niveau déclaré', declaredLevel, '')}
-        ${gradeCell('Meilleure perf', stats.bestPerf, 'warm')}
-        ${gradeCell('Niveau actuel', stats.currentLvl, 'highlight')}
+        ${gradeCell(`Niveau déclaré${disciplineSuffix}`, declaredLevel, '')}
+        ${gradeCell(`Meilleure perf${disciplineSuffix}`, stats.bestPerf, 'warm')}
+        ${gradeCell(`Niveau actuel${disciplineSuffix}`, stats.currentLvl, 'highlight')}
       </div>
       ${trendHtml}
       <div class="cc-actions" style="margin-top:8px;flex-wrap:wrap">
