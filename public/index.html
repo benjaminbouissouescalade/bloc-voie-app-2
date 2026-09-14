@@ -13749,11 +13749,24 @@ function renderFingerSeriesEditor() {
     // suspension par répétition (secondes), purement informative comme le grip (n'entre pas dans le
     // calcul de charge, cf. fingerLoad() : charge = séries × répétitions × % du max, volontairement
     // indépendante de la durée depuis le retour "enlever la valorisation de la charge par le temps").
-    return `<div style="display:grid;grid-template-columns:1fr 70px 70px 80px 70px auto;gap:8px;align-items:end;margin-bottom:8px">
+    // Retour utilisateur : "pouvoir mettre main droite / main gauche si différent" — les dead-hangs
+    // unilatéraux (une main à la fois) montrent souvent une force différente d'un côté à l'autre ;
+    // plutôt que de forcer une seule série "2 mains", on tague chaque série avec la main travaillée
+    // (par défaut "Deux mains", comportement identique à avant) — pour une asymétrie, l'athlète
+    // ajoute simplement une série "Main droite" et une série "Main gauche" avec chacune son poids.
+    return `<div style="display:grid;grid-template-columns:1fr 88px 70px 70px 80px 70px auto;gap:8px;align-items:end;margin-bottom:8px">
       <div>
         <label style="font-size:10px;color:var(--muted)">${i===0?'Préhension':''}</label>
         <select class="form-control" style="font-size:12px;padding:6px 8px" onchange="fingerSeriesRows[${i}].grip=this.value">
           ${Object.entries(GRIP_TYPES).map(([k,l])=>`<option value="${k}" ${s.grip===k?'selected':''}>${l}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <label style="font-size:10px;color:var(--muted)">${i===0?'Main':''}</label>
+        <select class="form-control" style="font-size:12px;padding:6px 8px" onchange="fingerSeriesRows[${i}].hand=this.value">
+          <option value="both" ${(!s.hand||s.hand==='both')?'selected':''}>Deux mains</option>
+          <option value="right" ${s.hand==='right'?'selected':''}>Main droite</option>
+          <option value="left" ${s.hand==='left'?'selected':''}>Main gauche</option>
         </select>
       </div>
       <div>
@@ -13781,7 +13794,7 @@ function addFingerSeriesRow() {
   // (mêmes réglages série après série, seul le poids baisse parfois en fin de séance) — plutôt que
   // de repartir de zéro à chaque ajout.
   const last = fingerSeriesRows[fingerSeriesRows.length-1];
-  fingerSeriesRows.push(last ? { ...last } : { grip:'tendu', reps:6, hangSec:7, weightKg: fingerRefWeight()||null, pct:0 });
+  fingerSeriesRows.push(last ? { ...last } : { grip:'tendu', hand:'both', reps:6, hangSec:7, weightKg: fingerRefWeight()||null, pct:0 });
   renderFingerSeriesEditor();
   updateLoadPreview();
 }
