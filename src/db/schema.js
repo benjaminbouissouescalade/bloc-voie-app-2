@@ -105,6 +105,19 @@ async function initDB() {
       -- de l'intensité déjà saisie dans le formulaire). Valeurs : too_easy/easy/right/hard/too_hard,
       -- vide si jamais répondu (l'athlète peut passer).
       ALTER TABLE logs ADD COLUMN IF NOT EXISTS feeling TEXT DEFAULT '';
+      -- Retour utilisateur : "des séances de la semaine passée sont passées en prévisionnel" (Gilles,
+      -- Lisa, et une autre athlète, indépendamment) — cause : syncToBackend() (frontend) republie
+      -- TOUS les logs de TOUS les grimpeurs connus du navigateur à CHAQUE saveDB(), même pour une
+      -- action sans rapport. Un onglet resté ouvert longtemps (donc avec un état local périmé pour un
+      -- grimpeur donné) republie alors sans le savoir sa copie périmée — et jusqu'ici POST
+      -- /:climberId/sync et POST /:climberId faisaient un upsert INCONDITIONNEL par id : la copie
+      -- périmée écrasait purement et simplement la version plus récente déjà en base (ex. planned
+      -- true→ré-écrasé à true alors que la séance avait été faite entre-temps depuis un autre
+      -- appareil). client_updated_at est une estampille posée CÔTÉ CLIENT à chaque modification
+      -- réelle d'une séance (pas à chaque sync) : les deux routes n'appliquent désormais la mise à
+      -- jour que si la valeur envoyée est >= à celle déjà stockée, pour qu'un envoi périmé ne puisse
+      -- plus jamais écraser un envoi plus récent.
+      ALTER TABLE logs ADD COLUMN IF NOT EXISTS client_updated_at BIGINT DEFAULT 0;
       CREATE INDEX IF NOT EXISTS idx_logs_climber_date ON logs(climber_id, date DESC);
       CREATE TABLE IF NOT EXISTS session_bank (
         id          TEXT PRIMARY KEY,
