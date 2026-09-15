@@ -951,7 +951,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
            Railway) a bien pris effet : horodatage de la dernière modification de ce fichier.
            MAINTENANCE : à mettre à jour (id="app-version-badge") à chaque modification de
            public/index.html, format vAAAA.MM.JJ-HHMM (heure locale du moment de l'édition). -->
-      <h1>Digger <span id="app-version-badge" title="Dernière modification du code — sert à vérifier qu'un déploiement a bien pris effet" style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:0;text-transform:none;vertical-align:super">v2026.09.15-1039</span></h1>
+      <h1>Digger <span id="app-version-badge" title="Dernière modification du code — sert à vérifier qu'un déploiement a bien pris effet" style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:0;text-transform:none;vertical-align:super">v2026.09.15-1512</span></h1>
       <p>Climbing training log</p>
     </div>
   </div>
@@ -4218,6 +4218,14 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     <div class="form-group">
       <label class="form-label">Tags (styles travaillés)</label>
       <div id="sb-tags-picker" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px"></div>
+      <!-- Retour utilisateur : "une case autre à Tag avec la possibilité par une fenêtre de le
+           mettre à demeure pour la mine du coach" — case "+ Autre…" ajoutée par sbRenderTagsPicker()
+           dans #sb-tags-picker ; révèle cette rangée, qui crée le tag à demeure (global, comme
+           BANK_TAXONOMY) via sbCreateNewTag(). -->
+      <div id="sb-tags-new-row" style="display:none;gap:6px;margin-top:6px">
+        <input class="form-control" type="text" id="sb-tags-new-input" placeholder="Nom du nouveau tag (ex. Endurance)" style="flex:1">
+        <button type="button" class="btn sm primary" onclick="sbCreateNewTag()">Créer</button>
+      </div>
     </div>
     <!-- Retour utilisateur : "enlève les filtres transversaux, ça fait trop d'info" — picker
          retiré de l'éditeur (cf. commentaire jumeau sur la rangée de filtres rapides, page La
@@ -7785,6 +7793,18 @@ function mergeBankTaxonomyCustom(extra) {
       if (sub && !BANK_TAXONOMY[cat].includes(sub)) BANK_TAXONOMY[cat].push(sub);
     });
   });
+}
+// Tags "styles travaillés" ajoutés à la volée (case "+ Autre…" du picker Tags, cf.
+// sbCreateNewTag) — fusionnés dans STYLES (mutation en place) au démarrage, même principe que
+// loadBankTaxonomyCustom ci-dessus pour les dossiers.
+async function loadBankTagsCustom() {
+  if (!authToken()) return;
+  try {
+    const res = await fetch('/api/bank-tags', { headers: authHeaders() });
+    if (!res.ok) return;
+    const extra = await res.json();
+    (extra || []).forEach(name => { if (name && !STYLES.includes(name)) STYLES.push(name); });
+  } catch (e) {}
 }
 // Vrai seulement quand un ATHLÈTE (pas son coach) tente de planifier sur SON PROPRE profil en
 // mode coach_only. Un coach/owner qui planifie pour un athlète depuis l'espace Coaching n'est
@@ -15550,15 +15570,48 @@ function sbToggleCrossTag(tag) {
 }
 window.sbToggleCrossTag = sbToggleCrossTag;
 
+// Tags (styles travaillés) picker de l'éditeur de fiche — STYLES fixe + tags "+ Autre…" ajoutés à
+// la volée (cf. sbCreateNewTag / bank_tags_custom, même principe que BANK_TAXONOMY pour les
+// dossiers). Ré-appelée après création d'un tag pour insérer la nouvelle case sans perdre les
+// cases déjà cochées (passées explicitement, sinon relues sur le picker existant).
+function sbRenderTagsPicker(checkedValues) {
+  const tp = document.getElementById('sb-tags-picker');
+  if (!tp) return;
+  const checked = checkedValues || Array.from(tp.querySelectorAll('input:checked')).map(el => el.value);
+  tp.innerHTML = STYLES.map(s =>
+    `<label style="display:inline-flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;padding:3px 0">
+      <input type="checkbox" value="${esc(s)}" ${checked.includes(s) ? 'checked' : ''} style="accent-color:var(--accent)"> ${esc(s)}
+    </label>`
+  ).join('') + `<button type="button" class="btn sm sb-quick-pill" onclick="sbShowNewTagRow()" style="font-size:12px;padding:3px 8px">+ Autre…</button>`;
+}
+function sbShowNewTagRow() {
+  const row = document.getElementById('sb-tags-new-row');
+  if (row) { row.style.display = 'flex'; document.getElementById('sb-tags-new-input')?.focus(); }
+}
+window.sbShowNewTagRow = sbShowNewTagRow;
+async function sbCreateNewTag() {
+  const input = document.getElementById('sb-tags-new-input');
+  const name = (input?.value || '').trim();
+  if (!name) return;
+  if (!STYLES.includes(name)) STYLES.push(name);
+  try {
+    if (authToken()) await fetch('/api/bank-tags', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ name }) });
+  } catch (e) {}
+  const tp = document.getElementById('sb-tags-picker');
+  const checked = tp ? Array.from(tp.querySelectorAll('input:checked')).map(el => el.value) : [];
+  checked.push(name);
+  if (input) input.value = '';
+  const row = document.getElementById('sb-tags-new-row');
+  if (row) row.style.display = 'none';
+  sbRenderTagsPicker(checked);
+}
+window.sbCreateNewTag = sbCreateNewTag;
+
 function renderSessionBank() {
   // Tags picker in editor
   const tp = document.getElementById('sb-tags-picker');
   if (tp && !tp.innerHTML) {
-    tp.innerHTML = STYLES.map(s =>
-      `<label style="display:inline-flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;padding:3px 0">
-        <input type="checkbox" value="${s}" style="accent-color:var(--accent)"> ${s}
-      </label>`
-    ).join('');
+    sbRenderTagsPicker();
   }
   // Filtres transversaux picker dans l'éditeur
   const ctp = document.getElementById('sb-crosstag-picker');
@@ -18624,6 +18677,7 @@ window.initAppData = async function() {
   await loadMyPlanningMode();
   updateCoachSectionVisibility();
   await loadBankTaxonomyCustom();
+  await loadBankTagsCustom();
   // Charge le fil coach dès le démarrage (pas seulement à l'ouverture de "Mes athlètes") pour que
   // le badge "🩹 bobo" du nav soit une vraie notification visible dès la connexion, et pas quelque
   // chose que le coach ne voit qu'en pensant à cliquer sur la page.
