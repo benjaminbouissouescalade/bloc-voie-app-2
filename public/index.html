@@ -944,7 +944,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
            Railway) a bien pris effet : horodatage de la dernière modification de ce fichier.
            MAINTENANCE : à mettre à jour (id="app-version-badge") à chaque modification de
            public/index.html, format vAAAA.MM.JJ-HHMM (heure locale du moment de l'édition). -->
-      <h1>Digger <span id="app-version-badge" title="Dernière modification du code — sert à vérifier qu'un déploiement a bien pris effet" style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:0;text-transform:none;vertical-align:super">v2026.09.15-1734</span></h1>
+      <h1>Digger <span id="app-version-badge" title="Dernière modification du code — sert à vérifier qu'un déploiement a bien pris effet" style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:0;text-transform:none;vertical-align:super">v2026.09.15-1810</span></h1>
       <p>Climbing training log</p>
     </div>
   </div>
@@ -14296,6 +14296,21 @@ function saveCurrentSession() {
   // jour-là dans un AUTRE contexte non synchronisé — d'où des séances qui apparaissent deux fois
   // avec des valeurs légèrement différentes (retour utilisateur : "Lisa a 2x la meme seance"). On
   // ne bloque pas (plusieurs séances du même type le même jour sont légitimes), mais on prévient.
+  // Retour utilisateur : "ses séances programmées se sont mélangées avec les rentrées de la
+  // semaine précédente" — une séance PRÉVUE (planned:true, prescrite par le coach ou auto-
+  // planifiée) jamais rouverte/complétée restait affichée en pointillés + 📌 pour toujours, même
+  // une fois qu'une AUTRE séance avait été loguée séparément ce même jour via "+ Ajouter une
+  // séance" (au lieu d'ouvrir et compléter la séance prévue existante) — cf. le même bug déjà
+  // corrigé pour le créneau "à choisir" dans fulfillFlexSession. On prévient maintenant avant de
+  // créer ce doublon "fantôme prévue + séance faite séparée", plutôt que de laisser le calendrier
+  // se remplir silencieusement de séances prévues jamais résolues.
+  if (isNewCompletedSession) {
+    const stalePlanned = (getActive().logs||[]).find(l => l.date === payload.date && l.planned);
+    if (stalePlanned) {
+      const ok = confirm(`Une séance prévue ("${sessionDisplayLabel(stalePlanned)}") existe déjà ce jour-là mais n'a jamais été marquée faite.\n\nCréer quand même une séance distincte ce jour-là ?\n\nSi tu voulais plutôt compléter la séance prévue (sinon elle restera affichée avec 📌 indéfiniment), clique sur Annuler puis ouvre-la depuis le calendrier.`);
+      if (!ok) return null;
+    }
+  }
   if (isNewCompletedSession) {
     const dup = (getActive().logs||[]).find(l => l.date === payload.date && l.type === payload.type && !l.planned);
     if (dup) {
