@@ -15821,7 +15821,7 @@ function sbOpenDetail(id) {
       <button class="btn" onclick="sbToggleFavorite('${id}');sbOpenDetail('${id}')">${isFav?'★ Retirer des pépites':'☆ Ajouter aux pépites'}</button>
       <button class="btn" onclick="shareBankToCrew('${id}')">🔗 Partager avec le crew</button>
       <button class="btn coach-only-btn" onclick="sbDuplicateCard('${id}')">⧉ Dupliquer</button>
-      ${canManage ? `<button class="btn primary coach-only-btn" onclick="closeModal('sb-detail-modal');sbEditCard('${id}')">✏️ Modifier</button>` : ''}
+      ${canManage ? `<button class="btn primary coach-only-btn" onclick="closeModal('sb-detail-modal');switchPage('session-bank');sbEditCard('${id}')">✏️ Modifier</button>` : ''}
       ${canManage ? `<button class="btn danger coach-only-btn" onclick="sbDeleteFromDetail('${id}')">🗑️ Supprimer</button>` : ''}
     </div>`;
   applyRoleUI();
