@@ -118,6 +118,15 @@ async function initDB() {
       -- jour que si la valeur envoyée est >= à celle déjà stockée, pour qu'un envoi périmé ne puisse
       -- plus jamais écraser un envoi plus récent.
       ALTER TABLE logs ADD COLUMN IF NOT EXISTS client_updated_at BIGINT DEFAULT 0;
+      -- Suite du correctif ci-dessus, retour utilisateur : "elle a supprimé la séance et elle est
+      -- réapparue" — un vrai DELETE ne laisse plus rien en base pour comparer client_updated_at : un
+      -- AUTRE appareil/onglet qui avait encore cette séance en mémoire (jamais rafraîchi depuis) la
+      -- réinsère telle quelle au prochain sync, puisqu'il n'y a plus de ligne en conflit pour bloquer
+      -- l'upsert. Fix : suppression "douce" (DELETE /api/logs/:climberId/:logId ne fait plus qu'un
+      -- UPDATE deleted=true avec un client_updated_at très récent, cf. logs.js) — la ligne continue
+      -- d'exister, donc la garde de fraîcheur déjà en place sur l'upsert bloque désormais aussi la
+      -- résurrection ; GET ne renvoie jamais une ligne supprimée aux clients.
+      ALTER TABLE logs ADD COLUMN IF NOT EXISTS deleted BOOLEAN DEFAULT false;
       CREATE INDEX IF NOT EXISTS idx_logs_climber_date ON logs(climber_id, date DESC);
       CREATE TABLE IF NOT EXISTS session_bank (
         id          TEXT PRIMARY KEY,
