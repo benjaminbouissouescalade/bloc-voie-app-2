@@ -429,6 +429,42 @@ router.post('/accept-invite', async (req, res) => {
   }
 });
 
+// POST /api/auth/admin-reset-password — un coach/owner réinitialise le mot de passe d'un athlète
+// (ou l'owner celui d'un coach) SANS connaître l'ancien, contrairement à /change-password
+// ci-dessous qui exige le mot de passe courant. Retour utilisateur : un athlète qui perd ses
+// identifiants n'avait aucune procédure de récupération (pas d'email configuré côté serveur pour
+// un lien "mot de passe oublié" classique) — le coach fait ici office d'admin, comme pour la
+// création de compte (/invite) : il fixe un nouveau mot de passe et le communique lui-même à
+// l'athlète (en personne, par SMS...). Prend un climberId (pas un userId) : c'est ce que le client
+// a déjà sous la main partout (fiches grimpeur), pas besoin d'exposer/tracker les ids de comptes.
+router.post('/admin-reset-password', requireAuth, async (req, res) => {
+  const caller = req.user;
+  if (!isCoachRole(caller.role)) return res.status(403).json({ error: 'Coach requis' });
+  const { climberId, newPassword } = req.body || {};
+  if (!climberId || !newPassword) return res.status(400).json({ error: 'climberId et newPassword requis' });
+  if (newPassword.length < 6) return res.status(400).json({ error: 'Le nouveau mot de passe doit faire au moins 6 caractères' });
+  try {
+    const { rows } = await pool.query('SELECT id, role FROM users WHERE climber_id=$1', [climberId]);
+    if (!rows.length) return res.status(404).json({ error: 'Aucun compte de connexion pour ce profil' });
+    const target = rows[0];
+    if (isOwnerRole(target.role) && target.id !== caller.id) {
+      return res.status(403).json({ error: 'Impossible de réinitialiser le mot de passe du owner' });
+    }
+    if (!isOwnerRole(caller.role)) {
+      // Coach non-owner : uniquement ses propres athlètes (même périmètre que le reste de
+      // l'espace Coaching, cf. coach_athletes).
+      if (target.role !== 'athlete') return res.status(403).json({ error: "Tu ne peux réinitialiser que le mot de passe de tes athlètes" });
+      const { rows: link } = await pool.query('SELECT 1 FROM coach_athletes WHERE coach_id=$1 AND climber_id=$2', [caller.id, climberId]);
+      if (!link.length) return res.status(403).json({ error: "Cet athlète ne fait pas partie de ton roster" });
+    }
+    const hash = await bcrypt.hash(newPassword, 10);
+    await pool.query('UPDATE users SET password=$1 WHERE id=$2', [hash, target.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.post('/change-password', requireAuth, async (req, res) => {
   const user = req.user;
   try {
