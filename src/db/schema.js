@@ -630,6 +630,17 @@ async function initDB() {
         created_at  TIMESTAMPTZ DEFAULT NOW(),
         UNIQUE(category, subcategory)
       );
+
+      -- Tags "styles travaillés" ajoutés à la volée (case "+ Autre…" du picker Tags dans l'éditeur
+      -- de fiche) en plus de la liste fixe STYLES côté frontend. Même principe que
+      -- bank_taxonomy_custom juste au-dessus : table globale, un tag ajouté par un coach devient
+      -- disponible en permanence pour tout le monde — retour utilisateur : "une case Autre à Tag
+      -- avec la possibilité... de le mettre à demeure pour la mine du coach".
+      CREATE TABLE IF NOT EXISTS bank_tags_custom (
+        id          SERIAL PRIMARY KEY,
+        name        TEXT NOT NULL UNIQUE,
+        created_at  TIMESTAMPTZ DEFAULT NOW()
+      );
     `);
     console.log('✅ Base de données initialisée');
   } catch (err) {
