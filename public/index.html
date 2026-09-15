@@ -1049,6 +1049,16 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="4" rx="1"/><rect x="3" y="10" width="18" height="4" rx="1"/><rect x="3" y="17" width="18" height="4" rx="1"/></svg>
       La Mine
     </button>
+    <!-- Retour utilisateur : "il faut que l'onglet test soit aussi en mode coach pas seulement sur
+         données" — jusqu'ici Tests généraux (créateur de tests personnalisés, programmation d'un
+         test pour un athlète via openTestAssignModal...) n'était accessible qu'en mode "Mes
+         données", obligeant à changer de mode (ou passer par "Coacher" un athlète) pour y accéder.
+         Même page que côté "Mes données" (#page-tests-hub, cf. data-page="tests-hub" plus haut dans
+         le nav-group mode-mine) — accessible directement ici aussi désormais. -->
+    <button class="nav-btn" data-page="tests-hub">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2v6M9 4v4M15 4v4M6 8v4a6 6 0 0012 0V8"/><path d="M6 14v2a6 6 0 0012 0v-2"/></svg>
+      Tests généraux
+    </button>
     <button class="nav-btn coach-only-btn" data-page="gyms">
       <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6"/></svg>
       Salles
@@ -5872,7 +5882,12 @@ function applyRoleUI() {
 
 // ═══════════════ MODE MES DONNÉES / MON COACH ═══════════════
 const APPMODE_MINE_PAGES = ['dashboard','calendar','new-session','performance','workload','tests-hub','tests-doigts','finger-profile','tests-smartboard','tests-edgehang','tests-bras','tests-tractions','tests-tirage','tests-custom','badges','ai-coach','history','community'];
-const APPMODE_COACH_PAGES = ['coach-athletes','planning','session-bank'];
+// 'tests-hub' est désormais accessible depuis les DEUX modes (cf. bouton "Tests généraux" ajouté
+// au nav-group mode-coach, retour utilisateur : "il faut que l'onglet test soit aussi en mode
+// coach pas seulement sur données") — présent dans les deux tableaux ci-dessus/dessous. Voir
+// setAppMode() plus bas : la logique de redirection au changement de mode a dû être ajustée pour
+// qu'une page valable dans les deux modes ne fasse plus jamais rebondir vers la page par défaut.
+const APPMODE_COACH_PAGES = ['coach-athletes','planning','session-bank','tests-hub'];
 let appMode = 'mine';
 try { appMode = localStorage.getItem('appMode') || 'mine'; } catch (e) {}
 
@@ -5901,8 +5916,12 @@ function setAppMode(mode) {
     }
   }
   const activePage = document.querySelector('.nav-btn.active[data-page]')?.dataset.page;
-  if (appMode === 'mine' && APPMODE_COACH_PAGES.includes(activePage)) switchPage('dashboard');
-  if (appMode === 'coach' && APPMODE_MINE_PAGES.includes(activePage)) switchPage(isAdmin() ? 'coach-athletes' : 'planning');
+  // Ne rebondit que si la page active n'existe QUE dans l'autre mode (ex. "La Mine" en mode
+  // "Mes données") — une page valable dans les deux modes (ex. "Tests généraux", cf. tableaux
+  // ci-dessus) ne doit jamais faire rebondir, sans quoi le nouveau bouton "Tests généraux" du
+  // mode Coach redeviendrait inutile dès qu'on rebascule sur "Mes données" en restant dessus.
+  if (appMode === 'mine' && APPMODE_COACH_PAGES.includes(activePage) && !APPMODE_MINE_PAGES.includes(activePage)) switchPage('dashboard');
+  if (appMode === 'coach' && APPMODE_MINE_PAGES.includes(activePage) && !APPMODE_COACH_PAGES.includes(activePage)) switchPage(isAdmin() ? 'coach-athletes' : 'planning');
 }
 window.setAppMode = setAppMode;
 
@@ -6551,8 +6570,11 @@ function switchPage(name) {
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
   const pg = document.getElementById('page-'+name);
   if(pg) pg.classList.add('active');
-  const nb = document.querySelector(`.nav-btn[data-page="${name}"]`);
-  if(nb) nb.classList.add('active');
+  // querySelectorAll (pas querySelector) : "Tests généraux" a maintenant un bouton de nav à la
+  // fois dans le groupe "Mes données" et dans le groupe "Coach" (même page, cf. mode-coach
+  // ci-dessus) — seul l'un des deux groupes est visible à la fois (appmode-hidden), mais il faut
+  // que CELUI QUI EST VISIBLE soit surligné actif, quel que soit l'ordre dans le DOM.
+  document.querySelectorAll(`.nav-btn[data-page="${name}"]`).forEach(nb => nb.classList.add('active'));
   renderPage(name);
   closeMobileNav();
 }
