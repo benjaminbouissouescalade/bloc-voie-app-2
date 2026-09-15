@@ -492,6 +492,16 @@ select.form-control { appearance: auto; }
 /* Ascent row */
 .ascent-row { display: grid; grid-template-columns: 90px 1fr 100px 70px 80px auto; gap: 8px; align-items: center; border: 1px solid var(--border); border-radius: var(--r-sm); padding: 8px 10px; background: var(--surface2); margin-bottom: 6px; }
 
+/* Retour utilisateur : "l'écran en mode téléphone est trop large pour rentrer toutes les
+   données" — la ligne de série Force doigts (Préhension/Main/Répét./Tirage/Poids/% + bouton
+   supprimer) avait ses colonnes en pixels fixes en ligne (inline style), impossible à surcharger
+   en media query ; passée en classe pour pouvoir replier sur 2 colonnes sous 640px. */
+.finger-series-row { display: grid; grid-template-columns: 1fr 88px 70px 70px 80px 70px auto; gap: 8px; align-items: end; margin-bottom: 8px; }
+@media (max-width: 640px) {
+  .finger-series-row { grid-template-columns: 1fr 1fr; }
+  .finger-series-row > button { grid-column: 1 / -1; width: 100%; }
+}
+
 /* Session type colors */
 .sess-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
 
@@ -944,7 +954,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
            Railway) a bien pris effet : horodatage de la dernière modification de ce fichier.
            MAINTENANCE : à mettre à jour (id="app-version-badge") à chaque modification de
            public/index.html, format vAAAA.MM.JJ-HHMM (heure locale du moment de l'édition). -->
-      <h1>Digger <span id="app-version-badge" title="Dernière modification du code — sert à vérifier qu'un déploiement a bien pris effet" style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:0;text-transform:none;vertical-align:super">v2026.09.15-1932</span></h1>
+      <h1>Digger <span id="app-version-badge" title="Dernière modification du code — sert à vérifier qu'un déploiement a bien pris effet" style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:0;text-transform:none;vertical-align:super">v2026.09.16-1015</span></h1>
       <p>Climbing training log</p>
     </div>
   </div>
@@ -13905,7 +13915,7 @@ function renderFingerSeriesEditor() {
     // plutôt que de forcer une seule série "2 mains", on tague chaque série avec la main travaillée
     // (par défaut "Deux mains", comportement identique à avant) — pour une asymétrie, l'athlète
     // ajoute simplement une série "Main droite" et une série "Main gauche" avec chacune son poids.
-    return `<div style="display:grid;grid-template-columns:1fr 88px 70px 70px 80px 70px auto;gap:8px;align-items:end;margin-bottom:8px">
+    return `<div class="finger-series-row">
       <div>
         <label style="font-size:10px;color:var(--muted)">${i===0?'Préhension':''}</label>
         <select class="form-control" style="font-size:12px;padding:6px 8px" onchange="fingerSeriesRows[${i}].grip=this.value">
@@ -13930,15 +13940,33 @@ function renderFingerSeriesEditor() {
       </div>
       <div>
         <label style="font-size:10px;color:var(--muted)">${i===0?'Poids (kg)':''}</label>
-        <input class="form-control" type="number" min="0" step="0.1" style="font-size:12px;padding:6px 8px" value="${s.weightKg!=null?s.weightKg:''}" oninput="fingerSeriesRows[${i}].weightKg=this.value===''?null:+this.value;renderFingerSeriesEditor();updateLoadPreview()">
+        <!-- Retour utilisateur : "on peut rentrer que 1 chiffre, il faut retaper dans la case pour
+             mettre le 2e" — oninput appelait renderFingerSeriesEditor() qui réécrit tout le
+             innerHTML du bloc (donc CE champ lui-même) à chaque frappe : le navigateur recrée un
+             nouvel <input>, qui perd le focus/curseur avant la frappe suivante. Fix : on ne
+             met plus à jour que la donnée + l'affichage du "%" de CETTE ligne (fingerUpdatePctDisplay,
+             simple textContent, ne touche pas au DOM des champs), sans jamais réécrire les inputs. -->
+        <input class="form-control" type="number" min="0" step="0.1" style="font-size:12px;padding:6px 8px" value="${s.weightKg!=null?s.weightKg:''}" oninput="fingerSeriesRows[${i}].weightKg=this.value===''?null:+this.value;fingerUpdatePctDisplay(${i});updateLoadPreview()">
       </div>
       <div style="text-align:center">
         <label style="font-size:10px;color:var(--muted)">${i===0?'%':''}</label>
-        <div style="font-size:13px;font-weight:600;padding:6px 0">${refWeight && s.weightKg!=null ? pct+'%' : '—'}</div>
+        <div id="finger-pct-${i}" style="font-size:13px;font-weight:600;padding:6px 0">${refWeight && s.weightKg!=null ? pct+'%' : '—'}</div>
       </div>
       <button type="button" class="btn sm danger" onclick="fingerSeriesRows.splice(${i},1);renderFingerSeriesEditor();updateLoadPreview()">✕</button>
     </div>`;
   }).join('') : `<p style="font-size:12px;color:var(--muted);font-style:italic;margin:0 0 8px">Aucune série — ajoute la première série faite.</p>`;
+}
+// cf. commentaire sur le champ Poids dans renderFingerSeriesEditor() — met à jour le % affiché
+// pour UNE ligne sans jamais réécrire le innerHTML du bloc (donc sans jamais recréer les inputs),
+// pour que taper plusieurs chiffres de suite dans le champ Poids fonctionne normalement.
+function fingerUpdatePctDisplay(i) {
+  const refWeight = fingerRefWeight();
+  const s = fingerSeriesRows[i];
+  if (!s) return;
+  const pct = refWeight && s.weightKg != null ? Math.round((s.weightKg/refWeight)*1000)/10 : (s.pct||0);
+  s.pct = pct;
+  const displayEl = document.getElementById(`finger-pct-${i}`);
+  if (displayEl) displayEl.textContent = (refWeight && s.weightKg != null) ? pct+'%' : '—';
 }
 function addFingerSeriesRow() {
   // Reprend la dernière série (préhension + poids) comme point de départ — cas le plus fréquent
