@@ -4449,6 +4449,7 @@ Utilise les raccourcis ci-dessus ou pose-moi directement une question. Par exemp
           <button class="btn" id="cf-cancel-btn" style="display:none" onclick="resetClimberForm()">Annuler</button>
           <button class="btn danger" id="cf-delete-btn" style="display:none;margin-left:auto;background:var(--warm2);border-color:rgba(196,80,26,.3)">🗑 Supprimer ce grimpeur</button>
 <button class="btn sm" id="cf-change-pwd-btn" style="display:none;margin-left:8px" onclick="openChangePwdModal()">🔑 Changer le mot de passe</button>
+<button class="btn sm" id="cf-admin-reset-pwd-btn" style="display:none;margin-left:8px" onclick="openAdminResetPwdModal()">🔑 Réinitialiser le mot de passe</button>
         </div>
       </div>
     </div>
@@ -4525,6 +4526,32 @@ Utilise les raccourcis ci-dessus ou pose-moi directement une question. Par exemp
         </div>
         <p style="font-size:12px;color:var(--muted);margin-bottom:16px">Copie ce lien et envoie-le toi-même par email, SMS ou le canal de ton choix. Il expire dans 14 jours.</p>
         <button class="btn" style="width:100%" onclick="resetInviteLinkModal()">Générer un autre lien</button>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- Modal réinitialisation de mot de passe (coach/owner, pour un athlète qui a perdu ses
+     identifiants — cf. admin-reset-password côté serveur, pas de procédure "email oublié"
+     classique faute d'envoi d'email configuré sur ce déploiement). -->
+<div class="modal-backdrop" id="admin-reset-pwd-modal">
+  <div class="modal" style="width:min(440px,100%)">
+    <div class="modal-header">
+      <span class="modal-title">🔑 Réinitialiser le mot de passe</span>
+      <button class="btn sm" onclick="closeModal('admin-reset-pwd-modal')">Fermer</button>
+    </div>
+    <div class="modal-body">
+      <div id="arp-error" style="background:var(--warm2);color:var(--warm);border-radius:8px;padding:10px;font-size:13px;margin-bottom:12px;display:none"></div>
+      <div id="arp-success" style="background:var(--accent2);color:var(--accent);border-radius:8px;padding:10px;font-size:13px;margin-bottom:12px;display:none"></div>
+      <div id="arp-form">
+        <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Nouveau mot de passe pour <strong id="arp-name"></strong> — communique-le lui directement (en personne, SMS…), il pourra le changer ensuite depuis son profil.</p>
+        <div class="form-group">
+          <label class="form-label">Mot de passe</label>
+          <div style="display:flex;gap:8px">
+            <input class="form-control" type="text" id="arp-password" style="flex:1">
+            <button type="button" class="btn" onclick="arpRegenerate()" title="Générer un autre mot de passe">↺</button>
+          </div>
+        </div>
+        <button class="btn primary" style="width:100%" onclick="submitAdminResetPwd()">Valider</button>
       </div>
     </div>
   </div>
@@ -18039,6 +18066,57 @@ async function submitChangePwd() {
   }
 }
 
+// ─── Réinitialisation de mot de passe par un coach/owner (cf. #admin-reset-pwd-modal, retour
+// utilisateur : "il semblerait qu'il n'y ait pas de procédure de récupération" pour un athlète qui
+// a perdu ses identifiants) ────────────────────────────────────────────────────────────────────
+let arpClimberId = null;
+function arpGenerateRandomPassword() {
+  // Sans caractères ambigus à l'oral/à l'écrit (0/O, 1/l/I) — ce mot de passe va être communiqué
+  // de vive voix ou par SMS à l'athlète, pas copié-collé automatiquement comme un token d'invitation.
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+  let pwd = '';
+  for (let i = 0; i < 8; i++) pwd += chars[Math.floor(Math.random() * chars.length)];
+  return pwd;
+}
+function openAdminResetPwdModal() {
+  const id = document.getElementById('cf-edit-id').value;
+  const c = db.climbers.find(x => x.id === id);
+  if (!c) return;
+  arpClimberId = id;
+  document.getElementById('arp-name').textContent = c.name;
+  document.getElementById('arp-password').value = arpGenerateRandomPassword();
+  document.getElementById('arp-error').style.display = 'none';
+  document.getElementById('arp-success').style.display = 'none';
+  document.getElementById('arp-form').style.display = '';
+  document.getElementById('admin-reset-pwd-modal').classList.add('open');
+}
+window.openAdminResetPwdModal = openAdminResetPwdModal;
+function arpRegenerate() {
+  document.getElementById('arp-password').value = arpGenerateRandomPassword();
+}
+window.arpRegenerate = arpRegenerate;
+async function submitAdminResetPwd() {
+  const newPassword = document.getElementById('arp-password').value;
+  const errEl = document.getElementById('arp-error');
+  errEl.style.display = 'none';
+  if (!newPassword || newPassword.length < 6) { errEl.textContent = 'Le mot de passe doit faire au moins 6 caractères'; errEl.style.display = ''; return; }
+  try {
+    const r = await fetch('/api/auth/admin-reset-password', {
+      method: 'POST', headers: authHeaders(),
+      body: JSON.stringify({ climberId: arpClimberId, newPassword })
+    });
+    const d = await r.json();
+    if (!r.ok) { errEl.textContent = d.error || 'Erreur'; errEl.style.display = ''; return; }
+    document.getElementById('arp-form').style.display = 'none';
+    const okEl = document.getElementById('arp-success');
+    okEl.innerHTML = `Nouveau mot de passe défini — communique-le à ${esc(document.getElementById('arp-name').textContent)} : <strong>${esc(newPassword)}</strong>`;
+    okEl.style.display = '';
+  } catch (e) {
+    errEl.textContent = 'Erreur réseau'; errEl.style.display = '';
+  }
+}
+window.submitAdminResetPwd = submitAdminResetPwd;
+
 function editClimberForm(id) {
   const c = db.climbers.find(x=>x.id===id); if(!c) return;
   document.getElementById('cf-edit-id').value = id;
@@ -18050,6 +18128,14 @@ function editClimberForm(id) {
   document.getElementById('cf-delete-btn').style.display = (db.climbers.length > 1 && (isAdmin() || id === window.currentUser?.climberId)) ? '' : 'none';
   // Le bouton "changer le mot de passe" agit sur le compte connecté : ne l'affiche que sur son propre profil
   document.getElementById('cf-change-pwd-btn').style.display = (id === window.currentUser?.climberId) ? '' : 'none';
+  // Retour utilisateur : un athlète qui perd ses identifiants (ex. Bluegilles) n'avait aucune
+  // procédure de récupération — "changer le mot de passe" ci-dessus exige d'être connecté avec
+  // l'ancien mot de passe, donc inutilisable une fois les identifiants perdus. Un coach/owner peut
+  // désormais réinitialiser le mot de passe d'un profil qu'il gère (cf. admin-reset-password côté
+  // serveur) — affiché seulement sur le profil D'UN AUTRE (jamais sur le sien, qui a déjà le bouton
+  // ci-dessus), et seulement s'il existe bien un compte de connexion à réinitialiser.
+  const arpBtn = document.getElementById('cf-admin-reset-pwd-btn');
+  if (arpBtn) arpBtn.style.display = (isAdmin() && id !== window.currentUser?.climberId) ? '' : 'none';
   renderColorPicker();
   document.getElementById('cf-name').focus();
 }
