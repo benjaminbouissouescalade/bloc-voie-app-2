@@ -944,7 +944,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
            Railway) a bien pris effet : horodatage de la dernière modification de ce fichier.
            MAINTENANCE : à mettre à jour (id="app-version-badge") à chaque modification de
            public/index.html, format vAAAA.MM.JJ-HHMM (heure locale du moment de l'édition). -->
-      <h1>Digger <span id="app-version-badge" title="Dernière modification du code — sert à vérifier qu'un déploiement a bien pris effet" style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:0;text-transform:none;vertical-align:super">v2026.09.15-1612</span></h1>
+      <h1>Digger <span id="app-version-badge" title="Dernière modification du code — sert à vérifier qu'un déploiement a bien pris effet" style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:0;text-transform:none;vertical-align:super">v2026.09.15-1734</span></h1>
       <p>Climbing training log</p>
     </div>
   </div>
@@ -4138,46 +4138,12 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
           <option value="shared">🌍 Partagée — visible par tous les coachs de l'app</option>
         </select>
       </div>
-      <div class="form-group" id="sb-support-group" style="margin:0">
-        <label class="form-label">Support d'entraînement principal</label>
-        <select class="form-control" id="sb-support">
-          <option value="">— Aucun / non précisé —</option>
-          <optgroup label="🪵 Poutre &amp; Doigts">
-            <option value="poutre_bois">Poutre bois standard</option>
-            <option value="beastmaker">Beastmaker</option>
-            <option value="metolius">Metolius / campus rungs</option>
-            <option value="poutre_reglable">Poutre réglable (Climbro…)</option>
-            <option value="campus_rungs">Campus rungs</option>
-          </optgroup>
-          <optgroup label="🟫 Pan &amp; Boards">
-            <option value="pan">Pan maison / salle</option>
-            <option value="moonboard">Moonboard</option>
-            <option value="kilter">Kilter Board</option>
-            <option value="tension">Tension Board</option>
-            <option value="grasshopper">Grasshopper Board</option>
-            <option value="spray_wall">Spray Wall</option>
-            <option value="woody">Woody / System Wall</option>
-          </optgroup>
-          <optgroup label="🏟 Salle">
-            <option value="salle_blocs">Salle de bloc</option>
-            <option value="salle_voies">Salle de voies</option>
-            <option value="salle_mixte">Salle mixte</option>
-          </optgroup>
-          <optgroup label="⛰️ Outdoor">
-            <option value="falaise_calcaire">Falaise calcaire</option>
-            <option value="falaise_granite">Falaise granite</option>
-            <option value="falaise_gres">Falaise grès (Fontainebleau…)</option>
-            <option value="bloc_outdoor">Bloc outdoor</option>
-          </optgroup>
-          <optgroup label="💪 Physique">
-            <option value="systeme">Panneau systémique</option>
-            <option value="anneaux">Anneaux de gymnaste</option>
-            <option value="barre_traction">Barre de traction</option>
-            <option value="elastiques">Élastiques / TRX</option>
-          </optgroup>
-          <option value="autre_support">Autre</option>
-        </select>
-      </div>
+      <!-- Retour utilisateur : "enlève support d'entraînement" — champ retiré du formulaire de
+           fiche (encore un champ à remplir en moins). Les fiches déjà créées avec un support
+           gardent leur valeur (filtre et badge toujours actifs page La Mine, cf. #sb-support-filter
+           et SUPPORTS) ; document.getElementById('sb-support') renvoie simplement null partout où
+           le code le lit encore (sbSave, sbEditCard, sbNewCard…), déjà protégé par des `?.`/gardes. -->
+
       <div class="form-group" style="margin:0">
         <label class="form-label">📁 Classement dans la bibliothèque (dossier / sous-dossier)</label>
         <div class="form-row form-row-2" style="margin-top:6px">
