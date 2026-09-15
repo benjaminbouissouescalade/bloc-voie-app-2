@@ -136,12 +136,21 @@ router.post('/', async (req, res) => {
   }
 });
 
-// POST /api/bank/sync — sync complète, mais désormais SCOPÉE au compte connecté : ne touche que
-// les fiches DONT IL EST LE CRÉATEUR (DELETE + réinsertion), jamais celles des autres coachs
-// (partagées ou non). Avant le cloisonnement, cette route vidait TOUTE la table à chaque sync —
-// avec plusieurs coachs, le premier qui synchronisait aurait effacé les fiches des autres. Les
-// items du payload qui n'appartiennent pas au compte connecté sont silencieusement ignorés (déjà
-// en base sous leur vrai propriétaire, jamais modifiés ici).
+// POST /api/bank/sync — sync SCOPÉE au compte connecté : ne touche que les fiches DONT IL EST LE
+// CRÉATEUR, jamais celles des autres coachs (partagées ou non) — les items du payload qui
+// n'appartiennent pas au compte connecté sont silencieusement ignorés (déjà en base sous leur
+// vrai propriétaire, jamais modifiés ici).
+//
+// ATTENTION — historique : cette route faisait auparavant un DELETE FROM session_bank WHERE
+// created_by=$1 puis réinsérait tout ce que le client envoyait — cloisonné par coach (donc ne
+// touchant plus les fiches des AUTRES coachs), mais encore destructeur pour CE coach : appelée à
+// CHAQUE saveDB() côté frontend (donc après quasi n'importe quelle action dans l'app, pas
+// seulement une modif de La Mine), un onglet resté ouvert longtemps avec un état local incomplet
+// pour la banque (fiche créée entretemps depuis un autre appareil) effaçait silencieusement cette
+// fiche au prochain sync déclenché par une action sans rapport — exactement la même famille de
+// bug que l'ancien DELETE FROM logs (déjà corrigé) et que le sync des cycleObjectives (déjà
+// corrigé via merge par id). Fix : upsert par id, jamais de suppression en bloc ici — la
+// suppression d'une fiche passe exclusivement par DELETE /api/bank/:id plus bas.
 router.post('/sync', async (req, res) => {
   if (!isCoachRole(req.user?.role)) {
     return res.status(403).json({ error: 'Seul un coach peut resynchroniser la banque de séances' });
@@ -152,8 +161,8 @@ router.post('/sync', async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    await client.query('DELETE FROM session_bank WHERE created_by = $1', [req.user.id]);
     for (const s of own) {
+      if (!s.id) continue;
       const urls = Array.isArray(s.videoUrls) ? s.videoUrls.filter(Boolean) : (s.videoUrl ? [s.videoUrl] : []);
       const vis = s.visibility === 'shared' ? 'shared' : 'private';
       const restHours = Math.max(0, parseInt(s.minRestHours, 10) || 0);
@@ -166,9 +175,17 @@ router.post('/sync', async (req, res) => {
       const fingerRepsVal = Math.max(0, parseInt(s.fingerReps, 10) || 0);
       const fingerPctVal = Math.max(0, parseInt(s.fingerPct, 10) || 0);
       const fingerGripVal = ['tendu','semi_arque','arque'].includes(s.fingerGrip) ? s.fingerGrip : '';
+      // created_by ne bouge jamais après création (pas dans le SET du ON CONFLICT, même principe
+      // que la route POST /:id plus haut) — own est déjà filtré à req.user.id de toute façon.
       await client.query(
         `INSERT INTO session_bank (id, name, type, support, level, duration, intensity, goal, description, tags, source, category, subcategory, cross_tags, content_type, video_url, video_urls, images, checklist, created_by, visibility, min_rest_hours, timer_effort_sec, timer_rest_sec, timer_series, timer_reps, timer_series_rest_sec, finger_sets, finger_reps, finger_pct, finger_grip)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31)`,
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31)
+         ON CONFLICT (id) DO UPDATE SET
+           name=$2, type=$3, support=$4, level=$5, duration=$6, intensity=$7, goal=$8, description=$9,
+           tags=$10, source=$11, category=$12, subcategory=$13, cross_tags=$14, content_type=$15,
+           video_url=$16, video_urls=$17, images=$18, checklist=$19, visibility=$21, min_rest_hours=$22,
+           timer_effort_sec=$23, timer_rest_sec=$24, timer_series=$25, timer_reps=$26, timer_series_rest_sec=$27,
+           finger_sets=$28, finger_reps=$29, finger_pct=$30, finger_grip=$31, updated_at=NOW()`,
         [s.id, s.name, s.type, s.support||'', s.level||'confirme',
          s.duration||90, s.intensity||3, s.goal||'projet',
          s.description||'', JSON.stringify(s.tags||[]), s.source||'manual',
