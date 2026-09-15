@@ -944,7 +944,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
            Railway) a bien pris effet : horodatage de la dernière modification de ce fichier.
            MAINTENANCE : à mettre à jour (id="app-version-badge") à chaque modification de
            public/index.html, format vAAAA.MM.JJ-HHMM (heure locale du moment de l'édition). -->
-      <h1>Digger <span id="app-version-badge" title="Dernière modification du code — sert à vérifier qu'un déploiement a bien pris effet" style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:0;text-transform:none;vertical-align:super">v2026.09.15-1548</span></h1>
+      <h1>Digger <span id="app-version-badge" title="Dernière modification du code — sert à vérifier qu'un déploiement a bien pris effet" style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:0;text-transform:none;vertical-align:super">v2026.09.15-1612</span></h1>
       <p>Climbing training log</p>
     </div>
   </div>
@@ -4005,39 +4005,14 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <button class="btn sm" onclick="sbCloseEditor()">✕ Fermer</button>
     </div>
     <input type="hidden" id="sb-edit-id">
-    <!-- Retour utilisateur : le repli par défaut (ancien <details id="sb-category-details">)
-         n'était pas clair — "le titre en gris est un bouton mais c'est pas clair, je pense qu'ils
-         restent visibles tout le temps". Dossier/Sous-dossier sont maintenant toujours visibles,
-         comme les autres champs du formulaire. -->
-    <div class="form-group" style="margin-bottom:14px">
-      <label class="form-label">📁 Classement dans la bibliothèque (dossier / sous-dossier)</label>
-      <div class="form-row form-row-2" style="margin-top:6px">
-        <div class="form-group" style="margin:0">
-          <label class="form-label">📁 Dossier</label>
-          <select class="form-control" id="sb-category"></select>
-          <div id="sb-category-new-row" style="display:none;gap:6px;margin-top:6px">
-            <input class="form-control" type="text" id="sb-category-new-input" placeholder="Nom du nouveau dossier (ex. Footing)" style="flex:1">
-            <button type="button" class="btn sm primary" onclick="sbCreateNewCategory()">Créer</button>
-          </div>
-        </div>
-        <div class="form-group" style="margin:0">
-          <label class="form-label">Sous-dossier</label>
-          <select class="form-control" id="sb-subcategory"></select>
-          <div id="sb-subcategory-new-row" style="display:none;gap:6px;margin-top:6px">
-            <input class="form-control" type="text" id="sb-subcategory-new-input" placeholder="Nom du nouveau sous-dossier (ex. Vélo)" style="flex:1">
-            <button type="button" class="btn sm primary" onclick="sbCreateNewSubcategory()">Créer</button>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="form-group" style="margin:0 0 14px">
-      <label class="form-label">Contenu</label>
-      <select class="form-control" id="sb-content-type" style="max-width:220px">
-        <option value="seance">Séance complète</option>
-        <option value="exercice">Exercice court</option>
-      </select>
-    </div>
-    <div class="form-row form-row-3">
+    <!-- Retour utilisateur : "il y'a vraiment beaucoup de chose à remplir, ça pourrait être
+         optimisé" — formulaire réorganisé en 2 blocs : l'ESSENTIEL (nom, type, contenu,
+         description) toujours visible en premier avec le style normal du formulaire ; tout le
+         reste (niveau, durée, intensité, objectif, visibilité, support, dossier, tags, médias,
+         checklist) regroupé plus bas dans un bloc "Détails complémentaires" à fond distinct —
+         rien n'est caché, juste hiérarchisé visuellement pour que l'essentiel saute aux yeux.
+         Les ids et le comportement JS de chaque champ ne changent pas, seul l'agencement bouge. -->
+    <div class="form-row form-row-2">
       <div class="form-group" style="margin:0">
         <label class="form-label">Nom de la séance</label>
         <input class="form-control" type="text" id="sb-name" placeholder="Ex. Projet 8a, Circuit rési…">
@@ -4076,36 +4051,41 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
           </optgroup>
         </select>
       </div>
-      <div class="form-group" style="margin:0">
-        <label class="form-label">Niveau cible</label>
-        <select class="form-control" id="sb-level">
-          <option value="debutant">Débutant</option>
-          <option value="intermediaire">Intermédiaire</option>
-          <option value="confirme">Confirmé</option>
-          <option value="expert">Expert</option>
-        </select>
-      </div>
     </div>
-    <!-- Retour utilisateur : "il va y avoir des nouveaux coachs, il va falloir cloisonner des
-         éléments" / "pour la mine il faudrait avoir moyen de choisir de partager ou non" — chaque
-         fiche appartient à son créateur ; ce sélecteur décide si les AUTRES coachs (et leurs
-         athlètes) la voient aussi. Une nouvelle fiche est privée par défaut (cf. sbNewCard) ; une
-         fiche déjà partagée avant ce cloisonnement le reste (migration schema.js). -->
-    <div class="form-group" id="sb-visibility-group">
-      <label class="form-label">👁️ Visibilité</label>
-      <select class="form-control" id="sb-visibility">
-        <option value="private">🔒 Privée — visible seulement par moi et mes athlètes</option>
-        <option value="shared">🌍 Partagée — visible par tous les coachs de l'app</option>
+    <div class="form-group" style="margin:0 0 14px">
+      <label class="form-label">Contenu</label>
+      <select class="form-control" id="sb-content-type" style="max-width:220px">
+        <option value="seance">Séance complète</option>
+        <option value="exercice">Exercice court</option>
       </select>
     </div>
-    <div class="form-row form-row-3">
-      <div class="form-group" style="margin:0">
-        <label class="form-label">Durée (min)</label>
-        <input class="form-control" type="number" id="sb-duration" value="90" min="10">
-      </div>
-      <div class="form-group" style="margin:0">
-        <label class="form-label">Intensité (1–5)</label>
-        <input class="form-control" type="number" id="sb-intensity" value="3" min="1" max="5">
+    <div class="form-group">
+      <label class="form-label">Description de la séance</label>
+      <textarea class="form-control" id="sb-description" placeholder="Détaille le déroulé : échauffement, exercices, intensités, volumes, temps de repos…" style="min-height:100px"></textarea>
+    </div>
+
+    <!-- Bloc "Détails complémentaires" — facultatif, valeurs par défaut sensées partout ; rien
+         n'est requis ici pour enregistrer une fiche utilisable avec juste l'essentiel ci-dessus. -->
+    <div style="background:var(--surface2);border-radius:var(--r-sm);padding:14px 16px;margin:10px 0;display:flex;flex-direction:column;gap:14px">
+      <div style="font-size:12.5px;font-weight:600;color:var(--muted)">Détails complémentaires <span style="font-weight:400">(facultatif)</span></div>
+      <div class="form-row form-row-3">
+        <div class="form-group" style="margin:0">
+          <label class="form-label">Niveau cible</label>
+          <select class="form-control" id="sb-level">
+            <option value="debutant">Débutant</option>
+            <option value="intermediaire">Intermédiaire</option>
+            <option value="confirme">Confirmé</option>
+            <option value="expert">Expert</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin:0">
+          <label class="form-label">Durée (min)</label>
+          <input class="form-control" type="number" id="sb-duration" value="90" min="10">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label class="form-label">Intensité (1–5)</label>
+          <input class="form-control" type="number" id="sb-intensity" value="3" min="1" max="5">
+        </div>
       </div>
       <div class="form-group" style="margin:0">
         <label class="form-label">Objectif principal</label>
@@ -4146,95 +4126,124 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
           </optgroup>
         </select>
       </div>
-    </div>
-    <div class="form-group" id="sb-support-group">
-      <label class="form-label">Support d'entraînement principal</label>
-      <select class="form-control" id="sb-support">
-        <option value="">— Aucun / non précisé —</option>
-        <optgroup label="🪵 Poutre &amp; Doigts">
-          <option value="poutre_bois">Poutre bois standard</option>
-          <option value="beastmaker">Beastmaker</option>
-          <option value="metolius">Metolius / campus rungs</option>
-          <option value="poutre_reglable">Poutre réglable (Climbro…)</option>
-          <option value="campus_rungs">Campus rungs</option>
-        </optgroup>
-        <optgroup label="🟫 Pan &amp; Boards">
-          <option value="pan">Pan maison / salle</option>
-          <option value="moonboard">Moonboard</option>
-          <option value="kilter">Kilter Board</option>
-          <option value="tension">Tension Board</option>
-          <option value="grasshopper">Grasshopper Board</option>
-          <option value="spray_wall">Spray Wall</option>
-          <option value="woody">Woody / System Wall</option>
-        </optgroup>
-        <optgroup label="🏟 Salle">
-          <option value="salle_blocs">Salle de bloc</option>
-          <option value="salle_voies">Salle de voies</option>
-          <option value="salle_mixte">Salle mixte</option>
-        </optgroup>
-        <optgroup label="⛰️ Outdoor">
-          <option value="falaise_calcaire">Falaise calcaire</option>
-          <option value="falaise_granite">Falaise granite</option>
-          <option value="falaise_gres">Falaise grès (Fontainebleau…)</option>
-          <option value="bloc_outdoor">Bloc outdoor</option>
-        </optgroup>
-        <optgroup label="💪 Physique">
-          <option value="systeme">Panneau systémique</option>
-          <option value="anneaux">Anneaux de gymnaste</option>
-          <option value="barre_traction">Barre de traction</option>
-          <option value="elastiques">Élastiques / TRX</option>
-        </optgroup>
-        <option value="autre_support">Autre</option>
-      </select>
-    </div>
-    <div class="form-group">
-      <label class="form-label">Description de la séance</label>
-      <textarea class="form-control" id="sb-description" placeholder="Détaille le déroulé : échauffement, exercices, intensités, volumes, temps de repos…" style="min-height:100px"></textarea>
-    </div>
-    <div class="form-group">
-      <label class="form-label">🎥 Vidéos YouTube <span style="font-weight:400;color:var(--muted)">(optionnel, plusieurs possibles)</span></label>
-      <div style="display:flex;gap:8px">
-        <input class="form-control" type="url" id="sb-video-url-input" placeholder="https://www.youtube.com/watch?v=…" onkeydown="if(event.key==='Enter'){event.preventDefault();sbAddVideoUrl();}">
-        <button type="button" class="btn sm primary" onclick="sbAddVideoUrl()">+ Ajouter</button>
+      <!-- Retour utilisateur : "il va y avoir des nouveaux coachs, il va falloir cloisonner des
+           éléments" / "pour la mine il faudrait avoir moyen de choisir de partager ou non" — chaque
+           fiche appartient à son créateur ; ce sélecteur décide si les AUTRES coachs (et leurs
+           athlètes) la voient aussi. Une nouvelle fiche est privée par défaut (cf. sbNewCard) ; une
+           fiche déjà partagée avant ce cloisonnement le reste (migration schema.js). -->
+      <div class="form-group" id="sb-visibility-group" style="margin:0">
+        <label class="form-label">👁️ Visibilité</label>
+        <select class="form-control" id="sb-visibility">
+          <option value="private">🔒 Privée — visible seulement par moi et mes athlètes</option>
+          <option value="shared">🌍 Partagée — visible par tous les coachs de l'app</option>
+        </select>
       </div>
-      <div id="sb-video-list" style="display:flex;flex-direction:column;gap:6px;margin-top:8px"></div>
-      <p style="font-size:11px;color:var(--muted);margin-top:4px">Chaque vidéo s'affiche directement dans le détail de la fiche.</p>
-    </div>
-    <div class="form-group">
-      <label class="form-label">🖼️ Images <span style="font-weight:400;color:var(--muted)">(optionnel, plusieurs possibles)</span></label>
-      <input type="file" id="sb-image-input" accept="image/*" multiple onchange="sbHandleImageChange(event)" style="display:block;font-size:12px">
-      <div id="sb-image-error" style="display:none;color:var(--warm);font-size:12px;margin-top:6px"></div>
-      <div id="sb-image-list" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"></div>
-    </div>
-    <div class="form-group">
-      <label class="form-label">Tags (styles travaillés)</label>
-      <div id="sb-tags-picker" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px"></div>
-      <!-- Retour utilisateur : "une case autre à Tag avec la possibilité par une fenêtre de le
-           mettre à demeure pour la mine du coach" — case "+ Autre…" ajoutée par sbRenderTagsPicker()
-           dans #sb-tags-picker ; révèle cette rangée, qui crée le tag à demeure (global, comme
-           BANK_TAXONOMY) via sbCreateNewTag(). -->
-      <div id="sb-tags-new-row" style="display:none;gap:6px;margin-top:6px">
-        <input class="form-control" type="text" id="sb-tags-new-input" placeholder="Nom du nouveau tag (ex. Endurance)" style="flex:1">
-        <button type="button" class="btn sm primary" onclick="sbCreateNewTag()">Créer</button>
+      <div class="form-group" id="sb-support-group" style="margin:0">
+        <label class="form-label">Support d'entraînement principal</label>
+        <select class="form-control" id="sb-support">
+          <option value="">— Aucun / non précisé —</option>
+          <optgroup label="🪵 Poutre &amp; Doigts">
+            <option value="poutre_bois">Poutre bois standard</option>
+            <option value="beastmaker">Beastmaker</option>
+            <option value="metolius">Metolius / campus rungs</option>
+            <option value="poutre_reglable">Poutre réglable (Climbro…)</option>
+            <option value="campus_rungs">Campus rungs</option>
+          </optgroup>
+          <optgroup label="🟫 Pan &amp; Boards">
+            <option value="pan">Pan maison / salle</option>
+            <option value="moonboard">Moonboard</option>
+            <option value="kilter">Kilter Board</option>
+            <option value="tension">Tension Board</option>
+            <option value="grasshopper">Grasshopper Board</option>
+            <option value="spray_wall">Spray Wall</option>
+            <option value="woody">Woody / System Wall</option>
+          </optgroup>
+          <optgroup label="🏟 Salle">
+            <option value="salle_blocs">Salle de bloc</option>
+            <option value="salle_voies">Salle de voies</option>
+            <option value="salle_mixte">Salle mixte</option>
+          </optgroup>
+          <optgroup label="⛰️ Outdoor">
+            <option value="falaise_calcaire">Falaise calcaire</option>
+            <option value="falaise_granite">Falaise granite</option>
+            <option value="falaise_gres">Falaise grès (Fontainebleau…)</option>
+            <option value="bloc_outdoor">Bloc outdoor</option>
+          </optgroup>
+          <optgroup label="💪 Physique">
+            <option value="systeme">Panneau systémique</option>
+            <option value="anneaux">Anneaux de gymnaste</option>
+            <option value="barre_traction">Barre de traction</option>
+            <option value="elastiques">Élastiques / TRX</option>
+          </optgroup>
+          <option value="autre_support">Autre</option>
+        </select>
       </div>
-    </div>
-    <!-- Retour utilisateur : "enlève les filtres transversaux, ça fait trop d'info" — picker
-         retiré de l'éditeur (cf. commentaire jumeau sur la rangée de filtres rapides, page La
-         Mine) ; sbSave() continue de lire .sb-crosstag-cb:checked sans erreur (querySelectorAll
-         sur une classe absente renvoie simplement une liste vide → crossTags:[] enregistré). -->
-    <!-- Checklist de voies/blocs à valider un par un — visible seulement pour une fiche de type
-         "Voies salle" ou "Bloc salle" (retour : "créer 2 séances, une voie l'autre bloc, où l'on
-         pourrait indiquer des voies ou bloc par niveau que l'athlète devra faire, et il cochera
-         pour valider"). Une ligne = une voie/bloc à faire ; répéter la même cotation/couleur pour
-         plusieurs voies/blocs au même niveau (cf. sbChecklistItems / sbChecklistAddItem). -->
-    <div class="form-group" id="sb-checklist-group" style="display:none">
-      <label class="form-label">🎯 Checklist à valider (voies ou blocs, un par un)</label>
-      <p style="font-size:11px;color:var(--muted);margin:0 0 8px">L'athlète cochera chaque ligne au fur et à mesure. Ajoute une ligne par voie/bloc — répète le même niveau autant de fois que nécessaire (ex. deux fois "7a" pour deux voies à ce niveau).</p>
-      <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
-        <select class="form-control" id="sb-checklist-add-select" style="max-width:200px"></select>
-        <button type="button" class="btn sm primary" onclick="sbChecklistAddItem()">+ Ajouter</button>
+      <div class="form-group" style="margin:0">
+        <label class="form-label">📁 Classement dans la bibliothèque (dossier / sous-dossier)</label>
+        <div class="form-row form-row-2" style="margin-top:6px">
+          <div class="form-group" style="margin:0">
+            <label class="form-label">📁 Dossier</label>
+            <select class="form-control" id="sb-category"></select>
+            <div id="sb-category-new-row" style="display:none;gap:6px;margin-top:6px">
+              <input class="form-control" type="text" id="sb-category-new-input" placeholder="Nom du nouveau dossier (ex. Footing)" style="flex:1">
+              <button type="button" class="btn sm primary" onclick="sbCreateNewCategory()">Créer</button>
+            </div>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label class="form-label">Sous-dossier</label>
+            <select class="form-control" id="sb-subcategory"></select>
+            <div id="sb-subcategory-new-row" style="display:none;gap:6px;margin-top:6px">
+              <input class="form-control" type="text" id="sb-subcategory-new-input" placeholder="Nom du nouveau sous-dossier (ex. Vélo)" style="flex:1">
+              <button type="button" class="btn sm primary" onclick="sbCreateNewSubcategory()">Créer</button>
+            </div>
+          </div>
+        </div>
       </div>
-      <div id="sb-checklist-list" style="display:flex;flex-direction:column;gap:6px"></div>
+      <div class="form-group" style="margin:0">
+        <label class="form-label">Tags (styles travaillés)</label>
+        <div id="sb-tags-picker" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px"></div>
+        <!-- Retour utilisateur : "une case autre à Tag avec la possibilité par une fenêtre de le
+             mettre à demeure pour la mine du coach" — case "+ Autre…" ajoutée par sbRenderTagsPicker()
+             dans #sb-tags-picker ; révèle cette rangée, qui crée le tag à demeure (global, comme
+             BANK_TAXONOMY) via sbCreateNewTag(). -->
+        <div id="sb-tags-new-row" style="display:none;gap:6px;margin-top:6px">
+          <input class="form-control" type="text" id="sb-tags-new-input" placeholder="Nom du nouveau tag (ex. Endurance)" style="flex:1">
+          <button type="button" class="btn sm primary" onclick="sbCreateNewTag()">Créer</button>
+        </div>
+      </div>
+      <!-- Retour utilisateur : "enlève les filtres transversaux, ça fait trop d'info" — picker
+           retiré de l'éditeur (cf. commentaire jumeau sur la rangée de filtres rapides, page La
+           Mine) ; sbSave() continue de lire .sb-crosstag-cb:checked sans erreur (querySelectorAll
+           sur une classe absente renvoie simplement une liste vide → crossTags:[] enregistré). -->
+      <div class="form-group" style="margin:0">
+        <label class="form-label">🎥 Vidéos YouTube <span style="font-weight:400;color:var(--muted)">(optionnel, plusieurs possibles)</span></label>
+        <div style="display:flex;gap:8px">
+          <input class="form-control" type="url" id="sb-video-url-input" placeholder="https://www.youtube.com/watch?v=…" onkeydown="if(event.key==='Enter'){event.preventDefault();sbAddVideoUrl();}">
+          <button type="button" class="btn sm primary" onclick="sbAddVideoUrl()">+ Ajouter</button>
+        </div>
+        <div id="sb-video-list" style="display:flex;flex-direction:column;gap:6px;margin-top:8px"></div>
+        <p style="font-size:11px;color:var(--muted);margin-top:4px">Chaque vidéo s'affiche directement dans le détail de la fiche.</p>
+      </div>
+      <div class="form-group" style="margin:0">
+        <label class="form-label">🖼️ Images <span style="font-weight:400;color:var(--muted)">(optionnel, plusieurs possibles)</span></label>
+        <input type="file" id="sb-image-input" accept="image/*" multiple onchange="sbHandleImageChange(event)" style="display:block;font-size:12px">
+        <div id="sb-image-error" style="display:none;color:var(--warm);font-size:12px;margin-top:6px"></div>
+        <div id="sb-image-list" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"></div>
+      </div>
+      <!-- Checklist de voies/blocs à valider un par un — visible seulement pour une fiche de type
+           "Voies salle" ou "Bloc salle" (retour : "créer 2 séances, une voie l'autre bloc, où l'on
+           pourrait indiquer des voies ou bloc par niveau que l'athlète devra faire, et il cochera
+           pour valider"). Une ligne = une voie/bloc à faire ; répéter la même cotation/couleur pour
+           plusieurs voies/blocs au même niveau (cf. sbChecklistItems / sbChecklistAddItem). -->
+      <div class="form-group" id="sb-checklist-group" style="display:none;margin:0">
+        <label class="form-label">🎯 Checklist à valider (voies ou blocs, un par un)</label>
+        <p style="font-size:11px;color:var(--muted);margin:0 0 8px">L'athlète cochera chaque ligne au fur et à mesure. Ajoute une ligne par voie/bloc — répète le même niveau autant de fois que nécessaire (ex. deux fois "7a" pour deux voies à ce niveau).</p>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+          <select class="form-control" id="sb-checklist-add-select" style="max-width:200px"></select>
+          <button type="button" class="btn sm primary" onclick="sbChecklistAddItem()">+ Ajouter</button>
+        </div>
+        <div id="sb-checklist-list" style="display:flex;flex-direction:column;gap:6px"></div>
+      </div>
     </div>
     <!-- Retour utilisateur : bouton visible à côté d'Enregistrer pour prévenir que cette séance
          nécessite d'être frais physiquement (délai de récupération minimum depuis une séance
