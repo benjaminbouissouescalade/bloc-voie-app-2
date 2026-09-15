@@ -110,6 +110,11 @@ router.post('/:climberId', async (req, res) => {
        cycleId||null, cycleName||null, source||'self', assignedByCoachId||null, flexGoal||null, objectiveId||null,
        !!injury, injuryNote||'', customName||'', JSON.stringify(checklistDone||[]), feeling||'', clientUpdatedAt||0]
     );
+    // TRACE TEMPORAIRE (retour "elle a supprimé et elle est réapparue") — à retirer une fois la
+    // cause confirmée, cf. même trace sur /sync.
+    if (planned || !rows.length) {
+      console.log(`[SAVE log] climberId=${req.params.climberId} id=${id} date=${date} planned=${planned} clientUpdatedAt=${clientUpdatedAt||0} rowCount=${rows.length} result=${JSON.stringify(rows[0]||null)}`);
+    }
     res.json({ ok: true, id: rows[0]?.id || id });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -129,12 +134,18 @@ router.post('/:climberId', async (req, res) => {
 // aucun client (même à jour) ne revoit jamais cette séance.
 router.delete('/:climberId/:logId', async (req, res) => {
   try {
-    await pool.query(
+    const ts = Date.now();
+    const result = await pool.query(
       'UPDATE logs SET deleted=true, client_updated_at=$3, updated_at=NOW() WHERE id=$1 AND climber_id=$2',
-      [req.params.logId, req.params.climberId, Date.now()]
+      [req.params.logId, req.params.climberId, ts]
     );
-    res.json({ ok: true });
+    // TRACE TEMPORAIRE (retour "elle a supprimé et elle est réapparue") — à retirer une fois la
+    // cause confirmée. rowCount à 0 veut dire que le WHERE id/climber_id n'a matché aucune ligne
+    // (id ou climberId inattendu) : la suppression n'aurait alors jamais rien touché du tout.
+    console.log(`[DELETE log] climberId=${req.params.climberId} logId=${req.params.logId} ts=${ts} rowCount=${result.rowCount}`);
+    res.json({ ok: true, rowCount: result.rowCount });
   } catch (err) {
+    console.log(`[DELETE log] ERROR climberId=${req.params.climberId} logId=${req.params.logId}:`, err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -180,7 +191,7 @@ router.post('/:climberId/sync', async (req, res) => {
     await client.query('BEGIN');
     for (const log of logs) {
       if (!log.id || !log.date) continue;
-      await client.query(
+      const result = await client.query(
         `INSERT INTO logs (id, climber_id, date, type, support, minutes, intensity, shape, location, notes, ascents, b_no_grade, planned, bank_ref, cycle_id, cycle_name, source, assigned_by_coach_id, flex_goal, objective_id, injury, injury_note, custom_name, checklist_done, feeling, client_updated_at)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
          ON CONFLICT (id) DO UPDATE SET
@@ -188,7 +199,8 @@ router.post('/:climberId/sync', async (req, res) => {
            location=$9, notes=$10, ascents=$11, b_no_grade=$12, planned=$13, bank_ref=$14,
            cycle_id=$15, cycle_name=$16, source=$17, assigned_by_coach_id=$18, flex_goal=$19,
            objective_id=$20, injury=$21, injury_note=$22, custom_name=$23, checklist_done=$24, feeling=$25, client_updated_at=$26, updated_at=NOW()
-         WHERE $26 >= logs.client_updated_at`,
+         WHERE $26 >= logs.client_updated_at
+         RETURNING id, deleted, client_updated_at, (xmax = 0) AS inserted`,
         [log.id, req.params.climberId, log.date, log.type, log.support||'',
          log.minutes||90, log.intensity||3, log.shape||'normal',
          log.location||'', log.notes||'',
@@ -197,6 +209,15 @@ router.post('/:climberId/sync', async (req, res) => {
          log.source||'self', log.assignedByCoachId||null, log.flexGoal||null, log.objectiveId||null,
          !!log.injury, log.injuryNote||'', log.customName||'', JSON.stringify(log.checklistDone||[]), log.feeling||'', log.clientUpdatedAt||0]
       );
+      // TRACE TEMPORAIRE (retour "elle a supprimé et elle est réapparue") — à retirer une fois la
+      // cause confirmée. inserted=true veut dire NOUVELLE ligne (pas de conflit d'id) : si ça
+      // arrive pour un log planned:true dont la date est déjà passée, c'est la preuve qu'un client
+      // périmé (ancien id JAMAIS connu du serveur, ou déjà supprimé et donc absent) republie une
+      // séance qu'on croyait avoir traitée — rowCount=0 (pas de ligne RETURNING) veut dire que la
+      // garde de fraîcheur a bloqué une tentative de mise à jour/résurrection sur une ligne EXISTANTE.
+      if (log.planned || result.rowCount === 0 || result.rows[0]?.inserted) {
+        console.log(`[SYNC log] climberId=${req.params.climberId} id=${log.id} date=${log.date} planned=${log.planned} clientUpdatedAt=${log.clientUpdatedAt||0} rowCount=${result.rowCount} result=${JSON.stringify(result.rows[0]||null)}`);
+      }
     }
     await client.query('COMMIT');
     res.json({ ok: true, synced: logs.length });
