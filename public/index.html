@@ -5941,9 +5941,22 @@ async function syncToBackend() {
 }
 
 // Charge les données depuis le backend au démarrage
+// Retour utilisateur : "Gilles avait rempli des séances mais rien n'est resté" — cause identifiée :
+// syncToBackend() est best-effort et avale ses erreurs en silence (.catch(()=>{})) ; si l'appel
+// réseau qui envoie une séance échoue (Railway qui redémarre, coupure réseau, onglet fermé pendant
+// la requête...), la séance ne quitte jamais ce navigateur. Jusqu'ici, la ligne
+// localStorage.setItem(STORAGE_KEY, ...) plus bas écrasait ENSUITE le stockage local avec l'état
+// serveur (incomplet) au chargement suivant, effaçant DÉFINITIVEMENT cette séance — même famille de
+// bug que l'ancien DELETE FROM destructeur de /api/logs/:climberId/sync (déjà corrigé côté
+// serveur), mais ici côté lecture : on faisait aveuglément confiance au serveur sans jamais
+// réconcilier avec ce que ce navigateur savait déjà. Fix : avant d'écraser, on repère les séances
+// connues localement mais absentes de la réponse serveur et on les réintègre (le serveur reste
+// prioritaire pour tout id qu'il connaît déjà), puis on relance immédiatement une synchronisation
+// pour qu'elles atteignent enfin le serveur.
 async function loadFromBackend() {
   if (!authToken()) return false;
   refreshCurrentUser();
+  const localClimbersById = new Map((db.climbers || []).map(c => [c.id, c]));
   try {
     const [climbersRes, bankRes] = await Promise.all([
       fetch('/api/climbers', {headers: authHeaders()}),
@@ -5954,14 +5967,20 @@ async function loadFromBackend() {
     const bank = await bankRes.json();
     if (!climbers.length) return false;
 
-    // Charge les logs pour chaque grimpeur
+    // Charge les logs pour chaque grimpeur, en réintégrant celles qui n'existent que localement.
+    let recoveredCount = 0;
     const climbersWithLogs = await Promise.all(climbers.map(async c => {
       const logsRes = await fetch(`/api/logs/${c.id}`, {headers: authHeaders()});
-      const logs = logsRes.ok ? await logsRes.json() : [];
+      const serverLogs = logsRes.ok ? await logsRes.json() : [];
+      const serverIds = new Set(serverLogs.map(l => l.id));
+      const localOnly = ((localClimbersById.get(c.id)?.logs) || []).filter(l => l.id && !serverIds.has(l.id));
+      recoveredCount += localOnly.length;
+      const logs = [...serverLogs, ...localOnly];
       const merged = {...c, logs, trips: c.trips || [], profile: c.profile || {}, objectives: c.objectives || [], cycleObjectives: c.cycle_objectives || []};
       migrateLegacyGoals(merged);
       return merged;
     }));
+    if (recoveredCount) console.warn(`⚠️ ${recoveredCount} séance(s) locale(s) non synchronisée(s) récupérée(s) au chargement`);
 
     db.climbers = climbersWithLogs;
     db.sessionBank = bank;
@@ -5979,6 +5998,10 @@ async function loadFromBackend() {
     }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
     console.log('✅ Données chargées depuis Railway');
+    // Séances récupérées ci-dessus : on relance tout de suite une synchronisation pour qu'elles
+    // atteignent enfin le serveur, plutôt que de les laisser "à risque" en local jusqu'à la
+    // prochaine action de l'utilisateur (qui pourrait ne jamais venir avant un prochain rechargement).
+    if (recoveredCount) syncToBackend().catch(()=>{});
     return true;
   } catch(err) {
     console.warn('Backend indisponible, données locales utilisées:', err.message);
