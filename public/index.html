@@ -1400,6 +1400,19 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
              la planification") — cf. applyPlanningView(). Les champs de compte-rendu réapparaissent
              d'eux-mêmes le jour même. -->
         <p id="s-planning-hint" style="display:none;font-size:12px;color:var(--muted);background:var(--surface2);border-radius:var(--r-sm);padding:8px 12px;margin:0 0 14px">📅 Séance planifiée — les champs de compte-rendu (bobo, ascensions, charge) apparaîtront à l'ouverture le jour même.</p>
+        <!-- Retour utilisateur : "je veux modifier le contenu une fois comme si on avait un double
+             qui n'est que pour l'athlète à cette date" — une séance venant de La Mine (bankRef) ne
+             copiait jusqu'ici que son nom (cf. addPlannedSessionFromBank), le contenu détaillé
+             (description) restant uniquement lisible/modifiable sur la fiche PARTAGÉE de La Mine —
+             donc impossible à ajuster pour un athlète/une date précise sans affecter tout le monde.
+             Ce champ est un "double" du contenu, propre à CETTE séance (stocké dans
+             bNoGrade.contentOverride, cf. saveCurrentSession/editSession) : le modifier ici ne
+             touche jamais la fiche d'origine dans La Mine. -->
+        <div class="form-group" id="s-content-override-group" style="display:none">
+          <label class="form-label">Contenu de la séance</label>
+          <textarea class="form-control" id="s-content-override" rows="5" placeholder="Détail de la séance…"></textarea>
+          <p style="font-size:11px;color:var(--muted);margin-top:4px">Propre à cette séance programmée — la modifier ici ne change pas la fiche partagée dans La Mine.</p>
+        </div>
         <div class="form-row form-row-2">
           <div class="form-group" style="margin:0">
             <label class="form-label">Date</label>
@@ -7805,7 +7818,11 @@ function addPlannedSessionFromBank(bankId, dateStr) {
     support: item.support || '',
     notes: item.name,
     ascents: [],
-    bNoGrade: {},
+    // Retour utilisateur : "je veux modifier le contenu une fois comme si on avait un double qui
+    // n'est que pour l'athlète à cette date" — snapshot du contenu de la fiche AU MOMENT de la
+    // programmation, éditable ensuite (cf. #s-content-override dans le formulaire de séance) sans
+    // jamais toucher la fiche d'origine dans La Mine, et sans être affecté si la fiche change après coup.
+    bNoGrade: { contentOverride: item.description || '' },
     planned: true,
     bankRef: bankId,
     source: isCoachPrescribing ? 'coach' : 'self',
@@ -13238,6 +13255,7 @@ function newSession(date=null, planning=false){
   document.getElementById('s-custom-name').value='';
   document.getElementById('s-support').value='';
   document.getElementById('s-notes').value='';
+  sSyncContentOverrideUI(null, null);
   document.getElementById('s-injury').checked=false;
   document.getElementById('s-injury-note').value='';
   document.getElementById('s-injury-note-row').style.display='none';
@@ -13276,6 +13294,7 @@ function prefillSessionFromBank(bankId) {
   document.getElementById('s-support').value = item.support || '';
   if ((item.type || 'bloc') === 'autre') document.getElementById('s-custom-name').value = item.name || '';
   prefillBankRef = item.id;
+  sSyncContentOverrideUI(item.id, null);
   updateSessionTypeUI({});
   updateLoadPreview();
 }
@@ -13380,6 +13399,22 @@ function applyNotesLock(log) {
   if (hint) hint.style.display = (!canEditNotes && noteCouldExist) ? '' : 'none';
 }
 
+// Affiche/masque + pré-remplit le champ "Contenu de la séance" (#s-content-override-group, cf. HTML
+// plus haut dans le formulaire) — visible seulement quand la séance vient de La Mine (bankRef).
+// Pré-rempli avec le "double" déjà enregistré sur CETTE séance s'il existe (log.bNoGrade.contentOverride),
+// sinon avec la description actuelle de la fiche de La Mine (simple point de départ, jamais modifié
+// tant que rien n'a été enregistré depuis ce champ).
+function sSyncContentOverrideUI(bankRef, log) {
+  const group = document.getElementById('s-content-override-group');
+  const ta = document.getElementById('s-content-override');
+  if (!group || !ta) return;
+  if (!bankRef) { group.style.display = 'none'; ta.value = ''; return; }
+  const bankItem = getBank().find(b => b.id === bankRef);
+  group.style.display = '';
+  ta.value = (log?.bNoGrade?.contentOverride) ?? (bankItem?.description) ?? '';
+}
+window.sSyncContentOverrideUI = sSyncContentOverrideUI;
+
 function editSession(id){
   const log=getLogs().find(l=>l.id===id);if(!log)return;
   // Créneau "objectif libre" pas encore résolu : rien à éditer tant que l'athlète n'a pas choisi
@@ -13415,6 +13450,7 @@ function editSession(id){
   document.getElementById('s-injury-note').value=log.injuryNote||'';
   document.getElementById('s-injury-note-row').style.display=log.injury?'':'none';
   document.getElementById('delete-session-btn').style.display='';
+  sSyncContentOverrideUI(log.bankRef, log);
   switchPage('new-session');
   updateSessionTypeUI(log.bNoGrade||{});
   renderAscentsEditor();
@@ -14155,6 +14191,16 @@ function saveCurrentSession() {
   // cas où ce formulaire générique a un vrai champ de choix de bankRef ; sinon on retombe sur la
   // préservation habituelle de l'existant (bloc/voies n'ont pas ce picker).
   const ppgBankRef = (sCfg.extraPanel === 'ppg' || sCfg.extraPanel === 'footing') ? fieldStr('s-ppg-bank-ref') : '';
+  // "Double" du contenu propre à cette séance (#s-content-override, cf. sSyncContentOverrideUI) —
+  // uniquement pertinent quand la séance a un bankRef ; enregistré dans bNoGrade (mutation, const
+  // n'empêche que la réassignation de la variable elle-même) pour ne JAMAIS toucher la fiche
+  // d'origine dans La Mine (retour utilisateur : "je veux modifier le contenu une fois... [pour]
+  // l'athlète à cette date").
+  const resolvedBankRefForContent = ppgBankRef || existingLog?.bankRef || prefillBankRef || '';
+  if (resolvedBankRefForContent) {
+    const contentOverrideEl = document.getElementById('s-content-override');
+    if (contentOverrideEl) bNoGrade.contentOverride = contentOverrideEl.value;
+  }
   const payload={
     id:editingId||('log_'+Date.now()),
     date:document.getElementById('s-date').value,
@@ -14306,8 +14352,8 @@ function openDayModal(dateStr){
       </div>
       ${(l.ascents||[]).length?`<div class="log-tags" style="margin-top:8px">${(l.ascents||[]).map(a=>`<span class="chip">${a.grade} · ${statusLabel(a.status)}</span>`).join('')}</div>`:''}
       ${!l.planned&&l.injury&&l.injuryNote?`<div style="font-size:12px;color:var(--warm);margin-top:6px">🩹 ${esc(l.injuryNote)}</div>`:''}
-      ${l.planned&&l.notes?`<div style="font-size:12px;color:var(--muted);margin-top:6px">${esc(l.notes.length>140?l.notes.slice(0,140)+'…':l.notes)}</div>`:''}
-      ${l.bankRef&&getBank().find(b=>b.id===l.bankRef)?`<button class="btn sm" style="margin-top:8px" onclick="event.stopPropagation();sbOpenDetail('${l.bankRef}')" title="Aperçu de la fiche de référence — pour modifier CETTE séance (durée, séries, ascensions…), ferme cette fenêtre et clique sur la séance elle-même">📋 Voir la fiche complète</button>`:''}
+      ${(()=>{ const preview = l.planned ? (l.bNoGrade?.contentOverride || l.notes || '') : ''; return preview ? `<div style="font-size:12px;color:var(--muted);margin-top:6px">${esc(preview.length>140?preview.slice(0,140)+'…':preview)}</div>` : ''; })()}
+      ${l.bankRef&&getBank().find(b=>b.id===l.bankRef)?`<button class="btn sm" style="margin-top:8px" onclick="event.stopPropagation();sbOpenDetail('${l.bankRef}')" title="Aperçu de la fiche ORIGINALE de La Mine, partagée — pour modifier CETTE séance (contenu, durée, ascensions…) sans toucher à la fiche, ferme cette fenêtre et clique sur la séance elle-même">📋 Voir la fiche La Mine (originale)</button>`:''}
       ${l.bankRef&&getBank().find(b=>b.id===l.bankRef)?.timerReps?`<button class="btn sm primary" style="margin-top:8px" onclick="event.stopPropagation();sbLaunchTimer('${l.bankRef}')">▶️ Lancer le timer</button>`:''}
     </div>`;
   }).join(''):'<p style="color:var(--muted);text-align:center;padding:20px">Aucune séance ce jour</p>';
