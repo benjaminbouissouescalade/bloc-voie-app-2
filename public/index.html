@@ -10383,10 +10383,19 @@ function renderDayModalTestAssignments(dateStr) {
   const items = pendingTestAssignmentsOnDate(dateStr);
   if (!items.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
   el.style.display = '';
+  // Retour utilisateur : "je peux pas supprimer un test prévu pour un athlète" — cette vue ne
+  // proposait que "Faire ce test", jamais moyen d'annuler la prescription depuis le calendrier
+  // (il fallait rouvrir l'éditeur du test personnalisé et retrouver la ligne dans
+  // renderTestAssignList ci-dessus, qui a déjà ce bouton "Annuler"/cancelTestAssignment). Réservé
+  // au coach/owner, comme côté serveur (DELETE /api/test-assignments/:id exige isCoachRole) —
+  // l'afficher à l'athlète produirait juste un 403 au clic.
   el.innerHTML = items.map(a => `
     <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--accent2);color:var(--accent);border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:13px">
       <span>🧪 <strong>${esc(testTypeLabel(a.testTypeId))}</strong>${a.note ? ' — ' + esc(a.note) : ''}</span>
-      <button class="btn sm" onclick="closeModal('day-modal');goToTestType('${jsAttr(a.testTypeId)}')">Faire ce test</button>
+      <div style="display:flex;gap:6px;flex-shrink:0">
+        <button class="btn sm" onclick="closeModal('day-modal');goToTestType('${jsAttr(a.testTypeId)}')">Faire ce test</button>
+        ${isAdmin() ? `<button class="btn sm danger" onclick="cancelTestAssignment('${jsAttr(a.id)}').then(()=>renderDayModalTestAssignments('${jsAttr(dateStr)}'))" title="Annuler cette programmation">✕</button>` : ''}
+      </div>
     </div>`).join('');
 }
 
