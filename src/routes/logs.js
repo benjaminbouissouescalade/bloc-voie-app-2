@@ -11,8 +11,10 @@ router.use('/:climberId', requireClimberAccess('climberId'));
 // GET /api/logs/:climberId — toutes les séances d'un grimpeur
 router.get('/:climberId', async (req, res) => {
   try {
+    // deleted=false : cf. schema.js (suppression douce) — une séance supprimée ne doit plus jamais
+    // revenir vers aucun client, même périmé.
     const { rows } = await pool.query(
-      `SELECT * FROM logs WHERE climber_id=$1 ORDER BY date DESC`,
+      `SELECT * FROM logs WHERE climber_id=$1 AND deleted=false ORDER BY date DESC`,
       [req.params.climberId]
     );
     // Normalise pour le frontend
@@ -115,11 +117,21 @@ router.post('/:climberId', async (req, res) => {
 });
 
 // DELETE /api/logs/:climberId/:logId — supprimer une séance
+//
+// Retour utilisateur : "elle a supprimé la séance et elle est réapparue" — un vrai DELETE ne
+// laisse plus aucune ligne en base pour la comparaison de fraîcheur : un autre appareil/onglet qui
+// avait encore cette séance en mémoire locale (jamais rafraîchi depuis) la réinsère telle quelle
+// dès qu'il resynchronise pour n'importe quelle raison, puisqu'il n'y a plus de conflit d'id pour
+// déclencher la garde WHERE de POST /:climberId(/sync). Fix : suppression douce — la ligne reste en
+// base (deleted=true) avec un client_updated_at fixé à MAINTENANT, donc largement plus récent que
+// tout ce qu'un client périmé pourrait encore avoir en mémoire ; la garde de fraîcheur déjà en
+// place bloque alors silencieusement toute tentative de réinsertion. GET filtre deleted=false, donc
+// aucun client (même à jour) ne revoit jamais cette séance.
 router.delete('/:climberId/:logId', async (req, res) => {
   try {
     await pool.query(
-      'DELETE FROM logs WHERE id=$1 AND climber_id=$2',
-      [req.params.logId, req.params.climberId]
+      'UPDATE logs SET deleted=true, client_updated_at=$3, updated_at=NOW() WHERE id=$1 AND climber_id=$2',
+      [req.params.logId, req.params.climberId, Date.now()]
     );
     res.json({ ok: true });
   } catch (err) {
