@@ -946,7 +946,12 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <line x1="19" y1="43" x2="42" y2="16" stroke="#e94b1b" stroke-width="3" stroke-linecap="round"/>
     </svg>
     <div class="logo-text">
-      <h1>Digger</h1>
+      <!-- Retour utilisateur : "un petit V pour version à côté de Digger pour qu'on voie les
+           modifications" — repère visuel simple pour confirmer qu'un déploiement (git push +
+           Railway) a bien pris effet : horodatage de la dernière modification de ce fichier.
+           MAINTENANCE : à mettre à jour (id="app-version-badge") à chaque modification de
+           public/index.html, format vAAAA.MM.JJ-HHMM (heure locale du moment de l'édition). -->
+      <h1>Digger <span id="app-version-badge" title="Dernière modification du code — sert à vérifier qu'un déploiement a bien pris effet" style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:0;text-transform:none;vertical-align:super">v2026.09.15-1039</span></h1>
       <p>Climbing training log</p>
     </div>
   </div>
@@ -3691,10 +3696,11 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     <div class="sb-quick-row" id="sb-category-row"></div>
     <div class="sb-quick-row" id="sb-subcategory-row" style="margin-bottom:0;margin-top:4px"></div>
   </div>
-  <div style="margin-bottom:14px">
-    <div class="sb-quick-label" style="display:block;margin-bottom:6px">🏷️ Filtres transversaux</div>
-    <div class="sb-quick-row" id="sb-crosstag-row" style="margin-bottom:0"></div>
-  </div>
+  <!-- Retour utilisateur : "enlève les filtres transversaux, ça fait trop d'info" — rangée de
+       filtres rapides retirée (déjà beaucoup de filtres : dossiers, type, objectif, support,
+       niveau, source, recherche...). sbRenderCrossTagRow() et sbActiveCrossTags restent dans le
+       code (gardés par un `if (!row) return`, même logique que la box IA retirée plus haut dans ce
+       fichier), mais ne s'affichent plus jamais. -->
 
   <!-- Filtre / recherche -->
   <div style="display:flex;flex-direction:column;gap:8px">
@@ -3762,6 +3768,11 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
           <option value="comp_simulation">Simulation compét.</option>
           <option value="onsight">Onsight / A vue</option>
           <option value="peaking">Pic de forme</option>
+        </optgroup>
+        <optgroup label="Prépa physique">
+          <option value="ppg">PPG (physique générale)</option>
+          <option value="ppo">PPO (physique orientée)</option>
+          <option value="pps">PPS (physique spécifique)</option>
         </optgroup>
         <optgroup label="Récupération">
           <option value="recuperation">Récupération</option>
@@ -3912,6 +3923,11 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
             <option value="comp_simulation">Simulation compétition</option>
             <option value="onsight">Travail onsight / A vue</option>
             <option value="peaking">Pic de forme (tapering)</option>
+          </optgroup>
+          <optgroup label="── Prépa physique ──">
+            <option value="ppg">PPG (préparation physique générale)</option>
+            <option value="ppo">PPO (préparation physique orientée)</option>
+            <option value="pps">PPS (préparation physique spécifique)</option>
           </optgroup>
           <optgroup label="── Récupération / Santé ──">
             <option value="recuperation">Récupération active</option>
@@ -4127,6 +4143,11 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
             <option value="onsight">Travail onsight / A vue</option>
             <option value="peaking">Pic de forme (tapering)</option>
           </optgroup>
+          <optgroup label="── Prépa physique ──">
+            <option value="ppg">PPG (préparation physique générale)</option>
+            <option value="ppo">PPO (préparation physique orientée)</option>
+            <option value="pps">PPS (préparation physique spécifique)</option>
+          </optgroup>
           <optgroup label="── Récupération / Santé ──">
             <option value="recuperation">Récupération active</option>
             <option value="prevention">Prévention blessures</option>
@@ -4198,10 +4219,10 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
       <label class="form-label">Tags (styles travaillés)</label>
       <div id="sb-tags-picker" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px"></div>
     </div>
-    <div class="form-group">
-      <label class="form-label">🏷️ Filtres transversaux <span style="font-weight:400;color:var(--muted)">(optionnel, plusieurs possibles)</span></label>
-      <div id="sb-crosstag-picker" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px"></div>
-    </div>
+    <!-- Retour utilisateur : "enlève les filtres transversaux, ça fait trop d'info" — picker
+         retiré de l'éditeur (cf. commentaire jumeau sur la rangée de filtres rapides, page La
+         Mine) ; sbSave() continue de lire .sb-crosstag-cb:checked sans erreur (querySelectorAll
+         sur une classe absente renvoie simplement une liste vide → crossTags:[] enregistré). -->
     <!-- Checklist de voies/blocs à valider un par un — visible seulement pour une fiche de type
          "Voies salle" ou "Bloc salle" (retour : "créer 2 séances, une voie l'autre bloc, où l'on
          pourrait indiquer des voies ou bloc par niveau que l'athlète devra faire, et il cochera
@@ -14936,6 +14957,11 @@ const SB_GOAL_LABELS = {
   volume:'Volume endurance', resi:'Résistance', arc:'ARC training', circuit:'Circuit / continuité',
   technique:'Technique pure', dalle:'Travail dalle', devers:'Dévers / compression', coordination:'Coordination / dynos', flasher:'Flash / lecture',
   comp_simulation:'Simulation compét.', onsight:'Onsight / A vue', peaking:'Pic de forme',
+  // Retour utilisateur : "il me manque des thèmes PPG PPO PPS" — progression classique de prépa
+  // physique (Générale → Orientée → Spécifique). Clés distinctes de la valeur "ppg" déjà utilisée
+  // par le champ Type de séance (#sb-type, PPG en tant que TYPE de séance) : deux <select>
+  // différents (type vs objectif), pas de collision.
+  ppg:'PPG (physique générale)', ppo:'PPO (physique orientée)', pps:'PPS (physique spécifique)',
   recuperation:'Récupération', prevention:'Prévention blessures', retour_blessure:'Retour blessure',
   // Pas un vrai tag d'objectif (aucune fiche de banque n'a goal:'libre') — sentinelle réservée à
   // "Planifier une séance" (retour : "possibilité de création d'une séance de son choix à
@@ -14951,6 +14977,7 @@ const SB_GOAL_GROUPS = {
   volume:'Endurance', resi:'Endurance', arc:'Endurance', circuit:'Endurance',
   technique:'Technique', dalle:'Technique', devers:'Technique', coordination:'Technique', flasher:'Technique',
   comp_simulation:'Compétition', onsight:'Compétition', peaking:'Compétition',
+  ppg:'Prépa physique', ppo:'Prépa physique', pps:'Prépa physique',
   recuperation:'Récup', prevention:'Récup', retour_blessure:'Récup'
 };
 
@@ -15858,8 +15885,11 @@ function sbSessionSummaryHtml(s) {
       ${s.support && SUPPORTS[s.support] ? `<span>${SUPPORTS[s.support].icon} ${esc(SUPPORTS[s.support].label)}</span>` : ''}
     </div>
     <p style="font-size:13px;line-height:1.6;margin-bottom:14px;white-space:pre-wrap">${esc(s.description || 'Pas de description.')}</p>
-    ${(s.tags||[]).length ? `<div style="margin-bottom:10px"><span style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">Tags</span>${s.tags.map(x=>`<span class="sb-tag" style="margin-right:4px;margin-bottom:4px;display:inline-block">${esc(x)}</span>`).join('')}</div>` : ''}
-    ${(s.crossTags||[]).length ? `<div style="margin-bottom:10px"><span style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">Filtres transversaux</span>${s.crossTags.map(x=>`<span class="sb-tag" style="margin-right:4px;margin-bottom:4px;display:inline-block">🏷️ ${esc(x)}</span>`).join('')}</div>` : ''}`;
+    ${(s.tags||[]).length ? `<div style="margin-bottom:10px"><span style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">Tags</span>${s.tags.map(x=>`<span class="sb-tag" style="margin-right:4px;margin-bottom:4px;display:inline-block">${esc(x)}</span>`).join('')}</div>` : ''}`;
+  // Retour utilisateur : "enlève les filtres transversaux, ça fait trop d'info" — badge crossTags
+  // retiré de l'affichage (cf. commentaires jumeaux sur le picker éditeur et la rangée de filtres
+  // rapides) ; les fiches créées avant ce retrait gardent leurs crossTags en base, simplement plus
+  // montrés nulle part désormais.
 }
 
 // — Panneau de détail (vue "choisir") : toutes les infos, séparées de la carte simplifiée —
