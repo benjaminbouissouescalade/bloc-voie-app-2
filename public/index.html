@@ -944,7 +944,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
            Railway) a bien pris effet : horodatage de la dernière modification de ce fichier.
            MAINTENANCE : à mettre à jour (id="app-version-badge") à chaque modification de
            public/index.html, format vAAAA.MM.JJ-HHMM (heure locale du moment de l'édition). -->
-      <h1>Digger <span id="app-version-badge" title="Dernière modification du code — sert à vérifier qu'un déploiement a bien pris effet" style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:0;text-transform:none;vertical-align:super">v2026.09.15-1810</span></h1>
+      <h1>Digger <span id="app-version-badge" title="Dernière modification du code — sert à vérifier qu'un déploiement a bien pris effet" style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:0;text-transform:none;vertical-align:super">v2026.09.15-1932</span></h1>
       <p>Climbing training log</p>
     </div>
   </div>
@@ -7833,7 +7833,9 @@ function addPlannedSessionFromBank(bankId, dateStr) {
     planned: true,
     bankRef: bankId,
     source: isCoachPrescribing ? 'coach' : 'self',
-    assignedByCoachId: isCoachPrescribing ? window.currentUser.id : null
+    assignedByCoachId: isCoachPrescribing ? window.currentUser.id : null,
+    // cf. schema.js (client_updated_at) — estampille anti-écrasement par un client périmé.
+    clientUpdatedAt: Date.now()
   };
   if (!climber.logs) climber.logs = [];
   climber.logs.push(payload);
@@ -7882,7 +7884,8 @@ function addPlannedFlexSession(dateStr) {
     bankRef: null,
     flexGoal: 'libre',
     source: isCoachPrescribing ? 'coach' : 'self',
-    assignedByCoachId: isCoachPrescribing ? window.currentUser.id : null
+    assignedByCoachId: isCoachPrescribing ? window.currentUser.id : null,
+    clientUpdatedAt: Date.now()
   };
   if (!climber.logs) climber.logs = [];
   climber.logs.push(payload);
@@ -8366,7 +8369,8 @@ function generateCycle() {
         cycleId,
         cycleName,
         source: isCoachPrescribing ? 'coach' : 'self',
-        assignedByCoachId: isCoachPrescribing ? window.currentUser.id : null
+        assignedByCoachId: isCoachPrescribing ? window.currentUser.id : null,
+        clientUpdatedAt: Date.now()
       });
       created++;
     });
@@ -8554,7 +8558,8 @@ function cwBuildLogsForTarget(days, targetStartStr, cycleId, cycleName, climberI
     cycleId,
     cycleName,
     source: isCoachPrescribing ? 'coach' : 'self',
-    assignedByCoachId: isCoachPrescribing ? window.currentUser.id : null
+    assignedByCoachId: isCoachPrescribing ? window.currentUser.id : null,
+    clientUpdatedAt: Date.now()
   }));
 }
 
@@ -10249,7 +10254,7 @@ function autoLogTestToCalendar(date, logType, label) {
     id: 'log_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
     date, type: logType, minutes: TEST_AUTOLOG_MINUTES, intensity: TEST_AUTOLOG_INTENSITY,
     shape: 'normal', location: '', support: '', notes: noteTag,
-    ascents: [], bNoGrade: {}, planned: false, source: 'self'
+    ascents: [], bNoGrade: {}, planned: false, source: 'self', clientUpdatedAt: Date.now()
   });
   saveDB();
   if (typeof renderDashboard === 'function') renderDashboard();
@@ -13580,6 +13585,7 @@ function toggleChecklistItem(itemId) {
   const doneSet = new Set(log.checklistDone || []);
   if (doneSet.has(itemId)) doneSet.delete(itemId); else doneSet.add(itemId);
   log.checklistDone = Array.from(doneSet);
+  log.clientUpdatedAt = Date.now();
   saveDB();
   const bankCard = log.bankRef ? getBank().find(b=>b.id===log.bankRef) : null;
   renderChecklistFill(bankCard, log);
@@ -13766,7 +13772,8 @@ function fulfillObjective(bankId) {
     cycleId: obj.cycleId,
     cycleName: obj.cycleName,
     source: obj.source || 'self',
-    assignedByCoachId: obj.assignedByCoachId || null
+    assignedByCoachId: obj.assignedByCoachId || null,
+    clientUpdatedAt: Date.now()
   });
   saveDB();
   closeModal('flex-choice-modal');
@@ -13795,6 +13802,7 @@ function fulfillFlexSession(bankId) {
   log.notes = item.name;
   log.bankRef = bankId;
   log.planned = false;
+  log.clientUpdatedAt = Date.now();
   saveDB();
   closeModal('flex-choice-modal');
   flexChoiceLogId = null;
@@ -14173,7 +14181,7 @@ function openFeelingModal(logId, onDone) {
 function pickFeeling(key) {
   const climber = getActive();
   const log = climber ? (climber.logs || []).find(l => l.id === feelingModalLogId) : null;
-  if (log) { log.feeling = key; saveDB(); }
+  if (log) { log.feeling = key; log.clientUpdatedAt = Date.now(); saveDB(); }
   closeFeelingModal();
 }
 function closeFeelingModal() {
@@ -14229,6 +14237,11 @@ function saveCurrentSession() {
   }
   const payload={
     id:editingId||('log_'+Date.now()),
+    // cf. schema.js (client_updated_at) — retour utilisateur : "des séances de la semaine passée
+    // sont passées en prévisionnel". Estampillée à CHAQUE enregistrement réel (création ou
+    // modification) pour que le backend puisse ignorer un envoi périmé venant d'un onglet resté
+    // ouvert longtemps, sans jamais écraser une modification plus récente faite ailleurs entre-temps.
+    clientUpdatedAt: Date.now(),
     date:document.getElementById('s-date').value,
     type:sType,
     minutes:fieldVal('s-minutes', 90),
@@ -18103,13 +18116,15 @@ function submitImport8a() {
               existing.ascents.push({ grade: a.grade, status: a.status, tries: 1, progress: 100, styles: [] });
             }
           });
+          existing.clientUpdatedAt = Date.now();
         } else {
           active.logs.push({
             id: 'imp_' + Date.now() + '_' + Math.random().toString(36).slice(2,6),
             date: sess.date, type: sess.sessionType, minutes: 120, intensity: 3, shape: 'normal',
             location: sess.location || '', support: '', notes: 'Importé depuis 8a.nu',
             ascents: sess.ascents.map(a => ({ grade: a.grade, status: a.status, tries: 1, progress: 100, styles: [] })),
-            bNoGrade: { sent:0, tries:0, progress:60, diff:'classic', styles:[] }
+            bNoGrade: { sent:0, tries:0, progress:60, diff:'classic', styles:[] },
+            clientUpdatedAt: Date.now()
           });
         }
       });
