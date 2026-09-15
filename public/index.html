@@ -7831,7 +7831,17 @@ function addPlannedSessionFromBank(bankId, dateStr) {
   if (!climber.logs) climber.logs = [];
   climber.logs.push(payload);
   saveDB();
+  // Retour utilisateur : "j'ai planifié une séance pour Chloé, si je clique sur la case elle est
+  // bien là [dans la fenêtre du jour], si je regarde le calendrier je ne la vois pas... visible sur
+  // la planification" — renderCalendar() ne reconstruit QUE la grille de la page "Planification"
+  // (#cal-grid) ; la page "Calendrier" a sa propre grille (#cal2-grid, renderSimpleCalendar()), pas
+  // rafraîchie par cet appel. Les données étaient bien enregistrées (d'où la séance visible en
+  // rouvrant la fenêtre du jour, qui relit toujours l'état à jour), seul l'affichage de la grille
+  // "Calendrier" restait périmé tant qu'on ne changeait pas de mois dessus. Même correctif déjà
+  // appliqué ailleurs dans le fichier (cf. les nombreux `if (document.getElementById('cal2-grid'))
+  // renderSimpleCalendar();` à côté de renderCalendar()) — manquait ici.
   renderCalendar();
+  if (document.getElementById('cal2-grid')) renderSimpleCalendar();
   openDayModal(dateStr);
 }
 
@@ -7870,7 +7880,10 @@ function addPlannedFlexSession(dateStr) {
   if (!climber.logs) climber.logs = [];
   climber.logs.push(payload);
   saveDB();
+  // Même correctif que addPlannedSessionFromBank ci-dessus (cf. son commentaire) : rafraîchit aussi
+  // la grille de la page "Calendrier", pas seulement celle de "Planification".
   renderCalendar();
+  if (document.getElementById('cal2-grid')) renderSimpleCalendar();
   openDayModal(dateStr);
 }
 window.addPlannedFlexSession = addPlannedFlexSession;
@@ -13752,7 +13765,10 @@ function fulfillObjective(bankId) {
   closeModal('flex-choice-modal');
   flexChoiceObjectiveId = null;
   renderDashboard();
+  // Même correctif que addPlannedSessionFromBank (cf. son commentaire) : rafraîchit aussi la grille
+  // de la page "Calendrier".
   renderCalendar();
+  if (document.getElementById('cal2-grid')) renderSimpleCalendar();
 }
 window.fulfillObjective = fulfillObjective;
 
@@ -13775,7 +13791,10 @@ function fulfillFlexSession(bankId) {
   saveDB();
   closeModal('flex-choice-modal');
   flexChoiceLogId = null;
+  // Même correctif que addPlannedSessionFromBank (cf. son commentaire) : rafraîchit aussi la grille
+  // de la page "Calendrier".
   renderCalendar();
+  if (document.getElementById('cal2-grid')) renderSimpleCalendar();
   editSession(log.id);
 }
 window.fulfillFlexSession = fulfillFlexSession;
