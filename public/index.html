@@ -954,7 +954,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
            Railway) a bien pris effet : horodatage de la dernière modification de ce fichier.
            MAINTENANCE : à mettre à jour (id="app-version-badge") à chaque modification de
            public/index.html, format vAAAA.MM.JJ-HHMM (heure locale du moment de l'édition). -->
-      <h1>Digger <span id="app-version-badge" title="Dernière modification du code — sert à vérifier qu'un déploiement a bien pris effet" style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:0;text-transform:none;vertical-align:super">v2026.09.16-1015</span></h1>
+      <h1>Digger <span id="app-version-badge" title="Dernière modification du code — sert à vérifier qu'un déploiement a bien pris effet" style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:0;text-transform:none;vertical-align:super">v2026.09.16-1130</span></h1>
       <p>Climbing training log</p>
     </div>
   </div>
@@ -13853,6 +13853,15 @@ const ASCENT_STATUS_OPTIONS_BLOC = [
 function fingerRefWeight() {
   return parseFloat(document.getElementById('s-finger-refweight')?.value) || 0;
 }
+// Retour utilisateur : "le pourcentage calculé n'est pas bon quand tu sélectionnes juste une
+// main" — le poids de référence (#s-finger-refweight) est mesuré à DEUX mains (test SmartBoard),
+// donc comparer un poids soulevé à UNE main directement à cette référence gonflait artificiellement
+// le déficit affiché. Approximation retenue (retour utilisateur) : référence à une main = moitié de
+// la référence à deux mains. Utilisé partout où le % d'une série est calculé (éditeur + charge).
+function fingerRefWeightForHand(hand) {
+  const rw = fingerRefWeight();
+  return (hand === 'left' || hand === 'right') ? rw / 2 : rw;
+}
 // Persiste le poids de référence sur le PROFIL du grimpeur (pas sur la séance : c'est un attribut
 // du grimpeur, valable pour toutes ses séances doigts, comme profile.levelBloc) dès qu'il est
 // modifié, puis recalcule le % de chaque série déjà saisie et l'aperçu de charge.
@@ -13900,10 +13909,11 @@ async function autoFillFingerRefWeight(climber) {
 function renderFingerSeriesEditor() {
   const el = document.getElementById('s-finger-series-editor');
   if (!el) return;
-  const refWeight = fingerRefWeight();
   el.innerHTML = fingerSeriesRows.length ? fingerSeriesRows.map((s,i) => {
     // % recalculé à l'affichage à partir du poids de référence courant (pas figé à la saisie),
-    // pour qu'ajuster le poids de référence mette aussi à jour les séries déjà entrées.
+    // pour qu'ajuster le poids de référence mette aussi à jour les séries déjà entrées. Référence
+    // divisée par 2 pour une série à une seule main (cf. fingerRefWeightForHand).
+    const refWeight = fingerRefWeightForHand(s.hand);
     const pct = refWeight && s.weightKg != null ? Math.round((s.weightKg/refWeight)*1000)/10 : (s.pct||0);
     fingerSeriesRows[i].pct = pct;
     // Retour utilisateur : "il faudrait rajouter le temps de tirage sur ces fiches" — durée de
@@ -13924,7 +13934,7 @@ function renderFingerSeriesEditor() {
       </div>
       <div>
         <label style="font-size:10px;color:var(--muted)">${i===0?'Main':''}</label>
-        <select class="form-control" style="font-size:12px;padding:6px 8px" onchange="fingerSeriesRows[${i}].hand=this.value">
+        <select class="form-control" style="font-size:12px;padding:6px 8px" onchange="fingerSeriesRows[${i}].hand=this.value;fingerUpdatePctDisplay(${i});updateLoadPreview()">
           <option value="both" ${(!s.hand||s.hand==='both')?'selected':''}>Deux mains</option>
           <option value="right" ${s.hand==='right'?'selected':''}>Main droite</option>
           <option value="left" ${s.hand==='left'?'selected':''}>Main gauche</option>
@@ -13960,9 +13970,9 @@ function renderFingerSeriesEditor() {
 // pour UNE ligne sans jamais réécrire le innerHTML du bloc (donc sans jamais recréer les inputs),
 // pour que taper plusieurs chiffres de suite dans le champ Poids fonctionne normalement.
 function fingerUpdatePctDisplay(i) {
-  const refWeight = fingerRefWeight();
   const s = fingerSeriesRows[i];
   if (!s) return;
+  const refWeight = fingerRefWeightForHand(s.hand);
   const pct = refWeight && s.weightKg != null ? Math.round((s.weightKg/refWeight)*1000)/10 : (s.pct||0);
   s.pct = pct;
   const displayEl = document.getElementById(`finger-pct-${i}`);
@@ -14084,8 +14094,8 @@ function updateLoadPreview(){
     // Retour utilisateur : charge des séances "Force doigts" calculée série par série (poids ÷
     // poids de référence = %, × répétitions) plutôt que durée × intensité (cf. FINGER_LOAD_K/
     // fingerLoad ci-dessus, et fingerSeriesRows/renderFingerSeriesEditor pour la saisie).
-    const refWeight = fingerRefWeight();
     bLoad = Math.round(fingerSeriesRows.reduce((s,row) => {
+      const refWeight = fingerRefWeightForHand(row.hand);
       const pct = refWeight && row.weightKg != null ? (row.weightKg/refWeight)*100 : (row.pct||0);
       return s + (row.reps||0) * (pct/100);
     }, 0) * FINGER_LOAD_K);
