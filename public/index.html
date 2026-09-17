@@ -7443,8 +7443,20 @@ function cyclesActiveOnDate(climber, dateStr) {
 // Découpe un mois en semaines (lundi-dimanche) pour la vue Année. cycleNameById permet d'afficher
 // le nom "résolu" du cycle (thème deviné depuis les objectifs des séances, cf.
 // cycleThemeFromGoals) plutôt que le nom brut enregistré, souvent générique ("Cycle").
-function monthWeekRows(y, m, logs, cycleNameById) {
+// Retour utilisateur : "la vision année n'est pas assez claire quand un cycle est sur plusieurs
+// mois... c'est l'utilité de cette vue, voir les cycles au cours de l'année et dans le futur" —
+// avant, une semaine n'était rattachée à un cycle que si une séance déjà LOGUÉE portait ce
+// cycleId sur cette semaine précise. Un cycle "objectif libre" sans séance fixe encore choisie
+// (ou une semaine à venir d'un cycle en cours) restait donc invisible, même si le cycle couvrait
+// bel et bien cette période. On compare maintenant la plage de dates de la semaine à la plage
+// startDate→endDate du cycle (cf. getClimberCycles) : le cycle est visible sur TOUTE sa durée,
+// pas seulement sur les séances déjà réalisées. On garde en complément l'ancienne détection par
+// cycleId loggé (union), pour ne rien perdre sur les cas où une date de cycle serait manquante.
+// `objectives` = objectifs datés de l'athlète (climber.objectives) : eux aussi doivent apparaître
+// sur la semaine exacte de leur échéance, indépendamment des séances/cycles.
+function monthWeekRows(y, m, logs, cycles, objectives) {
   const daysInMonth = new Date(y, m+1, 0).getDate();
+  const cycleNameById = Object.fromEntries((cycles||[]).map(c => [c.cycleId, c.displayName]));
   const rows = [];
   let d = 1;
   while (d <= daysInMonth) {
@@ -7454,8 +7466,15 @@ function monthWeekRows(y, m, logs, cycleNameById) {
       const dt = new Date(l.date + 'T00:00:00');
       return dt.getFullYear() === y && dt.getMonth() === m && dt.getDate() >= d && dt.getDate() <= rowEnd;
     });
-    const cycleNames = [...new Set(rowLogs.map(l => l.cycleId ? ((cycleNameById && cycleNameById[l.cycleId]) || l.cycleName) : l.cycleName).filter(Boolean))];
-    rows.push({ start: d, end: rowEnd, cycleNames, rowLogs });
+    const weekStartStr = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const weekEndStr = `${y}-${String(m+1).padStart(2,'0')}-${String(rowEnd).padStart(2,'0')}`;
+    const rangeCycleNames = (cycles||[])
+      .filter(c => c.startDate && c.endDate && !(weekEndStr < c.startDate || weekStartStr > c.endDate))
+      .map(c => c.displayName);
+    const logCycleNames = rowLogs.map(l => l.cycleId ? (cycleNameById[l.cycleId] || l.cycleName) : l.cycleName).filter(Boolean);
+    const cycleNames = [...new Set([...rangeCycleNames, ...logCycleNames])];
+    const objsInWeek = (objectives||[]).filter(o => o.date && o.date >= weekStartStr && o.date <= weekEndStr);
+    rows.push({ start: d, end: rowEnd, cycleNames, rowLogs, objsInWeek });
     d = rowEnd + 1;
   }
   return rows;
@@ -7469,14 +7488,16 @@ function renderCalendarYear() {
   if (statsTitle) statsTitle.textContent = `Séances ${y}`;
   const grid = document.getElementById('cal-year-grid');
   const logs = getLogs();
-  const yearCycleNameById = Object.fromEntries(getClimberCycles(getActive()).map(c => [c.cycleId, c.displayName]));
+  const activeClimber = getActive();
+  const yearCycles = getClimberCycles(activeClimber);
+  const yearObjectives = activeClimber?.objectives || [];
   let totalLoad=0,totalAscents=0,totalMinutes=0,totalSessions=0;
 
   // Passe 1 : calcule les semaines de chaque mois pour pouvoir détecter
   // les cycles qui traversent une frontière de mois (ex: dernière semaine d'avril = 1ère de mai).
   const monthsInfo = Array.from({length:12},(_,m)=>{
     const monthLogs = logs.filter(l => { const d=new Date(l.date+'T00:00:00'); return d.getFullYear()===y && d.getMonth()===m; });
-    return { m, monthLogs, weekRows: monthWeekRows(y, m, monthLogs, yearCycleNameById) };
+    return { m, monthLogs, weekRows: monthWeekRows(y, m, monthLogs, yearCycles, yearObjectives) };
   });
   monthsInfo.forEach((info, m) => {
     const prev = monthsInfo[m-1];
@@ -7501,13 +7522,29 @@ function renderCalendarYear() {
     const monthName = new Date(y,m,1).toLocaleDateString('fr-FR',{month:'long'});
     const prevMonthName = m>0 ? new Date(y,m-1,1).toLocaleDateString('fr-FR',{month:'long'}) : '';
     const nextMonthName = m<11 ? new Date(y,m+1,1).toLocaleDateString('fr-FR',{month:'long'}) : '';
+    // Retour : "il faut que dans la case mois on voit aussi les semaines de façon à voir les
+    // cycles" — chaque ligne porte maintenant son intervalle de jours (ex. "6-12") en préfixe,
+    // pour situer précisément où commence/finit un cycle dans le mois. "Les objectifs datés
+    // doivent eux aussi être extrêmement visibles" — badge doré dédié (OBJECTIVE_TYPES), toujours
+    // affiché quelle que soit la ligne (cycle ou pas). "Les séances unitaires sont moins
+    // importantes" — la ligne de pastilles (séances isolées, hors cycle) est réduite et atténuée.
     const weekRowsHtml = weekRows.map(w => {
+      const rangeLabel = `<span style="font-size:8px;color:var(--muted);width:20px;flex-shrink:0;text-align:right;font-variant-numeric:tabular-nums">${w.start}-${w.end}</span>`;
+      const objBadges = (w.objsInWeek||[]).map(o => {
+        const t = OBJECTIVE_TYPES[o.type] || OBJECTIVE_TYPES.other;
+        return `<span title="${esc(t.label)} — ${esc(objectiveDueLabel(o.date))}" style="display:inline-flex;align-items:center;gap:3px;background:var(--dg-sable);color:#2a2214;font-size:9px;font-weight:800;padding:1px 7px;border-radius:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0;box-shadow:0 1px 3px rgba(164,122,46,.45)">${t.icon} ${esc(o.title || o.text || t.label)}</span>`;
+      }).join('');
       if (w.cycleNames.length) {
         const col = colorForCycleName(w.cycleNames[0]);
         const fromTag = w.continuesFrom ? `<span title="Suite du cycle commencé en ${esc(prevMonthName)}" style="color:${col};font-size:10px;font-weight:700;flex-shrink:0">↳</span>` : '';
         const intoTag = w.continuesInto ? `<span title="Se poursuit en ${esc(nextMonthName)}" style="color:${col};font-size:10px;font-weight:700;flex-shrink:0">→</span>` : '';
         return `<div onclick="event.stopPropagation();calDate=new Date(${y},${m},${w.start});setCalZoom('week')" style="display:flex;gap:3px;align-items:center;height:16px;margin-bottom:3px;cursor:pointer">
-          ${fromTag}${w.cycleNames.map(n => `<span style="display:flex;align-items:center;gap:3px;background:${colorForCycleName(n)};color:#fff;font-size:9px;padding:1px 6px;border-radius:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:${Math.floor(100/w.cycleNames.length)}%">${esc(n)}</span>`).join('')}${intoTag}
+          ${rangeLabel}${fromTag}${w.cycleNames.map(n => `<span style="display:flex;align-items:center;gap:3px;background:${colorForCycleName(n)};color:#fff;font-size:9px;padding:1px 6px;border-radius:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:${Math.floor(100/w.cycleNames.length)}%">${esc(n)}</span>`).join('')}${intoTag}${objBadges}
+        </div>`;
+      }
+      if (w.objsInWeek && w.objsInWeek.length) {
+        return `<div onclick="event.stopPropagation();calDate=new Date(${y},${m},${w.start});setCalZoom('week')" style="display:flex;gap:3px;align-items:center;height:16px;margin-bottom:3px;cursor:pointer">
+          ${rangeLabel}${objBadges}
         </div>`;
       }
       if (w.rowLogs.length) {
@@ -7515,28 +7552,31 @@ function renderCalendarYear() {
         const plannedCount = w.rowLogs.filter(l=>l.planned).length;
         const dots = w.rowLogs.slice(0,8).map(l => {
           const t = SESSION_TYPES[l.type] || SESSION_TYPES.autre;
-          return `<span title="${esc(t.label)}" style="width:7px;height:7px;border-radius:50%;flex-shrink:0;background:${l.planned?'transparent':t.color};border:1.5px solid ${t.color}"></span>`;
+          return `<span title="${esc(t.label)}" style="width:6px;height:6px;border-radius:50%;flex-shrink:0;background:${l.planned?'transparent':t.color};border:1.3px solid ${t.color}"></span>`;
         }).join('');
-        return `<div onclick="event.stopPropagation();calDate=new Date(${y},${m},${w.start});setCalZoom('week')" style="display:flex;gap:3px;align-items:center;height:16px;margin-bottom:3px;cursor:pointer">
-          ${dots}<span style="font-size:9px;color:var(--muted);margin-left:2px">${doneCount}${plannedCount?` +${plannedCount}📌`:''}</span>
+        return `<div onclick="event.stopPropagation();calDate=new Date(${y},${m},${w.start});setCalZoom('week')" style="display:flex;gap:3px;align-items:center;height:16px;margin-bottom:3px;cursor:pointer;opacity:.65">
+          ${rangeLabel}${dots}<span style="font-size:8.5px;color:var(--muted);margin-left:2px">${doneCount}${plannedCount?` +${plannedCount}📌`:''}</span>
         </div>`;
       }
-      return `<div style="height:16px;border-radius:3px;background:var(--border);opacity:.35;margin-bottom:3px"></div>`;
+      return `<div style="display:flex;align-items:center;gap:3px;height:16px;margin-bottom:3px">${rangeLabel}<div style="flex:1;height:100%;border-radius:3px;background:var(--border);opacity:.35"></div></div>`;
     }).join('');
     const isCurrentMonth = (m === new Date().getMonth() && y === new Date().getFullYear());
     const firstRow = weekRows[0], lastRow = weekRows[weekRows.length-1];
     const topAccent = firstRow && firstRow.continuesFrom ? colorForCycleName(firstRow.continuesFrom[0]) : null;
     const bottomAccent = lastRow && lastRow.continuesInto ? colorForCycleName(lastRow.continuesInto[0]) : null;
+    // Compte d'objectifs datés du mois, pour un repère immédiat même sans scanner les semaines.
+    const monthObjCount = weekRows.reduce((s,w)=>s+(w.objsInWeek?w.objsInWeek.length:0),0);
     return `<div onclick="calDate=new Date(${y},${m},1);setCalZoom('month')" style="cursor:pointer;border:1.5px solid ${isCurrentMonth?'var(--accent)':'var(--border)'};${topAccent?`border-top:3px solid ${topAccent};`:''}${bottomAccent?`border-bottom:3px solid ${bottomAccent};`:''}border-radius:var(--r-sm);padding:12px;background:color-mix(in srgb, var(--accent) ${Math.round(intensity*22)}%, var(--surface2))">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
         <div style="font-weight:600;font-size:13px;text-transform:capitalize">${monthName}</div>
         ${isCurrentMonth?`<span class="tag" style="border-color:var(--accent);color:var(--accent);font-size:9px">en cours</span>`:''}
       </div>
-      <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);margin-bottom:8px">
+      <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);margin-bottom:8px;flex-wrap:wrap">
         <span>🧗 ${doneLogs.length} séance${doneLogs.length!==1?'s':''}</span>
         <span>·</span>
         <span>⚡ ${load}</span>
         ${plannedLogs.length?`<span>· 📌 ${plannedLogs.length}</span>`:''}
+        ${monthObjCount?`<span style="color:var(--dg-sable);font-weight:700">· 🎯 ${monthObjCount}</span>`:''}
       </div>
       <div>${weekRowsHtml}</div>
     </div>`;
