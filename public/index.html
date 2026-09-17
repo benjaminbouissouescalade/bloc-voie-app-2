@@ -13529,7 +13529,15 @@ function editSession(id){
   switchPage('new-session');
   updateSessionTypeUI(log.bNoGrade||{});
   renderAscentsEditor();
-  if (!log.planned) { renderTogetherPanel(id); } else { document.getElementById('s-together-panel').style.display='none'; }
+  // Retour utilisateur : "cette séance semble être apparue chez Chloé... Chloé voit Lisa et Mika
+  // alors qu'elle n'a aucun lien avec eux, seulement moi (le coach)" — GET /api/partners renvoie
+  // TOUJOURS les partenaires du compte connecté (req.user.climberId, cf. src/routes/partners.js),
+  // jamais ceux du grimpeur en train d'être édité. Tant qu'un coach édite la séance d'un athlète,
+  // ce panneau affichait donc les partenaires DU COACH, jamais ceux de l'athlète — en plus d'être
+  // faux, "avec qui as-tu grimpé" n'a de sens qu'en auto-déclaration par l'athlète lui-même. On
+  // n'affiche donc ce panneau que quand on édite SA PROPRE séance (pas en vue coaching).
+  const isSelfEditingSession = getActive()?.id === window.currentUser?.climberId;
+  if (!log.planned && isSelfEditingSession) { renderTogetherPanel(id); } else { document.getElementById('s-together-panel').style.display='none'; }
   applyPrescriptionLock(log);
   updateFlexChangeButton(log);
   // Même correctif que dans newSession() : repart d'un champ vide, jamais du brouillon laissé par
