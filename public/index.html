@@ -954,7 +954,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
            Railway) a bien pris effet : horodatage de la dernière modification de ce fichier.
            MAINTENANCE : à mettre à jour (id="app-version-badge") à chaque modification de
            public/index.html, format vAAAA.MM.JJ-HHMM (heure locale du moment de l'édition). -->
-      <h1>Digger <span id="app-version-badge" title="Dernière modification du code — sert à vérifier qu'un déploiement a bien pris effet" style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:0;text-transform:none;vertical-align:super">v2026.09.26-0930</span></h1>
+      <h1>Digger <span id="app-version-badge" title="Dernière modification du code — sert à vérifier qu'un déploiement a bien pris effet" style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:0;text-transform:none;vertical-align:super">v2026.09.26-1015</span></h1>
       <p>Climbing training log</p>
     </div>
   </div>
@@ -7772,7 +7772,17 @@ function dropChoiceCycle(mode) {
   if (nameEl && droppedItem) nameEl.value = droppedItem.name;
   setCycleMode(mode);
   if (mode === 'simple') {
-    cycleItems = [{ bankId, freq: 4 }];
+    // Retour utilisateur : glisser une fiche depuis La Mine remplissait bien le nom du cycle (en
+    // haut) avec la fiche glissée, mais pas le sélecteur "Quelle séance ?" du bloc "Ajouter une
+    // séance au cycle" (en bas), qui restait sur son option par défaut (première fiche de la
+    // banque) — source de confusion, on voyait deux fiches différentes dans la même fenêtre. On
+    // pré-sélectionne donc aussi ce sélecteur sur la fiche glissée. Item ajouté avec le même format
+    // de clé que addCycleItem() ('b:'+bankId+':free') et dateFree:true (toujours "jour libre" en
+    // mode Simple, cf. commentaire plus haut sur cycleItems) — sans ça, le bouton ✕ de cet item ne
+    // fonctionnait pas (key undefined) et le tag affiché était "jour fixe" au lieu de "jour libre".
+    const bankSel = document.getElementById('cycle-bank-select');
+    if (bankSel) bankSel.value = bankId;
+    cycleItems = [{ key: 'b:' + bankId + ':free', bankId, freq: 4, dateFree: true }];
     renderCycleItemsList();
   } else {
     const sel = document.getElementById('cycle-detailed-bank-select');
