@@ -954,7 +954,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
            Railway) a bien pris effet : horodatage de la dernière modification de ce fichier.
            MAINTENANCE : à mettre à jour (id="app-version-badge") à chaque modification de
            public/index.html, format vAAAA.MM.JJ-HHMM (heure locale du moment de l'édition). -->
-      <h1>Digger <span id="app-version-badge" title="Dernière modification du code — sert à vérifier qu'un déploiement a bien pris effet" style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:0;text-transform:none;vertical-align:super">v2026.09.16-1130</span></h1>
+      <h1>Digger <span id="app-version-badge" title="Dernière modification du code — sert à vérifier qu'un déploiement a bien pris effet" style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:0;text-transform:none;vertical-align:super">v2026.09.26-0930</span></h1>
       <p>Climbing training log</p>
     </div>
   </div>
@@ -1035,9 +1035,15 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   </div>
   <div class="nav-group mode-mine" id="nav-group-community">
     <div class="nav-label">Communauté</div>
-    <button class="nav-btn" data-page="community">
+    <button class="nav-btn" data-page="community" style="position:relative">
       <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="9" r="3"/><circle cx="16" cy="9" r="3"/><path d="M2 20c0-3.5 2.7-6 6-6s6 2.5 6 6M10 20c0-3.5 2.7-6 6-6s6 2.5 6 6"/></svg>
       The Crew
+      <!-- Retour utilisateur : "il manque une notification quand une demande crew est faite" — une
+           demande de connexion reçue (partner_requests) n'était visible que si on ouvrait Communauté →
+           Feed (seul endroit qui appelle loadPartnerRequests()). Badge nav, même principe que
+           #nav-injury-badge côté coach : mis à jour dès le chargement de l'appli (cf. loadPartnerRequests
+           appelée au démarrage) et pas seulement à l'ouverture du panneau. -->
+      <span id="nav-crew-request-badge" style="display:none;position:absolute;top:4px;right:10px;background:var(--warm);color:#fff;font-size:10px;font-weight:700;line-height:1;padding:2px 5px;border-radius:9px" title="Demande(s) de connexion en attente">0</span>
     </button>
   </div>
   <div class="nav-group mode-coach appmode-hidden">
@@ -11972,6 +11978,7 @@ async function loadPartnerRequests() {
     const reqs = await r.json();
     if (!r.ok) return [];
     partnerRequestsCache = reqs;
+    updateCrewRequestBadge(reqs.length);
     if (!box) return reqs;
     if (!reqs.length) { box.style.display = 'none'; box.innerHTML = ''; return reqs; }
     box.style.display = '';
@@ -11989,6 +11996,16 @@ async function loadPartnerRequests() {
   } catch (e) { return []; }
 }
 window.loadPartnerRequests = loadPartnerRequests;
+
+// Met à jour le badge de notification "demande de connexion" sur le nav "The Crew" (cf.
+// #nav-crew-request-badge) — même principe que updateInjuryBadges() côté coach.
+function updateCrewRequestBadge(count) {
+  const navBadge = document.getElementById('nav-crew-request-badge');
+  if (!navBadge) return;
+  navBadge.style.display = count > 0 ? '' : 'none';
+  navBadge.textContent = count > 0 ? String(count) : '';
+}
+window.updateCrewRequestBadge = updateCrewRequestBadge;
 
 async function partnerAcceptRequest(id) {
   try {
@@ -18761,6 +18778,10 @@ window.initAppData = async function() {
   if (isCoachRoleValue(window.currentUser?.role)) {
     renderCoachFeed();
   }
+  // Même logique que le fil coach ci-dessus : charge les demandes de connexion en attente dès le
+  // démarrage pour que le badge nav "The Crew" (#nav-crew-request-badge) soit une vraie notification
+  // visible dès la connexion, pas seulement si on pense à ouvrir Communauté → Feed.
+  loadPartnerRequests();
 };
 
 // ═══════════════ BANDEAU NEWS + ACTIVITÉ DES ATHLÈTES ═══════════════
