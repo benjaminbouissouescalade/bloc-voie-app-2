@@ -258,7 +258,7 @@ router.get('/recent', async (req, res) => {
     // frontend d'afficher "Utilisée il y a Xj" ou "Programmée le ..." selon le cas.
     const { rows } = await pool.query(
       `SELECT DISTINCT ON (bank_ref) bank_ref, date, planned FROM logs
-       WHERE climber_id=$1 AND bank_ref IS NOT NULL AND bank_ref <> ''
+       WHERE climber_id=$1 AND deleted=false AND bank_ref IS NOT NULL AND bank_ref <> ''
        ORDER BY bank_ref, date DESC`,
       [climberId]
     );

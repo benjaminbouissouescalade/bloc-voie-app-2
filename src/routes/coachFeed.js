@@ -39,7 +39,7 @@ router.get('/recent', async (req, res) => {
       query = `SELECT l.id, l.climber_id, l.date, l.type, l.support, l.minutes, l.intensity, l.shape, l.notes,
                       l.comments, l.injury, l.injury_note, l.created_at, l.updated_at, c.name AS climber_name, c.color AS climber_color
                FROM logs l JOIN climbers c ON c.id = l.climber_id
-               WHERE l.planned = false
+               WHERE l.planned = false AND l.deleted = false
                  AND l.climber_id IS DISTINCT FROM $2
                ${orderClause}`;
       params = [limit, ownClimberId];
@@ -47,7 +47,7 @@ router.get('/recent', async (req, res) => {
       query = `SELECT l.id, l.climber_id, l.date, l.type, l.support, l.minutes, l.intensity, l.shape, l.notes,
                       l.comments, l.injury, l.injury_note, l.created_at, l.updated_at, c.name AS climber_name, c.color AS climber_color
                FROM logs l JOIN climbers c ON c.id = l.climber_id
-               WHERE l.planned = false
+               WHERE l.planned = false AND l.deleted = false
                  AND l.climber_id IN (SELECT climber_id FROM coach_athletes WHERE coach_id=$2)
                  AND l.climber_id IS DISTINCT FROM $3
                ${orderClause}`;

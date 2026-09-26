@@ -71,13 +71,13 @@ async function computeProgress(climberId, metric, startDate, endDate, bankId) {
   if (metric === 'session') {
     if (!bankId) return 0;
     const { rows } = await pool.query(
-      `SELECT COUNT(*)::int AS n FROM logs WHERE climber_id=$1 AND planned=false AND bank_ref=$2 AND date>=$3 AND date<=$4`,
+      `SELECT COUNT(*)::int AS n FROM logs WHERE climber_id=$1 AND planned=false AND deleted=false AND bank_ref=$2 AND date>=$3 AND date<=$4`,
       [climberId, bankId, startDate, endDate]
     );
     return rows[0].n;
   }
   const { rows: logs } = await pool.query(
-    `SELECT * FROM logs WHERE climber_id=$1 AND planned=false AND date>=$2 AND date<=$3`,
+    `SELECT * FROM logs WHERE climber_id=$1 AND planned=false AND deleted=false AND date>=$2 AND date<=$3`,
     [climberId, startDate, endDate]
   );
   if (metric === 'seances') return logs.length;
@@ -92,7 +92,7 @@ async function computeProgress(climberId, metric, startDate, endDate, bankId) {
   if (metric === 'charge') {
     const cutoff = new Date(startDate); cutoff.setDate(cutoff.getDate() - 90);
     const { rows: widerLogs } = await pool.query(
-      `SELECT * FROM logs WHERE climber_id=$1 AND planned=false AND date>=$2 AND date<=$3`,
+      `SELECT * FROM logs WHERE climber_id=$1 AND planned=false AND deleted=false AND date>=$2 AND date<=$3`,
       [climberId, cutoff.toISOString().slice(0, 10), endDate]
     );
     const norm = widerLogs.map(l => ({ date: l.date.toISOString().slice(0, 10), ascents: l.ascents || [] }));

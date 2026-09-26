@@ -203,7 +203,7 @@ router.get('/:crewId/board', requireCrewMembership(), async (req, res) => {
     if (memberIds.length) {
       const { rows } = await pool.query(
         `SELECT climber_id, type, planned, COUNT(*) as cnt
-         FROM logs WHERE climber_id = ANY($1) AND date >= $2 AND date <= $3
+         FROM logs WHERE climber_id = ANY($1) AND deleted = false AND date >= $2 AND date <= $3
          GROUP BY climber_id, type, planned`,
         [memberIds, start, end]
       );
@@ -275,7 +275,7 @@ router.get('/:crewId/balance', requireCrewMembership(), async (req, res) => {
     if (memberIds.length) {
       const { rows } = await pool.query(
         `SELECT climber_id, COUNT(DISTINCT date) as training_days
-         FROM logs WHERE climber_id = ANY($1) AND planned = false AND date >= $2 AND date <= $3
+         FROM logs WHERE climber_id = ANY($1) AND planned = false AND deleted = false AND date >= $2 AND date <= $3
          GROUP BY climber_id`,
         [memberIds, startStr, endStr]
       );
@@ -359,7 +359,7 @@ function refGradeFromLogs(logs) {
 // sommer facilement sur tout un crew.
 async function computeMemberProgress(climberId, metric, startDate, endDate) {
   const { rows: logs } = await pool.query(
-    `SELECT * FROM logs WHERE climber_id=$1 AND planned=false AND date>=$2 AND date<=$3`,
+    `SELECT * FROM logs WHERE climber_id=$1 AND planned=false AND deleted=false AND date>=$2 AND date<=$3`,
     [climberId, startDate, endDate]
   );
   if (metric === 'seances') return logs.length;
@@ -374,7 +374,7 @@ async function computeMemberProgress(climberId, metric, startDate, endDate) {
   if (metric === 'charge') {
     const cutoff = new Date(startDate); cutoff.setDate(cutoff.getDate() - 90);
     const { rows: widerLogs } = await pool.query(
-      `SELECT * FROM logs WHERE climber_id=$1 AND planned=false AND date>=$2 AND date<=$3`,
+      `SELECT * FROM logs WHERE climber_id=$1 AND planned=false AND deleted=false AND date>=$2 AND date<=$3`,
       [climberId, cutoff.toISOString().slice(0, 10), endDate]
     );
     const norm = widerLogs.map(l => ({ date: l.date.toISOString().slice(0, 10), ascents: l.ascents || [] }));
@@ -494,7 +494,7 @@ router.get('/:crewId/leaderboard', requireCrewMembership(), async (req, res) => 
     if (startStr < fetchFromStr) fetchFromStr = startStr;
 
     const { rows: logs } = await pool.query(
-      `SELECT * FROM logs WHERE climber_id = ANY($1) AND planned=false AND date >= $2 AND date <= $3`,
+      `SELECT * FROM logs WHERE climber_id = ANY($1) AND planned=false AND deleted=false AND date >= $2 AND date <= $3`,
       [memberIds, fetchFromStr, endStr]
     );
     const logsNorm = logs.map(l => ({ climberId: l.climber_id, date: l.date.toISOString().slice(0, 10), ascents: l.ascents || [], bNoGrade: l.b_no_grade || {} }));
@@ -582,7 +582,7 @@ router.get('/:crewId/heatmap', requireCrewMembership(), async (req, res) => {
     if (memberIds.length) {
       const { rows } = await pool.query(
         `SELECT date, COUNT(*)::int AS n FROM logs
-         WHERE climber_id = ANY($1) AND planned=false AND date >= $2
+         WHERE climber_id = ANY($1) AND planned=false AND deleted=false AND date >= $2
          GROUP BY date`,
         [memberIds, since.toISOString().slice(0, 10)]
       );
