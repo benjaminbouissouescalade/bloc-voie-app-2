@@ -954,7 +954,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
            Railway) a bien pris effet : horodatage de la dernière modification de ce fichier.
            MAINTENANCE : à mettre à jour (id="app-version-badge") à chaque modification de
            public/index.html, format vAAAA.MM.JJ-HHMM (heure locale du moment de l'édition). -->
-      <h1>Digger <span id="app-version-badge" title="Dernière modification du code — sert à vérifier qu'un déploiement a bien pris effet" style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:0;text-transform:none;vertical-align:super">v2026.09.27-1810</span></h1>
+      <h1>Digger <span id="app-version-badge" title="Dernière modification du code — sert à vérifier qu'un déploiement a bien pris effet" style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:0;text-transform:none;vertical-align:super">v2026.09.27-2010</span></h1>
       <p>Climbing training log</p>
     </div>
   </div>
@@ -5849,7 +5849,21 @@ var previewMode = false;
 // c'est une date future, et seulement rentrer une séance le jour même ou dans le passé") : une
 // même date-string YYYY-MM-DD se compare lexicalement comme une vraie date, donc une simple
 // comparaison de chaînes suffit ici — pas besoin de reconstruire des objets Date.
-function todayStr() { return new Date().toISOString().slice(0,10); }
+// Retour utilisateur : autour de minuit en France (UTC+1 hiver / UTC+2 été), l'ancienne implémentation
+// (todayStr()) décalait "aujourd'hui" d'un jour — toISOString() convertit
+// TOUJOURS en UTC avant de formater, donc entre minuit et 1h (hiver) ou 2h (été) heure de Paris, on
+// est encore la VEILLE en UTC. date.getFullYear()/getMonth()/getDate() lisent le calendrier LOCAL du
+// navigateur (celui de l'utilisateur), sans cette conversion — c'est ce qu'il faut ici : todayStr()
+// sert à afficher/comparer "la date d'aujourd'hui pour la personne qui utilise l'appli", jamais un
+// instant précis (pour ça, voir clientUpdatedAt/createdAt qui restent en ISO complet avec l'heure,
+// où la conversion UTC est au contraire voulue). Tous les autres usages directs de
+// `todayStr()` du fichier (préremplissage de champs date à "aujourd'hui",
+// comparaisons planifié/passé...) ont été remplacés par un appel à CETTE fonction, pour n'avoir
+// qu'une seule implémentation à corriger si le comportement doit encore changer un jour.
+function todayStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
 function isFutureDateStr(dateStr) { return dateStr > todayStr(); }
 // Modèle de rôles owner/coach/athlete (voir src/lib/roles.js côté backend) : 'admin' est l'ancien
 // nom unique du rôle coach, gardé en alias le temps que les JWT signés avant la migration expirent.
@@ -7397,7 +7411,7 @@ function renderPlanObjective() {
     </div>`;
     return;
   }
-  const today = new Date().toISOString().slice(0,10);
+  const today = todayStr();
   const dated = goals.filter(g => g.date).sort((a,b) => a.date.localeCompare(b.date));
   const future = dated.filter(g => g.date >= today);
   const chosen = future[0] || dated[dated.length-1] || goals[goals.length-1];
@@ -7513,7 +7527,7 @@ function renderCalendarMonth() {
   if (statsTitle) statsTitle.textContent = `Séances de ${monthLabel}`;
   const first=new Date(y,m,1), firstDay=(first.getDay()+6)%7, daysInMonth=new Date(y,m+1,0).getDate();
   const grid=document.getElementById('cal-grid'); grid.innerHTML='';
-  const todayStr=new Date().toISOString().slice(0,10);
+  const todayStr=window.todayStr();
   const monthClimberCycles = getClimberCycles(getActive());
   let totalLoad=0,totalAscents=0,totalMinutes=0,totalSessions=0;
   for(let i=0;i<42;i++){
@@ -7537,7 +7551,7 @@ function renderCalendarMonth() {
 function renderCalendarWeek() {
   const d = new Date(calDate);
   const monday = new Date(d); monday.setDate(d.getDate() - ((d.getDay()+6)%7));
-  const todayStr = new Date().toISOString().slice(0,10);
+  const todayStr = window.todayStr();
   const label = `Semaine du ${fmtDate(monday.toISOString().slice(0,10))}`;
   document.getElementById('cal-month-label').textContent = label;
   document.getElementById('cal-month-title').textContent = label;
@@ -7928,7 +7942,7 @@ function renderSimpleCalendar() {
   if (cal2StatsTitle) cal2StatsTitle.textContent = `Séances de ${cal2MonthLabel}`;
   const first=new Date(y,m,1), firstDay=(first.getDay()+6)%7, daysInMonth=new Date(y,m+1,0).getDate();
   gridEl.innerHTML='';
-  const todayStr=new Date().toISOString().slice(0,10);
+  const todayStr=window.todayStr();
   const cal2ClimberCycles = getClimberCycles(getActive());
   let totalLoad=0,totalAscents=0,totalMinutes=0,totalSessions=0;
   for(let i=0;i<42;i++){
@@ -8330,7 +8344,7 @@ function openCycleModal(editCycleId, returnToDate) {
 
   if (editing) {
     document.getElementById('cycle-name').value = cycle.displayName || cycle.cycleName || '';
-    document.getElementById('cycle-start').value = cycle.startDate || new Date().toISOString().slice(0,10);
+    document.getElementById('cycle-start').value = cycle.startDate || todayStr();
     const spanDays = cycle.startDate && cycle.endDate
       ? Math.round((new Date(cycle.endDate) - new Date(cycle.startDate)) / 86400000) + 1
       : 28;
@@ -8383,7 +8397,7 @@ function openCycleModal(editCycleId, returnToDate) {
     ).join('');
   } else {
     const startEl = document.getElementById('cycle-start');
-    if (!startEl.value) startEl.value = new Date().toISOString().slice(0,10);
+    if (!startEl.value) startEl.value = todayStr();
     document.getElementById('cycle-weeks').value = 4;
     document.getElementById('cycle-rest-hours').value = 24;
     document.getElementById('cycle-name').value = '';
@@ -8968,7 +8982,7 @@ function openApplyTemplateModal(templateId) {
         ${esc(cl.name)}
       </label>`).join('');
   }
-  document.getElementById('apply-template-start').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('apply-template-start').value = todayStr();
   document.getElementById('apply-template-error').style.display = 'none';
   closeModal('week-templates-modal');
   document.getElementById('apply-template-modal').classList.add('open');
@@ -9624,7 +9638,7 @@ function renderCoachObjectivesPanel(panelId, listId) {
   const el = document.getElementById(listId || 'dash-cycle-objectives-list');
   if (!panel || !el) return;
   const c = getActive();
-  const today = new Date().toISOString().slice(0,10);
+  const today = todayStr();
   const cycles = getClimberCycles(c).filter(cy => cy.done < cy.total || (cy.endDate && cy.endDate >= today) || !cy.endDate);
   if (!cycles.length) { panel.style.display = 'none'; el.innerHTML = ''; return; }
   panel.style.display = '';
@@ -10123,7 +10137,7 @@ function renderFingerProfile() {
     gradeSel.innerHTML = GRADES.map(g => `<option value="${g}">${g}</option>`).join('');
     gradeSel.value = climber.level || '7a';
   }
-  document.getElementById('fp-test-date').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('fp-test-date').value = todayStr();
   document.getElementById('fp-body-mass').value = climber.profile?.weight || '';
   fpUpdateIrcraFromGrade();
   fpComputeMvcRelative();
@@ -10681,7 +10695,7 @@ function openTestAssignModal(testTypeId) {
     if (active) sel.value = active.id;
   }
   const dateEl = document.getElementById('tassign-date');
-  if (dateEl) dateEl.value = new Date().toISOString().slice(0, 10);
+  if (dateEl) dateEl.value = todayStr();
   const noteEl = document.getElementById('tassign-note');
   if (noteEl) noteEl.value = '';
   renderTestAssignList();
@@ -11066,7 +11080,7 @@ async function renderSmartboard() {
   const nameEl = document.getElementById('smb-athlete-name');
   if (nameEl) nameEl.textContent = climber?.name || '';
   const dateEl = document.getElementById('smb-date');
-  if (dateEl && !dateEl.value) dateEl.value = new Date().toISOString().slice(0, 10);
+  if (dateEl && !dateEl.value) dateEl.value = todayStr();
   smbFilterGrip = 'all';
   await smbFetchHistory();
 }
@@ -11197,7 +11211,7 @@ async function renderEdgeHang() {
   const nameEl = document.getElementById('eh-athlete-name');
   if (nameEl) nameEl.textContent = climber?.name || '';
   const dateEl = document.getElementById('eh-date');
-  if (dateEl && !dateEl.value) dateEl.value = new Date().toISOString().slice(0, 10);
+  if (dateEl && !dateEl.value) dateEl.value = todayStr();
   ehFilterEdge = 'all';
   ehFilterGrip = 'all';
   await ehFetchHistory();
@@ -11375,7 +11389,7 @@ function makeArmTestPage(cfg) {
     const nameEl = document.getElementById(cfg.prefix + '-athlete-name');
     if (nameEl) nameEl.textContent = climber?.name || '';
     const dateEl = document.getElementById(cfg.prefix + '-date');
-    if (dateEl && !dateEl.value) dateEl.value = new Date().toISOString().slice(0, 10);
+    if (dateEl && !dateEl.value) dateEl.value = todayStr();
     await fetchHistory();
   }
   async function fetchHistory() {
@@ -11620,7 +11634,7 @@ async function ctOpenLog(typeId) {
       bannerEl.style.display = 'none';
     }
   }
-  document.getElementById('ctlog-date').value = pending ? pending.date : new Date().toISOString().slice(0, 10);
+  document.getElementById('ctlog-date').value = pending ? pending.date : todayStr();
   document.getElementById('ctlog-value').value = '';
   document.getElementById('ctlog-notes').value = '';
   document.getElementById('custom-test-log-modal').classList.add('open');
@@ -11992,7 +12006,7 @@ const REACTIONS = [
   { key: 'jepars', emoji: '🏃', label: "Je pars direct m'entraîner" },
 ];
 function feedRelativeDay(dateStr) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayStr();
   const y = new Date(); y.setDate(y.getDate() - 1);
   const yesterday = y.toISOString().slice(0, 10);
   if (dateStr === today) return "Aujourd'hui";
@@ -12418,7 +12432,7 @@ window.saveSessionTogether = saveSessionTogether;
 // ─── Séances à venir / Je participe (Communauté v2 — brique 8) ───
 async function openProposeSessionModal() {
   document.getElementById('ps-type').selectedIndex = 0;
-  document.getElementById('ps-date').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('ps-date').value = todayStr();
   document.getElementById('ps-time').value = '';
   document.getElementById('ps-location').value = '';
   document.getElementById('propose-session-error').style.display = 'none';
@@ -12980,7 +12994,7 @@ async function renderChallengesTab() {
       el.innerHTML = '<p style="font-size:13px;color:var(--muted)">Aucun défi pour l\'instant — crée-en un avec un ou plusieurs partenaires/coéquipiers.</p>';
       return;
     }
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayStr();
     el.innerHTML = challenges.map(ch => {
       const daysLeft = Math.ceil((new Date(ch.endDate) - new Date(today)) / 86400000);
       const statusText = daysLeft > 0 ? `${daysLeft} jour${daysLeft !== 1 ? 's' : ''} restant${daysLeft !== 1 ? 's' : ''}` : 'Terminé';
@@ -13597,7 +13611,7 @@ function newSession(date=null, planning=false){
   freshlyCompletedLogId=null; // formulaire vierge : pas de séance en cours de complétion
   document.getElementById('edit-log-id').value='';
   document.getElementById('session-form-title').textContent='Nouvelle séance';
-  document.getElementById('s-date').value=date||new Date().toISOString().slice(0,10);
+  document.getElementById('s-date').value=date||todayStr();
   document.getElementById('s-type').value='bloc';
   setDurationMinutes(90);
   document.getElementById('s-intensity').value=3;
@@ -14089,7 +14103,7 @@ function fulfillObjective(bankId) {
   if (!climber.logs) climber.logs = [];
   climber.logs.push({
     id: 'log_' + Date.now() + '_' + Math.random().toString(36).slice(2,6),
-    date: new Date().toISOString().slice(0,10),
+    date: todayStr(),
     type: item.type || 'autre',
     minutes: item.duration || 90,
     intensity: item.intensity || 3,
@@ -16324,7 +16338,7 @@ function sbOpenDetail(id) {
       <span class="sb-tag">${s.visibility === 'shared' ? '🌍 Partagée' : '🔒 Privée'}</span>
     </div>
     <div style="display:flex;align-items:center;gap:8px;margin-top:18px;padding-top:14px;border-top:1px solid var(--border)">
-      <input type="date" id="sb-detail-schedule-date" class="form-control" style="max-width:160px" value="${new Date().toISOString().slice(0,10)}">
+      <input type="date" id="sb-detail-schedule-date" class="form-control" style="max-width:160px" value="${todayStr()}">
       <button class="btn primary" onclick="sbScheduleFromDetail('${id}')">📅 Programmer</button>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
