@@ -191,12 +191,17 @@ router.delete('/:crewId/leave', requireCrewMembership(), async (req, res) => {
 // GET /api/crews/:crewId/board — activité de la semaine par membre (nombre de séances par type + adhérence programme)
 router.get('/:crewId/board', requireCrewMembership(), async (req, res) => {
   try {
-    const { rows: members } = await pool.query(
-      `SELECT cl.id, cl.name, cl.color FROM crew_members cm
+    const { rows: allMembers } = await pool.query(
+      `SELECT cl.id, cl.name, cl.color, cl.profile FROM crew_members cm
        JOIN climbers cl ON cl.id = cm.climber_id
        WHERE cm.crew_id = $1 ORDER BY cm.joined_at ASC`,
       [req.params.crewId]
     );
+    // Retour utilisateur : "un oubli" — le classement (leaderboard) respectait déjà le réglage de
+    // confidentialité "séances" (profile.sharing.seances), mais pas ce tableau hebdomadaire, qui
+    // montrait l'activité de tout le monde sans exception. Même filtre qu'au leaderboard, pour rester
+    // cohérent : un membre qui a mis "séances" en privé n'apparaît pas ici non plus.
+    const members = allMembers.filter(m => (m.profile?.sharing?.seances || 'partenaires') !== 'prive');
     const memberIds = members.map(m => m.id);
     const { start, end } = currentWeekBounds();
     let counts = [];
@@ -385,6 +390,10 @@ async function computeMemberProgress(climberId, metric, startDate, endDate) {
 }
 const MONTHLY_CHALLENGE_METRICS = ['seances', 'jours', 'charge', 'blocs'];
 const MONTHLY_CHALLENGE_METRIC_LABELS = { seances: 'séances', jours: 'jours de grimpe', charge: 'points de charge', blocs: 'blocs/voies' };
+// Catégorie de confidentialité (profile.sharing) à vérifier avant de nommer un membre dans le
+// détail par personne du défi collectif — même mapping d'esprit que LB_METRIC_SHARE_KEY plus bas
+// pour le leaderboard.
+const MONTHLY_CHALLENGE_METRIC_SHARE_KEY = { seances: 'seances', jours: 'seances', charge: 'charge', blocs: 'seances' };
 function currentMonthBounds() {
   const now = new Date();
   const start = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -402,17 +411,27 @@ router.get('/:crewId/monthly-challenge', requireCrewMembership(), async (req, re
     );
     if (!rows.length) return res.json(null);
     const ch = rows[0];
-    const { rows: members } = await pool.query(
-      `SELECT cl.id, cl.name, cl.color FROM crew_members cm
+    const { rows: allMembers } = await pool.query(
+      `SELECT cl.id, cl.name, cl.color, cl.profile FROM crew_members cm
        JOIN climbers cl ON cl.id = cm.climber_id
        WHERE cm.crew_id = $1 ORDER BY cm.joined_at ASC`,
       [req.params.crewId]
     );
-    const contributions = await Promise.all(members.map(async m => ({
-      climberId: m.id, name: m.name, color: m.color,
+    // Retour utilisateur : "un oubli" — même filtre de confidentialité que le classement/tableau
+    // hebdo (cf. board ci-dessus). On calcule quand même la progression de TOUT le monde (variable
+    // à part `all`) pour que le total d'équipe reste exact — un défi collectif est un objectif
+    // partagé, la contribution de chacun doit compter même si son détail individuel reste masqué —
+    // mais seuls les membres qui partagent la catégorie correspondante apparaissent nommément dans
+    // le détail par personne.
+    const metricShareKey = MONTHLY_CHALLENGE_METRIC_SHARE_KEY[ch.metric] || 'seances';
+    const all = await Promise.all(allMembers.map(async m => ({
+      climberId: m.id, name: m.name, color: m.color, profile: m.profile,
       progress: await computeMemberProgress(m.id, ch.metric, start, end)
     })));
-    const teamProgress = contributions.reduce((s, c) => s + c.progress, 0);
+    const contributions = all
+      .filter(c => (c.profile?.sharing?.[metricShareKey] || 'partenaires') !== 'prive')
+      .map(({ climberId, name, color, progress }) => ({ climberId, name, color, progress }));
+    const teamProgress = all.reduce((s, c) => s + c.progress, 0);
     const { rows: creatorRows } = await pool.query('SELECT name FROM climbers WHERE id=$1', [ch.created_by]);
     const daysLeft = Math.max(0, Math.ceil((new Date(end) - new Date()) / 86400000));
     res.json({
