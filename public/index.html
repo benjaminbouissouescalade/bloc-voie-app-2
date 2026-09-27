@@ -954,7 +954,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
            Railway) a bien pris effet : horodatage de la dernière modification de ce fichier.
            MAINTENANCE : à mettre à jour (id="app-version-badge") à chaque modification de
            public/index.html, format vAAAA.MM.JJ-HHMM (heure locale du moment de l'édition). -->
-      <h1>Digger <span id="app-version-badge" title="Dernière modification du code — sert à vérifier qu'un déploiement a bien pris effet" style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:0;text-transform:none;vertical-align:super">v2026.09.27-1620</span></h1>
+      <h1>Digger <span id="app-version-badge" title="Dernière modification du code — sert à vérifier qu'un déploiement a bien pris effet" style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:0;text-transform:none;vertical-align:super">v2026.09.27-1810</span></h1>
       <p>Climbing training log</p>
     </div>
   </div>
@@ -1088,7 +1088,8 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     </button>
   </div>
  <div class="sidebar-footer">
-    <div id="sidebar-user" style="font-size:12px;color:var(--muted);margin-bottom:8px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
+    <div id="sidebar-user" style="font-size:12px;color:var(--muted);margin-bottom:2px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
+    <div id="sync-status-badge" title="État de la synchronisation avec le serveur" style="font-size:11px;margin-bottom:8px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
     <!-- "Gérer les grimpeurs" retiré du panneau bas : redondant avec le clic sur la carte du
          grimpeur actif en haut de la sidebar, qui ouvre déjà la même modale (openClimberModal()). -->
    <button class="btn sm" style="width:100%;justify-content:center;margin-bottom:6px" onclick="openImport8aModal()">
@@ -5958,15 +5959,86 @@ function sbApplyEditorAccess() {
   if (titleEl && !admin) titleEl.textContent = 'Détail de la séance';
 }
 
-// Sync state complet vers le backend
-// Perf : ce best-effort tourne à CHAQUE saveDB(), donc à peu près à chaque action dans l'appli —
-// un coach avec plusieurs athlètes rechargés localement (db.climbers) envoyait un athlète après
-// l'autre, en attendant chaque requête l'une après l'autre (await dans une boucle for), avant même
-// de passer au suivant. Aucune requête n'est retardée (on ne touche pas AU MOMENT où ça part —
-// un debounce ici retarderait l'envoi et recréerait le risque déjà rencontré cette session de
-// séance perdue si l'onglet se ferme entre-temps) : on se contente de les envoyer TOUTES en même
-// temps au lieu de les mettre bout à bout, ce qui ne change ni les données envoyées ni le moment où
-// elles partent, seulement le temps total d'attente (jusqu'à N fois plus rapide pour N athlètes).
+// ═══════════════ ÉTAT DE SYNCHRONISATION (visible utilisateur) ═══════════════
+// Retour utilisateur (audit "fetch avalés, réponses non vérifiées, GET en échec traité comme liste
+// vide") : trois problèmes distincts corrigés ensemble ci-dessous (syncToBackend + loadFromBackend) :
+//  1. Chaque fetch de syncToBackend() se terminait par .catch(()=>{}) SANS jamais vérifier res.ok —
+//     un 401/403/500 était donc traité EXACTEMENT comme un succès (rien n'indiquait à l'utilisateur
+//     ni au code qu'une donnée n'avait pas atteint le serveur).
+//  2. syncToBackend() renvoyait la TOTALITÉ des séances de TOUS les grimpeurs connus à CHAQUE
+//     saveDB(), même quand une seule case avait changé sur une seule séance d'un seul grimpeur.
+//  3. loadFromBackend() ne vérifiait pas bankRes.ok avant d'écraser db.sessionBank — un échec sur
+//     CETTE seule requête (climbersRes pouvant très bien avoir réussi) remplaçait silencieusement La
+//     Mine locale par un JSON d'erreur.
+// Fix : suivi explicite de ce qui a déjà été confirmé par le serveur (par log via clientUpdatedAt déjà
+// existant, par grimpeur/bank via une empreinte JSON), pour ne renvoyer QUE ce qui a changé depuis la
+// dernière confirmation — et un état visible ('saved'/'pending'/'error') qui ne passe à "enregistré"
+// qu'après une réponse HTTP OK effectivement vérifiée.
+window.syncStatus = 'saved';
+function setSyncStatus(status) {
+  window.syncStatus = status;
+  const el = document.getElementById('sync-status-badge');
+  if (!el) return;
+  const labels = { saved: '✓ Enregistré', pending: '⏳ En attente de synchronisation…', error: '⚠ Erreur, nouvelle tentative nécessaire' };
+  const colors = { saved: 'var(--muted)', pending: '#b8860b', error: '#c0392b' };
+  el.textContent = authToken() ? (labels[status] || '') : '';
+  el.style.color = colors[status] || 'var(--muted)';
+  el.style.cursor = status === 'error' ? 'pointer' : 'default';
+  el.onclick = status === 'error' ? (() => { syncToBackend().catch(()=>{}); }) : null;
+}
+window.setSyncStatus = setSyncStatus;
+
+// Vrai s'il existe des changements locaux qui n'ont pas encore été confirmés par le serveur —
+// utilisé au démarrage pour afficher tout de suite le bon état (ex. onglet fermé la dernière fois
+// avant la fin d'une sync) sans attendre un premier essai réseau.
+function hasPendingLocalChanges() {
+  if ((db.pendingDeletes || []).length) return true;
+  const pendingIds = new Set((db.pendingDeletes || []).map(p => p.logId));
+  for (const c of (db.climbers || [])) {
+    const profileSnapshot = climberProfileSyncSnapshot(c);
+    if ((db._syncedClimberProfile || {})[c.id] !== profileSnapshot) return true;
+    const pushed = c.pushedLogVersions || {};
+    if ((c.logs || []).some(l => l.id && !pendingIds.has(l.id) && (pushed[l.id] || 0) < (l.clientUpdatedAt || 0))) return true;
+  }
+  const bankJson = JSON.stringify(db.sessionBank || []);
+  if (db._syncedBankJson !== undefined && db._syncedBankJson !== bankJson) return true;
+  return false;
+}
+function climberProfileSyncSnapshot(c) {
+  return JSON.stringify({name:c.name, color:c.color, level:c.level, trips:c.trips||[], profile:c.profile||{}, objectives:c.objectives||[], cycleObjectives:c.cycleObjectives||[]});
+}
+
+// Verrou d'exclusion mutuelle entre syncToBackend() et loadFromBackend() : les deux lisent ET
+// écrivent la même structure db.climbers (pushedLogVersions, knownServerLogIds...) — sans ce verrou,
+// un rechargement de page déclenché PENDANT une synchronisation en cours pouvait entrelacer les deux
+// (ex. loadFromBackend() qui remplace db.climbers pendant que syncToBackend() est encore en train d'y
+// écrire la confirmation d'un envoi précédent) et perdre l'un des deux résultats. Ici, la seconde
+// opération attend simplement que la première se termine avant de commencer — jamais d'exécution en
+// parallèle, quel que soit l'ordre d'arrivée.
+let backendOpChain = Promise.resolve();
+function runExclusive(fn) {
+  const run = backendOpChain.then(fn, fn);
+  backendOpChain = run.then(()=>{}, ()=>{});
+  return run;
+}
+
+// Nouvel essai automatique après échec (réseau ou serveur), avec un délai croissant pour ne pas
+// marteler un serveur ou un réseau indisponible. Annulé dès qu'une synchronisation réussit.
+let syncRetryTimer = null;
+let syncRetryDelay = 5000;
+function scheduleSyncRetry() {
+  if (syncRetryTimer) return;
+  syncRetryTimer = setTimeout(() => {
+    syncRetryTimer = null;
+    syncRetryDelay = Math.min(syncRetryDelay * 2, 60000);
+    syncToBackend().catch(()=>{});
+  }, syncRetryDelay);
+}
+function cancelSyncRetry() {
+  if (syncRetryTimer) { clearTimeout(syncRetryTimer); syncRetryTimer = null; }
+  syncRetryDelay = 5000;
+}
+
 // ═══ Suppressions de séance : suivi explicite "en attente" ═══
 // Retour utilisateur (audit "pertes et réapparitions de séances") : une suppression n'était qu'un
 // fetch DELETE tiré à l'aveugle (.catch(()=>{}), jamais attendu ni vérifié) — un fetch qui se
@@ -5989,55 +6061,128 @@ function clearPendingDelete(logId) {
   if (!db.pendingDeletes) return;
   db.pendingDeletes = db.pendingDeletes.filter(p => p.logId !== logId);
 }
+// Renvoie 'ok' (confirmé par le serveur), 'authError' (401/403 — retenter avec le même jeton ne sert
+// à rien) ou 'error' (réseau, ou autre statut HTTP) — distinction utilisée par doSync() ci-dessous
+// pour décider s'il faut programmer un nouvel essai automatique.
 async function attemptDelete(climberId, logId) {
-  if (!authToken()) return false;
+  if (!authToken()) return 'authError';
   try {
     const res = await fetch(`/api/logs/${climberId}/${logId}`, { method: 'DELETE', headers: authHeaders() });
+    if (res.status === 401 || res.status === 403) return 'authError';
     let body = null;
     try { body = await res.json(); } catch (e) { /* corps non-JSON = pas une confirmation valide */ }
-    if (res.ok && body && body.ok) { clearPendingDelete(logId); return true; }
-    return false;
+    if (res.ok && body && body.ok) { clearPendingDelete(logId); return 'ok'; }
+    return 'error';
   } catch (e) {
-    return false; // erreur réseau : l'id reste dans pendingDeletes, retentera plus tard
+    return 'error'; // erreur réseau : l'id reste dans pendingDeletes, retentera plus tard
   }
 }
 // Retente toutes les suppressions encore en attente — appelée à chaque syncToBackend() et au
 // chargement de l'app (cf. init), pour qu'une suppression restée bloquée par un échec réseau finisse
-// toujours par aboutir sans action supplémentaire de l'utilisateur.
+// toujours par aboutir sans action supplémentaire de l'utilisateur. Renvoie true si tout ce qui était
+// en attente au début de l'appel a été confirmé (ou s'il n'y avait rien à faire).
 async function attemptPendingDeletes() {
   const pending = (db.pendingDeletes || []).slice();
-  if (!pending.length) return;
-  await Promise.all(pending.map(p => attemptDelete(p.climberId, p.logId)));
+  if (!pending.length) return true;
+  const results = await Promise.all(pending.map(p => attemptDelete(p.climberId, p.logId)));
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(db)); } catch (e) {}
+  return results.every(r => r === 'ok');
 }
 window.attemptPendingDeletes = attemptPendingDeletes;
 
+// Corps effectif d'une synchronisation, exécuté sous runExclusive() (cf. plus haut) pour ne jamais
+// s'entrelacer avec loadFromBackend(). Ne renvoie QUE ce qui a changé depuis la dernière confirmation
+// serveur (comparaison au clientUpdatedAt déjà tenu à jour sur chaque log pour les séances, à une
+// empreinte JSON pour le profil grimpeur et pour La Mine) — au lieu de republier la totalité de
+// l'historique de TOUS les grimpeurs à chaque appel. Vérifie explicitement res.ok (et le cas
+// particulier 401/403) sur CHAQUE requête avant de considérer quoi que ce soit comme confirmé : plus
+// aucun fetch n'est "tiré et oublié" (.catch(()=>{}) sans vérification, comme avant ce correctif).
+async function doSync() {
+  let anyError = false, anyAuthError = false;
+  const pendingIds = new Set((db.pendingDeletes || []).map(p => p.logId));
+  if (!db._syncedClimberProfile) db._syncedClimberProfile = {};
+
+  for (const c of (db.climbers || [])) {
+    // --- Profil du grimpeur (nom, couleur, niveau, objectifs...) : seulement si changé ---
+    const profileSnapshot = climberProfileSyncSnapshot(c);
+    if (db._syncedClimberProfile[c.id] !== profileSnapshot) {
+      try {
+        const res = await fetch('/api/climbers', {
+          method: 'POST', headers: authHeaders(),
+          body: JSON.stringify({id:c.id, name:c.name, color:c.color, level:c.level, trips:c.trips||[], profile:c.profile||{}, objectives:c.objectives||[], cycleObjectives:c.cycleObjectives||[]})
+        });
+        if (res.status === 401 || res.status === 403) anyAuthError = true;
+        else if (!res.ok) anyError = true;
+        else db._syncedClimberProfile[c.id] = profileSnapshot;
+      } catch (e) { anyError = true; }
+    }
+
+    // --- Séances : seulement celles dont clientUpdatedAt a avancé depuis le dernier envoi confirmé ---
+    if (!c.pushedLogVersions) c.pushedLogVersions = {};
+    const dirtyLogs = (c.logs || []).filter(l =>
+      l.id && !pendingIds.has(l.id) && (c.pushedLogVersions[l.id] || 0) < (l.clientUpdatedAt || 0)
+    );
+    if (dirtyLogs.length) {
+      try {
+        const res = await fetch(`/api/logs/${c.id}/sync`, {
+          method: 'POST', headers: authHeaders(),
+          body: JSON.stringify({logs: dirtyLogs})
+        });
+        if (res.status === 401 || res.status === 403) anyAuthError = true;
+        else if (!res.ok) anyError = true;
+        else for (const l of dirtyLogs) c.pushedLogVersions[l.id] = l.clientUpdatedAt || Date.now();
+      } catch (e) { anyError = true; }
+    }
+  }
+
+  // --- La Mine (sessionBank) : seulement si changée depuis le dernier envoi confirmé ---
+  const bankJson = JSON.stringify(db.sessionBank || []);
+  if (db._syncedBankJson !== bankJson) {
+    try {
+      const res = await fetch('/api/bank/sync', {
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify({items: db.sessionBank || []})
+      });
+      if (res.status === 401 || res.status === 403) anyAuthError = true;
+      else if (!res.ok) anyError = true;
+      else db._syncedBankJson = bankJson;
+    } catch (e) { anyError = true; }
+  }
+
+  // --- Suppressions encore en attente ---
+  const deletesOk = await attemptPendingDeletes();
+  if (!deletesOk) anyError = true;
+
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(db)); } catch (e) {}
+
+  if (anyAuthError || anyError) {
+    setSyncStatus('error');
+    scheduleSyncRetry();
+  } else {
+    setSyncStatus('saved');
+    cancelSyncRetry();
+  }
+}
+
+// Point d'entrée appelé par saveDB() (et par le bouton "réessayer" en cas d'erreur). Coalesce les
+// appels rapprochés : si une synchronisation est déjà en cours quand une nouvelle arrive (ex. deux
+// modifications faites à quelques millisecondes d'intervalle), on ne relance PAS un second envoi en
+// parallèle — on note juste qu'il faudra repasser une fois la première terminée, ce qui suffit
+// puisque doSync() envoie de toute façon tout ce qui est encore différent de la dernière confirmation
+// serveur, y compris ce qui a changé pendant que le premier envoi était en vol.
+let syncInProgress = false;
+let syncQueuedAgain = false;
 async function syncToBackend() {
   if (!authToken()) return;
-  // Ne jamais republier une séance en cours de suppression, même si elle traîne encore dans
-  // c.logs pour une raison quelconque (onglet différent, code appelant qui aurait oublié de la
-  // retirer) — filet de sécurité en plus de la garde côté serveur (tombstone créé dès le premier
-  // DELETE, cf. logs.js), qui protège aussi contre une requête de sync déjà partie AVANT cette
-  // suppression et encore en vol.
-  const pendingIds = new Set((db.pendingDeletes || []).map(p => p.logId));
-  const climberSyncs = (db.climbers || []).map(c => Promise.all([
-    fetch('/api/climbers', {
-      method: 'POST',
-      headers: authHeaders(),
-      body: JSON.stringify({id:c.id, name:c.name, color:c.color, level:c.level, trips:c.trips||[], profile:c.profile||{}, objectives:c.objectives||[], cycleObjectives:c.cycleObjectives||[]})
-    }).catch(()=>{}),
-    fetch(`/api/logs/${c.id}/sync`, {
-      method: 'POST',
-      headers: authHeaders(),
-      body: JSON.stringify({logs: (c.logs || []).filter(l => !pendingIds.has(l.id))})
-    }).catch(()=>{})
-  ]));
-  const bankSync = fetch('/api/bank/sync', {
-    method: 'POST',
-    headers: authHeaders(),
-    body: JSON.stringify({items: db.sessionBank || []})
-  }).catch(()=>{});
-  await Promise.all([...climberSyncs, bankSync, attemptPendingDeletes()]);
+  if (syncInProgress) { syncQueuedAgain = true; return; }
+  syncInProgress = true;
+  setSyncStatus('pending');
+  try {
+    await runExclusive(doSync);
+  } finally {
+    syncInProgress = false;
+    if (syncQueuedAgain) { syncQueuedAgain = false; syncToBackend(); }
+  }
 }
 
 // Charge les données depuis le backend au démarrage
@@ -6053,8 +6198,14 @@ async function syncToBackend() {
 // connues localement mais absentes de la réponse serveur et on les réintègre (le serveur reste
 // prioritaire pour tout id qu'il connaît déjà), puis on relance immédiatement une synchronisation
 // pour qu'elles atteignent enfin le serveur.
+// Exécuté sous runExclusive() (cf. plus haut, à côté de doSync()) : jamais en même temps qu'une
+// synchronisation en cours, pour ne pas lire/écrire db.climbers pendant qu'elle est en train d'y
+// confirmer un envoi (voir le test "rechargement pendant une synchronisation").
 async function loadFromBackend() {
   if (!authToken()) return false;
+  return runExclusive(loadFromBackendUnlocked);
+}
+async function loadFromBackendUnlocked() {
   refreshCurrentUser();
   const localClimbersById = new Map((db.climbers || []).map(c => [c.id, c]));
   try {
@@ -6064,8 +6215,13 @@ async function loadFromBackend() {
     ]);
     if (!climbersRes.ok) return false;
     const climbers = await climbersRes.json();
-    const bank = await bankRes.json();
     if (!climbers.length) return false;
+    // bankRes peut échouer indépendamment de climbersRes (requêtes séparées, cf. Promise.all
+    // ci-dessus) — avant ce correctif, son corps était lu et affecté à db.sessionBank SANS vérifier
+    // bankRes.ok, donc un échec sur CETTE seule requête écrasait silencieusement La Mine locale par
+    // un JSON d'erreur. Fix : en cas d'échec, on garde La Mine locale telle quelle, comme on le fait
+    // déjà par grimpeur pour les séances (logsRes.ok, un peu plus bas).
+    const bank = bankRes.ok ? await bankRes.json() : (db.sessionBank || []);
 
     // Charge les logs pour chaque grimpeur, en réintégrant celles qui n'existent que localement.
     //
@@ -18880,15 +19036,19 @@ function renderAiCoach() {
 // ═══════════════ INIT ═══════════════
 // Charge les données depuis le backend (si connecté), sinon fallback local
 window.initAppData = async function() {
+  // Affiche tout de suite le bon état s'il restait des changements non confirmés d'une session
+  // précédente (onglet fermé avant la fin d'une sync, coupure réseau...), sans attendre un premier
+  // essai réseau qui peut prendre du temps ou échouer.
+  if (authToken()) setSyncStatus(hasPendingLocalChanges() ? 'pending' : 'saved');
   const fromBackend = await loadFromBackend();
   if (!fromBackend) {
     console.log('📱 Mode hors-ligne — données locales');
   }
-  // Retente toute suppression restée "en attente" d'une session précédente (onglet fermé avant la
-  // fin de la requête, échec réseau...) — cf. attemptPendingDeletes() plus haut. loadFromBackend()
-  // vient déjà d'exclure ces ids de l'affichage ci-dessus ; on tente maintenant de les faire aboutir
-  // pour de bon côté serveur, sans attendre une prochaine action de l'utilisateur.
-  if (fromBackend) attemptPendingDeletes().catch(()=>{});
+  // Retente toute suppression restée "en attente" d'une session précédente, ET republie tout autre
+  // changement local non confirmé (profil, séances, La Mine) — cf. doSync() plus haut. Passe par
+  // syncToBackend() (et non plus un appel direct à attemptPendingDeletes()) pour bénéficier du même
+  // verrou d'exclusion mutuelle avec loadFromBackend() et du même état visible utilisateur.
+  if (fromBackend) syncToBackend().catch(()=>{});
   applySessionColorOverrides();
   renderColorPicker();
   renderSidebarStats();
