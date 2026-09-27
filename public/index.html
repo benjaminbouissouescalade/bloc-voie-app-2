@@ -954,7 +954,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
            Railway) a bien pris effet : horodatage de la dernière modification de ce fichier.
            MAINTENANCE : à mettre à jour (id="app-version-badge") à chaque modification de
            public/index.html, format vAAAA.MM.JJ-HHMM (heure locale du moment de l'édition). -->
-      <h1>Digger <span id="app-version-badge" title="Dernière modification du code — sert à vérifier qu'un déploiement a bien pris effet" style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:0;text-transform:none;vertical-align:super">v2026.09.27-1130</span></h1>
+      <h1>Digger <span id="app-version-badge" title="Dernière modification du code — sert à vérifier qu'un déploiement a bien pris effet" style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:0;text-transform:none;vertical-align:super">v2026.09.27-1210</span></h1>
       <p>Climbing training log</p>
     </div>
   </div>
@@ -13007,7 +13007,7 @@ function renderHistory() {
     </div>`;
   }).join('');
 }
-document.getElementById('history-search').oninput=()=>renderHistory();
+document.getElementById('history-search').oninput=debounce(()=>renderHistory());
 document.getElementById('history-type-filter').onchange=()=>renderHistory();
 
 // ─── Session type config ──────────────────────────────────────────────────────
@@ -15751,11 +15751,11 @@ function renderSessionBank() {
   const searchMain = document.getElementById('sb-search-main');
   if (searchMain && !searchMain.dataset.wired) {
     searchMain.dataset.wired = '1';
-    searchMain.oninput = () => {
+    searchMain.oninput = debounce(() => {
       const s = document.getElementById('sb-search');
       if (s) s.value = searchMain.value;
       sbRenderGrid();
-    };
+    });
   }
   sbLoadFavoritesAndRecent();
   sbRenderGrid();
@@ -17094,7 +17094,7 @@ if (sbAiBtnEl) sbAiBtnEl.onclick = () => {
 document.getElementById('sb-ai-generate-btn').onclick = sbAiGenerate;
 document.getElementById('sb-save-btn').onclick = sbSave;
 document.getElementById('sb-delete-btn').onclick = sbDelete;
-document.getElementById('sb-search').oninput = sbRenderGrid;
+document.getElementById('sb-search').oninput = debounce(sbRenderGrid);
 document.getElementById('sb-sort').onchange = sbRenderGrid;
 document.getElementById('sb-type-filter').onchange = sbRenderGrid;
 document.getElementById('sb-goal-filter').onchange = sbRenderGrid;
@@ -18488,6 +18488,15 @@ document.getElementById('cf-delete-btn').onclick = () => {
 };
 
 // ═══════════════ HELPERS ═══════════════
+// Perf générale : plusieurs champs de recherche (historique, La Mine) redessinent toute leur liste
+// à CHAQUE frappe (oninput direct), y compris pour taper un seul mot de 6-8 lettres — 6-8
+// re-rendus complets au lieu d'un seul une fois la frappe stabilisée. Utilitaire générique pour
+// n'exécuter la fonction qu'une fois l'utilisateur arrêté de taper (délai court, imperceptible),
+// sans rien changer au comportement final affiché.
+function debounce(fn, wait = 150) {
+  let t;
+  return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), wait); };
+}
 function esc(s=''){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 // Recherche insensible aux accents : "resi" doit retrouver un tag "Rési", "resistance" doit
 // retrouver "Résistance" — .toLowerCase() seul ne suffit pas ("é" reste "é"). Retour utilisateur :
