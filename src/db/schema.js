@@ -327,6 +327,23 @@ async function initDB() {
       -- s'appuyer sur cette clé (climber_id n'est pas la colonne de tête). Index dédié, peu coûteux
       -- vu la taille de la table, mais évite un scan complet à chaque appel.
       CREATE INDEX IF NOT EXISTS idx_coach_athletes_climber ON coach_athletes(climber_id);
+      -- Vue coach "exceptions" (page "Mes athlètes") : plutôt que d'ouvrir le profil de chaque
+      -- athlète un par un, le coach voit d'emblée les cas qui méritent son attention (séance
+      -- planifiée jamais faite, douleur signalée récemment, forte hausse de charge, objectif sans
+      -- progrès) — calculées CÔTÉ CLIENT à partir des données déjà chargées (voir
+      -- computeCoachExceptions() dans public/index.html), donc rien à stocker pour les exceptions
+      -- elles-mêmes. Cette table ne retient que ce qui EST propre au serveur : quelles exceptions ce
+      -- coach a déjà explicitement marquées "Vu" (bouton dédié), pour qu'elles ne réapparaissent pas
+      -- à chaque connexion ni sur un autre appareil. exception_key encode le type + l'entité
+      -- concernée (ex. "missed:log_123", "load:c_45:2026-09-21") : une nouvelle occurrence du même
+      -- type sur une entité différente (nouvelle semaine, nouvelle séance...) a une clé différente et
+      -- réapparaît normalement — voir le commentaire sur computeCoachExceptions() pour le détail.
+      CREATE TABLE IF NOT EXISTS exception_dismissals (
+        coach_id       TEXT NOT NULL,
+        exception_key  TEXT NOT NULL,
+        dismissed_at   TIMESTAMPTZ DEFAULT NOW(),
+        PRIMARY KEY (coach_id, exception_key)
+      );
       CREATE TABLE IF NOT EXISTS plans (
         climber_id  TEXT PRIMARY KEY REFERENCES climbers(id) ON DELETE CASCADE,
         coach_id    TEXT,
