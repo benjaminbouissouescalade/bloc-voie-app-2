@@ -323,9 +323,31 @@ router.get('/feed', async (req, res) => {
     const partnerIds = visible.map(p => p.id);
     if (!partnerIds.length) return res.json([]);
     const { rows: logs } = await pool.query(
-      `SELECT * FROM logs WHERE climber_id = ANY($1) AND planned = false ORDER BY date DESC, created_at DESC LIMIT 40`,
+      `SELECT * FROM logs WHERE climber_id = ANY($1) AND planned = false AND deleted = false ORDER BY date DESC, created_at DESC LIMIT 40`,
       [partnerIds]
     );
+    // Retour utilisateur : "pour moi la charge est 320 [...] Lisa voit autre chose [621]" — même
+    // séance de Ben, deux valeurs différentes. Cause : le frontend calculait la charge de la séance
+    // d'un partenaire avec sessionLoad(log), qui s'appuie SANS argument sur getRefGrade() ->
+    // getActive() (le grimpeur actuellement affiché LOCALEMENT, donc Lisa) au lieu du niveau de
+    // référence du propriétaire réel de la séance (Ben). On calcule donc ici, côté serveur, le grade
+    // de référence "voie" de CHAQUE partenaire visible dans le fil (même formule/fenêtre 90 jours que
+    // getRefGrade() côté frontend, cf. refGradeFromLogs ci-dessus) pour que le frontend appelle
+    // sessionLoadFor(log, refRoute, refBloc) — variante déjà prévue pour un grimpeur non-actif —
+    // avec le BON niveau, quel que soit le grimpeur affiché localement.
+    const cutoff90 = new Date(); cutoff90.setDate(cutoff90.getDate() - 90);
+    const { rows: widerLogs } = await pool.query(
+      `SELECT climber_id, date, type, ascents FROM logs
+       WHERE climber_id = ANY($1) AND deleted = false AND date >= $2`,
+      [partnerIds, cutoff90.toISOString().slice(0, 10)]
+    );
+    const refRouteByClimber = {};
+    for (const pid of partnerIds) {
+      const own = widerLogs
+        .filter(l => l.climber_id === pid)
+        .map(l => ({ date: l.date.toISOString().slice(0, 10), type: l.type, ascents: l.ascents || [] }));
+      refRouteByClimber[pid] = refGradeFromLogs(routeLogs(own));
+    }
     const logIds = logs.map(l => l.id);
     let reactionRows = [];
     let linkRows = [];
@@ -363,6 +385,14 @@ router.get('/feed', async (req, res) => {
         climberName: p?.name || '—',
         climberColor: p?.color || '#999',
         sharing: p?.profile?.sharing || {},
+        // cf. commentaire plus haut sur refRouteByClimber — à utiliser via sessionLoadFor() côté
+        // frontend, jamais sessionLoad() (qui prendrait le niveau du grimpeur affiché localement).
+        // Pas d'équivalent "bloc gradué" calculé côté serveur pour l'instant (même limitation que
+        // GET /:id/profile ci-dessous, qui ne couvre pas non plus cette échelle) : repli sur le
+        // niveau bloc déclaré du partenaire, comme le ferait le frontend pour lui-même en l'absence
+        // d'historique récent.
+        refRoute: refRouteByClimber[l.climber_id] || '6b',
+        refBloc: p?.profile?.levelBloc || null,
         reactionCounts, myReaction, withPartners
       };
     });
@@ -421,7 +451,7 @@ router.get('/:id/profile', async (req, res) => {
     const visible = (cat) => (sharing[cat] || 'partenaires') !== 'prive';
 
     const { rows: logRows } = await pool.query(
-      `SELECT * FROM logs WHERE climber_id=$1 AND planned=false AND date >= CURRENT_DATE - INTERVAL '90 days' ORDER BY date DESC`,
+      `SELECT * FROM logs WHERE climber_id=$1 AND planned=false AND deleted=false AND date >= CURRENT_DATE - INTERVAL '90 days' ORDER BY date DESC`,
       [partnerId]
     );
     const logs = logRows.map(l => ({
