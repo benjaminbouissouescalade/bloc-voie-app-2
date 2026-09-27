@@ -18,6 +18,13 @@ async function initDB() {
         created_at  TIMESTAMPTZ DEFAULT NOW()
       );
       ALTER TABLE users ADD COLUMN IF NOT EXISTS climber_id TEXT;
+      -- Révocation des JWT après changement de mot de passe (audit sécurité) : un token émis avant
+      -- ce timestamp est refusé par requireAuth (cf. middleware/auth.js), même s'il n'a pas encore
+      -- expiré (30 jours de validité par défaut). NULL par défaut — donc aucun compte existant n'est
+      -- déconnecté de force au déploiement de cette colonne ; seul un changement de mot de passe
+      -- FUTUR (change-password / admin-reset-password) la renseigne et invalide les tokens en cours
+      -- à partir de ce moment-là.
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMPTZ;
       -- Modèle de rôles owner/coach/athlete : l'ancien rôle unique "admin" (= coach unique de
       -- l'app à l'origine) devient "owner". Idempotent : sans ligne 'admin' restante, no-op.
       UPDATE users SET role = 'owner' WHERE role = 'admin';
