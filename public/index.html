@@ -954,7 +954,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
            Railway) a bien pris effet : horodatage de la dernière modification de ce fichier.
            MAINTENANCE : à mettre à jour (id="app-version-badge") à chaque modification de
            public/index.html, format vAAAA.MM.JJ-HHMM (heure locale du moment de l'édition). -->
-      <h1>Digger <span id="app-version-badge" title="Dernière modification du code — sert à vérifier qu'un déploiement a bien pris effet" style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:0;text-transform:none;vertical-align:super">v2026.09.26-1015</span></h1>
+      <h1>Digger <span id="app-version-badge" title="Dernière modification du code — sert à vérifier qu'un déploiement a bien pris effet" style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:0;text-transform:none;vertical-align:super">v2026.09.27-0945</span></h1>
       <p>Climbing training log</p>
     </div>
   </div>
@@ -11783,7 +11783,12 @@ async function renderPartnerFeed() {
       const initials = item.climberName.trim().split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 2);
       const best = feedBestPerf(item.log.ascents);
       const showCharge = (item.sharing?.charge || 'partenaires') !== 'prive';
-      const load = showCharge ? Math.round(sessionLoad(item.log)) : null;
+      // Retour utilisateur : "pour moi la charge est 320, Lisa voit autre chose [621]" — sessionLoad()
+      // sans argument s'appuie sur getRefGrade()/getActive() (le grimpeur affiché localement, donc
+      // Lisa), jamais correct pour la séance d'un partenaire. sessionLoadFor() (déjà prévue pour un
+      // grimpeur non-actif) + refRoute/refBloc calculés côté serveur pour le VRAI propriétaire de la
+      // séance (cf. partners.js GET /feed) donnent le même résultat des deux côtés.
+      const load = showCharge ? Math.round(sessionLoadFor(item.log, item.refRoute || '6b', item.refBloc || '6a')) : null;
       const ascentCount = (item.log.ascents || []).length;
       const reactRow = REACTIONS.map(r => `<button class="btn sm${item.myReaction === r.key ? ' primary' : ''}" style="padding:4px 8px;font-size:13px" title="${esc(r.label)}" onclick="reactToSession('${item.log.id}','${r.key}')">${r.emoji}</button>`).join('');
       const countsText = REACTIONS.filter(r => item.reactionCounts?.[r.key]).map(r => `${esc(r.label)} ${item.reactionCounts[r.key]}`).join(' · ');
@@ -11827,7 +11832,8 @@ function openFeedSessionDetail(i) {
   if (!item) return;
   const t = SESSION_TYPES[item.log.type] || SESSION_TYPES.autre;
   const showCharge = (item.sharing?.charge || 'partenaires') !== 'prive';
-  const load = showCharge ? Math.round(sessionLoad(item.log)) : null;
+  // cf. commentaire dans renderPartnerFeed() ci-dessus — même correctif pour la fenêtre de détail.
+  const load = showCharge ? Math.round(sessionLoadFor(item.log, item.refRoute || '6b', item.refBloc || '6a')) : null;
   document.getElementById('partner-session-title').textContent = `${item.climberName} — ${t.label}`;
   document.getElementById('partner-session-body').innerHTML = `
     <div style="font-size:13px;color:var(--muted);margin-bottom:12px">${esc(fmtDate(item.log.date))} · ${item.log.minutes || 0} min · intensité ${item.log.intensity || '—'}${load !== null ? ` · charge ${load}` : ''}${item.log.location ? ` · ${esc(item.log.location)}` : ''}</div>
