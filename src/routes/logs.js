@@ -4,9 +4,53 @@ const router = express.Router();
 const { pool } = require('../db/schema');
 const { requireAuth } = require('../middleware/auth');
 const { requireClimberAccess } = require('../middleware/access');
+const { isCoachRole } = require('../lib/roles');
+const { getPlanningModeInfo } = require('../lib/planningMode');
 
 router.use(requireAuth);
 router.use('/:climberId', requireClimberAccess('climberId'));
+
+// ═══ Droits d'écriture sur une séance PLANIFIÉE (mode coach_only) ═══
+//
+// Retour utilisateur : "le mode coach_only est appliqué dans l'interface mais pas dans
+// src/routes/logs.js" — planningBlockedForMe() (public/index.html) empêchait déjà l'athlète de
+// planifier depuis l'UI normale, mais rien ne vérifiait la même règle côté serveur : un appel direct
+// à l'API (hors interface, ou un client modifié) pouvait créer/modifier une séance planifiée sans
+// passer par le coach, quel que soit le mode réglé. schema.js documentait ça comme une limite
+// acceptée ("appliqué côté interface uniquement") en invoquant l'ancienne route /sync qui remplaçait
+// tout l'historique d'un coup — cette raison n'existe plus depuis son passage en upsert par id
+// (voir le commentaire au-dessus de POST /:climberId/sync) : chaque séance peut désormais être
+// acceptée ou rejetée INDIVIDUELLEMENT, donc plus rien n'empêche de vérifier ici aussi.
+//
+// Matrice des droits (source de vérité désormais commune à l'UI ET au serveur, via
+// src/lib/planningMode.js) :
+//   - Owner       : toujours autorisé, sur n'importe quel grimpeur, séance planifiée ou réalisée.
+//   - Coach       : toujours autorisé sur les grimpeurs qu'il coache (déjà vérifié plus haut par
+//                   requireClimberAccess) — planifier POUR un athlète est précisément le rôle du
+//                   coach en mode coach_only, jamais restreint.
+//   - Athlete     : sur SON PROPRE climberId —
+//       - séance RÉALISÉE (planned=false, y compris marquer "faite" une séance planifiée existante)
+//         → toujours autorisé, quel que soit le mode. C'est le fonctionnement normal attendu :
+//         l'athlète doit toujours pouvoir loguer ce qu'il a fait et son ressenti.
+//       - séance qui RESTE planifiée (planned=true, création ou modification) → autorisé en mode
+//         free/shared (comportement historique) ou sans coach du tout ; REFUSÉ (403) en mode
+//         coach_only, où seul le coach doit pouvoir créer/déplacer/modifier le prévisionnel.
+//
+// Important (consigne explicite) : la décision ne se base JAMAIS sur req.body.source — ce champ est
+// une simple métadonnée d'affichage envoyée par le client ("qui a l'air d'avoir créé cette séance"
+// pour l'UI), pas une preuve d'identité. Les droits reposent uniquement sur req.user (relu en base à
+// chaque requête par requireAuth, cf. middleware/auth.js — jamais un JWT non revérifié) et sur
+// coach_athletes.planning_mode (en base, jamais envoyé par le client).
+async function checkPlannedWriteAllowed(req, plannedValue) {
+  if (!plannedValue) return null; // séance réalisée : jamais restreint, quel que soit l'appelant
+  const climberId = req.params.climberId;
+  const isSelfAthlete = req.user.climberId === climberId && !isCoachRole(req.user.role);
+  if (!isSelfAthlete) return null; // coach/owner (ou owner agissant sur son propre profil) : jamais restreint
+  const { mode, coachName } = await getPlanningModeInfo(climberId);
+  if (mode !== 'coach_only') return null;
+  const coach = coachName ? ` (${coachName})` : '';
+  return { error: `Ton coach${coach} gère la planification de tes séances à venir. Tu peux enregistrer une séance déjà réalisée.` };
+}
 
 // GET /api/logs/:climberId — toutes les séances d'un grimpeur
 router.get('/:climberId', async (req, res) => {
@@ -95,6 +139,8 @@ router.post('/:climberId', async (req, res) => {
   const { id, date, type, support, minutes, intensity, shape, location, notes, ascents, bNoGrade, planned, bankRef, cycleId, cycleName, source, assignedByCoachId, flexGoal, objectiveId, injury, injuryNote, customName, checklistDone, feeling, clientUpdatedAt } = req.body;
   if (!id || !date) return res.status(400).json({ error: 'id et date requis' });
   try {
+    const denial = await checkPlannedWriteAllowed(req, !!planned);
+    if (denial) return res.status(403).json(denial);
     const { rows } = await pool.query(
       `INSERT INTO logs (id, climber_id, date, type, support, minutes, intensity, shape, location, notes, ascents, b_no_grade, planned, bank_ref, cycle_id, cycle_name, source, assigned_by_coach_id, flex_goal, objective_id, injury, injury_note, custom_name, checklist_done, feeling, client_updated_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
@@ -207,11 +253,22 @@ router.delete('/:climberId/:logId', async (req, res) => {
 router.post('/:climberId/sync', async (req, res) => {
   const { logs } = req.body;
   if (!Array.isArray(logs)) return res.status(400).json({ error: 'logs[] requis' });
+  // Même règle que POST /:climberId ci-dessus (cf. checkPlannedWriteAllowed), appliquée
+  // séance par séance : un batch peut mélanger des séances réalisées (toujours acceptées) et des
+  // séances planifiées (refusées une par une si coach_only, SANS faire échouer les autres séances du
+  // même envoi — cf. `rejected` dans la réponse, plutôt qu'un rejet global du batch). Un seul appel à
+  // checkPlannedWriteAllowed() pour tout le batch (le résultat ne dépend pas d'un log précis), et
+  // seulement si le batch contient AU MOINS une séance planifiée — la très grande majorité des sync
+  // (séances réalisées) n'a ainsi jamais besoin d'interroger coach_athletes.
+  const hasPlannedLog = logs.some(l => l && l.planned);
+  const denialIfPlanned = hasPlannedLog ? await checkPlannedWriteAllowed(req, true) : null;
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    const rejected = [];
     for (const log of logs) {
       if (!log.id || !log.date) continue;
+      if (log.planned && denialIfPlanned) { rejected.push(log.id); continue; }
       const result = await client.query(
         `INSERT INTO logs (id, climber_id, date, type, support, minutes, intensity, shape, location, notes, ascents, b_no_grade, planned, bank_ref, cycle_id, cycle_name, source, assigned_by_coach_id, flex_goal, objective_id, injury, injury_note, custom_name, checklist_done, feeling, client_updated_at)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
@@ -232,7 +289,7 @@ router.post('/:climberId/sync', async (req, res) => {
       );
     }
     await client.query('COMMIT');
-    res.json({ ok: true, synced: logs.length });
+    res.json({ ok: true, synced: logs.length - rejected.length, rejected });
   } catch (err) {
     await client.query('ROLLBACK');
     res.status(500).json({ error: err.message });

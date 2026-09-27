@@ -8,6 +8,7 @@ const { pool } = require('../db/schema');
 const { JWT_SECRET, requireAuth } = require('../middleware/auth');
 const { isOwnerRole, isCoachRole } = require('../lib/roles');
 const { canAccessClimber } = require('../middleware/access');
+const { getPlanningModeInfo } = require('../lib/planningMode');
 
 // Toutes les routes protégées ci-dessous utilisent requireAuth (middleware/auth.js), qui relit le
 // rôle/climberId en base à CHAQUE requête plutôt que de faire confiance au contenu d'un JWT déjà
@@ -19,10 +20,6 @@ const { canAccessClimber } = require('../middleware/access');
 // servir sur POST /set-primary-climber pour prendre le contrôle d'un profil d'ex-athlète via ses
 // lignes coach_athletes restées en base (rétrogradation volontairement non destructive, cf.
 // commentaire sur /set-role plus bas).
-
-// Ordre de restriction croissante — utilisé pour choisir le mode le plus restrictif quand un
-// athlète a plusieurs coachs (cas rare mais possible via coach_athletes).
-const PLANNING_MODE_RANK = { free: 0, shared: 1, coach_only: 2 };
 
 function uid() { return 'u_' + Date.now() + '_' + Math.random().toString(36).slice(2,8); }
 function cid() { return 'c_' + Date.now() + '_' + Math.random().toString(36).slice(2,8); }
@@ -281,21 +278,15 @@ router.post('/set-planning-mode', requireAuth, async (req, res) => {
 
 // GET /api/auth/my-planning-mode — mode applicable au compte connecté : le plus restrictif parmi
 // ses relations de coaching, ou 'free' si aucun coach (un athlète doit pouvoir utiliser Digger
-// même sans coach, voir section "Athlete" du modèle de rôles).
+// même sans coach, voir section "Athlete" du modèle de rôles). Logique factorisée dans
+// src/lib/planningMode.js — RÉUTILISÉE TELLE QUELLE par la vérification des droits d'écriture dans
+// src/routes/logs.js, pour que l'UI (ce que cette route fait afficher/désactiver) et le serveur (ce
+// qu'il autorise réellement) ne puissent jamais diverger sur LA MÊME règle.
 router.get('/my-planning-mode', requireAuth, async (req, res) => {
   const caller = req.user;
   try {
-    const { rows } = await pool.query(
-      `SELECT ca.planning_mode, u.name AS coach_name FROM coach_athletes ca
-       JOIN users u ON u.id = ca.coach_id WHERE ca.climber_id = $1`,
-      [caller.climberId]
-    );
-    if (!rows.length) return res.json({ mode: 'free', coachName: null });
-    let best = rows[0];
-    for (const r of rows) {
-      if ((PLANNING_MODE_RANK[r.planning_mode] || 0) > (PLANNING_MODE_RANK[best.planning_mode] || 0)) best = r;
-    }
-    res.json({ mode: best.planning_mode || 'shared', coachName: best.coach_name });
+    const info = await getPlanningModeInfo(caller.climberId);
+    res.json(info);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
