@@ -458,7 +458,9 @@ router.post('/admin-reset-password', requireAuth, async (req, res) => {
       if (!link.length) return res.status(403).json({ error: "Cet athlète ne fait pas partie de ton roster" });
     }
     const hash = await bcrypt.hash(newPassword, 10);
-    await pool.query('UPDATE users SET password=$1 WHERE id=$2', [hash, target.id]);
+    // password_changed_at : cf. commentaire dans middleware/auth.js — invalide tout token émis
+    // avant ce reset, y compris celui d'un appareil perdu/volé (raison d'être de cette route).
+    await pool.query('UPDATE users SET password=$1, password_changed_at=NOW() WHERE id=$2', [hash, target.id]);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -476,8 +478,16 @@ router.post('/change-password', requireAuth, async (req, res) => {
     const ok = await bcrypt.compare(currentPassword, rows[0].password);
     if (!ok) return res.status(401).json({ error: 'Mot de passe actuel incorrect' });
     const hash = await bcrypt.hash(newPassword, 10);
-    await pool.query('UPDATE users SET password=$1 WHERE id=$2', [hash, user.id]);
-    res.json({ ok: true });
+    // password_changed_at : cf. commentaire dans middleware/auth.js — invalide TOUS les tokens déjà
+    // émis pour ce compte, y compris celui utilisé pour cet appel lui-même (comportement voulu :
+    // changer son mot de passe déconnecte les autres appareils/sessions). Sans renvoyer un nouveau
+    // token signé APRÈS ce timestamp, le compte qui vient de changer son propre mot de passe se
+    // retrouverait lui aussi déconnecté immédiatement à la requête suivante — mauvaise surprise pour
+    // l'appelant légitime. On réémet donc un token frais dans la réponse ; le frontend doit
+    // remplacer bv_token en localStorage avec celui-ci (cf. submitChangePwd côté public/index.html).
+    await pool.query('UPDATE users SET password=$1, password_changed_at=NOW() WHERE id=$2', [hash, user.id]);
+    const token = jwt.sign({ id: user.id, email: user.email, name: user.name, role: user.role, climberId: user.climberId }, JWT_SECRET, { expiresIn: '30d' });
+    res.json({ ok: true, token });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

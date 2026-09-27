@@ -110,11 +110,6 @@ router.post('/:climberId', async (req, res) => {
        cycleId||null, cycleName||null, source||'self', assignedByCoachId||null, flexGoal||null, objectiveId||null,
        !!injury, injuryNote||'', customName||'', JSON.stringify(checklistDone||[]), feeling||'', clientUpdatedAt||0]
     );
-    // TRACE TEMPORAIRE (retour "elle a supprimé et elle est réapparue") — à retirer une fois la
-    // cause confirmée, cf. même trace sur /sync.
-    if (planned || !rows.length) {
-      console.log(`[SAVE log] climberId=${req.params.climberId} id=${id} date=${date} planned=${planned} clientUpdatedAt=${clientUpdatedAt||0} rowCount=${rows.length} result=${JSON.stringify(rows[0]||null)}`);
-    }
     res.json({ ok: true, id: rows[0]?.id || id });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -123,29 +118,55 @@ router.post('/:climberId', async (req, res) => {
 
 // DELETE /api/logs/:climberId/:logId — supprimer une séance
 //
-// Retour utilisateur : "elle a supprimé la séance et elle est réapparue" — un vrai DELETE ne
-// laisse plus aucune ligne en base pour la comparaison de fraîcheur : un autre appareil/onglet qui
-// avait encore cette séance en mémoire locale (jamais rafraîchi depuis) la réinsère telle quelle
-// dès qu'il resynchronise pour n'importe quelle raison, puisqu'il n'y a plus de conflit d'id pour
-// déclencher la garde WHERE de POST /:climberId(/sync). Fix : suppression douce — la ligne reste en
-// base (deleted=true) avec un client_updated_at fixé à MAINTENANT, donc largement plus récent que
-// tout ce qu'un client périmé pourrait encore avoir en mémoire ; la garde de fraîcheur déjà en
-// place bloque alors silencieusement toute tentative de réinsertion. GET filtre deleted=false, donc
-// aucun client (même à jour) ne revoit jamais cette séance.
+// Historique : "elle a supprimé la séance et elle est réapparue" — un vrai DELETE ne laisse plus
+// aucune ligne en base pour la comparaison de fraîcheur : un autre appareil/onglet qui avait encore
+// cette séance en mémoire locale (jamais rafraîchi depuis) la réinsère telle quelle dès qu'il
+// resynchronise pour n'importe quelle raison, puisqu'il n'y a plus de conflit d'id pour déclencher
+// la garde WHERE de POST /:climberId(/sync). Fix initial : suppression douce (UPDATE deleted=true).
+//
+// Suite (audit "pertes et réapparitions de séances") : ce simple UPDATE ne touchait rien
+// (rowCount=0) quand la séance visée n'avait ENCORE JAMAIS été synchronisée sur le serveur — aucune
+// ligne n'existait pour la marquer supprimée. Si une synchronisation concurrente (payload construit
+// AVANT cette suppression, requête simplement plus lente) republiait cette même séance APRÈS ce
+// DELETE, rien ne l'empêchait de la recréer : la garde de fraîcheur ne s'applique qu'à un CONFLIT
+// d'id déjà existant, et ce DELETE n'en créait aucun dans ce cas précis. Fix : upsert — la ligne est
+// désormais créée directement à l'état "supprimée" si elle n'existait pas encore (avec une date/un
+// type de remplissage, sans conséquence : GET filtre deleted=false, cette ligne n'est jamais
+// renvoyée à aucun client), sinon marquée supprimée comme avant. Résultat, dans les deux ordres
+// d'arrivée possibles entre ce DELETE et une synchronisation périmée concurrente :
+//  - DELETE en premier : crée la ligne "tombstone" → la sync périmée arrivant ensuite tombe sur un
+//    conflit d'id, sa propre estampille (antérieure à la suppression) est plus ancienne que celle du
+//    tombstone → la garde de fraîcheur déjà en place (WHERE $26 >= logs.client_updated_at, cf.
+//    POST /:climberId(/sync) ci-dessous/au-dessus) bloque silencieusement sa tentative de réinsertion.
+//  - Sync périmée en premier : insère normalement la séance (pas encore de conflit) → ce DELETE
+//    arrivant ensuite passe par la branche ON CONFLICT DO UPDATE, sans condition de fraîcheur (une
+//    suppression explicite gagne toujours) → marquée supprimée quoi qu'il arrive.
+// climber_id reste vérifié même sur la branche UPDATE (WHERE logs.climber_id=$2) : un id existant
+// mais appartenant à un AUTRE grimpeur (collision de clé, en pratique quasi impossible vu le format
+// des ids) n'est jamais touché par erreur.
 router.delete('/:climberId/:logId', async (req, res) => {
   try {
     const ts = Date.now();
     const result = await pool.query(
-      'UPDATE logs SET deleted=true, client_updated_at=$3, updated_at=NOW() WHERE id=$1 AND climber_id=$2',
+      `INSERT INTO logs (id, climber_id, date, type, deleted, client_updated_at)
+       VALUES ($1, $2, CURRENT_DATE, 'supprime', true, $3)
+       ON CONFLICT (id) DO UPDATE SET
+         deleted = true,
+         client_updated_at = GREATEST($3, logs.client_updated_at),
+         updated_at = NOW()
+       WHERE logs.climber_id = $2
+       RETURNING id`,
       [req.params.logId, req.params.climberId, ts]
     );
-    // TRACE TEMPORAIRE (retour "elle a supprimé et elle est réapparue") — à retirer une fois la
-    // cause confirmée. rowCount à 0 veut dire que le WHERE id/climber_id n'a matché aucune ligne
-    // (id ou climberId inattendu) : la suppression n'aurait alors jamais rien touché du tout.
-    console.log(`[DELETE log] climberId=${req.params.climberId} logId=${req.params.logId} ts=${ts} rowCount=${result.rowCount}`);
+    // rowCount=1 dans tous les cas normaux (création du tombstone ou mise à jour d'une ligne
+    // existante). rowCount=0 signale spécifiquement que logId existe déjà mais appartient à un
+    // AUTRE climber_id que celui demandé — cas anormal, digne d'être journalisé.
+    if (result.rowCount === 0) {
+      console.warn(`[DELETE log] climberId=${req.params.climberId} logId=${req.params.logId} : id existant appartenant à un autre grimpeur, suppression refusée`);
+      return res.status(404).json({ ok: false, error: 'Séance introuvable pour ce grimpeur' });
+    }
     res.json({ ok: true, rowCount: result.rowCount });
   } catch (err) {
-    console.log(`[DELETE log] ERROR climberId=${req.params.climberId} logId=${req.params.logId}:`, err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -209,15 +230,6 @@ router.post('/:climberId/sync', async (req, res) => {
          log.source||'self', log.assignedByCoachId||null, log.flexGoal||null, log.objectiveId||null,
          !!log.injury, log.injuryNote||'', log.customName||'', JSON.stringify(log.checklistDone||[]), log.feeling||'', log.clientUpdatedAt||0]
       );
-      // TRACE TEMPORAIRE (retour "elle a supprimé et elle est réapparue") — à retirer une fois la
-      // cause confirmée. inserted=true veut dire NOUVELLE ligne (pas de conflit d'id) : si ça
-      // arrive pour un log planned:true dont la date est déjà passée, c'est la preuve qu'un client
-      // périmé (ancien id JAMAIS connu du serveur, ou déjà supprimé et donc absent) republie une
-      // séance qu'on croyait avoir traitée — rowCount=0 (pas de ligne RETURNING) veut dire que la
-      // garde de fraîcheur a bloqué une tentative de mise à jour/résurrection sur une ligne EXISTANTE.
-      if (log.planned || result.rowCount === 0 || result.rows[0]?.inserted) {
-        console.log(`[SYNC log] climberId=${req.params.climberId} id=${log.id} date=${log.date} planned=${log.planned} clientUpdatedAt=${log.clientUpdatedAt||0} rowCount=${result.rowCount} result=${JSON.stringify(result.rows[0]||null)}`);
-      }
     }
     await client.query('COMMIT');
     res.json({ ok: true, synced: logs.length });
