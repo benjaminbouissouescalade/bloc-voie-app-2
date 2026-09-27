@@ -954,7 +954,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
            Railway) a bien pris effet : horodatage de la dernière modification de ce fichier.
            MAINTENANCE : à mettre à jour (id="app-version-badge") à chaque modification de
            public/index.html, format vAAAA.MM.JJ-HHMM (heure locale du moment de l'édition). -->
-      <h1>Digger <span id="app-version-badge" title="Dernière modification du code — sert à vérifier qu'un déploiement a bien pris effet" style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:0;text-transform:none;vertical-align:super">v2026.09.27-2010</span></h1>
+      <h1>Digger <span id="app-version-badge" title="Dernière modification du code — sert à vérifier qu'un déploiement a bien pris effet" style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:0;text-transform:none;vertical-align:super">v2026.09.27-2215</span></h1>
       <p>Climbing training log</p>
     </div>
   </div>
@@ -1661,7 +1661,8 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
         <div id="s-together-status" style="margin-top:10px;font-size:12px"></div>
       </div>
 
-      <div style="display:flex;gap:8px;justify-content:flex-end">
+      <div style="display:flex;gap:8px;justify-content:flex-end;align-items:center">
+        <span id="session-form-sync-status" style="font-size:12px;margin-right:auto" title="État de synchronisation de cette séance avec le serveur"></span>
         <button class="btn danger" id="delete-session-btn" style="display:none">Supprimer</button>
         <button class="btn" onclick="switchPage('history')">Annuler</button>
         <button class="btn primary" id="save-session-btn">Enregistrer la séance</button>
@@ -5988,17 +5989,40 @@ function sbApplyEditorAccess() {
 // existant, par grimpeur/bank via une empreinte JSON), pour ne renvoyer QUE ce qui a changé depuis la
 // dernière confirmation — et un état visible ('saved'/'pending'/'error') qui ne passe à "enregistré"
 // qu'après une réponse HTTP OK effectivement vérifiée.
+// Libellés/couleurs partagés par LES DEUX indicateurs de l'appli : le badge global de la sidebar
+// (toujours visible, quelle que soit la page — cf. setSyncStatus ci-dessous) et l'indicateur par
+// séance à côté du bouton "Enregistrer" du formulaire (cf. renderSessionFormSyncStatus plus bas,
+// alimenté par logSyncState()). Un seul jeu de textes à tenir à jour pour que les deux emplacements
+// disent toujours exactement la même chose à l'utilisateur.
+const SYNC_STATUS_LABELS = {
+  pending: '⏳ Synchronisation en cours…',
+  saved: '✓ Enregistré',
+  error: '⚠ Non synchronisé — Réessayer'
+};
+const SYNC_STATUS_COLORS = { saved: 'var(--muted)', pending: '#b8860b', error: '#c0392b' };
+// Peint un état dans un élément donné, avec le bouton "Réessayer" cliquable en cas d'erreur
+// (onRetry). Factorisé pour que le badge global ET l'indicateur par séance se comportent
+// IDENTIQUEMENT (même texte, même couleur, même clic pour renvoyer les modifications en attente).
+function paintSyncStatusEl(el, status, onRetry) {
+  if (!el) return;
+  if (!status || !authToken()) { el.textContent = ''; el.onclick = null; el.style.cursor = 'default'; return; }
+  el.textContent = SYNC_STATUS_LABELS[status] || '';
+  el.style.color = SYNC_STATUS_COLORS[status] || 'var(--muted)';
+  el.style.cursor = status === 'error' ? 'pointer' : 'default';
+  el.onclick = status === 'error' ? onRetry : null;
+}
+
 window.syncStatus = 'saved';
 function setSyncStatus(status) {
   window.syncStatus = status;
-  const el = document.getElementById('sync-status-badge');
-  if (!el) return;
-  const labels = { saved: '✓ Enregistré', pending: '⏳ En attente de synchronisation…', error: '⚠ Erreur, nouvelle tentative nécessaire' };
-  const colors = { saved: 'var(--muted)', pending: '#b8860b', error: '#c0392b' };
-  el.textContent = authToken() ? (labels[status] || '') : '';
-  el.style.color = colors[status] || 'var(--muted)';
-  el.style.cursor = status === 'error' ? 'pointer' : 'default';
-  el.onclick = status === 'error' ? (() => { syncToBackend().catch(()=>{}); }) : null;
+  paintSyncStatusEl(document.getElementById('sync-status-badge'), status, () => { syncToBackend().catch(()=>{}); });
+  // L'indicateur par séance (formulaire "Nouvelle séance"/édition) reflète un état DIFFÉRENT (celui
+  // de CETTE séance précise, via logSyncState()) — pas forcément le même que l'état global agrégé
+  // ci-dessus (ex. la séance en cours d'édition peut déjà être 'saved' pendant qu'une AUTRE séance,
+  // ailleurs, est encore 'pending'). On le rafraîchit ici simplement pour capter les transitions
+  // 'pending' → 'saved'/'error' pendant que le formulaire reste ouvert (plusieurs sauvegardes de
+  // suite sans quitter la page, ressenti ajouté après coup, etc.) — cf. renderSessionFormSyncStatus.
+  if (typeof renderSessionFormSyncStatus === 'function') renderSessionFormSyncStatus();
 }
 window.setSyncStatus = setSyncStatus;
 
@@ -6020,6 +6044,31 @@ function hasPendingLocalChanges() {
 }
 function climberProfileSyncSnapshot(c) {
   return JSON.stringify({name:c.name, color:c.color, level:c.level, trips:c.trips||[], profile:c.profile||{}, objectives:c.objectives||[], cycleObjectives:c.cycleObjectives||[]});
+}
+
+// État de synchronisation d'UNE séance précise (indicateur près du bouton "Enregistrer", cf.
+// renderSessionFormSyncStatus() plus bas) :
+//  - 'saved'   : le serveur a confirmé la version ACTUELLE (pushedLogVersions >= clientUpdatedAt
+//                actuel de ce log précis) — jamais affiché sur la seule base d'un fetch terminé ou
+//                d'une écriture localStorage réussie, seulement après un res.ok vérifié dans doSync().
+//  - 'pending' : la modification est en localStorage sur cet appareil, mais pas encore confirmée
+//                (jamais synchronisée, ou une version plus ancienne l'a été mais pas celle-ci —
+//                voir le commentaire dans doSync() sur la capture des versions AVANT l'await : une
+//                confirmation qui arrive pour une ancienne version ne fait donc jamais passer une
+//                séance modifiée depuis à 'saved').
+//  - 'error'   : la dernière tentative d'envoi de CETTE version a échoué (réseau ou HTTP non-ok).
+//  - null      : ce log n'existe pas (ou plus) chez ce grimpeur — rien à afficher.
+function logSyncState(climberId, logId) {
+  if (!climberId || !logId) return null;
+  if ((db.pendingDeletes || []).some(p => p.logId === logId)) return null; // suppression en cours : hors périmètre de cet indicateur
+  const c = (db.climbers || []).find(x => x.id === climberId);
+  const log = c && (c.logs || []).find(l => l.id === logId);
+  if (!c || !log) return null;
+  const pushed = (c.pushedLogVersions || {})[logId] || 0;
+  const current = log.clientUpdatedAt || 0;
+  if (pushed >= current) return 'saved';
+  if ((c.logSyncErrors || {})[logId]) return 'error';
+  return 'pending';
 }
 
 // Verrou d'exclusion mutuelle entre syncToBackend() et loadFromBackend() : les deux lisent ET
@@ -6133,19 +6182,38 @@ async function doSync() {
 
     // --- Séances : seulement celles dont clientUpdatedAt a avancé depuis le dernier envoi confirmé ---
     if (!c.pushedLogVersions) c.pushedLogVersions = {};
+    if (!c.logSyncErrors) c.logSyncErrors = {};
     const dirtyLogs = (c.logs || []).filter(l =>
       l.id && !pendingIds.has(l.id) && (c.pushedLogVersions[l.id] || 0) < (l.clientUpdatedAt || 0)
     );
     if (dirtyLogs.length) {
+      // Indicateur par séance (cf. logSyncState()) : un essai commence → on efface un éventuel
+      // état d'erreur laissé par une tentative précédente, AVANT l'envoi (pas après), pour que
+      // l'indicateur affiche "en cours" pendant que la requête est en vol plutôt que de garder
+      // affiché "Non synchronisé" jusqu'à la fin de CETTE tentative.
+      for (const l of dirtyLogs) delete c.logSyncErrors[l.id];
+      // Retour utilisateur : "si l'utilisateur modifie à nouveau la séance pendant une
+      // synchronisation, la confirmation de l'ancienne version ne doit pas faire passer la nouvelle
+      // version à Enregistré" — dirtyLogs contient des RÉFÉRENCES vers les objets logs réels (pas des
+      // copies). Si l'utilisateur édite l'une de ces séances PENDANT que le fetch ci-dessous est en
+      // vol, l.clientUpdatedAt de cet objet change EN PLACE avant même que la réponse revienne. Lire
+      // l.clientUpdatedAt APRÈS l'await (comme avant ce correctif) aurait donc confirmé par erreur la
+      // nouvelle version alors que seule l'ancienne a réellement été envoyée dans ce payload (capturé,
+      // lui, de façon sûre par JSON.stringify ci-dessous, qui sérialise de façon synchrone AVANT
+      // l'await). Fix : on capture explicitement la valeur envoyée pour chaque log ICI, avant l'await,
+      // et c'est CETTE valeur capturée (jamais l.clientUpdatedAt relu après coup) qui sert à mettre à
+      // jour pushedLogVersions — Math.max par sécurité, au cas où une valeur plus grande aurait déjà
+      // été écrite entre-temps par un autre chemin.
+      const sentVersions = dirtyLogs.map(l => ({ id: l.id, sentAt: l.clientUpdatedAt || 0 }));
       try {
         const res = await fetch(`/api/logs/${c.id}/sync`, {
           method: 'POST', headers: authHeaders(),
           body: JSON.stringify({logs: dirtyLogs})
         });
-        if (res.status === 401 || res.status === 403) anyAuthError = true;
-        else if (!res.ok) anyError = true;
-        else for (const l of dirtyLogs) c.pushedLogVersions[l.id] = l.clientUpdatedAt || Date.now();
-      } catch (e) { anyError = true; }
+        if (res.status === 401 || res.status === 403) { anyAuthError = true; for (const s of sentVersions) c.logSyncErrors[s.id] = true; }
+        else if (!res.ok) { anyError = true; for (const s of sentVersions) c.logSyncErrors[s.id] = true; }
+        else for (const s of sentVersions) c.pushedLogVersions[s.id] = Math.max(c.pushedLogVersions[s.id] || 0, s.sentAt);
+      } catch (e) { anyError = true; for (const s of sentVersions) c.logSyncErrors[s.id] = true; }
     }
   }
 
@@ -6276,7 +6344,16 @@ async function loadFromBackendUnlocked() {
         logs = [...serverLogs.filter(l => !pendingDeleteIds.has(l.id)), ...localOnly];
         knownServerLogIds = Array.from(serverIds);
       }
-      const merged = {...c, logs, knownServerLogIds, trips: c.trips || [], profile: c.profile || {}, objectives: c.objectives || [], cycleObjectives: c.cycle_objectives || []};
+      // pushedLogVersions/logSyncErrors (cf. doSync()) sont une bookkeeping PUREMENT locale : le
+      // serveur ne les connaît pas et ne les renvoie jamais dans `c` (réponse de /api/climbers).
+      // Avant ce correctif, `merged` partait de {...c, ...} (l'objet SERVEUR) sans jamais reporter
+      // ces deux champs depuis localClimber — à CHAQUE rechargement de page, toute confirmation déjà
+      // obtenue était donc oubliée, faisant réapparaître toutes les séances comme "en attente" (et
+      // relançant un envoi complet inutile) même pour une séance sauvegardée depuis longtemps.
+      const merged = {...c, logs, knownServerLogIds,
+        pushedLogVersions: localClimber?.pushedLogVersions || {},
+        logSyncErrors: localClimber?.logSyncErrors || {},
+        trips: c.trips || [], profile: c.profile || {}, objectives: c.objectives || [], cycleObjectives: c.cycle_objectives || []};
       migrateLegacyGoals(merged);
       return merged;
     }));
@@ -13610,6 +13687,7 @@ function newSession(date=null, planning=false){
   prefillBankRef = null;
   freshlyCompletedLogId=null; // formulaire vierge : pas de séance en cours de complétion
   document.getElementById('edit-log-id').value='';
+  renderSessionFormSyncStatus(); // formulaire vierge (editingId vient d'être remis à null) : rien à afficher
   document.getElementById('session-form-title').textContent='Nouvelle séance';
   document.getElementById('s-date').value=date||todayStr();
   document.getElementById('s-type').value='bloc';
@@ -13817,6 +13895,7 @@ function editSession(id){
   document.getElementById('delete-session-btn').style.display='';
   sSyncContentOverrideUI(log.bankRef, log);
   switchPage('new-session');
+  renderSessionFormSyncStatus(); // état de CETTE séance dès l'ouverture (editingId vient d'être fixé plus haut)
   updateSessionTypeUI(log.bNoGrade||{});
   renderAscentsEditor();
   // Retour utilisateur : "cette séance semble être apparue chez Chloé... Chloé voit Lisa et Mika
@@ -14570,6 +14649,21 @@ function closeFeelingModal() {
 window.pickFeeling = pickFeeling;
 window.closeFeelingModal = closeFeelingModal;
 
+// Indicateur "près du bouton Enregistrer" (cf. #session-form-sync-status) : reflète l'état de
+// synchronisation de LA SÉANCE ACTUELLEMENT OUVERTE dans ce formulaire (editingId), via
+// logSyncState() — jamais un état générique "l'appli synchronise quelque chose", mais bien celui de
+// CETTE séance précise. Rien à afficher pour une séance neuve pas encore enregistrée une première
+// fois (editingId vide : saveCurrentSession() n'a pas encore créé l'id chez ce grimpeur).
+function renderSessionFormSyncStatus() {
+  const el = document.getElementById('session-form-sync-status');
+  if (!el) return;
+  const climber = getActive();
+  if (!climber || !editingId) { el.textContent = ''; el.onclick = null; return; }
+  const state = logSyncState(climber.id, editingId);
+  paintSyncStatusEl(el, state, () => { syncToBackend().catch(()=>{}); });
+}
+window.renderSessionFormSyncStatus = renderSessionFormSyncStatus;
+
 function saveCurrentSession() {
   const styles=Array.from(document.querySelectorAll('#s-b-styles input:checked')).map(el=>el.value);
   const sType = getCurrentSessionType();
@@ -14730,6 +14824,13 @@ function saveCurrentSession() {
     document.getElementById('session-form-title').textContent = 'Modifier la séance';
     if (!payload.planned) document.getElementById('delete-session-btn').style.display = '';
   }
+  // À ce stade editingId === payload.id dans tous les cas (nouvelle séance ou modification) — on
+  // affiche tout de suite "Synchronisation en cours…" (saveDB() vient de déclencher syncToBackend()
+  // en arrière-plan) plutôt que d'attendre une réponse serveur pour montrer quoi que ce soit.
+  // setSyncStatus('pending') (appelé par syncToBackend() ci-dessus) rafraîchira ensuite cet
+  // indicateur vers 'saved'/'error' dès que la confirmation arrive, MÊME si le formulaire est resté
+  // ouvert (plusieurs sauvegardes de suite sans changer de page).
+  renderSessionFormSyncStatus();
   return payload.id;
 }
 document.getElementById('save-session-btn').onclick=()=>{
