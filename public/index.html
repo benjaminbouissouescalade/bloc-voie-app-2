@@ -954,7 +954,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
            Railway) a bien pris effet : horodatage de la dernière modification de ce fichier.
            MAINTENANCE : à mettre à jour (id="app-version-badge") à chaque modification de
            public/index.html, format vAAAA.MM.JJ-HHMM (heure locale du moment de l'édition). -->
-      <h1>Digger <span id="app-version-badge" title="Dernière modification du code — sert à vérifier qu'un déploiement a bien pris effet" style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:0;text-transform:none;vertical-align:super">v2026.09.27-2215</span></h1>
+      <h1>Digger <span id="app-version-badge" title="Dernière modification du code — sert à vérifier qu'un déploiement a bien pris effet" style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:0;text-transform:none;vertical-align:super">v2026.09.28-0030</span></h1>
       <p>Climbing training log</p>
     </div>
   </div>
@@ -3441,6 +3441,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     <h2>Mes athlètes</h2>
     <p>Sélectionne un athlète pour consulter et piloter son entraînement — tu restes toujours coach, jamais l'athlète lui-même.</p>
   </div>
+  <div id="coach-exceptions-panel" style="margin-bottom:10px"></div>
   <div id="coach-inactivity-alerts" style="margin-bottom:10px"></div>
   <div id="coach-athletes-grid" class="climber-card-grid"></div>
   <p id="coach-athletes-empty" style="display:none;color:var(--muted);font-size:14px">Tu n'as pas encore d'athlète. Utilise "Inviter un athlète" dans "Gérer les grimpeurs" pour en ajouter un.</p>
@@ -17672,6 +17673,87 @@ function renderClimberCards() {
   }).join('');
 }
 
+// ═══ Vue coach "exceptions" (page "Mes athlètes") ═══
+// Retour utilisateur : "mettre en avant une séance manquée, une douleur signalée, une forte hausse
+// de charge ou un objectif qui n'avance pas, au lieu de demander au coach d'ouvrir chaque profil" —
+// calculé pour TOUS les athlètes déjà chargés (db.climbers, en mode coach, contient déjà l'historique
+// complet de chacun — cf. GET /api/climbers côté serveur et loadFromBackend() côté frontend, aucune
+// requête supplémentaire nécessaire pour cette première version). Quatre types, seuils volontairement
+// simples pour un premier jet (à resserrer/desserrer selon le bruit en usage réel) :
+//   - 'missed'    : séance planifiée (planned=true) dont la date est dépassée de plus de
+//                   COACH_EXC_MISSED_DAYS jours, jamais marquée faite ni supprimée.
+//   - 'pain'      : séance RÉALISÉE (planned=false) avec injury=true, dans les
+//                   COACH_EXC_PAIN_DAYS derniers jours.
+//   - 'load'      : charge de la semaine en cours (climberWeeklyLoads, déjà utilisée ailleurs dans
+//                   l'appli) supérieure à COACH_EXC_LOAD_RATIO × la charge hebdo "normale" du
+//                   grimpeur (climberBaseline) — ignoré tant que climberBaseline ne peut pas encore
+//                   être calculée (moins de 3 semaines de charge non nulle sur les 12 dernières).
+//   - 'objective' : objectif actif (status !== 'done'), créé il y a plus de
+//                   COACH_EXC_OBJECTIVE_STALL_DAYS jours, sans AUCUNE séance réalisée taguée
+//                   objectiveId === cet objectif dans cette même fenêtre. Signal le plus fragile des
+//                   quatre : le tag objectiveId sur une séance est optionnel (créneau à thème /
+//                   objectif de période) — un objectif jamais tagué par l'athlète apparaîtra donc ici
+//                   après ce délai sans que ce soit forcément un vrai décrochage. À surveiller en
+//                   usage réel ; seuil ou logique à revoir si ça se révèle trop bruyant.
+// Chaque exception porte une clé stable (key) : identique tant que la MÊME occurrence est concernée
+// (même séance, même semaine, même objectif), différente dès que la situation change (nouvelle
+// semaine de charge, nouvelle séance planifiée manquée...). C'est cette clé qui est envoyée à
+// POST /api/exceptions/dismiss quand le coach clique "Vu" (cf. renderCoachExceptionsPanel plus bas) —
+// une NOUVELLE occurrence du même type a donc toujours sa propre clé et réapparaît normalement même
+// si une occurrence précédente a été masquée.
+const COACH_EXC_MISSED_DAYS = 2;
+const COACH_EXC_PAIN_DAYS = 7;
+const COACH_EXC_LOAD_RATIO = 1.5;
+const COACH_EXC_OBJECTIVE_STALL_DAYS = 21;
+const COACH_EXC_TYPE_META = {
+  missed:    { icon: '📌', label: 'Séance manquée' },
+  pain:      { icon: '🩹', label: 'Douleur signalée' },
+  load:      { icon: '📈', label: 'Forte hausse de charge' },
+  objective: { icon: '🎯', label: "Objectif qui n'avance pas" }
+};
+function computeCoachExceptions(athletes) {
+  const out = [];
+  const today = todayStr();
+  (athletes || []).forEach(c => {
+    (c.logs || []).forEach(l => {
+      if (!l.planned || l.date >= today) return;
+      const lateDays = daysSinceDateStr(l.date);
+      if (lateDays < COACH_EXC_MISSED_DAYS) return;
+      out.push({ key: `missed:${l.id}`, climberId: c.id, climberName: c.name, type: 'missed',
+        message: `Séance planifiée le ${l.date} jamais faite (${lateDays} j de retard)` });
+    });
+    (c.logs || []).forEach(l => {
+      if (l.planned || !l.injury) return;
+      const days = daysSinceDateStr(l.date);
+      if (days < 0 || days > COACH_EXC_PAIN_DAYS) return;
+      out.push({ key: `pain:${l.id}`, climberId: c.id, climberName: c.name, type: 'pain',
+        message: `Douleur signalée le ${l.date}${l.injuryNote ? ' — ' + l.injuryNote : ''}` });
+    });
+    const baseline = climberBaseline(c);
+    if (baseline > 0) {
+      const [currentWeekLoad] = climberWeeklyLoads(c, 1);
+      if (currentWeekLoad > baseline * COACH_EXC_LOAD_RATIO) {
+        const monday = new Date(); monday.setHours(0,0,0,0); monday.setDate(monday.getDate() - ((monday.getDay()||7)-1));
+        const weekKey = monday.getFullYear() + '-' + String(monday.getMonth()+1).padStart(2,'0') + '-' + String(monday.getDate()).padStart(2,'0');
+        out.push({ key: `load:${c.id}:${weekKey}`, climberId: c.id, climberName: c.name, type: 'load',
+          message: `Charge de la semaine à ${currentWeekLoad} (normale ≈ ${Math.round(baseline)}, ×${(currentWeekLoad/baseline).toFixed(1)})` });
+      }
+    }
+    (c.objectives || []).forEach(o => {
+      if (o.status === 'done') return;
+      const createdDays = o.createdAt ? daysSinceDateStr(o.createdAt.slice(0,10)) : null;
+      if (createdDays === null || createdDays < COACH_EXC_OBJECTIVE_STALL_DAYS) return;
+      const recentProgress = (c.logs || []).some(l =>
+        !l.planned && l.objectiveId === o.id && daysSinceDateStr(l.date) <= COACH_EXC_OBJECTIVE_STALL_DAYS
+      );
+      if (recentProgress) return;
+      out.push({ key: `objective:${o.id}`, climberId: c.id, climberName: c.name, type: 'objective',
+        message: `Objectif "${o.title || o.text || 'Objectif'}" sans séance liée depuis ${COACH_EXC_OBJECTIVE_STALL_DAYS}+ jours` });
+    });
+  });
+  return out;
+}
+
 // Page "Mes athlètes" (espace Coaching) : liste des athlètes accessibles au coach connecté,
 // distincte de "Gérer les grimpeurs" (qui mélange encore ton propre profil avec eux). Cliquer
 // un athlète ouvre l'espace Coaching (voir openCoachingView) plutôt que de changer silencieusement
@@ -17688,6 +17770,57 @@ function daysSinceLastSession(climber) {
   const latest = logged.reduce((max, l) => (l.date > max ? l.date : max), logged[0].date);
   return daysSinceDateStr(latest);
 }
+// Clés d'exceptions déjà marquées "Vu" par ce coach (cf. GET /api/exceptions/dismissed) — chargées
+// une fois par ouverture de la page "Mes athlètes" (renderCoachAthletesPage), pas à chaque rendu :
+// un simple Set en mémoire suffit, mis à jour localement dès qu'on clique "Vu" (pas besoin de
+// recharger tout le monde pour faire disparaître UNE carte du panneau).
+let coachDismissedExceptions = null;
+async function loadDismissedExceptions() {
+  if (!authToken()) { coachDismissedExceptions = new Set(); return; }
+  try {
+    const res = await fetch('/api/exceptions/dismissed', { headers: authHeaders() });
+    coachDismissedExceptions = new Set(res.ok ? await res.json() : []);
+  } catch (e) {
+    coachDismissedExceptions = new Set(); // hors-ligne : on affiche tout plutôt que de bloquer le panneau
+  }
+}
+function renderCoachExceptionsPanel(athletes) {
+  const el = document.getElementById('coach-exceptions-panel');
+  if (!el) return;
+  const dismissed = coachDismissedExceptions || new Set();
+  const exceptions = computeCoachExceptions(athletes).filter(x => !dismissed.has(x.key));
+  if (!exceptions.length) { el.innerHTML = ''; return; }
+  // Les plus "graves" (douleur, séance manquée) en premier — un coach qui n'a qu'un coup d'œil à
+  // donner voit d'abord ce qui peut nécessiter un vrai suivi plutôt qu'un simple rappel de charge.
+  const order = { pain: 0, missed: 1, load: 2, objective: 3 };
+  exceptions.sort((a, b) => (order[a.type] ?? 9) - (order[b.type] ?? 9));
+  el.innerHTML = `<div class="panel" style="margin-bottom:10px">
+    <div class="panel-header"><span class="panel-title">⚡ À vérifier</span></div>
+    ${exceptions.map(x => {
+      const meta = COACH_EXC_TYPE_META[x.type] || { icon: '•', label: '' };
+      return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px;background:var(--surface2);border-radius:8px;margin-bottom:6px;font-size:12.5px">
+        <span>${meta.icon} <strong>${esc(x.climberName)}</strong> — ${esc(x.message)}</span>
+        <span style="display:flex;gap:6px;flex-shrink:0">
+          <button class="btn sm" onclick="openCoachingView('${x.climberId}')">Voir</button>
+          <button class="btn sm" title="Marquer comme vu" onclick="dismissCoachException('${x.key}')">Vu</button>
+        </span>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+// Marque une exception comme traitée : optimiste (retirée de l'affichage tout de suite) puis
+// confirmée côté serveur — un échec réseau ici n'est pas grave (l'exception réapparaîtra simplement
+// au prochain chargement de la page), donc pas besoin du même mécanisme de retry que la sync des
+// séances : on retente juste silencieusement une fois, sans état "erreur" dédié pour ce geste mineur.
+async function dismissCoachException(key) {
+  if (coachDismissedExceptions) coachDismissedExceptions.add(key);
+  renderCoachExceptionsPanel((db.climbers || []).filter(c => c.id !== window.currentUser?.climberId));
+  try {
+    await fetch('/api/exceptions/dismiss', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ exceptionKey: key }) });
+  } catch (e) {}
+}
+window.dismissCoachException = dismissCoachException;
+
 function renderCoachInactivityAlerts(athletes) {
   const el = document.getElementById('coach-inactivity-alerts');
   if (!el) return;
@@ -17711,6 +17844,10 @@ async function renderCoachAthletesPage() {
   const athletes = (db.climbers || []).filter(c => c.id !== myId);
   if (empty) empty.style.display = athletes.length ? 'none' : '';
   renderCoachInactivityAlerts(athletes);
+  // Panneau "exceptions" : affiche tout de suite avec l'état déjà connu (évite un flash vide→rempli
+  // à chaque fois), puis recharge les exceptions masquées et réaffiche si elles ont changé depuis.
+  renderCoachExceptionsPanel(athletes);
+  loadDismissedExceptions().then(() => renderCoachExceptionsPanel(athletes));
 
   // Le mode de planification n'a de sens que pour un vrai compte coach dédié (pas l'owner, qui
   // voit tous les grimpeurs sans forcément avoir de relation coach_athletes avec chacun).
