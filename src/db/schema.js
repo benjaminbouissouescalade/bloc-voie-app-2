@@ -314,10 +314,12 @@ async function initDB() {
       -- Mode de planification par relation coach-athlète (voir section "coexistence planification
       -- coach/athlète") : free = l'athlète gère librement, shared = les deux peuvent planifier
       -- (comportement historique, donc valeur par défaut), coach_only = le coach contrôle le
-      -- prévisionnel. Appliqué côté interface uniquement pour l'instant — pas un verrou serveur,
-      -- car les séances sont sauvegardées via un remplacement complet de l'historique
-      -- (POST /api/logs/:climberId/sync), qui ne permet pas de distinguer "nouvelle séance
-      -- ajoutée par l'athlète" au niveau de la requête.
+      -- prévisionnel. Désormais vérifié aussi côté SERVEUR (pas seulement dans l'interface) pour les
+      -- séances qui restent planifiées — voir checkPlannedWriteAllowed() dans src/routes/logs.js et
+      -- la logique commune src/lib/planningMode.js. L'ancienne limite documentée ici ("remplacement
+      -- complet de l'historique via /sync, impossible de distinguer une séance précise") ne tient
+      -- plus depuis que /sync fait un upsert par id (voir le commentaire au-dessus de cette route) :
+      -- chaque séance du batch peut désormais être acceptée ou rejetée individuellement.
       ALTER TABLE coach_athletes ADD COLUMN IF NOT EXISTS planning_mode TEXT DEFAULT 'shared';
       -- La clé primaire (coach_id, climber_id) sert déjà bien les recherches "athlètes de CE coach"
       -- (climbers.js, coachFeed.js), mais plusieurs endroits interrogent dans l'autre sens — "quel(s)
