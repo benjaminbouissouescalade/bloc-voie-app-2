@@ -41,6 +41,7 @@ app.use('/api/proposed-sessions', require('./routes/proposedSessions'));
 app.use('/api/gyms', require('./routes/gyms'));
 app.use('/api/availability', require('./routes/availability'));
 app.use('/api/coach-feed', require('./routes/coachFeed'));
+app.use('/api/exceptions', require('./routes/exceptions'));
 app.get('/api/health', (req, res) => { res.json({ status: 'ok' }); });
 app.get('*', (req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
