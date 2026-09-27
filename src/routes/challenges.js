@@ -114,7 +114,29 @@ router.post('/', async (req, res) => {
   if (!targetNum || targetNum <= 0) return res.status(400).json({ error: 'Objectif requis (> 0)' });
   if (!startDate || !endDate || startDate > endDate) return res.status(400).json({ error: 'Dates invalides' });
   const id = challengeId();
-  const participants = Array.from(new Set([climberId, ...(Array.isArray(participantIds) ? participantIds : [])]));
+  // Retour utilisateur (audit "d'autres incohérences crew/partenaires") : rien ne vérifiait que
+  // participantIds étaient bien des partenaires ou des coéquipiers de crew du créateur, alors que
+  // le commentaire d'en-tête du fichier promet justement "participants invités par un membre déjà
+  // connecté (partenaire/crew)" — n'importe qui pouvait donc enrôler un inconnu dans un challenge
+  // (et voir sa progression, séances/charge, sans son accord). On restreint donc aux ids qui sont
+  // réellement partenaires OU coéquipiers d'un même crew.
+  const requestedIds = (Array.isArray(participantIds) ? participantIds : []).filter(pid => pid && pid !== climberId);
+  let allowedIds = new Set();
+  if (requestedIds.length) {
+    const { rows: partnerRows } = await pool.query(
+      `SELECT (CASE WHEN climber_a=$1 THEN climber_b ELSE climber_a END) AS pid
+       FROM partnerships WHERE climber_a=$1 OR climber_b=$1`,
+      [climberId]
+    );
+    const { rows: crewmateRows } = await pool.query(
+      `SELECT DISTINCT cm2.climber_id AS pid FROM crew_members cm1
+       JOIN crew_members cm2 ON cm2.crew_id = cm1.crew_id
+       WHERE cm1.climber_id=$1 AND cm2.climber_id <> $1`,
+      [climberId]
+    );
+    allowedIds = new Set([...partnerRows.map(r => r.pid), ...crewmateRows.map(r => r.pid)]);
+  }
+  const participants = Array.from(new Set([climberId, ...requestedIds.filter(pid => allowedIds.has(pid))]));
   const client = await pool.connect();
   try {
     await client.query('BEGIN');

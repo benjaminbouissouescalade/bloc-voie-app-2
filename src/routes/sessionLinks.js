@@ -72,17 +72,29 @@ router.post('/', async (req, res) => {
 });
 
 // GET /api/session-links/:logId — les autres participants du même groupe que cette séance.
+// Contrôle d'accès : contrairement à toutes les autres routes de communauté (partenaires/crews),
+// rien ici ne vérifiait que l'appelant a un rapport quelconque avec ce logId — n'importe quel
+// compte authentifié pouvait lister les participants d'une sortie "On grimpe ensemble" en
+// devinant/énumérant des logId, même sans lien de partenariat avec personne du groupe. On exige
+// désormais que l'appelant soit lui-même déjà relié à ce groupe (a une séance à lui dans le même
+// sl.id), c'est-à-dire qu'il fait réellement partie de cette sortie commune.
 router.get('/:logId', async (req, res) => {
   const climberId = req.user?.climberId;
   if (!climberId) return res.json([]);
   try {
     const { rows: linkRows } = await pool.query('SELECT id FROM session_links WHERE log_id=$1', [req.params.logId]);
     if (!linkRows.length) return res.json([]);
+    const groupId = linkRows[0].id;
+    const { rows: myMembership } = await pool.query(
+      'SELECT 1 FROM session_links WHERE id=$1 AND climber_id=$2',
+      [groupId, climberId]
+    );
+    if (!myMembership.length) return res.status(403).json({ error: "Tu ne fais pas partie de cette sortie" });
     const { rows } = await pool.query(
       `SELECT cl.id, cl.name, cl.color FROM session_links sl
        JOIN climbers cl ON cl.id = sl.climber_id
        WHERE sl.id = $1 AND sl.climber_id <> $2`,
-      [linkRows[0].id, climberId]
+      [groupId, climberId]
     );
     res.json(rows);
   } catch (err) {
