@@ -954,7 +954,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
            Railway) a bien pris effet : horodatage de la dernière modification de ce fichier.
            MAINTENANCE : à mettre à jour (id="app-version-badge") à chaque modification de
            public/index.html, format vAAAA.MM.JJ-HHMM (heure locale du moment de l'édition). -->
-      <h1>Digger <span id="app-version-badge" title="Dernière modification du code — sert à vérifier qu'un déploiement a bien pris effet" style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:0;text-transform:none;vertical-align:super">v2026.09.27-0945</span></h1>
+      <h1>Digger <span id="app-version-badge" title="Dernière modification du code — sert à vérifier qu'un déploiement a bien pris effet" style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:0;text-transform:none;vertical-align:super">v2026.09.27-1130</span></h1>
       <p>Climbing training log</p>
     </div>
   </div>
@@ -5959,28 +5959,34 @@ function sbApplyEditorAccess() {
 }
 
 // Sync state complet vers le backend
+// Perf : ce best-effort tourne à CHAQUE saveDB(), donc à peu près à chaque action dans l'appli —
+// un coach avec plusieurs athlètes rechargés localement (db.climbers) envoyait un athlète après
+// l'autre, en attendant chaque requête l'une après l'autre (await dans une boucle for), avant même
+// de passer au suivant. Aucune requête n'est retardée (on ne touche pas AU MOMENT où ça part —
+// un debounce ici retarderait l'envoi et recréerait le risque déjà rencontré cette session de
+// séance perdue si l'onglet se ferme entre-temps) : on se contente de les envoyer TOUTES en même
+// temps au lieu de les mettre bout à bout, ce qui ne change ni les données envoyées ni le moment où
+// elles partent, seulement le temps total d'attente (jusqu'à N fois plus rapide pour N athlètes).
 async function syncToBackend() {
   if (!authToken()) return;
-  // Sync chaque grimpeur
-  for (const c of db.climbers || []) {
-    await fetch('/api/climbers', {
+  const climberSyncs = (db.climbers || []).map(c => Promise.all([
+    fetch('/api/climbers', {
       method: 'POST',
       headers: authHeaders(),
       body: JSON.stringify({id:c.id, name:c.name, color:c.color, level:c.level, trips:c.trips||[], profile:c.profile||{}, objectives:c.objectives||[], cycleObjectives:c.cycleObjectives||[]})
-    }).catch(()=>{});
-    // Sync ses logs
-    await fetch(`/api/logs/${c.id}/sync`, {
+    }).catch(()=>{}),
+    fetch(`/api/logs/${c.id}/sync`, {
       method: 'POST',
       headers: authHeaders(),
       body: JSON.stringify({logs: c.logs || []})
-    }).catch(()=>{});
-  }
-  // Sync banque de séances
-  await fetch('/api/bank/sync', {
+    }).catch(()=>{})
+  ]));
+  const bankSync = fetch('/api/bank/sync', {
     method: 'POST',
     headers: authHeaders(),
     body: JSON.stringify({items: db.sessionBank || []})
   }).catch(()=>{});
+  await Promise.all([...climberSyncs, bankSync]);
 }
 
 // Charge les données depuis le backend au démarrage
