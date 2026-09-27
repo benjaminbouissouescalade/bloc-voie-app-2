@@ -312,6 +312,12 @@ async function initDB() {
       -- (POST /api/logs/:climberId/sync), qui ne permet pas de distinguer "nouvelle séance
       -- ajoutée par l'athlète" au niveau de la requête.
       ALTER TABLE coach_athletes ADD COLUMN IF NOT EXISTS planning_mode TEXT DEFAULT 'shared';
+      -- La clé primaire (coach_id, climber_id) sert déjà bien les recherches "athlètes de CE coach"
+      -- (climbers.js, coachFeed.js), mais plusieurs endroits interrogent dans l'autre sens — "quel(s)
+      -- coach(s) a CE climber_id" (bank.js visibilité privée par coach, auth.js) — sans pouvoir
+      -- s'appuyer sur cette clé (climber_id n'est pas la colonne de tête). Index dédié, peu coûteux
+      -- vu la taille de la table, mais évite un scan complet à chaque appel.
+      CREATE INDEX IF NOT EXISTS idx_coach_athletes_climber ON coach_athletes(climber_id);
       CREATE TABLE IF NOT EXISTS plans (
         climber_id  TEXT PRIMARY KEY REFERENCES climbers(id) ON DELETE CASCADE,
         coach_id    TEXT,
