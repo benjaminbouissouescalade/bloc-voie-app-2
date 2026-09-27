@@ -954,7 +954,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
            Railway) a bien pris effet : horodatage de la dernière modification de ce fichier.
            MAINTENANCE : à mettre à jour (id="app-version-badge") à chaque modification de
            public/index.html, format vAAAA.MM.JJ-HHMM (heure locale du moment de l'édition). -->
-      <h1>Digger <span id="app-version-badge" title="Dernière modification du code — sert à vérifier qu'un déploiement a bien pris effet" style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:0;text-transform:none;vertical-align:super">v2026.09.27-1210</span></h1>
+      <h1>Digger <span id="app-version-badge" title="Dernière modification du code — sert à vérifier qu'un déploiement a bien pris effet" style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:0;text-transform:none;vertical-align:super">v2026.09.27-1620</span></h1>
       <p>Climbing training log</p>
     </div>
   </div>
@@ -5967,8 +5967,59 @@ function sbApplyEditorAccess() {
 // séance perdue si l'onglet se ferme entre-temps) : on se contente de les envoyer TOUTES en même
 // temps au lieu de les mettre bout à bout, ce qui ne change ni les données envoyées ni le moment où
 // elles partent, seulement le temps total d'attente (jusqu'à N fois plus rapide pour N athlètes).
+// ═══ Suppressions de séance : suivi explicite "en attente" ═══
+// Retour utilisateur (audit "pertes et réapparitions de séances") : une suppression n'était qu'un
+// fetch DELETE tiré à l'aveugle (.catch(()=>{}), jamais attendu ni vérifié) — un fetch qui se
+// termine SANS lever d'exception n'est pas une confirmation de succès (le serveur peut très bien
+// répondre 4xx/5xx avec un corps JSON d'erreur). Pire : si la séance visée n'avait encore JAMAIS
+// été synchronisée sur le serveur, ce DELETE ne trouvait aucune ligne à marquer supprimée
+// (rowCount=0) — si une synchronisation concurrente republiait entre-temps cette même séance
+// (payload construit AVANT la suppression locale, requête plus lente que prévu), elle pouvait
+// recréer côté serveur une séance que l'utilisateur venait pourtant de supprimer. db.pendingDeletes
+// trace toute suppression tant qu'elle n'est pas CONFIRMÉE par le serveur (réponse HTTP ok + JSON
+// {ok:true}) : syncToBackend() exclut systématiquement ces ids de tout payload sortant (ci-dessous),
+// et loadFromBackend() les exclut aussi de ce qu'il affiche/réintègre (cf. plus haut), le temps que
+// la suppression aboutisse. Un échec (réseau ou serveur) laisse l'id dans la liste : la prochaine
+// syncToBackend() (ou le prochain chargement) retente automatiquement.
+function markLogPendingDelete(climberId, logId) {
+  if (!db.pendingDeletes) db.pendingDeletes = [];
+  if (!db.pendingDeletes.some(p => p.logId === logId)) db.pendingDeletes.push({ climberId, logId });
+}
+function clearPendingDelete(logId) {
+  if (!db.pendingDeletes) return;
+  db.pendingDeletes = db.pendingDeletes.filter(p => p.logId !== logId);
+}
+async function attemptDelete(climberId, logId) {
+  if (!authToken()) return false;
+  try {
+    const res = await fetch(`/api/logs/${climberId}/${logId}`, { method: 'DELETE', headers: authHeaders() });
+    let body = null;
+    try { body = await res.json(); } catch (e) { /* corps non-JSON = pas une confirmation valide */ }
+    if (res.ok && body && body.ok) { clearPendingDelete(logId); return true; }
+    return false;
+  } catch (e) {
+    return false; // erreur réseau : l'id reste dans pendingDeletes, retentera plus tard
+  }
+}
+// Retente toutes les suppressions encore en attente — appelée à chaque syncToBackend() et au
+// chargement de l'app (cf. init), pour qu'une suppression restée bloquée par un échec réseau finisse
+// toujours par aboutir sans action supplémentaire de l'utilisateur.
+async function attemptPendingDeletes() {
+  const pending = (db.pendingDeletes || []).slice();
+  if (!pending.length) return;
+  await Promise.all(pending.map(p => attemptDelete(p.climberId, p.logId)));
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(db)); } catch (e) {}
+}
+window.attemptPendingDeletes = attemptPendingDeletes;
+
 async function syncToBackend() {
   if (!authToken()) return;
+  // Ne jamais republier une séance en cours de suppression, même si elle traîne encore dans
+  // c.logs pour une raison quelconque (onglet différent, code appelant qui aurait oublié de la
+  // retirer) — filet de sécurité en plus de la garde côté serveur (tombstone créé dès le premier
+  // DELETE, cf. logs.js), qui protège aussi contre une requête de sync déjà partie AVANT cette
+  // suppression et encore en vol.
+  const pendingIds = new Set((db.pendingDeletes || []).map(p => p.logId));
   const climberSyncs = (db.climbers || []).map(c => Promise.all([
     fetch('/api/climbers', {
       method: 'POST',
@@ -5978,7 +6029,7 @@ async function syncToBackend() {
     fetch(`/api/logs/${c.id}/sync`, {
       method: 'POST',
       headers: authHeaders(),
-      body: JSON.stringify({logs: c.logs || []})
+      body: JSON.stringify({logs: (c.logs || []).filter(l => !pendingIds.has(l.id))})
     }).catch(()=>{})
   ]));
   const bankSync = fetch('/api/bank/sync', {
@@ -5986,7 +6037,7 @@ async function syncToBackend() {
     headers: authHeaders(),
     body: JSON.stringify({items: db.sessionBank || []})
   }).catch(()=>{});
-  await Promise.all([...climberSyncs, bankSync]);
+  await Promise.all([...climberSyncs, bankSync, attemptPendingDeletes()]);
 }
 
 // Charge les données depuis le backend au démarrage
@@ -6017,15 +6068,45 @@ async function loadFromBackend() {
     if (!climbers.length) return false;
 
     // Charge les logs pour chaque grimpeur, en réintégrant celles qui n'existent que localement.
+    //
+    // Retour utilisateur (audit "pertes et réapparitions de séances") : la réconciliation ci-dessous
+    // réintégrait TOUTE séance présente localement mais absente de la réponse serveur — sans
+    // distinguer "jamais encore synchronisée" (à préserver, raison d'être de ce mécanisme) de
+    // "supprimée depuis" (le GET serveur exclut aussi deleted=true, cf. logs.js). Une séance
+    // supprimée pouvait donc réapparaître après un simple rechargement, même si le serveur avait
+    // correctement enregistré la suppression. Fix : on garde, PAR GRIMPEUR, l'empreinte des ids
+    // confirmés par le serveur au dernier chargement RÉUSSI (knownServerLogIds, persistée dans
+    // db.climbers[i]) — un id présent dans cette empreinte précédente mais absent de la réponse
+    // actuelle a forcément été supprimé (par cet appareil ou un autre) ; un id absent des DEUX est
+    // un candidat légitime à la récupération (jamais vu du serveur). Les suppressions encore en
+    // attente de confirmation (db.pendingDeletes, cf. attemptPendingDeletes) sont explicitement
+    // exclues des deux côtés, pour qu'une suppression déjà déclenchée localement ne réapparaisse
+    // jamais à l'écran pendant qu'on retente l'appel serveur en arrière-plan.
     let recoveredCount = 0;
     const climbersWithLogs = await Promise.all(climbers.map(async c => {
+      const localClimber = localClimbersById.get(c.id);
       const logsRes = await fetch(`/api/logs/${c.id}`, {headers: authHeaders()});
-      const serverLogs = logsRes.ok ? await logsRes.json() : [];
-      const serverIds = new Set(serverLogs.map(l => l.id));
-      const localOnly = ((localClimbersById.get(c.id)?.logs) || []).filter(l => l.id && !serverIds.has(l.id));
-      recoveredCount += localOnly.length;
-      const logs = [...serverLogs, ...localOnly];
-      const merged = {...c, logs, trips: c.trips || [], profile: c.profile || {}, objectives: c.objectives || [], cycleObjectives: c.cycle_objectives || []};
+      let logs, knownServerLogIds;
+      if (!logsRes.ok) {
+        // Échec réseau/serveur pour CE grimpeur : aucune vérité serveur fiable ce coup-ci. On garde
+        // l'état local tel quel (séances ET empreinte précédente inchangés) plutôt que de risquer
+        // de traiter à tort des séances comme supprimées faute de réponse valide — une prochaine
+        // tentative réussie réconciliera normalement (cf. test "échec réseau puis rechargement").
+        logs = localClimber?.logs || [];
+        knownServerLogIds = localClimber?.knownServerLogIds || [];
+      } else {
+        const serverLogs = await logsRes.json();
+        const serverIds = new Set(serverLogs.map(l => l.id));
+        const priorKnownServerIds = new Set(localClimber?.knownServerLogIds || []);
+        const pendingDeleteIds = new Set((db.pendingDeletes || []).filter(p => p.climberId === c.id).map(p => p.logId));
+        const localOnly = (localClimber?.logs || []).filter(l =>
+          l.id && !serverIds.has(l.id) && !priorKnownServerIds.has(l.id) && !pendingDeleteIds.has(l.id)
+        );
+        recoveredCount += localOnly.length;
+        logs = [...serverLogs.filter(l => !pendingDeleteIds.has(l.id)), ...localOnly];
+        knownServerLogIds = Array.from(serverIds);
+      }
+      const merged = {...c, logs, knownServerLogIds, trips: c.trips || [], profile: c.profile || {}, objectives: c.objectives || [], cycleObjectives: c.cycle_objectives || []};
       migrateLegacyGoals(merged);
       return merged;
     }));
@@ -14500,11 +14581,15 @@ document.getElementById('delete-session-btn').onclick=()=>{
   if(!editingId||!confirm('Supprimer cette séance ?'))return;
   const delClimberId=getActive().id, delLogId=editingId;
   getActive().logs=getActive().logs.filter(l=>l.id!==editingId);
-  saveDB();
   // Suppression explicite côté serveur : depuis que /sync est un upsert non destructif (fix
   // "séance effacée"), l'absence d'une séance dans le payload de sync ne suffit plus à la
-  // supprimer côté backend — il faut l'appel DELETE dédié.
-  if (authToken()) fetch(`/api/logs/${delClimberId}/${delLogId}`, {method:'DELETE', headers:authHeaders()}).catch(()=>{});
+  // supprimer côté backend — il faut l'appel DELETE dédié. markLogPendingDelete() (cf. plus haut)
+  // remplace l'ancien fetch tiré à l'aveugle : la suppression reste "en attente" tant qu'elle n'est
+  // pas confirmée par le serveur ; saveDB() → syncToBackend() → attemptPendingDeletes() la tente
+  // (et la retentera automatiquement en cas d'échec réseau, à la prochaine sync ou au prochain
+  // chargement) sans qu'il soit nécessaire de dupliquer l'appel ici.
+  markLogPendingDelete(delClimberId, delLogId);
+  saveDB();
   editingId=null;sessionAscents=[];switchPage('history');
 };
 
@@ -14670,11 +14755,12 @@ function deleteCycle(cycleId, returnToDate) {
   const objectivesToDeleteIds = (climber.cycleObjectives || []).filter(o => o.cycleId === cycleId).map(o => o.id);
   climber.logs = (climber.logs || []).filter(l => !(l.cycleId === cycleId && l.planned));
   climber.cycleObjectives = (climber.cycleObjectives || []).filter(o => o.cycleId !== cycleId);
+  // cf. commentaire sur markLogPendingDelete/attemptPendingDeletes plus haut — suppression en masse
+  // (tout un cycle), même traitement "en attente jusqu'à confirmation" que la suppression d'une
+  // séance seule, plutôt que des fetch tirés à l'aveugle.
+  toDeleteIds.forEach(id => markLogPendingDelete(climber.id, id));
   saveDB();
   if (authToken()) {
-    toDeleteIds.forEach(id => {
-      fetch(`/api/logs/${climber.id}/${id}`, { method: 'DELETE', headers: authHeaders() }).catch(() => {});
-    });
     // cycle_objectives est désormais fusionné par id côté serveur (plus jamais remplacé en bloc —
     // fix "des cycles qui disparaissent" causé par un client resté ouvert avec un état périmé qui
     // écrasait les objectifs ajoutés entretemps par un autre appareil) : la suppression doit donc
@@ -14760,8 +14846,9 @@ function deleteSessionFromDayModal(id, dateStr) {
   if (!confirm(log && log.planned ? 'Retirer cette séance prévue ?' : 'Supprimer cette séance ?')) return;
   const delClimberId = getActive().id;
   getActive().logs = (getActive().logs||[]).filter(l=>l.id!==id);
+  // cf. commentaire sur markLogPendingDelete/attemptPendingDeletes plus haut.
+  markLogPendingDelete(delClimberId, id);
   saveDB();
-  if (authToken()) fetch(`/api/logs/${delClimberId}/${id}`, {method:'DELETE', headers:authHeaders()}).catch(()=>{});
   openDayModal(dateStr);
   if (document.getElementById('cal-grid')) renderCalendar();
   if (document.getElementById('cal2-grid')) renderSimpleCalendar();
@@ -18376,6 +18463,11 @@ async function submitChangePwd() {
     });
     const d = await r.json();
     if (!r.ok) { errEl.textContent = d.error || 'Erreur'; errEl.style.display = ''; return; }
+    // Un changement de mot de passe invalide désormais tous les tokens déjà émis pour ce compte
+    // (cf. password_changed_at côté serveur) — y compris celui qu'on vient d'utiliser pour cet
+    // appel. Le serveur en renvoie un nouveau, valide à partir de maintenant : sans le stocker ici,
+    // le prochain appel réseau (même la sync en arrière-plan) échouerait avec "Session expirée".
+    if (d.token) localStorage.setItem('bv_token', d.token);
     okEl.textContent = 'Mot de passe changé avec succès !';
     okEl.style.display = '';
     setTimeout(() => closeModal('change-pwd-modal'), 2000);
@@ -18792,6 +18884,11 @@ window.initAppData = async function() {
   if (!fromBackend) {
     console.log('📱 Mode hors-ligne — données locales');
   }
+  // Retente toute suppression restée "en attente" d'une session précédente (onglet fermé avant la
+  // fin de la requête, échec réseau...) — cf. attemptPendingDeletes() plus haut. loadFromBackend()
+  // vient déjà d'exclure ces ids de l'affichage ci-dessus ; on tente maintenant de les faire aboutir
+  // pour de bon côté serveur, sans attendre une prochaine action de l'utilisateur.
+  if (fromBackend) attemptPendingDeletes().catch(()=>{});
   applySessionColorOverrides();
   renderColorPicker();
   renderSidebarStats();
