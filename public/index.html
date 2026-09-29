@@ -954,7 +954,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
            Railway) a bien pris effet : horodatage de la dernière modification de ce fichier.
            MAINTENANCE : à mettre à jour (id="app-version-badge") à chaque modification de
            public/index.html, format vAAAA.MM.JJ-HHMM (heure locale du moment de l'édition). -->
-      <h1>Digger <span id="app-version-badge" title="Dernière modification du code — sert à vérifier qu'un déploiement a bien pris effet" style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:0;text-transform:none;vertical-align:super">v2026.09.28-0030</span></h1>
+      <h1>Digger <span id="app-version-badge" title="Dernière modification du code — sert à vérifier qu'un déploiement a bien pris effet" style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:0;text-transform:none;vertical-align:super">v2026.09.29-1005</span></h1>
       <p>Climbing training log</p>
     </div>
   </div>
@@ -9717,14 +9717,17 @@ function renderCoachObjectivesPanel(panelId, listId) {
   if (!panel || !el) return;
   const c = getActive();
   const today = todayStr();
-  const cycles = getClimberCycles(c).filter(cy => cy.done < cy.total || (cy.endDate && cy.endDate >= today) || !cy.endDate);
+  // Retour utilisateur : un cycle incomplet dont la période est passée restait affiché ici
+  // indéfiniment (avec juste un "— échéance dépassée" à côté) — demande explicite : qu'il
+  // disparaisse du panneau dès que sa période se termine, complété ou non, plutôt que de
+  // continuer à s'accumuler en haut de "Cycles en cours".
+  const cycles = getClimberCycles(c).filter(cy => !cy.endDate || cy.endDate >= today);
   if (!cycles.length) { panel.style.display = 'none'; el.innerHTML = ''; return; }
   panel.style.display = '';
   el.innerHTML = cycles.map(cy => {
     const col = colorForCycleId(cy.cycleId);
     const pct = cy.total ? Math.min(100, Math.round((cy.done / cy.total) * 100)) : 0;
     const period = cy.startDate && cy.endDate ? `${fmtDate(cy.startDate)} → ${fmtDate(cy.endDate)}` : '';
-    const overdue = cy.endDate && cy.endDate < today && cy.done < cy.total;
     const pendingObjectives = cy.objectives.filter(o => {
       const doneCount = (c.logs || []).filter(l => l.objectiveId === o.id && !l.planned).length;
       return doneCount < (o.targetCount || 1);
@@ -9744,7 +9747,7 @@ function renderCoachObjectivesPanel(panelId, listId) {
           ${period ? `<span style="font-size:11px;color:var(--muted)">${period}</span>` : ''}
         </div>
         <div style="display:flex;align-items:center;gap:6px">
-          <span style="font-size:11px;color:var(--muted)">${cy.done}/${cy.total} faites${overdue?' — échéance dépassée':''}</span>
+          <span style="font-size:11px;color:var(--muted)">${cy.done}/${cy.total} faites</span>
           <button class="btn sm" style="padding:1px 6px" title="Modifier ce cycle" onclick="openCycleModal('${jsAttr(cy.cycleId)}','')">✏️</button>
           <button class="btn sm" style="padding:1px 6px;color:var(--warm)" title="Supprimer ce cycle" onclick="deleteCycle('${jsAttr(cy.cycleId)}','')">🗑</button>
         </div>
