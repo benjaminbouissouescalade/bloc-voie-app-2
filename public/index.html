@@ -954,7 +954,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
            Railway) a bien pris effet : horodatage de la dernière modification de ce fichier.
            MAINTENANCE : à mettre à jour (id="app-version-badge") à chaque modification de
            public/index.html, format vAAAA.MM.JJ-HHMM (heure locale du moment de l'édition). -->
-      <h1>Digger <span id="app-version-badge" title="Dernière modification du code — sert à vérifier qu'un déploiement a bien pris effet" style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:0;text-transform:none;vertical-align:super">v2026.09.29-1005</span></h1>
+      <h1>Digger <span id="app-version-badge" title="Dernière modification du code — sert à vérifier qu'un déploiement a bien pris effet" style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:0;text-transform:none;vertical-align:super">v2026.09.30-1120</span></h1>
       <p>Climbing training log</p>
     </div>
   </div>
@@ -7992,11 +7992,17 @@ function buildCal2Cell(ds, dayNum, isOther, todayStr, climberCycles) {
           ? `<div style="font-size:11px;font-weight:600;color:var(--text);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(multiLabel2)}">${esc(multiLabel2)}</div>`
           : `<div style="font-size:11px;font-weight:600;color:var(--text);margin-top:2px">🧗 ${dayLogs.length} séances</div>`)
       : '';
-  // Retour utilisateur : "remettre les emoticon sur le calendrier en taille 12,5" — émoticône de
-  // forme physique (l.shape, cf. SHAPE_ICONS) de la première séance FAITE du jour, affichée à côté
-  // de la charge ⚡ (case déjà compacte, pas de place pour une par séance si plusieurs ce jour-là).
-  const shapeIconCell = SHAPE_ICONS[doneLogsForCell[0]?.shape] || '';
-  const shapeTitleCell = { low:'Forme basse', normal:'Forme normale', good:'Bonne forme' }[doneLogsForCell[0]?.shape] || '';
+  // Retour utilisateur : "remettre les emoticon sur le calendrier en taille 12,5" — émoticône
+  // affichée à côté de la charge ⚡ (case déjà compacte, pas de place pour une par séance si
+  // plusieurs ce jour-là). Affichait à l'origine la FORME DU JOUR (l.shape) de la première séance
+  // faite, mais retour utilisateur : "l'émoticône ne change pas sur la vue calendrier, seulement
+  // quand la fenêtre est ouverte" — confusion car l.shape (forme physique déclarée, souvent restée
+  // sur sa valeur par défaut "normale") et l.feeling (ressenti de LA séance : trop facile/facile/
+  // pile/dure/trop dure, cf. FEELING_EMOJI et la fenêtre du jour) sont deux champs différents, et
+  // seul le second reflète vraiment comment la séance s'est passée. On affiche donc désormais le
+  // ressenti ici, pour rester cohérent avec ce que montre la fenêtre du jour au clic.
+  const shapeIconCell = FEELING_EMOJI[doneLogsForCell[0]?.feeling] || '';
+  const shapeTitleCell = { too_easy:'Trop facile', easy:'Facile', right:'Pile', hard:'Dure', too_hard:'Trop dure' }[doneLogsForCell[0]?.feeling] || '';
   const dayAvail2 = getActive() ? availabilityForDate(getActive().id, ds) : [];
   const availBadgeHtml2 = dayAvail2.length
     ? `<div class="cal-avail-badge" title="Dispo déclarée : ${esc(dayAvail2.map(a=>gymNameById(a.gymId)||'salle non précisée').join(', '))}">🏟</div>`
