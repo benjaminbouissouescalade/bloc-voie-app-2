@@ -954,7 +954,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
            Railway) a bien pris effet : horodatage de la dernière modification de ce fichier.
            MAINTENANCE : à mettre à jour (id="app-version-badge") à chaque modification de
            public/index.html, format vAAAA.MM.JJ-HHMM (heure locale du moment de l'édition). -->
-      <h1>Digger <span id="app-version-badge" title="Dernière modification du code — sert à vérifier qu'un déploiement a bien pris effet" style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:0;text-transform:none;vertical-align:super">v2026.09.30-1120</span></h1>
+      <h1>Digger <span id="app-version-badge" title="Dernière modification du code — sert à vérifier qu'un déploiement a bien pris effet" style="font-size:10px;font-weight:600;color:var(--muted);letter-spacing:0;text-transform:none;vertical-align:super">v2026.10.13-1030</span></h1>
       <p>Climbing training log</p>
     </div>
   </div>
@@ -5041,10 +5041,20 @@ const FINGER_LOAD_K = 18;
 // profile.fingerRefWeightKg) et son propre type de préhension (grip, informatif — n'entre pas dans
 // le calcul, comme le grip des tests SmartBoard/réglette). Séries sans % connu (poids de référence
 // pas encore renseigné) : comptent pour 0, plutôt que de fausser la charge sur une estimation.
+// Retour utilisateur : "j'ai diminué le nombre de tirage à 5 [secondes] et cela n'a pas diminué la
+// charge par rapport à quand c'était 7" — la durée du tirage (hangSec) était purement informative.
+// Elle pondère maintenant chaque série proportionnellement, avec 7 s comme référence (le preset
+// "7s/3s" et la durée par défaut d'une nouvelle série) : 7 s → ×1 (aucun changement pour les
+// séances existantes saisies à 7 s), 5 s → ×0,71, 10 s → ×1,43. Durée non saisie → traitée comme 7 s,
+// pour ne pas modifier la charge des séances déjà loguées sans cette info.
+const FINGER_HANG_REF_SEC = 7;
+function fingerHangFactor(hangSec) {
+  return (hangSec > 0 ? hangSec : FINGER_HANG_REF_SEC) / FINGER_HANG_REF_SEC;
+}
 function fingerLoad(log) {
   const b = log.bNoGrade || {};
   if (Array.isArray(b.fingerSeries) && b.fingerSeries.length) {
-    return Math.round(b.fingerSeries.reduce((sum, s) => sum + (s.reps||0) * ((s.pct||0)/100), 0) * FINGER_LOAD_K);
+    return Math.round(b.fingerSeries.reduce((sum, s) => sum + (s.reps||0) * ((s.pct||0)/100) * fingerHangFactor(s.hangSec), 0) * FINGER_LOAD_K);
   }
   // Ancien format agrégé (première version de ce calcul, sans détail poids/préhension par série).
   if (b.fingerSets || b.fingerReps) {
@@ -14373,7 +14383,7 @@ function renderFingerSeriesEditor() {
       </div>
       <div>
         <label style="font-size:10px;color:var(--muted)">${i===0?'Tirage (s)':''}</label>
-        <input class="form-control" type="number" min="0" style="font-size:12px;padding:6px 8px" value="${s.hangSec!=null?s.hangSec:''}" oninput="fingerSeriesRows[${i}].hangSec=this.value===''?null:+this.value">
+        <input class="form-control" type="number" min="0" style="font-size:12px;padding:6px 8px" value="${s.hangSec!=null?s.hangSec:''}" oninput="fingerSeriesRows[${i}].hangSec=this.value===''?null:+this.value;updateLoadPreview()">
       </div>
       <div>
         <label style="font-size:10px;color:var(--muted)">${i===0?'Poids (kg)':''}</label>
@@ -14524,7 +14534,7 @@ function updateLoadPreview(){
     bLoad = Math.round(fingerSeriesRows.reduce((s,row) => {
       const refWeight = fingerRefWeightForHand(row.hand);
       const pct = refWeight && row.weightKg != null ? (row.weightKg/refWeight)*100 : (row.pct||0);
-      return s + (row.reps||0) * (pct/100);
+      return s + (row.reps||0) * (pct/100) * fingerHangFactor(row.hangSec);
     }, 0) * FINGER_LOAD_K);
   } else if (cfg.extraPanel === 'ppg' || cfg.extraPanel === 'footing') {
     // Séance hors escalade (dont footing) : charge = durée × intensité (méthode session-RPE),
