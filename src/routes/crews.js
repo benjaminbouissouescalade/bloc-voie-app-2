@@ -139,6 +139,38 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET /api/crews/debug/overview — diagnostic réservé à l'owner : liste TOUS les partenariats et tous
+// les crews (avec leurs membres) pour comprendre pourquoi deux grimpeurs ne se voient plus (ex.
+// partenariat supprimé en cascade avec un profil, crew manuel vidé, etc.). Lecture seule.
+router.get('/debug/overview', async (req, res) => {
+  if (req.user?.role !== 'owner' && req.user?.role !== 'admin') return res.status(403).json({ error: 'Owner requis' });
+  try {
+    const { rows: partnerships } = await pool.query(
+      `SELECT p.id, a.name AS a_name, a.id AS a_id, b.name AS b_name, b.id AS b_id, p.created_at
+       FROM partnerships p JOIN climbers a ON a.id=p.climber_a JOIN climbers b ON b.id=p.climber_b
+       ORDER BY p.created_at`);
+    const { rows: crews } = await pool.query(
+      `SELECT c.id, c.name, c.auto, c.created_at,
+              COALESCE(json_agg(cl.name ORDER BY cm.joined_at) FILTER (WHERE cl.id IS NOT NULL), '[]') AS members
+       FROM crews c LEFT JOIN crew_members cm ON cm.crew_id=c.id LEFT JOIN climbers cl ON cl.id=cm.climber_id
+       GROUP BY c.id ORDER BY c.created_at`);
+    // Pourquoi un partenaire ne voit pas les séances de l'autre : soit le réglage de confidentialité
+    // "séances" est sur "prive" (le fil et le tableau les masquent alors), soit les séances ne sont pas
+    // réellement en base (jamais synchronisées / supprimées / encore "planned").
+    const { rows: climbers } = await pool.query(
+      `SELECT c.id, c.name, c.profile->'sharing'->>'seances' AS sharing_seances,
+              COUNT(l.id) FILTER (WHERE l.planned=false AND l.deleted=false) AS logs_visibles,
+              COUNT(l.id) FILTER (WHERE l.planned=false AND l.deleted=true) AS logs_supprimes,
+              COUNT(l.id) FILTER (WHERE l.planned=true AND l.deleted=false) AS logs_planifies,
+              MAX(l.date) FILTER (WHERE l.planned=false AND l.deleted=false) AS derniere_seance
+       FROM climbers c LEFT JOIN logs l ON l.climber_id=c.id
+       GROUP BY c.id ORDER BY c.name`);
+    res.json({ partnerships, crews, climbers });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/crews/:crewId/invite — générer un code d'invitation (membres uniquement)
 router.post('/:crewId/invite', requireCrewMembership(), async (req, res) => {
   const code = inviteCode();
