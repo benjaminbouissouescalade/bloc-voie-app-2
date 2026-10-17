@@ -323,7 +323,15 @@ router.get('/feed', async (req, res) => {
     const partnerIds = visible.map(p => p.id);
     if (!partnerIds.length) return res.json([]);
     const { rows: logs } = await pool.query(
-      `SELECT * FROM logs WHERE climber_id = ANY($1) AND planned = false AND deleted = false ORDER BY date DESC, created_at DESC LIMIT 40`,
+      // Bug "Lisa et Agathe ne voient plus leurs séances" : un simple LIMIT 40 global sur la date
+      // laissait les partenaires très actifs (Ben, MIKA : des centaines de séances) accaparer les 40
+      // places, et les séances plus anciennes mais récentes pour les autres (Agathe, Lisa)
+      // disparaissaient du fil. On garde donc les 10 dernières séances de CHAQUE partenaire, puis
+      // on trie le tout par date et on limite à 60.
+      `SELECT * FROM (
+         SELECT l.*, ROW_NUMBER() OVER (PARTITION BY l.climber_id ORDER BY l.date DESC, l.created_at DESC) AS rn
+         FROM logs l WHERE l.climber_id = ANY($1) AND l.planned = false AND l.deleted = false
+       ) t WHERE rn <= 10 ORDER BY date DESC, created_at DESC LIMIT 60`,
       [partnerIds]
     );
     // Retour utilisateur : "pour moi la charge est 320 [...] Lisa voit autre chose [621]" — même
