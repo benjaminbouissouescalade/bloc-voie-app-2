@@ -4792,6 +4792,7 @@ Utilise les raccourcis ci-dessus ou pose-moi directement une question. Par exemp
     </div>
     <div class="modal-body" style="display:flex;flex-direction:column;gap:10px">
       <button class="btn primary" style="width:100%" id="day-quickpick-sessions-btn">🧗 Séances de ce jour</button>
+      <button class="btn" style="width:100%" id="day-quickpick-sick-btn"></button>
       <button class="btn" style="width:100%" id="day-quickpick-cycle-btn"></button>
     </div>
   </div>
@@ -7588,7 +7589,8 @@ function buildCalCell(ds, dayNum, isOther, todayStr, climberCycles) {
   // jour, cf. pendingTestAssignmentsOnDate / renderDayModalTestAssignments pour le détail.
   const pendingTestsForCell = pendingTestAssignmentsOnDate(ds);
   const testBadgeHtml = pendingTestsForCell.length ? `<div class="cal-test-badge" title="${pendingTestsForCell.length} test${pendingTestsForCell.length>1?'s':''} prévu${pendingTestsForCell.length>1?'s':''}">🧪</div>` : '';
-  cell.innerHTML = `${plannedLogsForCell.length?`<div class="cal-planned-badge" title="${plannedLogsForCell.length} séance${plannedLogsForCell.length>1?'s':''} prévue${plannedLogsForCell.length>1?'s':''}">📌</div>`:''}${availBadgeHtml}${cycleBadgeHtml}${testBadgeHtml}<div class="cal-num">${dayNum}</div>${cycleTagsHtmlForDate(ds, climberCycles)}<div class="cal-dots">${dayLogs.map(l=>`<div class="cal-dot${l.planned?' cal-dot-planned':''}" style="${l.planned?`border-color:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`:`background:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`}" title="${esc(sessionDisplayLabel(l))}${l.planned?' (prévue)':''}"></div>`).join('')}</div>${typeLabelHtml}${load?`<div style="font-size:11px;font-weight:800;color:var(--text);margin-top:3px">⚡ ${load}</div>`:''}${hasInjury?`<div style="font-size:9px;font-weight:700;color:var(--warm);margin-top:2px">🩹 bobo</div>`:''}`;
+  cell.innerHTML = `${plannedLogsForCell.length?`<div class="cal-planned-badge" title="${plannedLogsForCell.length} séance${plannedLogsForCell.length>1?'s':''} prévue${plannedLogsForCell.length>1?'s':''}">📌</div>`:''}${availBadgeHtml}${cycleBadgeHtml}${testBadgeHtml}<div class="cal-num">${dayNum}</div>${cycleTagsHtmlForDate(ds, climberCycles)}<div class="cal-dots">${dayLogs.map(l=>`<div class="cal-dot${l.planned?' cal-dot-planned':''}" style="${l.planned?`border-color:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`:`background:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`}" title="${esc(sessionDisplayLabel(l))}${l.planned?' (prévue)':''}"></div>`).join('')}</div>${typeLabelHtml}${load?`<div style="font-size:11px;font-weight:800;color:var(--text);margin-top:3px">⚡ ${load}</div>`:''}${hasInjury?`<div style="font-size:9px;font-weight:700;color:var(--warm);margin-top:2px">🩹 bobo</div>`:''}${isSickDay(getActive(), ds)?`<div style="font-size:9px;font-weight:700;color:var(--warm);margin-top:2px" title="Malade">🤒 malade</div>`:''}`;
+  if (isSickDay(getActive(), ds)) cell.style.boxShadow = 'inset 0 0 0 2px rgba(196,80,26,.45)';
   cell.onclick = () => openDayQuickPick(ds);
   cell.ondragover = (e) => { e.preventDefault(); cell.classList.add('drag-over'); };
   cell.ondragleave = () => cell.classList.remove('drag-over');
@@ -7779,6 +7781,24 @@ function toggleCycleDay(ds) {
   if (typeof renderSimpleCalendar === 'function' && document.getElementById('cal2-grid')) renderSimpleCalendar();
 }
 window.toggleCycleDay = toggleCycleDay;
+// Jours "malade" : liste de dates dans profile.sickDays (JSONB profil, synchronisé comme le reste).
+// Marquable uniquement par l'athlète sur son propre Carnet ; visible aussi côté Coach (le coach doit
+// savoir qu'un athlète est malade, contrairement au suivi du cycle qui reste privé par défaut).
+function isSickDay(c, ds) {
+  return !!(c && c.profile && Array.isArray(c.profile.sickDays) && c.profile.sickDays.includes(ds));
+}
+function toggleSickDay(ds) {
+  const c = getActive();
+  if (!isSelfClimber(c)) return;
+  c.profile = c.profile || {};
+  const days = c.profile.sickDays = Array.isArray(c.profile.sickDays) ? c.profile.sickDays : [];
+  const i = days.indexOf(ds);
+  if (i === -1) days.push(ds); else days.splice(i, 1);
+  saveDB();
+  renderCalendar();
+  if (typeof renderSimpleCalendar === 'function' && document.getElementById('cal2-grid')) renderSimpleCalendar();
+}
+window.toggleSickDay = toggleSickDay;
 // Cycles dont la période (bornée par les dates de ses séances fixes et/ou de ses objectifs)
 // couvre la date donnée — sert à étiqueter une case de calendrier et à proposer, au clic sur un
 // jour, d'y remplir un objectif du cycle correspondant.
@@ -8020,7 +8040,8 @@ function buildCal2Cell(ds, dayNum, isOther, todayStr, climberCycles) {
   const cycleBadgeHtml2 = shouldShowCycleBadge(getActive(), ds) ? `<div class="cal-cycle-badge" title="Règles">🩸</div>` : '';
   const pendingTestsForCell2 = pendingTestAssignmentsOnDate(ds);
   const testBadgeHtml2 = pendingTestsForCell2.length ? `<div class="cal-test-badge" title="${pendingTestsForCell2.length} test${pendingTestsForCell2.length>1?'s':''} prévu${pendingTestsForCell2.length>1?'s':''}">🧪</div>` : '';
-  cell.innerHTML = `${plannedLogsForCell.length?`<div class="cal-planned-badge" title="${plannedLogsForCell.length} séance${plannedLogsForCell.length>1?'s':''} prévue${plannedLogsForCell.length>1?'s':''}">📌</div>`:''}${availBadgeHtml2}${cycleBadgeHtml2}${testBadgeHtml2}<div class="cal-num">${dayNum}</div>${cycleTagsHtmlForDate(ds, climberCycles)}<div class="cal-dots">${dayLogs.map(l=>`<div class="cal-dot${l.planned?' cal-dot-planned':''}" style="${l.planned?`border-color:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`:`background:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`}" title="${esc(sessionDisplayLabel(l))}${l.planned?' (prévue)':''}"></div>`).join('')}</div>${typeLabelHtml2}${load?`<div style="font-size:11px;font-weight:800;color:var(--text);margin-top:3px;display:flex;align-items:center;gap:4px">⚡ ${load}${shapeIconCell?`<span style="font-size:12.5px" title="${esc(shapeTitleCell)}">${shapeIconCell}</span>`:''}</div>`:''}${hasInjury?`<div style="font-size:9px;font-weight:700;color:var(--warm);margin-top:2px">🩹 bobo</div>`:''}`;
+  cell.innerHTML = `${plannedLogsForCell.length?`<div class="cal-planned-badge" title="${plannedLogsForCell.length} séance${plannedLogsForCell.length>1?'s':''} prévue${plannedLogsForCell.length>1?'s':''}">📌</div>`:''}${availBadgeHtml2}${cycleBadgeHtml2}${testBadgeHtml2}<div class="cal-num">${dayNum}</div>${cycleTagsHtmlForDate(ds, climberCycles)}<div class="cal-dots">${dayLogs.map(l=>`<div class="cal-dot${l.planned?' cal-dot-planned':''}" style="${l.planned?`border-color:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`:`background:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`}" title="${esc(sessionDisplayLabel(l))}${l.planned?' (prévue)':''}"></div>`).join('')}</div>${typeLabelHtml2}${load?`<div style="font-size:11px;font-weight:800;color:var(--text);margin-top:3px;display:flex;align-items:center;gap:4px">⚡ ${load}${shapeIconCell?`<span style="font-size:12.5px" title="${esc(shapeTitleCell)}">${shapeIconCell}</span>`:''}</div>`:''}${hasInjury?`<div style="font-size:9px;font-weight:700;color:var(--warm);margin-top:2px">🩹 bobo</div>`:''}${isSickDay(getActive(), ds)?`<div style="font-size:9px;font-weight:700;color:var(--warm);margin-top:2px" title="Malade">🤒 malade</div>`:''}`;
+  if (isSickDay(getActive(), ds)) cell.style.boxShadow = 'inset 0 0 0 2px rgba(196,80,26,.45)';
   cell.onclick = () => openDayQuickPick(ds);
   return { cell, dayLogs, isOther };
 }
@@ -14980,15 +15001,23 @@ function openDayModal(dateStr){
 function openDayQuickPick(ds) {
   const c = getActive();
   const s = cycleTrackingSettings(c);
-  if (appMode === 'coach' || !isSelfClimber(c) || !s.enabled) { openDayModal(ds); return; }
+  // Le choix rapide s'ouvre maintenant toujours sur son propre Carnet (pour pouvoir marquer "malade"),
+  // plus seulement quand le suivi du cycle est activé.
+  if (appMode === 'coach' || !isSelfClimber(c)) { openDayModal(ds); return; }
   const d = new Date(ds+'T00:00:00');
   document.getElementById('day-quickpick-title').textContent = d.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
   const dayLogs = getLogs().filter(l => l.date === ds);
   const sessBtn = document.getElementById('day-quickpick-sessions-btn');
   sessBtn.textContent = dayLogs.length ? `🧗 Voir les ${dayLogs.length} séance${dayLogs.length>1?'s':''} de ce jour` : '+ Ajouter une séance ce jour';
   sessBtn.onclick = () => { closeModal('day-quickpick-modal'); openDayModal(ds); };
+  const sickBtn = document.getElementById('day-quickpick-sick-btn');
+  const sick = isSickDay(c, ds);
+  sickBtn.textContent = sick ? '🤒 Retirer "malade" de ce jour' : '🤒 Je suis malade ce jour';
+  sickBtn.className = sick ? 'btn danger' : 'btn';
+  sickBtn.onclick = () => { toggleSickDay(ds); closeModal('day-quickpick-modal'); };
   const marked = s.days.includes(ds);
   const cycleBtn = document.getElementById('day-quickpick-cycle-btn');
+  cycleBtn.style.display = s.enabled ? '' : 'none';
   cycleBtn.textContent = marked ? '🩸 Retirer "règles" de ce jour' : '🩸 Marquer début des règles';
   cycleBtn.className = marked ? 'btn danger' : 'btn';
   cycleBtn.style.width = '100%';
