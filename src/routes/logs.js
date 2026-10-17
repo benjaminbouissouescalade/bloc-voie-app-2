@@ -266,9 +266,20 @@ router.post('/:climberId/sync', async (req, res) => {
   try {
     await client.query('BEGIN');
     const rejected = [];
+    // Bug "les séances d'Agathe ne remontent plus depuis le 26 sept." : tout le lot partait dans UNE
+    // seule transaction — une seule séance invalide (ex. durée/intensité non entière, date mal
+    // formée...) faisait échouer TOUT le lot (ROLLBACK), et comme le client renvoie le même lot à
+    // chaque synchronisation, plus AUCUNE séance de ce grimpeur n'arrivait jamais en base.
+    // Désormais : un SAVEPOINT par séance — une séance invalide est ignorée (et signalée au client),
+    // les autres sont enregistrées normalement. Durée/intensité sont aussi converties en entiers.
+    const failed = [];
     for (const log of logs) {
       if (!log.id || !log.date) continue;
       if (log.planned && denialIfPlanned) { rejected.push(log.id); continue; }
+      log.minutes = Math.round(Number(log.minutes)) || 90;
+      log.intensity = Math.round(Number(log.intensity)) || 3;
+      await client.query('SAVEPOINT one_log');
+      try {
       const result = await client.query(
         `INSERT INTO logs (id, climber_id, date, type, support, minutes, intensity, shape, location, notes, ascents, b_no_grade, planned, bank_ref, cycle_id, cycle_name, source, assigned_by_coach_id, flex_goal, objective_id, injury, injury_note, custom_name, checklist_done, feeling, client_updated_at)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
@@ -287,8 +298,20 @@ router.post('/:climberId/sync', async (req, res) => {
          log.source||'self', log.assignedByCoachId||null, log.flexGoal||null, log.objectiveId||null,
          !!log.injury, log.injuryNote||'', log.customName||'', JSON.stringify(log.checklistDone||[]), log.feeling||'', log.clientUpdatedAt||0]
       );
+      await client.query('RELEASE SAVEPOINT one_log');
+      } catch (logErr) {
+        await client.query('ROLLBACK TO SAVEPOINT one_log');
+        failed.push({ id: log.id, date: log.date, error: logErr.message });
+        console.warn(`[sync logs] séance ${log.id} (${log.date}) refusée pour ${req.params.climberId} : ${logErr.message}`);
+      }
     }
     await client.query('COMMIT');
+    // Les séances valides sont enregistrées. S'il y en a eu d'invalides, on répond en erreur (le client
+    // garde alors l'indicateur "Non synchronisé" et réessaie) plutôt que de les faire passer pour
+    // confirmées à tort.
+    if (failed.length) {
+      return res.status(422).json({ ok: false, synced: logs.length - rejected.length - failed.length, rejected, failed, error: failed[0].error });
+    }
     res.json({ ok: true, synced: logs.length - rejected.length, rejected });
   } catch (err) {
     await client.query('ROLLBACK');
