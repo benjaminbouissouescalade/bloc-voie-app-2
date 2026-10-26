@@ -1096,6 +1096,9 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
     <div id="sync-status-badge" title="État de la synchronisation avec le serveur" style="font-size:11px;margin-bottom:8px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
     <!-- "Gérer les grimpeurs" retiré du panneau bas : redondant avec le clic sur la carte du
          grimpeur actif en haut de la sidebar, qui ouvre déjà la même modale (openClimberModal()). -->
+   <button class="btn sm" style="width:100%;justify-content:center;margin-bottom:6px" onclick="exportActiveClimberData()" title="Télécharge une sauvegarde complète (séances, profil, objectifs) du grimpeur affiché">
+  💾 Exporter les données
+</button>
    <button class="btn sm" style="width:100%;justify-content:center;margin-bottom:6px" onclick="openImport8aModal()">
   📥 Importer 8a.nu
 </button>
@@ -1111,6 +1114,8 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 
 <!-- Main -->
 <main class="main">
+
+<div id="sync-error-banner" style="display:none;position:sticky;top:0;z-index:60;background:#b3321a;color:#fff;padding:10px 14px;border-radius:10px;margin-bottom:12px;font-size:13px;align-items:center;gap:12px;flex-wrap:wrap"></div>
 
 <div id="preview-mode-banner" style="display:none;position:sticky;top:0;z-index:50;background:#2d5a3d;color:#fff;padding:10px 16px;border-radius:10px;margin-bottom:16px;font-size:13px;font-weight:600;align-items:center;justify-content:space-between;gap:12px">
   <span>👁 Mode aperçu — vue de <span id="preview-mode-name">l'athlète</span> côté athlète</span>
@@ -6059,8 +6064,62 @@ function paintSyncStatusEl(el, status, onRetry) {
 }
 
 window.syncStatus = 'saved';
+// Sauvegarde : télécharge un fichier JSON avec toutes les données du grimpeur affiché (séances,
+// profil, objectifs, voyages, cycles) — pour garder une copie en dehors du serveur, ou transmettre
+// son dossier. Les champs techniques de synchronisation sont retirés.
+function exportActiveClimberData() {
+  const c = getActive();
+  if (!c) { alert('Aucun grimpeur sélectionné.'); return; }
+  const data = {
+    exportedAt: new Date().toISOString(),
+    app: 'Digger',
+    climber: {
+      id: c.id, name: c.name, level: c.level, color: c.color,
+      profile: c.profile || {}, objectives: c.objectives || [], trips: c.trips || [],
+      cycleObjectives: c.cycleObjectives || [],
+      logs: (c.logs || [])
+    }
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const safeName = String(c.name || 'grimpeur').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-zA-Z0-9]+/g, '_');
+  a.href = url;
+  a.download = `digger_${safeName}_${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+window.exportActiveClimberData = exportActiveClimberData;
+
+// Nombre de séances de l'utilisateur dont la dernière version n'est pas confirmée par le serveur.
+function countUnsyncedLogs() {
+  const me = (db.climbers || []).find(c => c.id === window.currentUser?.climberId);
+  if (!me) return 0;
+  const pending = new Set((db.pendingDeletes || []).map(p => p.logId));
+  const pushed = me.pushedLogVersions || {};
+  return (me.logs || []).filter(l => l.id && !pending.has(l.id) && (pushed[l.id] || 0) < (l.clientUpdatedAt || 0)).length;
+}
+// Bannière visible en haut de toutes les pages (donc aussi sur téléphone, où le badge de la sidebar
+// est caché dans le menu) quand des séances ne sont pas enregistrées sur le serveur : retour
+// "les séances d'Agathe n'arrivaient jamais sur le serveur sans qu'on le voie".
+function updateSyncErrorBanner(status) {
+  const el = document.getElementById('sync-error-banner');
+  if (!el) return;
+  const n = countUnsyncedLogs();
+  if (status === 'error' && n > 0) {
+    el.style.display = 'flex';
+    el.innerHTML = `<span style="flex:1;min-width:200px">⚠️ <strong>${n} séance${n>1?'s':''} non enregistrée${n>1?'s':''} sur le serveur</strong> — elles sont gardées sur cet appareil, ne vide pas le navigateur.${window.lastSyncError ? `<br><span style="font-size:12px;opacity:.85">Détail : ${esc(window.lastSyncError)}</span>` : ''}</span>
+      <button class="btn sm" onclick="syncToBackend().catch(()=>{})">Réessayer</button>`;
+  } else {
+    el.style.display = 'none';
+    el.innerHTML = '';
+  }
+}
 function setSyncStatus(status) {
   window.syncStatus = status;
+  updateSyncErrorBanner(status);
   paintSyncStatusEl(document.getElementById('sync-status-badge'), status, () => { syncToBackend().catch(()=>{}); });
   // L'indicateur par séance (formulaire "Nouvelle séance"/édition) reflète un état DIFFÉRENT (celui
   // de CETTE séance précise, via logSyncState()) — pas forcément le même que l'état global agrégé
@@ -6218,11 +6277,24 @@ async function doSync() {
       try {
         const res = await fetch('/api/climbers', {
           method: 'POST', headers: authHeaders(),
-          body: JSON.stringify({id:c.id, name:c.name, color:c.color, level:c.level, trips:c.trips||[], profile:c.profile||{}, objectives:c.objectives||[], cycleObjectives:c.cycleObjectives||[]})
+          // baseUpdatedAt : version du grimpeur reçue du serveur — permet au serveur de repérer une copie
+          // locale PÉRIMÉE (cf. climbers.js, tâche #391) au lieu d'écraser un profil plus récent.
+          body: JSON.stringify({id:c.id, name:c.name, color:c.color, level:c.level, trips:c.trips||[], profile:c.profile||{}, objectives:c.objectives||[], cycleObjectives:c.cycleObjectives||[], baseUpdatedAt: c.updated_at || null})
         });
         if (res.status === 401 || res.status === 403) anyAuthError = true;
         else if (!res.ok) anyError = true;
-        else db._syncedClimberProfile[c.id] = profileSnapshot;
+        else {
+          db._syncedClimberProfile[c.id] = profileSnapshot;
+          try {
+            const saved = await res.json();
+            if (saved && saved.updated_at) c.updated_at = saved.updated_at;
+            if (saved && saved.stale && saved.profile) {
+              // Notre copie était périmée : on adopte le profil fusionné renvoyé par le serveur.
+              c.profile = saved.profile;
+              db._syncedClimberProfile[c.id] = climberProfileSyncSnapshot(c);
+            }
+          } catch (e) { /* réponse non lisible : pas bloquant */ }
+        }
       } catch (e) { anyError = true; }
     }
 
@@ -6256,10 +6328,15 @@ async function doSync() {
           method: 'POST', headers: authHeaders(),
           body: JSON.stringify({logs: dirtyLogs})
         });
-        if (res.status === 401 || res.status === 403) { anyAuthError = true; for (const s of sentVersions) c.logSyncErrors[s.id] = true; }
-        else if (!res.ok) { anyError = true; for (const s of sentVersions) c.logSyncErrors[s.id] = true; }
+        if (res.status === 401 || res.status === 403) { anyAuthError = true; window.lastSyncError = 'Connexion expirée — reconnecte-toi'; for (const s of sentVersions) c.logSyncErrors[s.id] = true; }
+        else if (!res.ok) {
+          anyError = true;
+          // Message du serveur (ex. séance refusée) gardé pour l'afficher dans la bannière d'alerte.
+          try { const j = await res.json(); window.lastSyncError = j && j.error ? j.error : ('Erreur serveur (' + res.status + ')'); } catch (e2) { window.lastSyncError = 'Erreur serveur (' + res.status + ')'; }
+          for (const s of sentVersions) c.logSyncErrors[s.id] = true;
+        }
         else for (const s of sentVersions) c.pushedLogVersions[s.id] = Math.max(c.pushedLogVersions[s.id] || 0, s.sentAt);
-      } catch (e) { anyError = true; for (const s of sentVersions) c.logSyncErrors[s.id] = true; }
+      } catch (e) { anyError = true; window.lastSyncError = 'Pas de connexion au serveur'; for (const s of sentVersions) c.logSyncErrors[s.id] = true; }
     }
   }
 
@@ -12351,7 +12428,9 @@ async function partnerAccept() {
     if (!r.ok) { partnerShowError(d.error || 'Erreur'); return; }
     codeEl.value = '';
     partnerShowSuccess(`Tu es maintenant connecté avec ${esc(d.partner?.name || 'ce partenaire')} !`);
+    if (d.partner?.id) markNoticeSeen('partner', '', d.partner.id); // c'est moi qui ai saisi le code
     renderPartnersPanel();
+    loadPartnersForNotices();
   } catch (e) { partnerShowError('Erreur réseau'); }
 }
 window.partnerAccept = partnerAccept;
@@ -12461,7 +12540,8 @@ function updateCrewRequestBadge(count) {
   if (typeof count === 'number') updateCrewRequestBadge._reqCount = count;
   const reqCount = updateCrewRequestBadge._reqCount || 0;
   const pending = pendingProposedForMe();
-  const total = reqCount + pending.length;
+  const notices = activityNotices();
+  const total = reqCount + pending.length + notices.length;
   const navBadge = document.getElementById('nav-crew-request-badge');
   if (navBadge) {
     navBadge.style.display = total > 0 ? '' : 'none';
@@ -12489,9 +12569,10 @@ function updateCrewRequestBadge(count) {
       pending.forEach(p => {
         lines.push(`🧗 <strong>${esc(p.createdByName)}</strong> te propose une séance : ${esc(fmtDate(p.date))} — ${esc(proposedLabel(p))}`);
       });
+      const noticeHtml = notices.map(n => `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span style="flex:1;min-width:160px">${n.text}</span><button class="btn sm" onclick="dismissNotice('${n.kind}','${n.pid || ''}','${n.cid}')">OK</button></div>`).join('');
       banner.style.display = 'flex';
-      banner.innerHTML = `<div style="flex:1;min-width:200px;font-size:13.5px;display:flex;flex-direction:column;gap:4px">${lines.map(l => `<div>${l}</div>`).join('')}</div>
-        <button class="btn sm primary" onclick="switchPage('community')">Voir et répondre</button>`;
+      banner.innerHTML = `<div style="flex:1;min-width:200px;font-size:13.5px;display:flex;flex-direction:column;gap:6px">${lines.map(l => `<div>${l}</div>`).join('')}${noticeHtml}</div>
+        ${(reqCount > 0 || pending.length > 0) ? `<button class="btn sm primary" onclick="switchPage('community')">Voir et répondre</button>` : ''}`;
     } else {
       banner.style.display = 'none';
       banner.innerHTML = '';
@@ -12509,7 +12590,9 @@ async function partnerAcceptRequest(id) {
     const d = await r.json();
     if (!r.ok) { partnerShowError(d.error || 'Erreur'); return; }
     partnerShowSuccess(`Tu es maintenant connecté avec ${esc(d.partner?.name || 'ce partenaire')} !`);
+    if (d.partner?.id) markNoticeSeen('partner', '', d.partner.id); // c'est moi qui ai accepté : pas de notification
     renderPartnersPanel();
+    loadPartnersForNotices();
   } catch (e) { partnerShowError('Erreur réseau'); }
 }
 window.partnerAcceptRequest = partnerAcceptRequest;
@@ -12697,6 +12780,10 @@ async function saveProposedSession() {
     const d = await r.json();
     if (!r.ok) { errEl.textContent = d.error || 'Erreur lors de la création.'; errEl.style.display = 'block'; return; }
     closeModal('propose-session-modal');
+    // Le créateur est le seul participant à la création : on le note tout de suite comme "déjà vu"
+    // pour que le premier invité qui rejoint te déclenche bien une notification.
+    const meNow = myClimberForNotices();
+    if (meNow && d.id) { const sn = seenNoticesOf(meNow); sn.proposals[d.id] = [meNow.id]; saveDB(); }
     renderUpcomingSessionsPanel();
   } catch (e) { errEl.textContent = 'Erreur réseau.'; errEl.style.display = 'block'; }
 }
@@ -12729,6 +12816,88 @@ function setProposalDeclined(id, declined) {
   me.profile.declinedProposals = Array.from(set);
   saveDB();
 }
+// ═══ Notifications "retour" pour celui qui invite ═══
+// Retour utilisateur : "si j'envoie une invitation à Agathe ou Lisa et qu'elle accepte, est-ce que je
+// reçois une notification ?" — oui désormais, pour (1) un participant qui rejoint ta séance proposée
+// et (2) un nouveau partenaire connecté. Rien en base : l'app retient ce que tu as déjà vu dans
+// profile.seenNotices ({ proposals: { idProposition: [idsDéjàVus] }, partners: [idsDéjàVus] }), qui
+// se synchronise avec ton profil. Au premier chargement, l'état actuel est enregistré SANS notifier
+// (sinon tout l'existant s'afficherait d'un coup).
+let partnerListForNotices = null;
+function myClimberForNotices() {
+  return (db.climbers || []).find(c => c.id === window.currentUser?.climberId) || null;
+}
+function seenNoticesOf(me) {
+  me.profile = me.profile || {};
+  if (!me.profile.seenNotices) me.profile.seenNotices = { proposals: {} };
+  if (!me.profile.seenNotices.proposals) me.profile.seenNotices.proposals = {};
+  return me.profile.seenNotices;
+}
+function initSeenNotices() {
+  const me = myClimberForNotices();
+  if (!me) return;
+  const sn = seenNoticesOf(me);
+  let changed = false;
+  (proposedCalCache || []).filter(p => p.isMine && !sn.proposals[p.id]).forEach(p => {
+    sn.proposals[p.id] = (p.participants || []).map(x => x.id);
+    changed = true;
+  });
+  if (!Array.isArray(sn.partners) && Array.isArray(partnerListForNotices)) {
+    sn.partners = partnerListForNotices.map(x => x.id);
+    changed = true;
+  }
+  if (changed) saveDB();
+}
+function activityNotices() {
+  const me = myClimberForNotices();
+  if (!me) return [];
+  const sn = (me.profile && me.profile.seenNotices) || {};
+  const out = [];
+  (proposedCalCache || []).filter(p => p.isMine).forEach(p => {
+    const seen = sn.proposals && sn.proposals[p.id];
+    if (!seen) return;
+    (p.participants || []).filter(x => x.id !== me.id && !seen.includes(x.id)).forEach(x => {
+      out.push({ kind: 'prop', pid: p.id, cid: x.id, text: `✅ <strong>${esc(x.name)}</strong> participe à ta séance du ${esc(fmtDate(p.date))} (${esc((SESSION_TYPES[p.type]||SESSION_TYPES.autre).label)})` });
+    });
+  });
+  if (Array.isArray(sn.partners) && Array.isArray(partnerListForNotices)) {
+    partnerListForNotices.filter(pt => !sn.partners.includes(pt.id)).forEach(pt => {
+      out.push({ kind: 'partner', cid: pt.id, text: `🤝 <strong>${esc(pt.name)}</strong> est maintenant ton partenaire` });
+    });
+  }
+  return out;
+}
+function markNoticeSeen(kind, pid, cid) {
+  const me = myClimberForNotices();
+  if (!me) return;
+  const sn = seenNoticesOf(me);
+  if (kind === 'prop') {
+    const arr = sn.proposals[pid] = sn.proposals[pid] || [];
+    if (!arr.includes(cid)) arr.push(cid);
+  } else {
+    sn.partners = Array.isArray(sn.partners) ? sn.partners : [];
+    if (!sn.partners.includes(cid)) sn.partners.push(cid);
+  }
+  saveDB();
+}
+function dismissNotice(kind, pid, cid) {
+  markNoticeSeen(kind, pid, cid);
+  updateCrewRequestBadge();
+}
+window.dismissNotice = dismissNotice;
+async function loadPartnersForNotices() {
+  if (!authToken()) return;
+  try {
+    const r = await fetch('/api/partners', { headers: authHeaders() });
+    if (!r.ok) return;
+    partnerListForNotices = await r.json();
+    initSeenNotices();
+    updateCrewRequestBadge();
+  } catch (e) { /* best-effort */ }
+}
+window.loadPartnersForNotices = loadPartnersForNotices;
+setInterval(() => { if (authToken() && !document.hidden) loadPartnersForNotices(); }, 60000);
+
 function proposedOnDate(c, ds, all) {
   if (!c || !isSelfClimber(c) || appMode === 'coach') return [];
   const declined = new Set(declinedProposalIds(c));
@@ -12796,6 +12965,7 @@ async function loadProposedForCalendar() {
     const r = await fetch('/api/proposed-sessions', { headers: authHeaders() });
     if (!r.ok) return;
     proposedCalCache = await r.json();
+    initSeenNotices();
     syncProposedToLogs();
     if (typeof updateCrewRequestBadge === 'function') updateCrewRequestBadge();
     if (typeof renderCalendar === 'function') renderCalendar();
@@ -19688,6 +19858,7 @@ window.initAppData = async function() {
   // visible dès la connexion, pas seulement si on pense à ouvrir Communauté → Feed.
   loadPartnerRequests();
   loadProposedForCalendar();
+  loadPartnersForNotices();
 };
 
 // ═══════════════ BANDEAU NEWS + ACTIVITÉ DES ATHLÈTES ═══════════════
