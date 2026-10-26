@@ -1115,7 +1115,13 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 <!-- Main -->
 <main class="main">
 
-<div id="sync-error-banner" style="display:none;position:sticky;top:0;z-index:60;background:#b3321a;color:#fff;padding:10px 14px;border-radius:10px;margin-bottom:12px;font-size:13px;align-items:center;gap:12px;flex-wrap:wrap"></div>
+<!-- Bandeau "ENVIRONNEMENT DE TEST" : s'affiche uniquement quand l'adresse du site contient "staging"
+     (copie de test séparée de la production, cf. Railway → environnement "staging") — pour ne jamais
+     confondre les deux et ne pas saisir de vraies données dans la copie de test. -->
+<div id="env-banner" style="display:none;background:#e8890c;color:#fff;font-weight:700;text-align:center;padding:6px 10px;font-size:12.5px;letter-spacing:.04em">⚠️ ENVIRONNEMENT DE TEST — pas la vraie application, les données ici sont fictives</div>
+<script>if (/staging/i.test(location.hostname)) document.getElementById('env-banner').style.display = 'block';</script>
+
+<div id="sync-error-banner"style="display:none;position:sticky;top:0;z-index:60;background:#b3321a;color:#fff;padding:10px 14px;border-radius:10px;margin-bottom:12px;font-size:13px;align-items:center;gap:12px;flex-wrap:wrap"></div>
 
 <div id="preview-mode-banner" style="display:none;position:sticky;top:0;z-index:50;background:#2d5a3d;color:#fff;padding:10px 16px;border-radius:10px;margin-bottom:16px;font-size:13px;font-weight:600;align-items:center;justify-content:space-between;gap:12px">
   <span>👁 Mode aperçu — vue de <span id="preview-mode-name">l'athlète</span> côté athlète</span>
