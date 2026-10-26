@@ -33,6 +33,7 @@ const source = [
   extractFunction('async function attemptDelete('),
   extractFunction('async function attemptPendingDeletes('),
   extractFunction('async function loadFromBackend('),
+  extractFunction('async function loadFromBackendUnlocked('),
 ].join('\n\n');
 
 function runInSandbox({ fetchImpl, storageBacking = {} }) {
@@ -51,6 +52,11 @@ function runInSandbox({ fetchImpl, storageBacking = {} }) {
     authHeaders: () => ({ 'Content-Type': 'application/json', Authorization: 'Bearer fake-token' }),
     refreshCurrentUser: () => sandbox.window.currentUser,
     migrateLegacyGoals: () => {}, // hors-sujet pour ces tests, no-op fidèle au comportement neutre
+    // loadFromBackendUnlocked() relance syncToBackend() quand elle a récupéré des séances
+    // locales-uniquement (recoveredCount>0, cf. commentaire dans le vrai code) — stub neutre ici,
+    // couvert séparément par test/frontend-sync.test.js.
+    syncToBackend: () => Promise.resolve(),
+    runExclusive: fn => fn(), // pas de verrou à tester ici, cf. test/frontend-sync.test.js
     db: { climbers: [], sessionBank: [], activeId: null, pendingDeletes: [] }
   };
   sandbox.globalThis = sandbox;
@@ -72,7 +78,7 @@ test('scénario 4a — échec réseau : la suppression reste en attente (retenta
   const sandbox = runInSandbox({ fetchImpl: async () => { throw new Error('réseau coupé'); } });
   sandbox.markLogPendingDelete('c_test', 'log_x');
   const ok = await sandbox.attemptDelete('c_test', 'log_x');
-  assert.equal(ok, false);
+  assert.equal(ok, 'error');
   assert.equal(JSON.stringify(sandbox.db.pendingDeletes), JSON.stringify([{ climberId: 'c_test', logId: 'log_x' }]), 'doit rester en attente après un échec réseau');
 });
 
@@ -82,7 +88,7 @@ test('scénario 4a bis — un fetch qui aboutit mais renvoie une erreur HTTP n\'
   });
   sandbox.markLogPendingDelete('c_test', 'log_y');
   const ok = await sandbox.attemptDelete('c_test', 'log_y');
-  assert.equal(ok, false);
+  assert.equal(ok, 'error');
   assert.equal(JSON.stringify(sandbox.db.pendingDeletes), JSON.stringify([{ climberId: 'c_test', logId: 'log_y' }]));
 });
 
@@ -92,7 +98,7 @@ test('un DELETE confirmé (200 + {ok:true}) retire bien la suppression de la lis
   });
   sandbox.markLogPendingDelete('c_test', 'log_z');
   const ok = await sandbox.attemptDelete('c_test', 'log_z');
-  assert.equal(ok, true);
+  assert.equal(ok, 'ok');
   assert.equal(JSON.stringify(sandbox.db.pendingDeletes), '[]');
 });
 

@@ -27,7 +27,7 @@ function resetFakeDb() {
 function fakeQuery(sql, params = []) {
   const s = sql.replace(/\s+/g, ' ').trim();
 
-  if (s === 'BEGIN' || s === 'COMMIT' || s === 'ROLLBACK') return { rows: [], rowCount: 0 };
+  if (s === 'BEGIN' || s === 'COMMIT' || s === 'ROLLBACK' || s.startsWith('SAVEPOINT') || s.startsWith('RELEASE SAVEPOINT') || s.startsWith('ROLLBACK TO SAVEPOINT')) return { rows: [], rowCount: 0 };
 
   // requireAuth : lecture de l'utilisateur courant
   if (s.includes('FROM users WHERE id=$1')) {

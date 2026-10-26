@@ -38,6 +38,8 @@ function extractStatement(marker) {
 const source = [
   extractStatement("window.syncStatus = 'saved';"),
   extractFunction('function paintSyncStatusEl('),
+  extractFunction('function countUnsyncedLogs('),
+  extractFunction('function updateSyncErrorBanner('),
   extractFunction('function setSyncStatus('),
   extractFunction('function hasPendingLocalChanges('),
   extractFunction('function climberProfileSyncSnapshot('),
