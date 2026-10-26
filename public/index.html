@@ -379,7 +379,7 @@ body.preview-mode #sidebar-user { color: var(--accent) !important; font-weight: 
 .cal-dots { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
 .cal-dot { width: 10px; height: 10px; border-radius: 50%; }
 .cal-dot-planned { background: transparent !important; border: 2px dashed; width: 12px; height: 12px; }
-.cal-cell.has-planned { border: 1.5px dashed var(--accent); background: var(--accent2); }
+.cal-cell.has-planned { border: 2px dashed var(--accent); background: repeating-linear-gradient(135deg, var(--surface2) 0 8px, var(--accent2) 8px 16px); }
 .cal-cell.has-planned.has-session, .cal-cell.has-planned.has-hard { background: var(--accent2); }
 .cal-planned-badge { position: absolute; top: 4px; right: 4px; font-size: 13px; line-height: 1; filter: drop-shadow(0 1px 1px rgba(0,0,0,.25)); }
 .cal-avail-badge { position: absolute; top: 4px; right: 20px; font-size: 11px; line-height: 1; opacity: .85; }
@@ -7566,27 +7566,11 @@ function cycleTagsHtmlForDate(ds, climberCycles) {
   // Étiquette discrète : largeur au contenu (pas toute la case), hachure légère, pas de bordure —
   // sert juste de repère de couleur, ne doit jamais rivaliser visuellement avec le nom de la
   // séance réellement loguée (retour : "encore trop gros", après un premier passage déjà réduit).
-  // Retour utilisateur : "la mise en place d'un cycle n'est pas hyper design ni clair" — le nom du
-  // cycle était répété à l'identique sur CHAQUE case (illisible, tronqué). Désormais : une bande de
-  // couleur pleine en haut de chaque case du cycle (le cycle se lit d'un coup d'œil comme une
-  // frise continue), et le nom n'est écrit qu'une fois par semaine (le lundi) et au premier jour,
-  // avec 🏁 le dernier jour. Détail complet au survol.
-  const dow = (new Date(ds + 'T00:00:00').getDay() + 6) % 7; // 0 = lundi
-  const bars = active.slice(0, 2).map((c, i) => {
-    const col = colorForCycleId(c.cycleId);
+  return `<div style="display:flex;flex-wrap:wrap;gap:2px;margin-bottom:1px">${active.slice(0,2).map(c => {
     const remaining = Math.max(0, c.total - c.done);
-    const tip = `${esc(c.displayName)} — ${c.done}/${c.total} séances${remaining ? `, ${remaining} restante${remaining>1?'s':''}` : ' — terminé'}`;
-    return `<div title="${tip}" style="position:absolute;left:0;right:0;top:${i*5}px;height:5px;background:${col}"></div>`;
-  }).join('');
-  const labels = active.slice(0, 2).map(c => {
     const col = colorForCycleId(c.cycleId);
-    const isStart = c.startDate === ds, isEnd = c.endDate === ds;
-    if (!(isStart || isEnd || dow === 0)) return '';
-    return `<div style="font-size:8.5px;font-weight:800;line-height:1.2;color:${col};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:2px 0 1px" title="${esc(c.displayName)}">${isStart ? '▶ ' : ''}${esc(c.displayName)}${isEnd ? ' 🏁' : ''}</div>`;
-  }).join('');
-  // Retour utilisateur : plus de bande de couleur en haut des cases (les jours sans cycle n'en ont pas
-  // et c'est le rendu voulu partout) — le cycle reste indiqué par son nom (lundi, début, fin).
-  return labels + (active.length > 2 ? `<span style="font-size:8px;color:var(--muted)">+${active.length-2}</span>` : '');
+    return `<span style="display:inline-block;max-width:100%;font-size:7px;line-height:1.25;color:${col};font-weight:600;background-image:repeating-linear-gradient(45deg,${col}22 0 2px,transparent 2px 5px);padding:0 3px;border-radius:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(c.displayName)} — ${c.done}/${c.total} séances${remaining?`, ${remaining} restante${remaining>1?'s':''}`:' — terminé'}">${esc(c.displayName)}</span>`;
+  }).join('')}${active.length > 2 ? `<span style="font-size:7px;color:var(--muted)">+${active.length-2}</span>` : ''}</div>`;
 }
 // Construit une case de calendrier (jour) entièrement câblée — réutilisée par les vues mois et semaine
 function buildCalCell(ds, dayNum, isOther, todayStr, climberCycles) {
