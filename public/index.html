@@ -4812,6 +4812,7 @@ Utilise les raccourcis ci-dessus ou pose-moi directement une question. Par exemp
       <button class="btn sm" onclick="closeModal('day-quickpick-modal')">Fermer</button>
     </div>
     <div class="modal-body" style="display:flex;flex-direction:column;gap:10px">
+      <div id="day-quickpick-sessions" style="display:none;flex-direction:column;gap:6px"></div>
       <button class="btn primary" style="width:100%" id="day-quickpick-sessions-btn">🧗 Séances de ce jour</button>
       <div id="day-quickpick-proposed" style="display:none"></div>
       <button class="btn" style="width:100%" id="day-quickpick-sick-btn"></button>
@@ -15292,7 +15293,26 @@ function openDayQuickPick(ds) {
   document.getElementById('day-quickpick-title').textContent = d.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
   const dayLogs = getLogs().filter(l => l.date === ds);
   const sessBtn = document.getElementById('day-quickpick-sessions-btn');
-  sessBtn.textContent = dayLogs.length ? `🧗 Voir les ${dayLogs.length} séance${dayLogs.length>1?'s':''} de ce jour` : '+ Ajouter une séance ce jour';
+  // Retour utilisateur (téléphone) : "quand on clique sur la case on voit d'abord ce choix rapide, il
+  // faut cliquer encore sur 'Voir les séances' pour pouvoir ouvrir une séance — il faudrait pouvoir
+  // y accéder directement". Les séances du jour sont donc listées ICI, cliquables, qui ouvrent
+  // directement la séance ; le bouton du bas ne sert plus qu'à en ajouter une (ou à gérer le jour).
+  const sessList = document.getElementById('day-quickpick-sessions');
+  if (sessList) {
+    sessList.style.display = dayLogs.length ? 'flex' : 'none';
+    sessList.innerHTML = dayLogs.map(l => {
+      const t = SESSION_TYPES[l.type] || SESSION_TYPES.autre;
+      const icon = SESSION_TYPE_ICONS[l.type] || '🗂️';
+      const load = l.planned ? 0 : sessionLoad(l);
+      return `<button type="button" class="btn" style="width:100%;display:flex;align-items:center;gap:8px;text-align:left;justify-content:flex-start;${l.planned ? 'border-style:dashed' : ''}" onclick="closeModal('day-quickpick-modal');editSession('${l.id}')">
+        <span style="font-size:18px">${icon}</span>
+        <span style="flex:1;min-width:0"><strong>${esc(sessionDisplayLabel(l))}</strong>${l.planned ? ' <span style="color:var(--muted);font-weight:400">· prévue</span>' : ''}</span>
+        ${load ? `<span style="font-weight:800">⚡ ${load}</span>` : ''}
+      </button>`;
+    }).join('');
+  }
+  sessBtn.textContent = dayLogs.length ? '+ Ajouter une autre séance ce jour' : '+ Ajouter une séance ce jour';
+  sessBtn.className = dayLogs.length ? 'btn' : 'btn primary';
   sessBtn.onclick = () => { closeModal('day-quickpick-modal'); openDayModal(ds); };
   const propEl = document.getElementById('day-quickpick-proposed');
   const props = proposedOnDate(c, ds, true);
