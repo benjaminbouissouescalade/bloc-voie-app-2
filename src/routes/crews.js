@@ -165,7 +165,15 @@ router.get('/debug/overview', async (req, res) => {
               MAX(l.date) FILTER (WHERE l.planned=false AND l.deleted=false) AS derniere_seance
        FROM climbers c LEFT JOIN logs l ON l.climber_id=c.id
        GROUP BY c.id ORDER BY c.name`);
-    res.json({ partnerships, crews, climbers });
+    // Séances proposées + invitations de connexion en attente : pour comprendre pourquoi un grimpeur
+    // ne reçoit aucune notification (invité absent de la liste, proposition passée, etc.).
+    const { rows: proposals } = await pool.query(
+      `SELECT ps.id, ps.date, ps.type, cr.name AS cree_par, ps.invitees,
+              (SELECT json_agg(cl.name) FROM proposed_session_participants pp JOIN climbers cl ON cl.id=pp.climber_id WHERE pp.proposed_id=ps.id) AS participants
+       FROM proposed_sessions ps JOIN climbers cr ON cr.id=ps.created_by ORDER BY ps.date DESC LIMIT 30`);
+    const { rows: requests } = await pool.query(
+      `SELECT f.name AS de, t.name AS vers FROM partner_requests pr JOIN climbers f ON f.id=pr.from_climber JOIN climbers t ON t.id=pr.to_climber`);
+    res.json({ partnerships, crews, climbers, proposals, requests });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
