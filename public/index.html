@@ -7584,7 +7584,9 @@ function cycleTagsHtmlForDate(ds, climberCycles) {
     if (!(isStart || isEnd || dow === 0)) return '';
     return `<div style="font-size:8.5px;font-weight:800;line-height:1.2;color:${col};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:2px 0 1px" title="${esc(c.displayName)}">${isStart ? '▶ ' : ''}${esc(c.displayName)}${isEnd ? ' 🏁' : ''}</div>`;
   }).join('');
-  return bars + labels + (active.length > 2 ? `<span style="font-size:8px;color:var(--muted)">+${active.length-2}</span>` : '');
+  // Retour utilisateur : plus de bande de couleur en haut des cases (les jours sans cycle n'en ont pas
+  // et c'est le rendu voulu partout) — le cycle reste indiqué par son nom (lundi, début, fin).
+  return labels + (active.length > 2 ? `<span style="font-size:8px;color:var(--muted)">+${active.length-2}</span>` : '');
 }
 // Construit une case de calendrier (jour) entièrement câblée — réutilisée par les vues mois et semaine
 function buildCalCell(ds, dayNum, isOther, todayStr, climberCycles) {
