@@ -1449,6 +1449,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
               <optgroup label="── Escalade ──">
                 <option value="bloc">Bloc salle</option>
                 <option value="voies">Voies salle</option>
+                <option value="boucle">Résistance en boucle</option>
                 <option value="falaise">Falaise / Outdoor</option>
                 <option value="bloc_exterieur">Bloc extérieur</option>
                 <option value="kilter">Kilter Board</option>
@@ -4794,6 +4795,16 @@ Utilise les raccourcis ci-dessus ou pose-moi directement une question. Par exemp
      possibilité de pouvoir seulement rentrer les règles sans passer par une séance"). N'apparaît
      que côté Carnet et si le suivi du cycle est activé (cf. openDayQuickPick) — sinon le clic ouvre
      directement "Séances du jour" comme avant. -->
+<div class="modal-backdrop" id="loop-explain-modal">
+  <div class="modal" style="width:min(520px,100%)">
+    <div class="modal-header">
+      <span class="modal-title">🔁 Calcul de la charge — résistance en boucle</span>
+      <button class="btn sm" onclick="closeModal('loop-explain-modal')">Fermer</button>
+    </div>
+    <div class="modal-body" id="loop-explain-body"></div>
+  </div>
+</div>
+
 <div class="modal-backdrop" id="day-quickpick-modal">
   <div class="modal" style="width:min(360px,100%)">
     <div class="modal-header">
@@ -4871,7 +4882,8 @@ const SESSION_TYPES = {
   // ── Escalade ──
   bloc:          {label:'Bloc salle',            color:'#2d5a3d', group:'Escalade'},
   voies:         {label:'Voies salle',            color:'#1a4a7a', group:'Escalade'},
-  falaise:       {label:'Falaise / Outdoor',      color:'#b07a10', group:'Escalade'},
+  boucle:        {label:'Résistance en boucle',   color:'#1a6a7a', group:'Escalade'},
+  falaise:       {label:'Falaise / Outdoor',     color:'#b07a10', group:'Escalade'},
   bloc_exterieur:{label:'Bloc extérieur',         color:'#8a5a2d', group:'Escalade'},
   kilter:        {label:'Kilter Board',           color:'#c46a1a', group:'Escalade'},
   pan:           {label:'Pan / Woody / Board',    color:'#4a7a1a', group:'Escalade'},
@@ -4900,7 +4912,7 @@ const STYLES = ['Dalle','Dévers','Compression','Physique','Doigts','Rési','Pui
 // ligne, comme le logo de séance et l'émoticône d'état" — un petit picto par type (repris ensuite
 // partout où on veut identifier un type de séance d'un coup d'œil sans lire le libellé).
 const SESSION_TYPE_ICONS = {
-  bloc:'🧗', voies:'🧗‍♂️', falaise:'⛰️', bloc_exterieur:'🪨', kilter:'🟠', pan:'🪵',
+  bloc:'🧗', voies:'🧗‍♂️', boucle:'🔁', falaise:'⛰️', bloc_exterieur:'🪨', kilter:'🟠', pan:'🪵',
   competition:'🏆', via_ferrata:'⛓️', ppg:'🏋️', doigts:'💪', prehension:'🖐️',
   musculation:'🏋️', cardio:'🫀', footing:'🏃', mobilite:'🤸', yoga:'🧘',
   recup_active:'🌿', 'kiné':'🩺', video:'🎥', mentale:'🧠', autre:'🗂️'
@@ -6530,6 +6542,30 @@ const BOULDER_DIFF_OFFSET = {
   travail: -6.75, classic: -6.75,
   dur: -1.75, hard: -1.75
 };
+// ═══ Résistance en boucle ═══
+// Charge = charge d'une ascension à cette cotation (ascentLoad, relative au niveau de référence)
+// × nombre de "boucles équivalentes" (mouvements réellement atteints ÷ mouvements par boucle) ×
+// facteur de repos entre les boucles. Une boucle complète au niveau de référence vaut ainsi à peu
+// près une ascension au niveau de référence, donc reste comparable aux autres séances. Coefficients
+// de repos = point de départ (moins on récupère, plus les mêmes mouvements coûtent).
+const LOOP_REST_FACTOR = { complet: 0.85, leger: 1.0, faible: 1.2 };
+const LOOP_REST_LABELS = { complet: 'Repos complet (≈20 min)', leger: 'Repos léger (≈10 min)', faible: 'Repos faible (≈5 min)' };
+function loopLoadParts(l, refGrade) {
+  if (!l) return null;
+  const loops = Math.max(0, Number(l.loops) || 0), mpl = Math.max(0, Number(l.movesPerLoop) || 0);
+  if (!loops || !mpl || !l.grade) return null;
+  const planned = loops * mpl;
+  const reachedRaw = Number(l.movesReached);
+  const reached = reachedRaw > 0 ? Math.min(reachedRaw, planned) : planned;
+  const equiv = reached / mpl;
+  const ascLoad = ascentLoad({ grade: l.grade, status: 'tete' }, refGrade);
+  const restFactor = LOOP_REST_FACTOR[l.rest] ?? 1;
+  return { loops, mpl, planned, reached, equiv, ascLoad, restFactor, total: Math.round(ascLoad * equiv * restFactor) };
+}
+function loopLoad(l, refGrade) {
+  const p = loopLoadParts(l, refGrade);
+  return p ? p.total : 0;
+}
 function boulderLoad(b, refGrade) {
   if (!b) return 0;
   // Nouveau format (bloc salle) : 3 paliers indépendants dans la même séance —
@@ -6570,6 +6606,7 @@ function sessionLoad(log) {
     return Math.round(al * blocGradedLoadFactor(log.type) + bl);
   }
   const ref = getRefGrade();
+  if (log.type === 'boucle') return loopLoad(log.bNoGrade, ref);
   const al = (log.ascents||[]).reduce((s,a)=>s+ascentLoad(a,ref),0);
   const bl = boulderLoad(log.bNoGrade||{}, ref);
   // Séances hors escalade (pas d'ascensions/blocs saisis), dont footing : charge = durée × intensité
@@ -6688,6 +6725,7 @@ function sessionLoadFor(log, refRoute, refBloc) {
     const bl = boulderLoad(log.bNoGrade||{}, refBloc);
     return Math.round(al * blocGradedLoadFactor(log.type) + bl);
   }
+  if (log.type === 'boucle') return loopLoad(log.bNoGrade, refRoute);
   const al = (log.ascents||[]).reduce((s,a)=>s+ascentLoad(a,refRoute),0);
   const bl = boulderLoad(log.bNoGrade||{}, refRoute);
   const cfg = SESSION_CONFIG[log.type] || SESSION_CONFIG.autre;
@@ -12693,7 +12731,10 @@ function setProposalDeclined(id, declined) {
 function proposedOnDate(c, ds, all) {
   if (!c || !isSelfClimber(c) || appMode === 'coach') return [];
   const declined = new Set(declinedProposalIds(c));
-  return proposedCalCache.filter(p => p.date === ds && !declined.has(p.id) && (all || !p.imParticipating));
+  // Cases du calendrier (all=false) : plus de mention "?" — la proposition est maintenant une vraie
+  // séance planifiée (cf. syncProposedToLogs), affichée comme toute séance prévue.
+  if (!all) return [];
+  return proposedCalCache.filter(p => p.date === ds && !declined.has(p.id));
 }
 // Retour utilisateur : "il faudrait que la case du calendrier devienne une vraie case de séance
 // que l'on complète ensuite" — dès que je participe à une séance proposée (j'en suis le créateur
@@ -12711,10 +12752,15 @@ function syncProposedToLogs() {
   const todayStr = new Date().toISOString().slice(0, 10);
   let changed = false;
   const byId = new Map(proposedCalCache.map(p => [p.id, p]));
+  const declined = new Set(declinedProposalIds(me));
+  // Retour utilisateur : "quand Lisa clique sur la case de ma séance crew, ce n'est toujours pas une
+  // séance normale" — l'invité reçoit DÈS LA RÉCEPTION une vraie séance planifiée (pas seulement
+  // après "Je participe"). Refuser ("Je ne viens plus") la retire.
+  const isInvolved = p => p.isMine || p.imParticipating || (p.invitees || []).some(i => i.id === me.id);
   proposedCalCache.forEach(p => {
     const logId = 'log_ps_' + p.id;
     const exists = me.logs.some(l => l.id === logId);
-    if (p.imParticipating && !exists && !db._proposedLogged[logId]) {
+    if (isInvolved(p) && !declined.has(p.id) && !exists && !db._proposedLogged[logId]) {
       const others = (p.participants || []).filter(x => x.id !== me.id).map(x => x.name);
       me.logs.push({
         id: logId, date: p.date, type: p.type, minutes: 90, intensity: 3, shape: 'normal',
@@ -12729,7 +12775,7 @@ function syncProposedToLogs() {
   // Retraits : séances prévues issues d'une proposition que je ne suis plus censé suivre.
   me.logs.filter(l => l.id && l.id.startsWith('log_ps_') && l.planned && l.date >= todayStr).forEach(l => {
     const p = byId.get(l.id.slice('log_ps_'.length));
-    if (!p || !p.imParticipating) {
+    if (!p || declined.has(p.id) || !isInvolved(p)) {
       me.logs = me.logs.filter(x => x.id !== l.id);
       markLogPendingDelete(me.id, l.id);
       changed = true;
@@ -13554,7 +13600,8 @@ const SESSION_CONFIG = {
   // ascensions cotées individuellement.
   bloc:          { showAscents: false, extraPanel: 'bloc',   defaultMinutes: 90,  loadLabel: 'Charge bloc salle' },
   voies:         { showAscents: true,  extraPanel: 'voies',  defaultMinutes: 120, loadLabel: 'Charge voies salle' },
-  falaise:       { showAscents: true,  extraPanel: 'voies',  defaultMinutes: 300, loadLabel: 'Charge falaise' },
+  boucle:        { showAscents: false, extraPanel: 'boucle', defaultMinutes: 75,  loadLabel: 'Charge résistance en boucle' },
+  falaise:      { showAscents: true,  extraPanel: 'voies',  defaultMinutes: 300, loadLabel: 'Charge falaise' },
   // gradeScale:'bloc' → l'éditeur d'ascensions et le calcul de charge basculent sur l'échelle
   // Fontainebleau (GRADES_BLOC/GRADE_IDX_BLOC/getRefGradeBloc) au lieu de l'échelle voie.
   bloc_exterieur:{ showAscents: true,  extraPanel: 'voies',  defaultMinutes: 240, loadLabel: 'Charge bloc extérieur', gradeScale: 'bloc' },
@@ -13692,6 +13739,34 @@ function updateSessionTypeUI(savedBNoGrade) {
       </div>`;
     renderFingerSeriesEditor();
     autoFillFingerRefWeight(climberForRef);
+  } else if (type === 'boucle') {
+    // Résistance en boucle : nombre de boucles, cotation, mouvements par boucle, mouvements
+    // réellement atteints, repos entre les boucles — cf. loopLoadParts() pour la formule, et
+    // openLoopExplain() pour la fenêtre qui l'explique à l'utilisateur.
+    const lp = bData.loops !== undefined ? bData : {};
+    const gradeOpts = GRADES.map(g => `<option value="${g}" ${g === (lp.grade || getRefGrade() || '6b') ? 'selected' : ''}>${g}</option>`).join('');
+    const restOpts = Object.keys(LOOP_REST_LABELS).map(k => `<option value="${k}" ${k === (lp.rest || 'leger') ? 'selected' : ''}>${LOOP_REST_LABELS[k]}</option>`).join('');
+    panel.innerHTML = `
+      <div class="panel-header"><span class="panel-title">🔁 Résistance en boucle</span>
+        <button type="button" class="btn sm" onclick="openLoopExplain()">ℹ️ Comment est calculée la charge ?</button></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px">
+        <div class="form-group" style="margin:0"><label class="form-label">Nombre de boucles</label>
+          <input class="form-control" type="number" min="1" id="s-loop-count" value="${esc(String(lp.loops ?? ''))}" placeholder="Ex. 4" oninput="updateLoadPreview()"></div>
+        <div class="form-group" style="margin:0"><label class="form-label">Niveau de la voie</label>
+          <select class="form-control" id="s-loop-grade" onchange="updateLoadPreview()">${gradeOpts}</select></div>
+        <div class="form-group" style="margin:0"><label class="form-label">Mouvements par boucle</label>
+          <input class="form-control" type="number" min="1" id="s-loop-moves" value="${esc(String(lp.movesPerLoop ?? ''))}" placeholder="Ex. 30" oninput="updateLoadPreview()"></div>
+        <div class="form-group" style="margin:0"><label class="form-label">Mouvements atteints (total)</label>
+          <input class="form-control" type="number" min="0" id="s-loop-reached" value="${esc(String(lp.movesReached ?? ''))}" placeholder="Vide = tout fait" oninput="updateLoadPreview()"></div>
+      </div>
+      <div class="form-group" style="margin:12px 0">
+        <label class="form-label">Repos entre les boucles</label>
+        <select class="form-control" id="s-loop-rest" onchange="updateLoadPreview()">${restOpts}</select>
+      </div>
+      <div class="form-group" style="margin:0">
+        <label class="form-label">Charge estimée séance</label>
+        <input class="form-control" id="s-b-preview" disabled value="—">
+      </div>`;
   } else if (cfg.extraPanel === 'ppg') {
     // Pas de voies, pas de bloc à saisir — la charge se calcule automatiquement à partir de la
     // durée et de l'intensité déjà renseignées plus haut dans le formulaire.
@@ -14698,6 +14773,49 @@ function setDurationMinutes(mins) {
 }
 window.setDurationMinutes = setDurationMinutes;
 
+// Lit les champs du panneau "Résistance en boucle" (aperçu de charge, enregistrement, fenêtre
+// d'explication) — mêmes noms que les clés stockées dans bNoGrade.
+function readLoopFields() {
+  return {
+    loops: fieldVal('s-loop-count', 0),
+    grade: fieldStr('s-loop-grade', ''),
+    movesPerLoop: fieldVal('s-loop-moves', 0),
+    movesReached: fieldVal('s-loop-reached', 0),
+    rest: fieldStr('s-loop-rest', 'leger')
+  };
+}
+// Fenêtre explicative du calcul, avec un exemple chiffré basé sur la saisie en cours (ou un exemple
+// type si rien n'est encore saisi).
+function openLoopExplain() {
+  const ref = getRefGrade();
+  let l = readLoopFields();
+  const hasInput = !!(l.loops && l.movesPerLoop && l.grade);
+  if (!hasInput) l = { loops: 4, grade: '7b', movesPerLoop: 30, movesReached: 105, rest: 'leger' };
+  const p = loopLoadParts(l, ref);
+  const body = document.getElementById('loop-explain-body');
+  body.innerHTML = `
+    <p style="font-size:13px;margin-bottom:12px">La charge d'une séance en boucle se calcule en <strong>3 étapes</strong> :</p>
+    <ol style="font-size:13px;line-height:1.6;padding-left:18px;margin-bottom:14px">
+      <li><strong>Valeur d'une boucle complète</strong> : c'est la charge d'une ascension à la cotation de la voie, par rapport à ton niveau de référence (<strong>${esc(ref || '—')}</strong>). Plus la voie est dure par rapport à ton niveau, plus elle vaut.</li>
+      <li><strong>Nombre de boucles équivalentes</strong> = mouvements atteints ÷ mouvements par boucle. Si tu tombes avant la fin, seuls les mouvements réellement grimpés comptent.</li>
+      <li><strong>Facteur de repos</strong> : moins tu récupères entre les boucles, plus les mêmes mouvements coûtent.</li>
+    </ol>
+    <div style="font-size:13px;background:var(--surface2);border-radius:8px;padding:10px 12px;margin-bottom:12px">
+      <div style="font-weight:700;margin-bottom:4px">Charge = valeur d'une boucle × boucles équivalentes × facteur de repos</div>
+      <div style="color:var(--muted)">${hasInput ? 'Avec ta saisie actuelle' : 'Exemple'} : ${p.loops} boucles de ${p.mpl} mouvements en ${esc(l.grade)}, ${p.reached} mouvements atteints sur ${p.planned}, ${esc(LOOP_REST_LABELS[l.rest] || '')}.</div>
+      <div style="margin-top:6px">${p.ascLoad} × ${p.equiv.toFixed(2)} × ${p.restFactor} = <strong style="font-size:15px">${p.total}</strong></div>
+    </div>
+    <table style="width:100%;font-size:12.5px;border-collapse:collapse">
+      <tr style="color:var(--muted);text-align:left"><th style="padding:4px 0">Repos entre les boucles</th><th>Facteur</th><th>Pourquoi</th></tr>
+      <tr><td style="padding:4px 0">Complet (≈20 min)</td><td>× ${LOOP_REST_FACTOR.complet}</td><td>Récupération presque totale, comme des essais séparés</td></tr>
+      <tr><td style="padding:4px 0">Léger (≈10 min)</td><td>× ${LOOP_REST_FACTOR.leger}</td><td>Référence</td></tr>
+      <tr><td style="padding:4px 0">Faible (≈5 min)</td><td>× ${LOOP_REST_FACTOR.faible}</td><td>Fatigue qui s'accumule, effort plus continu</td></tr>
+    </table>
+    <p style="font-size:12px;color:var(--muted);margin-top:12px">Les facteurs de repos sont un point de départ, à affiner avec l'usage. Une boucle complète au niveau de référence vaut à peu près une ascension au niveau de référence, pour rester comparable aux autres séances.</p>`;
+  document.getElementById('loop-explain-modal').classList.add('open');
+}
+window.openLoopExplain = openLoopExplain;
+
 function updateLoadPreview(){
   const type = getCurrentSessionType();
   const cfg = SESSION_CONFIG[type] || SESSION_CONFIG.autre;
@@ -14708,11 +14826,13 @@ function updateLoadPreview(){
   const blocFactor = scale==='bloc' ? blocGradedLoadFactor(type) : 1;
 
   // Ascensions cotées
-  const routeLoad = Math.round(sessionAscents.reduce((s,a)=>s+ascentLoad(a,ref,gradeIdx), 0) * blocFactor);
+  const routeLoad = type === 'boucle' ? 0 : Math.round(sessionAscents.reduce((s,a)=>s+ascentLoad(a,ref,gradeIdx), 0) * blocFactor);
 
   // Panneau complémentaire (bloc non coté / volume additionnel / séance hors escalade)
   let bLoad;
-  if (type === 'doigts') {
+  if (type === 'boucle') {
+    bLoad = loopLoad(readLoopFields(), ref);
+  } else if (type === 'doigts') {
     // Retour utilisateur : charge des séances "Force doigts" calculée série par série (poids ÷
     // poids de référence = %, × répétitions) plutôt que durée × intensité (cf. FINGER_LOAD_K/
     // fingerLoad ci-dessus, et fingerSeriesRows/renderFingerSeriesEditor pour la saisie).
@@ -14878,7 +14998,7 @@ function saveCurrentSession() {
     moyenSent:       fieldVal('s-b-moyen', 0),
     travailSent:     fieldVal('s-b-travail', 0),
     travailTries:    fieldVal('s-b-travail-tries', 0)
-  } : sType === 'doigts' ? {
+  } : sType === 'boucle' ? readLoopFields() : sType === 'doigts' ? {
     // fingerSeriesRows est déjà à jour (chaque onchange du panneau mute directement le tableau,
     // même pattern que sessionAscents pour les ascensions cotées) — on le clone juste pour ne
     // jamais partager la référence avec l'état vivant du formulaire.
