@@ -24,6 +24,24 @@ function mergeArrayById(existingArr, incomingArr) {
   return Array.from(map.values());
 }
 
+// Fusion d'un profil envoyé par un client PÉRIMÉ avec le profil serveur plus récent (cf. POST / :
+// baseUpdatedAt). Règle : le serveur gagne en cas de conflit sur une même valeur, mais rien n'est
+// perdu des deux côtés — les clés présentes d'un seul côté sont conservées, les objets sont
+// fusionnés récursivement, les listes de valeurs simples (ex. jours marqués) sont réunies.
+function mergeStaleProfile(server, client) {
+  const isObj = v => v && typeof v === 'object' && !Array.isArray(v);
+  if (Array.isArray(server) && Array.isArray(client)) {
+    const simple = a => a.every(x => x === null || typeof x !== 'object');
+    return simple(server) && simple(client) ? Array.from(new Set([...server, ...client])) : server;
+  }
+  if (isObj(server) && isObj(client)) {
+    const out = { ...client };
+    for (const k of Object.keys(server)) out[k] = (k in client) ? mergeStaleProfile(server[k], client[k]) : server[k];
+    return out;
+  }
+  return server;
+}
+
 // GET /api/climbers — les grimpeurs accessibles à l'utilisateur connecté
 // (son propre profil + les athlètes qu'il coach ; un owner voit tous les profils)
 router.get('/', async (req, res) => {
@@ -62,10 +80,10 @@ router.get('/:id', async (req, res) => {
 
 // POST /api/climbers — créer ou mettre à jour un grimpeur
 router.post('/', async (req, res) => {
-  const { id, name, color, level, trips, profile, objectives, cycleObjectives } = req.body;
+  const { id, name, color, level, trips, profile, objectives, cycleObjectives, baseUpdatedAt } = req.body;
   if (!id || !name) return res.status(400).json({ error: 'id et name requis' });
   try {
-    const existing = await pool.query('SELECT id, profile, objectives, cycle_objectives, trips FROM climbers WHERE id=$1', [id]);
+    const existing = await pool.query('SELECT id, profile, objectives, cycle_objectives, trips, updated_at FROM climbers WHERE id=$1', [id]);
     if (existing.rows.length) {
       // Mise à jour d'un grimpeur existant : il faut y avoir accès
       const ok = await canAccessClimber(req.user, id);
@@ -78,7 +96,21 @@ router.post('/', async (req, res) => {
       }
     }
     // Ne pas écraser un profil détaillé existant si le client n'en envoie pas (sync client "léger")
-    const profileToSave = profile !== undefined ? profile : (existing.rows[0]?.profile || {});
+    let profileToSave = profile !== undefined ? profile : (existing.rows[0]?.profile || {});
+    // Garde "profil périmé" (tâche #391) : le client indique la version du grimpeur qu'il a chargée
+    // (baseUpdatedAt = updated_at reçu du serveur). Si le serveur a été modifié depuis (coach, autre
+    // appareil...), ce client travaille sur une copie PÉRIMÉE : on ne le laisse pas écraser le profil —
+    // on fusionne (le serveur gagne en cas de conflit, rien n'est perdu côté nom/couleur/niveau non
+    // plus, cf. ci-dessous) et on renvoie stale:true avec le profil fusionné pour que le client
+    // l'adopte. Sans baseUpdatedAt (sauvegarde explicite depuis le Profil détaillé), comportement
+    // inchangé : l'utilisateur a volontairement modifié ce profil.
+    let stale = false;
+    const serverTs = existing.rows[0]?.updated_at ? new Date(existing.rows[0].updated_at).getTime() : 0;
+    const baseTs = baseUpdatedAt ? new Date(baseUpdatedAt).getTime() : null;
+    if (existing.rows.length && baseTs !== null && !Number.isNaN(baseTs) && serverTs > baseTs + 1000 && profile !== undefined) {
+      stale = true;
+      profileToSave = mergeStaleProfile(existing.rows[0].profile || {}, profile);
+    }
     // objectives et trips : mêmes tableaux-d'objets-avec-id que cycleObjectives, même protection
     // (cf. commentaire sur mergeArrayById ci-dessus) — un état local périmé pour CES DEUX champs ne
     // peut plus faire disparaître une entrée ajoutée entretemps ailleurs.
@@ -104,7 +136,8 @@ router.post('/', async (req, res) => {
         [req.user.id, id]
       );
     }
-    res.json(rows[0]);
+    if (stale) console.warn(`[sync climbers] profil périmé fusionné pour ${id} (base ${baseUpdatedAt} < serveur ${new Date(serverTs).toISOString()})`);
+    res.json({ ...rows[0], stale });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
