@@ -379,10 +379,11 @@ body.preview-mode #sidebar-user { color: var(--accent) !important; font-weight: 
 .cal-dots { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
 .cal-dot { width: 10px; height: 10px; border-radius: 50%; }
 .cal-dot-planned { background: transparent !important; border: 2px dashed; width: 12px; height: 12px; }
-.cal-cell.has-planned { border: 2px dashed var(--accent); background: repeating-linear-gradient(135deg, var(--surface2) 0 8px, var(--accent2) 8px 16px); }
+.cal-cell.has-planned { border: 1.5px dashed var(--accent); background: var(--accent2); }
 .cal-cell.has-planned.has-session, .cal-cell.has-planned.has-hard { background: var(--accent2); }
 .cal-planned-badge { position: absolute; top: 4px; right: 4px; font-size: 13px; line-height: 1; filter: drop-shadow(0 1px 1px rgba(0,0,0,.25)); }
 .cal-avail-badge { position: absolute; top: 4px; right: 20px; font-size: 11px; line-height: 1; opacity: .85; }
+@keyframes crewBadgePulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.18); } }
 .cal-cycle-badge { position: absolute; top: 4px; right: 36px; font-size: 10px; line-height: 1; opacity: .9; }
 .cal-test-badge { position: absolute; top: 4px; right: 52px; font-size: 15px; line-height: 1; filter: drop-shadow(0 1px 1px rgba(0,0,0,.25)); }
 .cal-cell.drag-over { outline: 3px dashed var(--accent); outline-offset: -3px; background: var(--accent2); }
@@ -854,7 +855,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
   }
   .mobile-topbar-burger {
     display: flex; flex-direction: column; justify-content: center; gap: 4px; width: 34px; height: 34px;
-    background: none; border: 1px solid var(--border2); border-radius: var(--r-xs); cursor: pointer; flex-shrink: 0;
+    background: none; border: 1px solid var(--border2); border-radius: var(--r-xs); cursor: pointer; flex-shrink: 0; position: relative; overflow: visible;
   }
   .mobile-topbar-burger span { display: block; width: 16px; height: 2px; background: var(--text); margin: 0 auto; border-radius: 1px; }
   .mobile-topbar-title { font-family: var(--serif); font-weight: 600; font-size: 14px; text-transform: uppercase; letter-spacing: .04em; color: var(--text); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -933,6 +934,9 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
 <div class="mobile-topbar">
   <button class="mobile-topbar-burger" onclick="toggleMobileNav()" title="Menu" aria-label="Ouvrir le menu">
     <span></span><span></span><span></span>
+    <!-- Pastille de notification visible sur l'icône du menu (téléphone) : invitations partenaire et
+         séances proposées en attente de réponse, cf. updateCrewRequestBadge(). -->
+    <b id="mobile-burger-badge" style="display:none;position:absolute;top:-4px;right:-4px;min-width:18px;height:18px;padding:0 4px;box-sizing:border-box;border-radius:9px;background:var(--warm);color:#fff;font-size:11px;font-weight:700;line-height:18px;text-align:center;animation:crewBadgePulse 1.6s ease-in-out infinite">0</b>
   </button>
   <div class="mobile-topbar-title" id="mobile-topbar-title">Digger</div>
 </div>
@@ -1135,6 +1139,12 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
        pages" — chaque chiffre réutilise un calcul déjà fait ailleurs (charge : getLoadRange/cLevel
        comme les stat-cards plus bas ; objectifs : même filtre que le panneau Objectifs ; tests :
        même seuil TEST_STALE_DAYS que le hub Tests généraux), juste condensé sur une ligne. -->
+  <!-- Retour utilisateur : "notification visible sur le dashboard et sur la case crew quand une
+       invitation est envoyée" — bandeau en tête du tableau de bord tant qu'une demande de
+       connexion partenaire est en attente (même source que le badge nav "The Crew", cf.
+       updateCrewRequestBadge). -->
+  <div id="dash-partner-requests-banner" style="display:none;margin-bottom:10px;background:var(--accent2);border:2px solid var(--accent);border-radius:10px;padding:12px 14px;align-items:center;gap:12px;flex-wrap:wrap"></div>
+
   <div class="panel" id="dash-digest-panel" style="margin-bottom:10px">
     <div class="panel-header">
       <span class="panel-title">📋 Cette semaine</span>
@@ -4792,6 +4802,7 @@ Utilise les raccourcis ci-dessus ou pose-moi directement une question. Par exemp
     </div>
     <div class="modal-body" style="display:flex;flex-direction:column;gap:10px">
       <button class="btn primary" style="width:100%" id="day-quickpick-sessions-btn">🧗 Séances de ce jour</button>
+      <div id="day-quickpick-proposed" style="display:none"></div>
       <button class="btn" style="width:100%" id="day-quickpick-sick-btn"></button>
       <button class="btn" style="width:100%" id="day-quickpick-cycle-btn"></button>
     </div>
@@ -7555,11 +7566,25 @@ function cycleTagsHtmlForDate(ds, climberCycles) {
   // Étiquette discrète : largeur au contenu (pas toute la case), hachure légère, pas de bordure —
   // sert juste de repère de couleur, ne doit jamais rivaliser visuellement avec le nom de la
   // séance réellement loguée (retour : "encore trop gros", après un premier passage déjà réduit).
-  return `<div style="display:flex;flex-wrap:wrap;gap:2px;margin-bottom:1px">${active.slice(0,2).map(c => {
-    const remaining = Math.max(0, c.total - c.done);
+  // Retour utilisateur : "la mise en place d'un cycle n'est pas hyper design ni clair" — le nom du
+  // cycle était répété à l'identique sur CHAQUE case (illisible, tronqué). Désormais : une bande de
+  // couleur pleine en haut de chaque case du cycle (le cycle se lit d'un coup d'œil comme une
+  // frise continue), et le nom n'est écrit qu'une fois par semaine (le lundi) et au premier jour,
+  // avec 🏁 le dernier jour. Détail complet au survol.
+  const dow = (new Date(ds + 'T00:00:00').getDay() + 6) % 7; // 0 = lundi
+  const bars = active.slice(0, 2).map((c, i) => {
     const col = colorForCycleId(c.cycleId);
-    return `<span style="display:inline-block;max-width:100%;font-size:7px;line-height:1.25;color:${col};font-weight:600;background-image:repeating-linear-gradient(45deg,${col}22 0 2px,transparent 2px 5px);padding:0 3px;border-radius:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(c.displayName)} — ${c.done}/${c.total} séances${remaining?`, ${remaining} restante${remaining>1?'s':''}`:' — terminé'}">${esc(c.displayName)}</span>`;
-  }).join('')}${active.length > 2 ? `<span style="font-size:7px;color:var(--muted)">+${active.length-2}</span>` : ''}</div>`;
+    const remaining = Math.max(0, c.total - c.done);
+    const tip = `${esc(c.displayName)} — ${c.done}/${c.total} séances${remaining ? `, ${remaining} restante${remaining>1?'s':''}` : ' — terminé'}`;
+    return `<div title="${tip}" style="position:absolute;left:0;right:0;top:${i*5}px;height:5px;background:${col}"></div>`;
+  }).join('');
+  const labels = active.slice(0, 2).map(c => {
+    const col = colorForCycleId(c.cycleId);
+    const isStart = c.startDate === ds, isEnd = c.endDate === ds;
+    if (!(isStart || isEnd || dow === 0)) return '';
+    return `<div style="font-size:8.5px;font-weight:800;line-height:1.2;color:${col};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:2px 0 1px" title="${esc(c.displayName)}">${isStart ? '▶ ' : ''}${esc(c.displayName)}${isEnd ? ' 🏁' : ''}</div>`;
+  }).join('');
+  return bars + labels + (active.length > 2 ? `<span style="font-size:8px;color:var(--muted)">+${active.length-2}</span>` : '');
 }
 // Construit une case de calendrier (jour) entièrement câblée — réutilisée par les vues mois et semaine
 function buildCalCell(ds, dayNum, isOther, todayStr, climberCycles) {
@@ -7599,7 +7624,7 @@ function buildCalCell(ds, dayNum, isOther, todayStr, climberCycles) {
   // jour, cf. pendingTestAssignmentsOnDate / renderDayModalTestAssignments pour le détail.
   const pendingTestsForCell = pendingTestAssignmentsOnDate(ds);
   const testBadgeHtml = pendingTestsForCell.length ? `<div class="cal-test-badge" title="${pendingTestsForCell.length} test${pendingTestsForCell.length>1?'s':''} prévu${pendingTestsForCell.length>1?'s':''}">🧪</div>` : '';
-  cell.innerHTML = `${plannedLogsForCell.length?`<div class="cal-planned-badge" title="${plannedLogsForCell.length} séance${plannedLogsForCell.length>1?'s':''} prévue${plannedLogsForCell.length>1?'s':''}">📌</div>`:''}${availBadgeHtml}${cycleBadgeHtml}${testBadgeHtml}<div class="cal-num">${dayNum}</div>${cycleTagsHtmlForDate(ds, climberCycles)}<div class="cal-dots">${dayLogs.map(l=>`<div class="cal-dot${l.planned?' cal-dot-planned':''}" style="${l.planned?`border-color:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`:`background:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`}" title="${esc(sessionDisplayLabel(l))}${l.planned?' (prévue)':''}"></div>`).join('')}</div>${typeLabelHtml}${load?`<div style="font-size:11px;font-weight:800;color:var(--text);margin-top:3px">⚡ ${load}</div>`:''}${hasInjury?`<div style="font-size:9px;font-weight:700;color:var(--warm);margin-top:2px">🩹 bobo</div>`:''}${isSickDay(getActive(), ds)?`<div style="font-size:9px;font-weight:700;color:var(--warm);margin-top:2px" title="Malade">🤒 malade</div>`:''}`;
+  cell.innerHTML = `${plannedLogsForCell.length?`<div class="cal-planned-badge" title="${plannedLogsForCell.length} séance${plannedLogsForCell.length>1?'s':''} prévue${plannedLogsForCell.length>1?'s':''}">📌</div>`:''}${availBadgeHtml}${cycleBadgeHtml}${testBadgeHtml}<div class="cal-num">${dayNum}</div>${cycleTagsHtmlForDate(ds, climberCycles)}<div class="cal-dots">${dayLogs.map(l=>`<div class="cal-dot${l.planned?' cal-dot-planned':''}" style="${l.planned?`border-color:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`:`background:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`}" title="${esc(sessionDisplayLabel(l))}${l.planned?' (prévue)':''}"></div>`).join('')}</div>${typeLabelHtml}${load?`<div style="font-size:11px;font-weight:800;color:var(--text);margin-top:3px">⚡ ${load}</div>`:''}${hasInjury?`<div style="font-size:9px;font-weight:700;color:var(--warm);margin-top:2px">🩹 bobo</div>`:''}${isSickDay(getActive(), ds)?`<div style="font-size:9px;font-weight:700;color:var(--warm);margin-top:2px" title="Malade">🤒 malade</div>`:''}${proposedOnDate(getActive(), ds).map(p => `<div style="font-size:9.5px;font-weight:700;color:var(--accent);margin-top:2px;line-height:1.2" title="Séance proposée : ${esc(proposedLabel(p))}">🤝 ${esc((SESSION_TYPES[p.type]||SESSION_TYPES.autre).label)}${p.imParticipating?' ✓':' ?'}</div>`).join('')}`;
   if (isSickDay(getActive(), ds)) cell.style.boxShadow = 'inset 0 0 0 2px rgba(196,80,26,.45)';
   cell.onclick = () => openDayQuickPick(ds);
   cell.ondragover = (e) => { e.preventDefault(); cell.classList.add('drag-over'); };
@@ -8050,7 +8075,7 @@ function buildCal2Cell(ds, dayNum, isOther, todayStr, climberCycles) {
   const cycleBadgeHtml2 = shouldShowCycleBadge(getActive(), ds) ? `<div class="cal-cycle-badge" title="Règles">🩸</div>` : '';
   const pendingTestsForCell2 = pendingTestAssignmentsOnDate(ds);
   const testBadgeHtml2 = pendingTestsForCell2.length ? `<div class="cal-test-badge" title="${pendingTestsForCell2.length} test${pendingTestsForCell2.length>1?'s':''} prévu${pendingTestsForCell2.length>1?'s':''}">🧪</div>` : '';
-  cell.innerHTML = `${plannedLogsForCell.length?`<div class="cal-planned-badge" title="${plannedLogsForCell.length} séance${plannedLogsForCell.length>1?'s':''} prévue${plannedLogsForCell.length>1?'s':''}">📌</div>`:''}${availBadgeHtml2}${cycleBadgeHtml2}${testBadgeHtml2}<div class="cal-num">${dayNum}</div>${cycleTagsHtmlForDate(ds, climberCycles)}<div class="cal-dots">${dayLogs.map(l=>`<div class="cal-dot${l.planned?' cal-dot-planned':''}" style="${l.planned?`border-color:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`:`background:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`}" title="${esc(sessionDisplayLabel(l))}${l.planned?' (prévue)':''}"></div>`).join('')}</div>${typeLabelHtml2}${load?`<div style="font-size:11px;font-weight:800;color:var(--text);margin-top:3px;display:flex;align-items:center;gap:4px">⚡ ${load}${shapeIconCell?`<span style="font-size:12.5px" title="${esc(shapeTitleCell)}">${shapeIconCell}</span>`:''}</div>`:''}${hasInjury?`<div style="font-size:9px;font-weight:700;color:var(--warm);margin-top:2px">🩹 bobo</div>`:''}${isSickDay(getActive(), ds)?`<div style="font-size:9px;font-weight:700;color:var(--warm);margin-top:2px" title="Malade">🤒 malade</div>`:''}`;
+  cell.innerHTML = `${plannedLogsForCell.length?`<div class="cal-planned-badge" title="${plannedLogsForCell.length} séance${plannedLogsForCell.length>1?'s':''} prévue${plannedLogsForCell.length>1?'s':''}">📌</div>`:''}${availBadgeHtml2}${cycleBadgeHtml2}${testBadgeHtml2}<div class="cal-num">${dayNum}</div>${cycleTagsHtmlForDate(ds, climberCycles)}<div class="cal-dots">${dayLogs.map(l=>`<div class="cal-dot${l.planned?' cal-dot-planned':''}" style="${l.planned?`border-color:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`:`background:${(SESSION_TYPES[l.type]||SESSION_TYPES.autre).color}`}" title="${esc(sessionDisplayLabel(l))}${l.planned?' (prévue)':''}"></div>`).join('')}</div>${typeLabelHtml2}${load?`<div style="font-size:11px;font-weight:800;color:var(--text);margin-top:3px;display:flex;align-items:center;gap:4px">⚡ ${load}${shapeIconCell?`<span style="font-size:12.5px" title="${esc(shapeTitleCell)}">${shapeIconCell}</span>`:''}</div>`:''}${hasInjury?`<div style="font-size:9px;font-weight:700;color:var(--warm);margin-top:2px">🩹 bobo</div>`:''}${isSickDay(getActive(), ds)?`<div style="font-size:9px;font-weight:700;color:var(--warm);margin-top:2px" title="Malade">🤒 malade</div>`:''}${proposedOnDate(getActive(), ds).map(p => `<div style="font-size:9.5px;font-weight:700;color:var(--accent);margin-top:2px;line-height:1.2" title="Séance proposée : ${esc(proposedLabel(p))}">🤝 ${esc((SESSION_TYPES[p.type]||SESSION_TYPES.autre).label)}${p.imParticipating?' ✓':' ?'}</div>`).join('')}`;
   if (isSickDay(getActive(), ds)) cell.style.boxShadow = 'inset 0 0 0 2px rgba(196,80,26,.45)';
   cell.onclick = () => openDayQuickPick(ds);
   return { cell, dayLogs, isOther };
@@ -12400,12 +12425,55 @@ window.loadPartnerRequests = loadPartnerRequests;
 
 // Met à jour le badge de notification "demande de connexion" sur le nav "The Crew" (cf.
 // #nav-crew-request-badge) — même principe que updateInjuryBadges() côté coach.
-function updateCrewRequestBadge(count) {
-  const navBadge = document.getElementById('nav-crew-request-badge');
-  if (!navBadge) return;
-  navBadge.style.display = count > 0 ? '' : 'none';
-  navBadge.textContent = count > 0 ? String(count) : '';
+// Séances proposées par d'autres où je suis invité mais n'ai pas encore répondu — comptées dans la
+// notification au même titre que les invitations de connexion.
+function pendingProposedForMe() {
+  return (proposedCalCache || []).filter(p => !p.isMine && !p.imParticipating);
 }
+function updateCrewRequestBadge(count) {
+  if (typeof count === 'number') updateCrewRequestBadge._reqCount = count;
+  const reqCount = updateCrewRequestBadge._reqCount || 0;
+  const pending = pendingProposedForMe();
+  const total = reqCount + pending.length;
+  const navBadge = document.getElementById('nav-crew-request-badge');
+  if (navBadge) {
+    navBadge.style.display = total > 0 ? '' : 'none';
+    navBadge.textContent = total > 0 ? String(total) : '';
+    // Badge plus visible : plus grand + pulsation douce tant qu'il y a quelque chose en attente.
+    navBadge.style.fontSize = '12px';
+    navBadge.style.padding = '3px 7px';
+    navBadge.style.animation = total > 0 ? 'crewBadgePulse 1.6s ease-in-out infinite' : '';
+  }
+  // Pastille sur l'icône du menu (3 traits) côté téléphone.
+  const burgerBadge = document.getElementById('mobile-burger-badge');
+  if (burgerBadge) {
+    burgerBadge.style.display = total > 0 ? '' : 'none';
+    burgerBadge.textContent = total > 0 ? String(total) : '';
+  }
+  // Bandeau du tableau de bord : invitations de connexion + séances proposées en attente.
+  const banner = document.getElementById('dash-partner-requests-banner');
+  if (banner) {
+    if (total > 0) {
+      const lines = [];
+      if (reqCount > 0) {
+        const names = (partnerRequestsCache || []).map(r => esc(r.name)).join(', ');
+        lines.push(`🤝 <strong>${reqCount} invitation${reqCount>1?'s':''} de connexion</strong>${names ? ` — ${names}` : ''}`);
+      }
+      pending.forEach(p => {
+        lines.push(`🧗 <strong>${esc(p.createdByName)}</strong> te propose une séance : ${esc(fmtDate(p.date))} — ${esc(proposedLabel(p))}`);
+      });
+      banner.style.display = 'flex';
+      banner.innerHTML = `<div style="flex:1;min-width:200px;font-size:13.5px;display:flex;flex-direction:column;gap:4px">${lines.map(l => `<div>${l}</div>`).join('')}</div>
+        <button class="btn sm primary" onclick="switchPage('community')">Voir et répondre</button>`;
+    } else {
+      banner.style.display = 'none';
+      banner.innerHTML = '';
+    }
+  }
+}
+// Vérifie régulièrement les nouvelles invitations (sans avoir à recharger la page) tant que l'onglet
+// est ouvert.
+setInterval(() => { if (authToken() && !document.hidden) loadPartnerRequests(); }, 60000);
 window.updateCrewRequestBadge = updateCrewRequestBadge;
 
 async function partnerAcceptRequest(id) {
@@ -12607,7 +12675,84 @@ async function saveProposedSession() {
 }
 window.saveProposedSession = saveProposedSession;
 
+// Retour utilisateur : "quand je propose une séance à quelqu'un de mon crew il faut qu'elle soit
+// visible sur les 2 calendriers" — les séances proposées (proposed_sessions) n'existaient que dans
+// le panneau "Séances à venir" du Feed. On garde ici leur liste en cache (proposant ET invités la
+// reçoivent, cf. GET /api/proposed-sessions) pour les afficher sur la case du jour du calendrier de
+// chacun, avec ✓ (je participe) ou ? (pas encore répondu).
+let proposedCalCache = [];
+// all=false (cases du calendrier) : seulement les propositions EN ATTENTE de réponse — celles où je
+// participe sont devenues de vraies séances planifiées (cf. syncProposedToLogs), les afficher aussi
+// ferait doublon. all=true (fenêtre du jour) : toutes, pour pouvoir se désinscrire.
+function proposedOnDate(c, ds, all) {
+  if (!c || !isSelfClimber(c) || appMode === 'coach') return [];
+  return proposedCalCache.filter(p => p.date === ds && (all || !p.imParticipating));
+}
+// Retour utilisateur : "il faudrait que la case du calendrier devienne une vraie case de séance
+// que l'on complète ensuite" — dès que je participe à une séance proposée (j'en suis le créateur
+// ou j'ai cliqué "Je participe"), une vraie séance PLANIFIÉE est créée dans mon carnet (même
+// objet que n'importe quelle séance prévue : on l'ouvre, on la complète/valide le jour J).
+// Id déterministe `log_ps_<id proposition>` : pas de doublon possible, retrouvable pour la retirer.
+// db._proposedLogged mémorise celles déjà créées pour ne jamais recréer une séance que l'utilisateur
+// aurait volontairement supprimée. Se désinscrire ou voir la proposition annulée retire la séance
+// prévue, tant qu'elle est encore planifiée (une séance déjà faite n'est jamais touchée).
+function syncProposedToLogs() {
+  const me = (db.climbers || []).find(c => c.id === window.currentUser?.climberId);
+  if (!me) return false;
+  if (!db._proposedLogged) db._proposedLogged = {};
+  me.logs = me.logs || [];
+  const todayStr = new Date().toISOString().slice(0, 10);
+  let changed = false;
+  const byId = new Map(proposedCalCache.map(p => [p.id, p]));
+  proposedCalCache.forEach(p => {
+    const logId = 'log_ps_' + p.id;
+    const exists = me.logs.some(l => l.id === logId);
+    if (p.imParticipating && !exists && !db._proposedLogged[logId]) {
+      const others = (p.participants || []).filter(x => x.id !== me.id).map(x => x.name);
+      me.logs.push({
+        id: logId, date: p.date, type: p.type, minutes: 90, intensity: 3, shape: 'normal',
+        location: [p.location, p.timeLabel].filter(Boolean).join(' · '), support: '',
+        notes: '', ascents: [], bNoGrade: {}, planned: true, source: 'self',
+        proposedWith: others, clientUpdatedAt: Date.now()
+      });
+      db._proposedLogged[logId] = true;
+      changed = true;
+    }
+  });
+  // Retraits : séances prévues issues d'une proposition que je ne suis plus censé suivre.
+  me.logs.filter(l => l.id && l.id.startsWith('log_ps_') && l.planned && l.date >= todayStr).forEach(l => {
+    const p = byId.get(l.id.slice('log_ps_'.length));
+    if (!p || !p.imParticipating) {
+      me.logs = me.logs.filter(x => x.id !== l.id);
+      markLogPendingDelete(me.id, l.id);
+      changed = true;
+    }
+  });
+  if (changed) saveDB();
+  return changed;
+}
+function proposedLabel(p) {
+  const t = SESSION_TYPES[p.type] || SESSION_TYPES.autre;
+  const who = (p.participants || []).map(x => x.name).join(', ');
+  return `${t.label}${p.timeLabel ? ' · ' + p.timeLabel : ''}${p.location ? ' · ' + p.location : ''}${who ? ' — avec ' + who : ''}`;
+}
+async function loadProposedForCalendar() {
+  if (!authToken()) return;
+  try {
+    const r = await fetch('/api/proposed-sessions', { headers: authHeaders() });
+    if (!r.ok) return;
+    proposedCalCache = await r.json();
+    syncProposedToLogs();
+    if (typeof updateCrewRequestBadge === 'function') updateCrewRequestBadge();
+    if (typeof renderCalendar === 'function') renderCalendar();
+    if (typeof renderSimpleCalendar === 'function' && document.getElementById('cal2-grid')) renderSimpleCalendar();
+  } catch (e) { /* best-effort */ }
+}
+window.loadProposedForCalendar = loadProposedForCalendar;
+setInterval(() => { if (authToken() && !document.hidden) loadProposedForCalendar(); }, 60000);
+
 async function renderUpcomingSessionsPanel() {
+  loadProposedForCalendar();
   const el = document.getElementById('upcoming-sessions-list');
   if (!el) return;
   el.innerHTML = '<p style="font-size:13px;color:var(--muted)">Chargement…</p>';
@@ -15020,6 +15165,18 @@ function openDayQuickPick(ds) {
   const sessBtn = document.getElementById('day-quickpick-sessions-btn');
   sessBtn.textContent = dayLogs.length ? `🧗 Voir les ${dayLogs.length} séance${dayLogs.length>1?'s':''} de ce jour` : '+ Ajouter une séance ce jour';
   sessBtn.onclick = () => { closeModal('day-quickpick-modal'); openDayModal(ds); };
+  const propEl = document.getElementById('day-quickpick-proposed');
+  const props = proposedOnDate(c, ds, true);
+  if (propEl) {
+    propEl.style.display = props.length ? '' : 'none';
+    propEl.innerHTML = props.map(p => `<div style="border-left:3px solid var(--accent);background:var(--accent2);border-radius:4px;padding:8px 10px;margin-bottom:6px;font-size:13px">
+      <div style="font-weight:700">🤝 ${esc(proposedLabel(p))}</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:2px">Proposée par ${p.isMine ? 'toi' : esc(p.createdByName)}</div>
+      <div style="margin-top:6px">${p.imParticipating
+        ? `<button class="btn sm" onclick="leaveProposedSession('${p.id}');closeModal('day-quickpick-modal')">Je ne viens plus</button>`
+        : `<button class="btn sm primary" onclick="joinProposedSession('${p.id}');closeModal('day-quickpick-modal')">Je participe</button>`}</div>
+    </div>`).join('');
+  }
   const sickBtn = document.getElementById('day-quickpick-sick-btn');
   const sick = isSickDay(c, ds);
   sickBtn.textContent = sick ? '🤒 Retirer "malade" de ce jour' : '🤒 Je suis malade ce jour';
@@ -19380,6 +19537,7 @@ window.initAppData = async function() {
   // démarrage pour que le badge nav "The Crew" (#nav-crew-request-badge) soit une vraie notification
   // visible dès la connexion, pas seulement si on pense à ouvrir Communauté → Feed.
   loadPartnerRequests();
+  loadProposedForCalendar();
 };
 
 // ═══════════════ BANDEAU NEWS + ACTIVITÉ DES ATHLÈTES ═══════════════
