@@ -1,6 +1,8 @@
 // test/frontend-form-overlay.test.js
 // Courbe "Forme" du graphique de charge (public/index.html) : forme déclarée par séance (😓 low / 🙂 normal
 // / 💪 good) moyennée par semaine ou par jour, pour analyser charge élevée vs forme basse.
+// Les dates des séances sont des chaînes AAAA-MM-JJ lues en UTC : on fixe le fuseau pour un test déterministe.
+process.env.TZ = 'UTC';
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
