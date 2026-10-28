@@ -1904,7 +1904,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
           <button class="time-filter-btn active" id="wl-vol-charge-btn" style="padding:3px 10px;font-size:11px" onclick="toggleWlChargeOverlay()">✓ Charge</button>
           <button class="time-filter-btn" id="wl-vol-overlay-btn" style="padding:3px 10px;font-size:11px" onclick="toggleWlIntensityOverlay()">+ Intensité</button>
           <button class="time-filter-btn" id="wl-vol-time-btn" style="padding:3px 10px;font-size:11px" onclick="toggleWlTimeOverlay()">+ Temps</button>
-          <button class="time-filter-btn" id="wl-vol-form-btn" style="padding:3px 10px;font-size:11px" onclick="toggleWlFormOverlay()" title="Sensation de fin de séance (😴 🙂 🎯 😤 💀), moyenne par période">+ Sensation</button>
+          <button class="time-filter-btn" id="wl-vol-form-btn" style="padding:3px 10px;font-size:11px" onclick="toggleWlFormOverlay()" title="Sensation de fin de séance (💀 😤 🎯 🙂 😴), la courbe descend quand c'est dur">+ Sensation</button>
         </div>
       </div>
       <div class="chart-wrap" style="height:200px"><canvas id="volChart" aria-label="Volume hebdomadaire">Volume hebdomadaire</canvas></div>
@@ -6958,8 +6958,9 @@ function loadBarColor(load, baseline) {
 // Forme déclarée à la saisie (l.shape) convertie en valeur 1-3 pour la moyenner par semaine/jour
 // (courbe "Forme" du graphique de charge) : 1 = 😓 pas en forme, 2 = 🙂 normal, 3 = 💪 en forme.
 const SHAPE_VALUE = { low: 1, normal: 2, good: 3 };
-// Sensation de fin de séance (l.feeling, 😴🙂🎯😤💀) en valeur 1-5 : 1 = trop facile … 5 = trop dure.
-const FEEL_VALUE = { too_easy: 1, easy: 2, right: 3, hard: 4, too_hard: 5 };
+// Sensation de fin de séance (l.feeling) en valeur 1-5 : la courbe descend quand la sensation est mauvaise.
+// 1 = trop dure 💀 … 3 = pile 🎯 … 5 = trop facile 😴.
+const FEEL_VALUE = { too_hard: 1, hard: 2, right: 3, easy: 4, too_easy: 5 };
 function weeklyData(nWeeks=16) {
   const now = new Date(); now.setHours(0,0,0,0);
   // Les semaines sont d'abord construites (bornes + libellé), puis les logs sont répartis dedans
@@ -9679,9 +9680,9 @@ function renderWorkload() {
   // Retour utilisateur : "voir l'état de forme donné par l'émoticône avec le tableau des charges pour
   // pouvoir faire une analyse" — courbe de la forme moyenne déclarée (😓 1 → 🙂 2 → 💪 3) sur un axe
   // à droite, à lire en face des barres de charge : charge haute + forme qui baisse = signal à surveiller.
-  const FEEL_COLORS = { 1: '#6b8fa8', 2: '#2d5a3d', 3: '#2d5a3d', 4: '#b07a10', 5: '#c4501a' };
+  const FEEL_COLORS = { 1: '#c4501a', 2: '#b07a10', 3: '#2d5a3d', 4: '#2d5a3d', 5: '#6b8fa8' };
   const feelColorFor = v => v == null ? '#999' : FEEL_COLORS[Math.min(5, Math.max(1, Math.round(v)))];
-  const feelEmojiFor = v => ['😴','🙂','🎯','😤','💀'][Math.min(5, Math.max(1, Math.round(v))) - 1];
+  const feelEmojiFor = v => ['💀','😤','🎯','🙂','😴'][Math.min(5, Math.max(1, Math.round(v))) - 1];
   if (wlShowFormOverlay) {
     const feelVals = wData.map(w => w.avgFeel);
     volDatasets.push({
@@ -9695,8 +9696,8 @@ function renderWorkload() {
   const insightEl = document.getElementById('wl-form-insight');
   if (insightEl) {
     if (wlShowFormOverlay && !isDailyView) {
-      const flagged = wData.filter(w => w.avgFeel != null && w.avgFeel >= 3.5 && ['c3','c4'].includes(cLevel(w.load).cls));
-      const hard = wData.filter(w => w.avgFeel != null && w.avgFeel >= 3.5).length;
+      const flagged = wData.filter(w => w.avgFeel != null && w.avgFeel <= 2.5 && ['c3','c4'].includes(cLevel(w.load).cls));
+      const hard = wData.filter(w => w.avgFeel != null && w.avgFeel <= 2.5).length;
       insightEl.style.display = '';
       if (flagged.length) {
         insightEl.innerHTML = `😤 <strong>${flagged.length} semaine${flagged.length>1?'s':''}</strong> avec une charge élevée <em>et</em> des séances ressenties dures (${flagged.map(w => esc(w.label)).join(', ')}) — signe de fatigue qui s'installe : à surveiller, voire alléger.`;
@@ -9726,7 +9727,7 @@ function renderWorkload() {
         y:{display:wlShowCharge,grid:{color:'rgba(0,0,0,.05)'},ticks:{font:{size:10}}},
         y1:{display:wlShowIntensityOverlay,position:'right',min:0,max:5,grid:{display:false},ticks:{stepSize:1,font:{size:10}}},
         y2:{display:wlShowTimeOverlay,position:'right',grid:{display:false},ticks:{font:{size:10},callback:v=>fmtHM(v)}},
-        y3:{display:wlShowFormOverlay,position:'right',min:0.5,max:5.5,grid:{display:false},ticks:{stepSize:1,font:{size:14},callback:v=>({1:'😴',2:'🙂',3:'🎯',4:'😤',5:'💀'})[v]||''}}
+        y3:{display:wlShowFormOverlay,position:'right',min:0.5,max:5.5,grid:{display:false},ticks:{stepSize:1,font:{size:14},callback:v=>({1:'💀',2:'😤',3:'🎯',4:'🙂',5:'😴'})[v]||''}}
       }
     }
   });
