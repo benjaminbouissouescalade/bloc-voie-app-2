@@ -1904,7 +1904,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
           <button class="time-filter-btn active" id="wl-vol-charge-btn" style="padding:3px 10px;font-size:11px" onclick="toggleWlChargeOverlay()">✓ Charge</button>
           <button class="time-filter-btn" id="wl-vol-overlay-btn" style="padding:3px 10px;font-size:11px" onclick="toggleWlIntensityOverlay()">+ Intensité</button>
           <button class="time-filter-btn" id="wl-vol-time-btn" style="padding:3px 10px;font-size:11px" onclick="toggleWlTimeOverlay()">+ Temps</button>
-          <button class="time-filter-btn" id="wl-vol-form-btn" style="padding:3px 10px;font-size:11px" onclick="toggleWlFormOverlay()" title="Forme déclarée à chaque séance (😓 🙂 💪), moyenne par période">+ Forme</button>
+          <button class="time-filter-btn" id="wl-vol-form-btn" style="padding:3px 10px;font-size:11px" onclick="toggleWlFormOverlay()" title="Sensation de fin de séance (😴 🙂 🎯 😤 💀), moyenne par période">+ Sensation</button>
         </div>
       </div>
       <div class="chart-wrap" style="height:200px"><canvas id="volChart" aria-label="Volume hebdomadaire">Volume hebdomadaire</canvas></div>
@@ -6958,6 +6958,8 @@ function loadBarColor(load, baseline) {
 // Forme déclarée à la saisie (l.shape) convertie en valeur 1-3 pour la moyenner par semaine/jour
 // (courbe "Forme" du graphique de charge) : 1 = 😓 pas en forme, 2 = 🙂 normal, 3 = 💪 en forme.
 const SHAPE_VALUE = { low: 1, normal: 2, good: 3 };
+// Sensation de fin de séance (l.feeling, 😴🙂🎯😤💀) en valeur 1-5 : 1 = trop facile … 5 = trop dure.
+const FEEL_VALUE = { too_easy: 1, easy: 2, right: 3, hard: 4, too_hard: 5 };
 function weeklyData(nWeeks=16) {
   const now = new Date(); now.setHours(0,0,0,0);
   // Les semaines sont d'abord construites (bornes + libellé), puis les logs sont répartis dedans
@@ -6969,7 +6971,7 @@ function weeklyData(nWeeks=16) {
     const start=new Date(now); start.setDate(start.getDate()-((now.getDay()||7)-1)-i*7);
     const end=new Date(start); end.setDate(end.getDate()+7);
     const label=`S${Math.ceil((start.getDate()+(new Date(start.getFullYear(),start.getMonth(),1).getDay()||7)-1)/7)} ${start.toLocaleDateString('fr',{month:'short'})}`;
-    weeks.push({start,end,label,load:0,sessions:0,intSum:0,minutes:0,shapeSum:0,shapeN:0});
+    weeks.push({start,end,label,load:0,sessions:0,intSum:0,minutes:0,shapeSum:0,shapeN:0,feelSum:0,feelN:0});
   }
   const rangeStart = weeks[0].start, rangeEnd = weeks[weeks.length-1].end;
   const msPerWeek = 7*24*3600*1000;
@@ -6984,8 +6986,9 @@ function weeklyData(nWeeks=16) {
     w.intSum += (l.intensity||3);
     w.minutes += (l.minutes||0);
     const sv = SHAPE_VALUE[l.shape]; if (sv) { w.shapeSum += sv; w.shapeN++; }
+    const fv = FEEL_VALUE[l.feeling]; if (fv) { w.feelSum += fv; w.feelN++; }
   });
-  return weeks.map(w=>({start:w.start,end:w.end,load:Math.round(w.load),sessions:w.sessions,avgInt:w.sessions?Math.round(w.intSum/w.sessions*10)/10:0,minutes:Math.round(w.minutes),avgShape:w.shapeN?Math.round(w.shapeSum/w.shapeN*100)/100:null,label:w.label}));
+  return weeks.map(w=>({start:w.start,end:w.end,load:Math.round(w.load),sessions:w.sessions,avgInt:w.sessions?Math.round(w.intSum/w.sessions*10)/10:0,minutes:Math.round(w.minutes),avgShape:w.shapeN?Math.round(w.shapeSum/w.shapeN*100)/100:null,avgFeel:w.feelN?Math.round(w.feelSum/w.feelN*100)/100:null,label:w.label}));
 }
 
 // Variante JOUR PAR JOUR de weeklyData() ci-dessus — même construction (bornes puis un seul passage
@@ -7001,7 +7004,7 @@ function dailyWorkloadData(nDays) {
     const start=new Date(now); start.setDate(start.getDate()-i);
     const end=new Date(start); end.setDate(end.getDate()+1);
     const label=start.toLocaleDateString('fr',{weekday:'short',day:'numeric',month:'short'});
-    days.push({start,end,label,load:0,sessions:0,intSum:0,minutes:0,shapeSum:0,shapeN:0});
+    days.push({start,end,label,load:0,sessions:0,intSum:0,minutes:0,shapeSum:0,shapeN:0,feelSum:0,feelN:0});
   }
   const rangeStart = days[0].start, rangeEnd = days[days.length-1].end;
   const msPerDay = 24*3600*1000;
@@ -7016,8 +7019,9 @@ function dailyWorkloadData(nDays) {
     day.intSum += (l.intensity||3);
     day.minutes += (l.minutes||0);
     const sv = SHAPE_VALUE[l.shape]; if (sv) { day.shapeSum += sv; day.shapeN++; }
+    const fv = FEEL_VALUE[l.feeling]; if (fv) { day.feelSum += fv; day.feelN++; }
   });
-  return days.map(d=>({start:d.start,end:d.end,load:Math.round(d.load),sessions:d.sessions,avgInt:d.sessions?Math.round(d.intSum/d.sessions*10)/10:0,minutes:Math.round(d.minutes),avgShape:d.shapeN?Math.round(d.shapeSum/d.shapeN*100)/100:null,label:d.label}));
+  return days.map(d=>({start:d.start,end:d.end,load:Math.round(d.load),sessions:d.sessions,avgInt:d.sessions?Math.round(d.intSum/d.sessions*10)/10:0,minutes:Math.round(d.minutes),avgShape:d.shapeN?Math.round(d.shapeSum/d.shapeN*100)/100:null,avgFeel:d.feelN?Math.round(d.feelSum/d.feelN*100)/100:null,label:d.label}));
 }
 
 // Badge "Repos conseillé" (cf. wl-rest-advice-line) : ≥2 jours consécutifs classés C4 (charge très
@@ -9614,7 +9618,7 @@ function renderWorkload() {
   const overlayBtn=document.getElementById('wl-vol-overlay-btn');
   if (overlayBtn) { overlayBtn.classList.toggle('active', wlShowIntensityOverlay); overlayBtn.textContent = wlShowIntensityOverlay ? '✓ Intensité' : '+ Intensité'; }
   const formBtn=document.getElementById('wl-vol-form-btn');
-  if (formBtn) { formBtn.classList.toggle('active', wlShowFormOverlay); formBtn.textContent = wlShowFormOverlay ? '✓ Forme' : '+ Forme'; }
+  if (formBtn) { formBtn.classList.toggle('active', wlShowFormOverlay); formBtn.textContent = wlShowFormOverlay ? '✓ Sensation' : '+ Sensation'; }
   const timeBtn=document.getElementById('wl-vol-time-btn');
   if (timeBtn) { timeBtn.classList.toggle('active', wlShowTimeOverlay); timeBtn.textContent = wlShowTimeOverlay ? '✓ Temps' : '+ Temps'; }
   const volLegend=document.getElementById('wl-vol-legend');
@@ -9675,32 +9679,31 @@ function renderWorkload() {
   // Retour utilisateur : "voir l'état de forme donné par l'émoticône avec le tableau des charges pour
   // pouvoir faire une analyse" — courbe de la forme moyenne déclarée (😓 1 → 🙂 2 → 💪 3) sur un axe
   // à droite, à lire en face des barres de charge : charge haute + forme qui baisse = signal à surveiller.
-  const SHAPE_COLORS = { 1: '#c4501a', 2: '#b07a10', 3: '#2d5a3d' };
-  const shapeColorFor = v => v == null ? '#999' : (v < 1.67 ? SHAPE_COLORS[1] : v < 2.34 ? SHAPE_COLORS[2] : SHAPE_COLORS[3]);
+  const FEEL_COLORS = { 1: '#6b8fa8', 2: '#2d5a3d', 3: '#2d5a3d', 4: '#b07a10', 5: '#c4501a' };
+  const feelColorFor = v => v == null ? '#999' : FEEL_COLORS[Math.min(5, Math.max(1, Math.round(v)))];
+  const feelEmojiFor = v => ['😴','🙂','🎯','😤','💀'][Math.min(5, Math.max(1, Math.round(v))) - 1];
   if (wlShowFormOverlay) {
-    const shapeVals = wData.map(w => w.avgShape);
+    const feelVals = wData.map(w => w.avgFeel);
     volDatasets.push({
-      type:'line',label:'Forme moy.',data:shapeVals,
+      type:'line',label:'Sensation moy.',data:feelVals,
       borderColor:'rgba(17,17,15,.75)',borderWidth:2,tension:.25,spanGaps:true,fill:false,order:0,yAxisID:'y3',
       pointRadius:5,pointHoverRadius:7,
-      pointBackgroundColor:shapeVals.map(shapeColorFor),pointBorderColor:'#fff',pointBorderWidth:1.5
+      pointBackgroundColor:feelVals.map(feelColorFor),pointBorderColor:'#fff',pointBorderWidth:1.5
     });
   }
-  // Message d'analyse : périodes où la charge était élevée (C3/C4) ET la forme moyenne basse.
+  // Analyse : semaines à charge élevée (C3/C4) où les séances ont été ressenties dures.
   const insightEl = document.getElementById('wl-form-insight');
   if (insightEl) {
     if (wlShowFormOverlay && !isDailyView) {
-      const flagged = wData.filter(w => w.avgShape != null && w.avgShape < 1.67 && ['c3','c4'].includes(cLevel(w.load).cls));
-      const tired = wData.filter(w => w.avgShape != null && w.avgShape < 1.67).length;
+      const flagged = wData.filter(w => w.avgFeel != null && w.avgFeel >= 3.5 && ['c3','c4'].includes(cLevel(w.load).cls));
+      const hard = wData.filter(w => w.avgFeel != null && w.avgFeel >= 3.5).length;
+      insightEl.style.display = '';
       if (flagged.length) {
-        insightEl.style.display = '';
-        insightEl.innerHTML = `😓 <strong>${flagged.length} semaine${flagged.length>1?'s':''}</strong> avec une charge élevée <em>et</em> une forme basse (${flagged.map(w => esc(w.label)).join(', ')}) — typique d'une fatigue qui s'installe : à surveiller, voire alléger.`;
-      } else if (tired) {
-        insightEl.style.display = '';
-        insightEl.innerHTML = `🙂 Forme basse sur ${tired} semaine${tired>1?'s':''}, mais sans charge particulièrement élevée sur ces périodes.`;
+        insightEl.innerHTML = `😤 <strong>${flagged.length} semaine${flagged.length>1?'s':''}</strong> avec une charge élevée <em>et</em> des séances ressenties dures (${flagged.map(w => esc(w.label)).join(', ')}) — signe de fatigue qui s'installe : à surveiller, voire alléger.`;
+      } else if (hard) {
+        insightEl.innerHTML = `🙂 Séances ressenties dures sur ${hard} semaine${hard>1?'s':''}, mais sans charge particulièrement élevée sur ces périodes.`;
       } else {
-        insightEl.style.display = '';
-        insightEl.innerHTML = `💪 Aucune semaine avec forme basse sur cette période.`;
+        insightEl.innerHTML = `🎯 Aucune semaine ressentie dure sur cette période.`;
       }
     } else {
       insightEl.style.display = 'none';
@@ -9716,14 +9719,14 @@ function renderWorkload() {
     options:{responsive:true,maintainAspectRatio:false,
       plugins:{
         legend:{display:!wlShowCharge||wlShowIntensityOverlay||wlShowTimeOverlay||wlShowFormOverlay,position:'top',labels:{boxWidth:10,font:{size:10}}},
-        tooltip:{callbacks:{label:ctx=>ctx.dataset.yAxisID==='y2'?`${ctx.dataset.label} : ${fmtHM(ctx.parsed.y)}`:ctx.dataset.yAxisID==='y3'?`${ctx.dataset.label} : ${ctx.parsed.y<1.67?'😓':ctx.parsed.y<2.34?'🙂':'💪'} (${ctx.parsed.y.toFixed(1)}/3)`:`${ctx.dataset.label} : ${ctx.parsed.y}`}}
+        tooltip:{callbacks:{label:ctx=>ctx.dataset.yAxisID==='y2'?`${ctx.dataset.label} : ${fmtHM(ctx.parsed.y)}`:ctx.dataset.yAxisID==='y3'?`${ctx.dataset.label} : ${feelEmojiFor(ctx.parsed.y)} (${ctx.parsed.y.toFixed(1)}/5)`:`${ctx.dataset.label} : ${ctx.parsed.y}`}}
       },
       scales:{
         x:{grid:{display:false},ticks:{font:{size:9},maxTicksLimit:8}},
         y:{display:wlShowCharge,grid:{color:'rgba(0,0,0,.05)'},ticks:{font:{size:10}}},
         y1:{display:wlShowIntensityOverlay,position:'right',min:0,max:5,grid:{display:false},ticks:{stepSize:1,font:{size:10}}},
         y2:{display:wlShowTimeOverlay,position:'right',grid:{display:false},ticks:{font:{size:10},callback:v=>fmtHM(v)}},
-        y3:{display:wlShowFormOverlay,position:'right',min:0.5,max:3.5,grid:{display:false},ticks:{stepSize:1,font:{size:14},callback:v=>v===1?'😓':v===2?'🙂':v===3?'💪':''}}
+        y3:{display:wlShowFormOverlay,position:'right',min:0.5,max:5.5,grid:{display:false},ticks:{stepSize:1,font:{size:14},callback:v=>({1:'😴',2:'🙂',3:'🎯',4:'😤',5:'💀'})[v]||''}}
       }
     }
   });
