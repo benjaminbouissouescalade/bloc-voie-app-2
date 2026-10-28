@@ -72,7 +72,7 @@ test('forme absente ou inconnue : ignorée plutôt que comptée comme 0', () => 
   assert.equal(days[days.length - 2].avgShape, null);
 });
 
-test('sensation de fin de séance : moyenne 1 (trop facile) à 5 (trop dure) par jour', () => {
+test('sensation de fin de séance : moyenne par jour, 1 = trop dure (courbe en bas) … 5 = trop facile', () => {
   const src = source;
   const ctx = vm.createContext({ Date, Math, getLogs: () => [
     { date: daysAgo(1), feeling: 'hard', load: 100 },
@@ -82,7 +82,7 @@ test('sensation de fin de séance : moyenne 1 (trop facile) à 5 (trop dure) par
   ], sessionLoad: l => l.load });
   vm.runInContext(src, ctx);
   const days = ctx.dailyWorkloadData(7);
-  assert.equal(days[days.length - 2].avgFeel, 4.5);
+  assert.equal(days[days.length - 2].avgFeel, 1.5);
   assert.equal(days[days.length - 3].avgFeel, 3);
   assert.equal(days[days.length - 4].avgFeel, null);
 });
