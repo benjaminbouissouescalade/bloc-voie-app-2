@@ -27,6 +27,7 @@ function extractStatement(marker) {
 }
 const source = [
   extractStatement('const SHAPE_VALUE ='),
+  extractStatement('const FEEL_VALUE ='),
   extractFunction('function weeklyData('),
   extractFunction('function dailyWorkloadData('),
 ].join('\n');
@@ -69,4 +70,19 @@ test('forme absente ou inconnue : ignorée plutôt que comptée comme 0', () => 
   const ctx = ctxWith([{ date: daysAgo(1), load: 100 }, { date: daysAgo(1), shape: 'bizarre', load: 100 }]);
   const days = ctx.dailyWorkloadData(3);
   assert.equal(days[days.length - 2].avgShape, null);
+});
+
+test('sensation de fin de séance : moyenne 1 (trop facile) à 5 (trop dure) par jour', () => {
+  const src = source;
+  const ctx = vm.createContext({ Date, Math, getLogs: () => [
+    { date: daysAgo(1), feeling: 'hard', load: 100 },
+    { date: daysAgo(1), feeling: 'too_hard', load: 100 },
+    { date: daysAgo(2), feeling: 'right', load: 100 },
+    { date: daysAgo(3), feeling: 'inconnu', load: 100 },
+  ], sessionLoad: l => l.load });
+  vm.runInContext(src, ctx);
+  const days = ctx.dailyWorkloadData(7);
+  assert.equal(days[days.length - 2].avgFeel, 4.5);
+  assert.equal(days[days.length - 3].avgFeel, 3);
+  assert.equal(days[days.length - 4].avgFeel, null);
 });
