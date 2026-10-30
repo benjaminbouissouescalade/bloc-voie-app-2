@@ -7584,7 +7584,8 @@ function renderDashboard() {
   });
 
   // Recent sessions
-  const recent=getLogs().slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0,4);
+  // Séances faites uniquement : les séances prévues (planned) ont leur place dans le calendrier, pas ici.
+  const recent=getLogs().filter(l=>!l.planned).slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0,4);
   const rEl=document.getElementById('recent-sessions');
   // Retour utilisateur : "Chloé a rien rentré et pourtant elle a des séances par répartition type"
   // — le `return;` ici sortait de TOUTE la fonction renderDashboard() dès qu'un profil n'avait
