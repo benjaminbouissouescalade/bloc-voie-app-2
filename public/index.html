@@ -13962,6 +13962,10 @@ function updateSessionTypeUI(savedBNoGrade) {
       <div class="form-group" style="margin:0 0 12px">
         <label class="form-label">Poids de référence (100%)</label>
         <input class="form-control" type="number" min="0" step="0.1" id="s-finger-refweight" value="${climberForRef?.profile?.fingerRefWeightKg || ''}" placeholder="Ex. 42" oninput="onFingerRefWeightChange()">
+        <select class="form-control" id="s-finger-refmode" style="margin-top:6px;font-size:12.5px" onchange="onFingerRefWeightChange()">
+          <option value="both" ${climberForRef?.profile?.fingerRefHandMode !== 'one' ? 'selected' : ''}>Référence mesurée à deux mains</option>
+          <option value="one" ${climberForRef?.profile?.fingerRefHandMode === 'one' ? 'selected' : ''}>Référence mesurée à une main</option>
+        </select>
         <div id="s-finger-refweight-hint" style="font-size:11px;color:var(--muted);margin-top:4px">Repris automatiquement de ton dernier test SmartBoard si disponible, sinon à saisir toi-même — reste modifiable à tout moment, pour toutes tes séances doigts.</div>
       </div>
       <div id="s-finger-series-editor"></div>
@@ -14788,9 +14792,20 @@ function fingerRefWeight() {
 // donc comparer un poids soulevé à UNE main directement à cette référence gonflait artificiellement
 // le déficit affiché. Approximation retenue (retour utilisateur) : référence à une main = moitié de
 // la référence à deux mains. Utilisé partout où le % d'une série est calculé (éditeur + charge).
+// Retour utilisateur (Agathe) : max de 15 kg mesuré à UNE main, séance à 12 kg → 160 % au lieu de 80 % :
+// l'appli supposait toujours une référence à deux mains. Le grimpeur indique maintenant comment sa
+// référence a été mesurée (#s-finger-refmode, enregistré sur son profil) : 'both' (défaut, comportement
+// historique) ou 'one' (la référence vaut déjà pour une main, une série à deux mains compte le double).
+function fingerRefMode() {
+  const el = document.getElementById('s-finger-refmode');
+  if (el) return el.value === 'one' ? 'one' : 'both';
+  return getActive()?.profile?.fingerRefHandMode === 'one' ? 'one' : 'both';
+}
 function fingerRefWeightForHand(hand) {
   const rw = fingerRefWeight();
-  return (hand === 'left' || hand === 'right') ? rw / 2 : rw;
+  const oneHand = (hand === 'left' || hand === 'right');
+  if (fingerRefMode() === 'one') return oneHand ? rw : rw * 2;
+  return oneHand ? rw / 2 : rw;
 }
 // Persiste le poids de référence sur le PROFIL du grimpeur (pas sur la séance : c'est un attribut
 // du grimpeur, valable pour toutes ses séances doigts, comme profile.levelBloc) dès qu'il est
@@ -14800,6 +14815,7 @@ function onFingerRefWeightChange() {
   if (climber) {
     if (!climber.profile) climber.profile = {};
     climber.profile.fingerRefWeightKg = fingerRefWeight() || null;
+    climber.profile.fingerRefHandMode = fingerRefMode();
     saveDB();
   }
   const hint = document.getElementById('s-finger-refweight-hint');
