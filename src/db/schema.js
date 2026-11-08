@@ -97,6 +97,11 @@ async function initDB() {
       -- médical, juste un signal pour que le coach en tienne compte dans la suite du plan.
       ALTER TABLE logs ADD COLUMN IF NOT EXISTS injury BOOLEAN DEFAULT false;
       ALTER TABLE logs ADD COLUMN IF NOT EXISTS injury_note TEXT DEFAULT '';
+      -- Commentaire libre PRIVÉ de l'athlète sur sa séance (ressenti, détails...). Jamais renvoyé à
+      -- un autre compte que le sien (cf. GET /api/logs/:climberId). S'il choisit "Envoyer au coach",
+      -- le texte part dans le fil comments (visible du coach) et personal_note_shared passe à true.
+      ALTER TABLE logs ADD COLUMN IF NOT EXISTS personal_note TEXT DEFAULT '';
+      ALTER TABLE logs ADD COLUMN IF NOT EXISTS personal_note_shared BOOLEAN DEFAULT false;
       -- Nom libre pour une séance de type "Autre" (retour : "quand on met autre il faudrait pouvoir
       -- nommer la séance et que le nom soit visible dans le calendrier") — affiché à la place du
       -- libellé générique "Autre" partout où on montre une séance individuelle (cf.
