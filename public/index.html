@@ -1599,6 +1599,16 @@ input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer;
             <textarea class="form-control" id="s-injury-note" placeholder="Où, depuis quand, ça fait quoi… (facultatif)" rows="2"></textarea>
           </div>
         </div>
+        <!-- Commentaire libre PRIVÉ de l'athlète (retour : "Lisa ne peut pas noter ce qu'elle veut") :
+             ressenti, détails, etc. Reste personnel tant qu'il n'est pas envoyé au coach. -->
+        <div class="form-group" id="s-personal-note-group">
+          <label class="form-label">📝 Mon commentaire</label>
+          <textarea class="form-control" id="s-personal-note" rows="3" placeholder="Ressenti, sensations, détails de ta séance… (privé, visible par toi seul)"></textarea>
+          <div style="display:flex;align-items:center;gap:10px;margin-top:6px;flex-wrap:wrap">
+            <button type="button" class="btn sm" id="s-personal-note-send" onclick="sendPersonalNoteToCoach()">📤 Envoyer au coach</button>
+            <span id="s-personal-note-status" style="font-size:11.5px;color:var(--muted)">Privé tant que tu ne l'envoies pas à ton coach.</span>
+          </div>
+        </div>
         <div class="form-group" id="s-notes-group">
           <label class="form-label">Note du coach</label>
           <textarea class="form-control" id="s-notes" placeholder="Retour, consignes pour la suite…"></textarea>
@@ -14476,9 +14486,58 @@ function applyPlanningView(log) {
 // ce panneau exigeait un log déjà enregistré en base pour s'afficher. Voir
 // ensureSessionSavedThenComment(), qui enregistre la séance en silence dès le premier commentaire
 // envoyé si elle n'existe pas encore.
+function isOwnSessionProfile() {
+  return !!getActive() && getActive().id === window.currentUser?.climberId;
+}
+// Commentaire libre privé (#s-personal-note) : visible seulement pour l'athlète sur SES séances,
+// pas en planification. Une fois envoyé au coach il passe en lecture seule et le bouton disparaît.
+function renderPersonalNote(log) {
+  const group = document.getElementById('s-personal-note-group');
+  if (!group) return;
+  const show = isOwnSessionProfile() && !isPlanningView(log);
+  group.style.display = show ? '' : 'none';
+  const ta = document.getElementById('s-personal-note');
+  const btn = document.getElementById('s-personal-note-send');
+  const status = document.getElementById('s-personal-note-status');
+  if (ta) { ta.value = log?.personalNote || ''; ta.readOnly = !!log?.personalNoteShared; }
+  if (btn) btn.style.display = log?.personalNoteShared ? 'none' : '';
+  if (status) status.textContent = log?.personalNoteShared
+    ? '✓ Envoyé à ton coach — la suite de l\'échange est dans les commentaires ci-dessous.'
+    : 'Privé tant que tu ne l\'envoies pas à ton coach.';
+}
+async function sendPersonalNoteToCoach() {
+  const ta = document.getElementById('s-personal-note');
+  const message = (ta?.value || '').trim();
+  if (!message) { alert('Écris d\'abord ton commentaire.'); return; }
+  let logId = document.getElementById('edit-log-id').value;
+  if (!logId) { logId = await ensureSessionSavedThenComment(); if (!logId) return; }
+  const climberId = getActive()?.id;
+  if (!climberId) return;
+  try {
+    const res = await fetch(`/api/logs/${climberId}/${logId}/comments`, {
+      method: 'POST', headers: authHeaders(), body: JSON.stringify({ message })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erreur');
+    const log = getLogs().find(l => l.id === logId);
+    if (log) {
+      log.comments = data.comments;
+      log.personalNote = message;
+      log.personalNoteShared = true;
+      log.clientUpdatedAt = Date.now();
+      saveDB();
+    }
+    renderPersonalNote(log);
+    renderSessionComments(log);
+  } catch (e) {
+    alert('Erreur : ' + e.message);
+  }
+}
+window.sendPersonalNoteToCoach = sendPersonalNoteToCoach;
 function renderSessionComments(log) {
   const panel = document.getElementById('s-comments-panel');
   const listEl = document.getElementById('s-comments-list');
+  renderPersonalNote(log);
   if (!panel || !listEl) return;
   // Retour utilisateur : "quand on valide une séance planifiée il n'y a pas l'encart commentaire"
   // — ce panneau se basait sur log.planned SEUL, sans regarder la date comme le fait isPlanningView()
@@ -14497,6 +14556,11 @@ function renderSessionComments(log) {
       <div style="font-size:13px">${esc(c.message)}</div>
     </div>`;
   }).join('') : '<p style="font-size:12px;color:var(--muted)">Aucun commentaire pour l\'instant.</p>';
+  // L'athlète écrit d'abord dans "Mon commentaire" (+ bouton "Envoyer au coach") : le champ de
+  // réponse rapide n'apparaît que pour répondre à un échange déjà ouvert, ou pour un coach.
+  const inputEl = document.getElementById('s-comment-input');
+  const canReply = !isOwnSessionProfile() || comments.length > 0 || !!log?.personalNoteShared;
+  if (inputEl && inputEl.parentElement) inputEl.parentElement.style.display = canReply ? 'flex' : 'none';
 }
 
 // Checklist d'une fiche banque type "Voies par niveau" / "Bloc par couleur" (cf. sb-checklist-*
@@ -15298,6 +15362,10 @@ function saveCurrentSession() {
     customName: sType === 'autre' ? fieldStr('s-custom-name') : '',
     support:fieldStr('s-support'),
     notes:fieldStr('s-notes'),
+    // Commentaire libre privé : uniquement sur son propre profil ; un coach qui édite la séance
+    // d'un athlète ne reçoit jamais ce texte (le serveur le masque) et ne doit pas l'écraser.
+    ...(isOwnSessionProfile() ? { personalNote: fieldStr('s-personal-note') } : {}),
+    ...(existingLog?.personalNoteShared ? { personalNoteShared: true } : {}),
     injury:!!document.getElementById('s-injury').checked,
     injuryNote:fieldStr('s-injury-note'),
     ascents:JSON.parse(JSON.stringify(sessionAscents)),
