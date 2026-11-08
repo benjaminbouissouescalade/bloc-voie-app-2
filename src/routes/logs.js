@@ -85,6 +85,9 @@ router.get('/:climberId', async (req, res) => {
       comments: r.comments || [],
       injury: !!r.injury,
       injuryNote: r.injury_note || '',
+      // Commentaire libre privé : renvoyé uniquement à son auteur (jamais au coach ni aux partenaires).
+      personalNote: String(req.user?.climberId) === String(req.params.climberId) ? (r.personal_note || '') : undefined,
+      personalNoteShared: !!r.personal_note_shared,
       customName: r.custom_name || '',
       checklistDone: r.checklist_done || [],
       feeling: r.feeling || '',
@@ -136,25 +139,26 @@ router.post('/:climberId/:logId/comments', async (req, res) => {
 // stocké, l'UPDATE est silencieusement ignoré (la ligne existante n'est pas touchée) et rows[0] est
 // alors vide — d'où le fallback sur l'id du payload plutôt que rows[0].id.
 router.post('/:climberId', async (req, res) => {
-  const { id, date, type, support, minutes, intensity, shape, location, notes, ascents, bNoGrade, planned, bankRef, cycleId, cycleName, source, assignedByCoachId, flexGoal, objectiveId, injury, injuryNote, customName, checklistDone, feeling, clientUpdatedAt } = req.body;
+  const { id, date, type, support, minutes, intensity, shape, location, notes, ascents, bNoGrade, planned, bankRef, cycleId, cycleName, source, assignedByCoachId, flexGoal, objectiveId, injury, injuryNote, customName, checklistDone, feeling, personalNote, personalNoteShared, clientUpdatedAt } = req.body;
   if (!id || !date) return res.status(400).json({ error: 'id et date requis' });
   try {
     const denial = await checkPlannedWriteAllowed(req, !!planned);
     if (denial) return res.status(403).json(denial);
     const { rows } = await pool.query(
-      `INSERT INTO logs (id, climber_id, date, type, support, minutes, intensity, shape, location, notes, ascents, b_no_grade, planned, bank_ref, cycle_id, cycle_name, source, assigned_by_coach_id, flex_goal, objective_id, injury, injury_note, custom_name, checklist_done, feeling, client_updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
+      `INSERT INTO logs (id, climber_id, date, type, support, minutes, intensity, shape, location, notes, ascents, b_no_grade, planned, bank_ref, cycle_id, cycle_name, source, assigned_by_coach_id, flex_goal, objective_id, injury, injury_note, custom_name, checklist_done, feeling, client_updated_at, personal_note, personal_note_shared)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, COALESCE($27, ''), COALESCE($28, false))
        ON CONFLICT (id) DO UPDATE SET
          date=$3, type=$4, support=$5, minutes=$6, intensity=$7, shape=$8,
          location=$9, notes=$10, ascents=$11, b_no_grade=$12, planned=$13, bank_ref=$14, cycle_id=$15, cycle_name=$16,
-         source=$17, assigned_by_coach_id=$18, flex_goal=$19, objective_id=$20, injury=$21, injury_note=$22, custom_name=$23, checklist_done=$24, feeling=$25, client_updated_at=$26, updated_at=NOW()
+         source=$17, assigned_by_coach_id=$18, flex_goal=$19, objective_id=$20, injury=$21, injury_note=$22, custom_name=$23, checklist_done=$24, feeling=$25, client_updated_at=$26, personal_note=COALESCE($27, logs.personal_note), personal_note_shared=COALESCE($28, logs.personal_note_shared), updated_at=NOW()
        WHERE $26 >= logs.client_updated_at
        RETURNING *`,
       [id, req.params.climberId, date, type, support||'', minutes||90, intensity||3,
        shape||'normal', location||'', notes||'',
        JSON.stringify(ascents||[]), JSON.stringify(bNoGrade||{}), !!planned, bankRef||null,
        cycleId||null, cycleName||null, source||'self', assignedByCoachId||null, flexGoal||null, objectiveId||null,
-       !!injury, injuryNote||'', customName||'', JSON.stringify(checklistDone||[]), feeling||'', clientUpdatedAt||0]
+       !!injury, injuryNote||'', customName||'', JSON.stringify(checklistDone||[]), feeling||'', clientUpdatedAt||0,
+       typeof personalNote === 'string' ? personalNote : null, typeof personalNoteShared === 'boolean' ? personalNoteShared : null]
     );
     res.json({ ok: true, id: rows[0]?.id || id });
   } catch (err) {
@@ -281,13 +285,13 @@ router.post('/:climberId/sync', async (req, res) => {
       await client.query('SAVEPOINT one_log');
       try {
       const result = await client.query(
-        `INSERT INTO logs (id, climber_id, date, type, support, minutes, intensity, shape, location, notes, ascents, b_no_grade, planned, bank_ref, cycle_id, cycle_name, source, assigned_by_coach_id, flex_goal, objective_id, injury, injury_note, custom_name, checklist_done, feeling, client_updated_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
+        `INSERT INTO logs (id, climber_id, date, type, support, minutes, intensity, shape, location, notes, ascents, b_no_grade, planned, bank_ref, cycle_id, cycle_name, source, assigned_by_coach_id, flex_goal, objective_id, injury, injury_note, custom_name, checklist_done, feeling, client_updated_at, personal_note, personal_note_shared)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26, COALESCE($27, ''), COALESCE($28, false))
          ON CONFLICT (id) DO UPDATE SET
            date=$3, type=$4, support=$5, minutes=$6, intensity=$7, shape=$8,
            location=$9, notes=$10, ascents=$11, b_no_grade=$12, planned=$13, bank_ref=$14,
            cycle_id=$15, cycle_name=$16, source=$17, assigned_by_coach_id=$18, flex_goal=$19,
-           objective_id=$20, injury=$21, injury_note=$22, custom_name=$23, checklist_done=$24, feeling=$25, client_updated_at=$26, updated_at=NOW()
+           objective_id=$20, injury=$21, injury_note=$22, custom_name=$23, checklist_done=$24, feeling=$25, client_updated_at=$26, personal_note=COALESCE($27, logs.personal_note), personal_note_shared=COALESCE($28, logs.personal_note_shared), updated_at=NOW()
          WHERE $26 >= logs.client_updated_at
          RETURNING id, deleted, client_updated_at, (xmax = 0) AS inserted`,
         [log.id, req.params.climberId, log.date, log.type, log.support||'',
@@ -296,7 +300,8 @@ router.post('/:climberId/sync', async (req, res) => {
          JSON.stringify(log.ascents||[]), JSON.stringify(log.bNoGrade||{}),
          !!log.planned, log.bankRef||null, log.cycleId||null, log.cycleName||null,
          log.source||'self', log.assignedByCoachId||null, log.flexGoal||null, log.objectiveId||null,
-         !!log.injury, log.injuryNote||'', log.customName||'', JSON.stringify(log.checklistDone||[]), log.feeling||'', log.clientUpdatedAt||0]
+         !!log.injury, log.injuryNote||'', log.customName||'', JSON.stringify(log.checklistDone||[]), log.feeling||'', log.clientUpdatedAt||0,
+         typeof log.personalNote === 'string' ? log.personalNote : null, typeof log.personalNoteShared === 'boolean' ? log.personalNoteShared : null]
       );
       await client.query('RELEASE SAVEPOINT one_log');
       } catch (logErr) {
