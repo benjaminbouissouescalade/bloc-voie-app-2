@@ -18,9 +18,23 @@ async function initDB() {
         created_at  TIMESTAMPTZ DEFAULT NOW()
       );
       ALTER TABLE users ADD COLUMN IF NOT EXISTS climber_id TEXT;
+      -- Révocation des JWT après changement de mot de passe (audit sécurité) : un token émis avant
+      -- ce timestamp est refusé par requireAuth (cf. middleware/auth.js), même s'il n'a pas encore
+      -- expiré (30 jours de validité par défaut). NULL par défaut — donc aucun compte existant n'est
+      -- déconnecté de force au déploiement de cette colonne ; seul un changement de mot de passe
+      -- FUTUR (change-password / admin-reset-password) la renseigne et invalide les tokens en cours
+      -- à partir de ce moment-là.
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMPTZ;
       -- Modèle de rôles owner/coach/athlete : l'ancien rôle unique "admin" (= coach unique de
       -- l'app à l'origine) devient "owner". Idempotent : sans ligne 'admin' restante, no-op.
       UPDATE users SET role = 'owner' WHERE role = 'admin';
+      -- Un seul owner possible dans tout le déploiement (bootstrap : le tout premier compte créé,
+      -- cf. POST /api/auth/register). Avant cet index, deux inscriptions concurrentes juste après
+      -- un déploiement neuf pouvaient toutes les deux voir "0 compte existant" et devenir owner
+      -- (race condition classique vérifier-puis-écrire, sans aucune barrière côté base). L'index
+      -- unique partiel fait respecter la règle de façon atomique : la deuxième insertion échoue
+      -- avec une violation de contrainte plutôt que de créer un second owner.
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_users_single_owner ON users(role) WHERE role = 'owner';
       CREATE TABLE IF NOT EXISTS climbers (
         id          TEXT PRIMARY KEY,
         name        TEXT NOT NULL,
@@ -83,6 +97,11 @@ async function initDB() {
       -- médical, juste un signal pour que le coach en tienne compte dans la suite du plan.
       ALTER TABLE logs ADD COLUMN IF NOT EXISTS injury BOOLEAN DEFAULT false;
       ALTER TABLE logs ADD COLUMN IF NOT EXISTS injury_note TEXT DEFAULT '';
+      -- Commentaire libre PRIVÉ de l'athlète sur sa séance (ressenti, détails...). Jamais renvoyé à
+      -- un autre compte que le sien (cf. GET /api/logs/:climberId). S'il choisit "Envoyer au coach",
+      -- le texte part dans le fil comments (visible du coach) et personal_note_shared passe à true.
+      ALTER TABLE logs ADD COLUMN IF NOT EXISTS personal_note TEXT DEFAULT '';
+      ALTER TABLE logs ADD COLUMN IF NOT EXISTS personal_note_shared BOOLEAN DEFAULT false;
       -- Nom libre pour une séance de type "Autre" (retour : "quand on met autre il faudrait pouvoir
       -- nommer la séance et que le nom soit visible dans le calendrier") — affiché à la place du
       -- libellé générique "Autre" partout où on montre une séance individuelle (cf.
@@ -98,6 +117,28 @@ async function initDB() {
       -- de l'intensité déjà saisie dans le formulaire). Valeurs : too_easy/easy/right/hard/too_hard,
       -- vide si jamais répondu (l'athlète peut passer).
       ALTER TABLE logs ADD COLUMN IF NOT EXISTS feeling TEXT DEFAULT '';
+      -- Retour utilisateur : "des séances de la semaine passée sont passées en prévisionnel" (Gilles,
+      -- Lisa, et une autre athlète, indépendamment) — cause : syncToBackend() (frontend) republie
+      -- TOUS les logs de TOUS les grimpeurs connus du navigateur à CHAQUE saveDB(), même pour une
+      -- action sans rapport. Un onglet resté ouvert longtemps (donc avec un état local périmé pour un
+      -- grimpeur donné) republie alors sans le savoir sa copie périmée — et jusqu'ici POST
+      -- /:climberId/sync et POST /:climberId faisaient un upsert INCONDITIONNEL par id : la copie
+      -- périmée écrasait purement et simplement la version plus récente déjà en base (ex. planned
+      -- true→ré-écrasé à true alors que la séance avait été faite entre-temps depuis un autre
+      -- appareil). client_updated_at est une estampille posée CÔTÉ CLIENT à chaque modification
+      -- réelle d'une séance (pas à chaque sync) : les deux routes n'appliquent désormais la mise à
+      -- jour que si la valeur envoyée est >= à celle déjà stockée, pour qu'un envoi périmé ne puisse
+      -- plus jamais écraser un envoi plus récent.
+      ALTER TABLE logs ADD COLUMN IF NOT EXISTS client_updated_at BIGINT DEFAULT 0;
+      -- Suite du correctif ci-dessus, retour utilisateur : "elle a supprimé la séance et elle est
+      -- réapparue" — un vrai DELETE ne laisse plus rien en base pour comparer client_updated_at : un
+      -- AUTRE appareil/onglet qui avait encore cette séance en mémoire (jamais rafraîchi depuis) la
+      -- réinsère telle quelle au prochain sync, puisqu'il n'y a plus de ligne en conflit pour bloquer
+      -- l'upsert. Fix : suppression "douce" (DELETE /api/logs/:climberId/:logId ne fait plus qu'un
+      -- UPDATE deleted=true avec un client_updated_at très récent, cf. logs.js) — la ligne continue
+      -- d'exister, donc la garde de fraîcheur déjà en place sur l'upsert bloque désormais aussi la
+      -- résurrection ; GET ne renvoie jamais une ligne supprimée aux clients.
+      ALTER TABLE logs ADD COLUMN IF NOT EXISTS deleted BOOLEAN DEFAULT false;
       CREATE INDEX IF NOT EXISTS idx_logs_climber_date ON logs(climber_id, date DESC);
       CREATE TABLE IF NOT EXISTS session_bank (
         id          TEXT PRIMARY KEY,
@@ -165,6 +206,21 @@ async function initDB() {
       ALTER TABLE session_bank ADD COLUMN IF NOT EXISTS timer_series INTEGER DEFAULT 0;
       ALTER TABLE session_bank ADD COLUMN IF NOT EXISTS timer_reps INTEGER DEFAULT 0;
       ALTER TABLE session_bank ADD COLUMN IF NOT EXISTS timer_series_rest_sec INTEGER DEFAULT 0;
+      -- Retour utilisateur : "enlever la valorisation de la charge par le temps sur les exercices
+      -- de force doigts et plutôt le faire par le nombre de répétitions et séries et le
+      -- pourcentage" + "avoir quand cela vient de la mine l'ensemble pré-rempli que l'utilisateur
+      -- peut modifier" — valeurs par défaut séries/répétitions/% du max pour une fiche de type
+      -- 'doigts', reprises lors du choix de la fiche dans une séance (cf. pickPpgBankFiche côté
+      -- client). 0 partout (valeur par défaut) = fiche sans valeurs par défaut, comportement
+      -- inchangé pour toute fiche existante ou d'un autre type.
+      ALTER TABLE session_bank ADD COLUMN IF NOT EXISTS finger_sets INTEGER DEFAULT 0;
+      ALTER TABLE session_bank ADD COLUMN IF NOT EXISTS finger_reps INTEGER DEFAULT 0;
+      ALTER TABLE session_bank ADD COLUMN IF NOT EXISTS finger_pct INTEGER DEFAULT 0;
+      -- Préhension par défaut (tendu/semi-arqué/arqué, cf. GRIP_TYPES côté client, déjà utilisé par
+      -- les tests SmartBoard/réglette) associée à la prescription séries/répétitions/% ci-dessus.
+      -- '' = non renseigné (fiche créée avant ce changement, ou d'un autre type) ; le client retombe
+      -- alors sur 'tendu' par défaut.
+      ALTER TABLE session_bank ADD COLUMN IF NOT EXISTS finger_grip TEXT DEFAULT '';
       -- Backfill unique : les fiches créées AVANT ce cloisonnement n'ont pas de propriétaire connu
       -- — on les attribue au premier compte owner trouvé (ne change rien à leur visibilité, déjà
       -- 'shared' par défaut, donc personne ne perd l'accès à sa bibliothèque existante) plutôt que
@@ -263,11 +319,36 @@ async function initDB() {
       -- Mode de planification par relation coach-athlète (voir section "coexistence planification
       -- coach/athlète") : free = l'athlète gère librement, shared = les deux peuvent planifier
       -- (comportement historique, donc valeur par défaut), coach_only = le coach contrôle le
-      -- prévisionnel. Appliqué côté interface uniquement pour l'instant — pas un verrou serveur,
-      -- car les séances sont sauvegardées via un remplacement complet de l'historique
-      -- (POST /api/logs/:climberId/sync), qui ne permet pas de distinguer "nouvelle séance
-      -- ajoutée par l'athlète" au niveau de la requête.
+      -- prévisionnel. Désormais vérifié aussi côté SERVEUR (pas seulement dans l'interface) pour les
+      -- séances qui restent planifiées — voir checkPlannedWriteAllowed() dans src/routes/logs.js et
+      -- la logique commune src/lib/planningMode.js. L'ancienne limite documentée ici ("remplacement
+      -- complet de l'historique via /sync, impossible de distinguer une séance précise") ne tient
+      -- plus depuis que /sync fait un upsert par id (voir le commentaire au-dessus de cette route) :
+      -- chaque séance du batch peut désormais être acceptée ou rejetée individuellement.
       ALTER TABLE coach_athletes ADD COLUMN IF NOT EXISTS planning_mode TEXT DEFAULT 'shared';
+      -- La clé primaire (coach_id, climber_id) sert déjà bien les recherches "athlètes de CE coach"
+      -- (climbers.js, coachFeed.js), mais plusieurs endroits interrogent dans l'autre sens — "quel(s)
+      -- coach(s) a CE climber_id" (bank.js visibilité privée par coach, auth.js) — sans pouvoir
+      -- s'appuyer sur cette clé (climber_id n'est pas la colonne de tête). Index dédié, peu coûteux
+      -- vu la taille de la table, mais évite un scan complet à chaque appel.
+      CREATE INDEX IF NOT EXISTS idx_coach_athletes_climber ON coach_athletes(climber_id);
+      -- Vue coach "exceptions" (page "Mes athlètes") : plutôt que d'ouvrir le profil de chaque
+      -- athlète un par un, le coach voit d'emblée les cas qui méritent son attention (séance
+      -- planifiée jamais faite, douleur signalée récemment, forte hausse de charge, objectif sans
+      -- progrès) — calculées CÔTÉ CLIENT à partir des données déjà chargées (voir
+      -- computeCoachExceptions() dans public/index.html), donc rien à stocker pour les exceptions
+      -- elles-mêmes. Cette table ne retient que ce qui EST propre au serveur : quelles exceptions ce
+      -- coach a déjà explicitement marquées "Vu" (bouton dédié), pour qu'elles ne réapparaissent pas
+      -- à chaque connexion ni sur un autre appareil. exception_key encode le type + l'entité
+      -- concernée (ex. "missed:log_123", "load:c_45:2026-09-21") : une nouvelle occurrence du même
+      -- type sur une entité différente (nouvelle semaine, nouvelle séance...) a une clé différente et
+      -- réapparaît normalement — voir le commentaire sur computeCoachExceptions() pour le détail.
+      CREATE TABLE IF NOT EXISTS exception_dismissals (
+        coach_id       TEXT NOT NULL,
+        exception_key  TEXT NOT NULL,
+        dismissed_at   TIMESTAMPTZ DEFAULT NOW(),
+        PRIMARY KEY (coach_id, exception_key)
+      );
       CREATE TABLE IF NOT EXISTS plans (
         climber_id  TEXT PRIMARY KEY REFERENCES climbers(id) ON DELETE CASCADE,
         coach_id    TEXT,
@@ -429,6 +510,23 @@ async function initDB() {
       CREATE INDEX IF NOT EXISTS idx_crew_members_climber ON crew_members(climber_id);
       CREATE INDEX IF NOT EXISTS idx_crew_activity_crew ON crew_activity(crew_id, created_at DESC);
       CREATE INDEX IF NOT EXISTS idx_crew_kudos_lookup ON crew_kudos(crew_id, to_climber_id, week_start);
+      -- Un seul kudos actif par (crew, expéditeur, destinataire, semaine) : le frontend masque déjà
+      -- le bouton une fois le kudos donné cette semaine-là, mais rien ne l'empêchait côté serveur —
+      -- un appel direct répété à POST /:crewId/kudos pouvait empiler des kudos en boucle vers le
+      -- même coéquipier la même semaine. Dédoublonnage (garde la ligne la plus ancienne de chaque
+      -- groupe) avant d'ajouter la contrainte, au cas où des doublons existent déjà en base.
+      DELETE FROM crew_kudos a WHERE EXISTS (
+        SELECT 1 FROM crew_kudos b
+        WHERE b.crew_id = a.crew_id AND b.from_climber_id = a.from_climber_id
+          AND b.to_climber_id = a.to_climber_id AND b.week_start = a.week_start
+          AND b.ctid > a.ctid
+      );
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'crew_kudos_week_unique') THEN
+          ALTER TABLE crew_kudos ADD CONSTRAINT crew_kudos_week_unique
+            UNIQUE (crew_id, from_climber_id, to_climber_id, week_start);
+        END IF;
+      END $$;
 
       -- Défi collectif mensuel : un objectif chiffré par crew et par mois, la progression
       -- d'équipe est la somme des progressions individuelles (mêmes métriques que les
@@ -590,6 +688,17 @@ async function initDB() {
         subcategory TEXT,
         created_at  TIMESTAMPTZ DEFAULT NOW(),
         UNIQUE(category, subcategory)
+      );
+
+      -- Tags "styles travaillés" ajoutés à la volée (case "+ Autre…" du picker Tags dans l'éditeur
+      -- de fiche) en plus de la liste fixe STYLES côté frontend. Même principe que
+      -- bank_taxonomy_custom juste au-dessus : table globale, un tag ajouté par un coach devient
+      -- disponible en permanence pour tout le monde — retour utilisateur : "une case Autre à Tag
+      -- avec la possibilité... de le mettre à demeure pour la mine du coach".
+      CREATE TABLE IF NOT EXISTS bank_tags_custom (
+        id          SERIAL PRIMARY KEY,
+        name        TEXT NOT NULL UNIQUE,
+        created_at  TIMESTAMPTZ DEFAULT NOW()
       );
     `);
     console.log('✅ Base de données initialisée');
